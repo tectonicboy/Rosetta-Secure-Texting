@@ -1,0 +1,76 @@
+TUTORIAL How to configure your own website + webserver on a Linux VM in VirtualBox
+
+1. Make an account in no-ip or another DDNS provider. Create yourself a website link there.
+   Something ending in .ddns.net or something else that looks legit.
+
+2. Go to your router's Dynamic DNS settings (open the router's settings in browser by typing
+   something like 192.168.0.1 or look if its written on the router. Login is often "admin admin".)
+   Then enter your login credentials for the DDNS provider's website (the account you made).
+   For domain name, enter that URL you created in the DDNS website.
+   Login and make sure the router setting says Connection Status: Success or something similar.
+
+3. In the VM, go to Network Settings (or hover over the little networks icon) 
+   and select Connect a Network Adapter, select Bridge Adapter,
+   for cable connection select Ethernet controller, for WiFi select WiFi controller, then 
+   (maybe in Advanced settings)
+   enable Promiscous mode, and select or tick the box for "Cable is Connected".
+   This may give the VM a new MAC address, so restart the VM (and your router just in case).
+   After everything's back up and running, check the VM to make sure the settings have saved.
+
+4. Go to DHCP in your router's settings again and look at Clients List 
+   (or in cmd issue "getmac /v" but it might show a different MAC address, idk) 
+   to see the MAC address of the machine you want the webserver to be running on. 
+   Then go to Address Reservation and Add New. Enter the same MAC address you saw,
+   and for Reserved IP Address, enter something like 192.168.0.105 but take a note:
+   NOTE:
+   different routers might have different acceptable local IP addr ranges, somewhere in the router
+   settings it will be saying what the range is, or just look at what local IP addresses the router
+   has so far automatically been assigning to devices connected to it (by taking a look at DCHP 
+   clients list) and pick one of those for the target machine's Reserved IP Address.
+   Select "Status Enabled" and make sure to SAVE it. Restart your router after that.
+   Then connect the machine whose MAC address you put there (the machine the webserver will be
+   running on) to the router and make sure in DHCP clients list, it gave the machine the IP 
+   address you assigned in Address Reservation, and on "Lease Time" it says "Permanent".
+
+5. In router settings, go to Port Forwarding (or just Forwarding) and Add New.
+   Service Port 80, Internal Port 80, IP Address is the same IP address you told DCHP
+   to reserve for the machine your webserver will be running on. Protocol is TCP unless 
+   you plan the server to be using other network protocols, Status Enabled.
+   If there's an option for Common Service Port, select HTTP, then Save.
+
+6. Write the code for your webserver and make sure you let it listen on Port 80, and that the 
+   network protocol your webserver uses matches the one specified in Port Forwarding in the router
+   settings. 
+
+   The Linux Sockets API
+   can be used to write your own WebServer in C on Linux. Tutorials can be found online, also
+   in the GNU C Library Reference Manual.
+
+7. If you want to locally test your website without it having a URL and DDNS setup (i think), you
+   can do that on Linux by writing in the file /etc/hosts and entering the following line:
+   127.0.1.1	myhost.local
+   You will see other similar entries at the top of the file already present. Make sure the space
+   between the digits and the words matches that of the existing entries. Then you can enter 
+   127.0.1.1 as a URL in the web browser and it will act as if your machine has accessed your website.
+   This works becuase webservers generally listen on port 80 so when you add that entry, (I think)
+   the web browser will just see whether anything on this same machine is listening on port 80 
+   and send the web request to that listening program.
+   
+9. Make sure you have opened port 80 on the VM (not sure if you also need to open it on the Host).
+    On Ubuntu to open port 80 permanently: sudo ufw allow 80/tcp
+
+DEBUGS TO TRY IF IT AINT WORKING:
+
+10. Make sure to type http:// before your site's domain name, cuz it sometimes defaults to https.
+    or more likely:
+    
+11. Run the web server as root or else it might not work!! 
+    On ubuntu you do it by typing in the terminal:
+    
+12. Make sure the first thing your web server sends to a newely connected web
+    client is a file called index.html
+    If it has no css/js directly in it, it should point to / have included
+    the relevant css/js files, and the web server should be able to send them too
+    cuz when the user's web browser sees that index.html has included these other
+    files, it will proceed to request them from the web server as well.
+   
