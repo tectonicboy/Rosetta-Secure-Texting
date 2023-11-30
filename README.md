@@ -3,7 +3,7 @@ Rosetta is an instant text-messaging application designed with utmost security a
 room-oriented, you're able to create your own new chatroom, or enter someone else's existing chatroom, after registering.
 
 Many thanks to fgrieu from Cryptography Stack Exchange for all the extensive know-how he has personally given me about everything related to Cryptography. Without him
-it would have been close to impossible to get the cryptography aspect of this correct.
+it would have been close to impossible to get the theoretical cryptography aspect of this correct.
 
 I am implementing everything from scratch:
 
