@@ -1,4 +1,4 @@
-# Rosetta-Texting
+# Rosetta Secure Texting
 Rosetta is an instant text-messaging application designed with utmost security and privacy not only in mind, but as its main feature! That's right, modern cryptographic algorithms and their proper usage ensure it's mathematically impossible for anyone to ever find out what you're saying on Rosetta. It is
 room-oriented, you're able to create your own new chatroom, or enter someone else's existing chatroom, after registering.
 
