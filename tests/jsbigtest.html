@@ -1,0 +1,118 @@
+<html>
+    <head>
+    
+    </head>
+    
+    
+    
+    <body>
+        
+        <script type=text/javascript>
+            console.log("Generate a new BigInt from a literal string and MUL it by 2:");
+            var bigint1 = BigInt('10000000000000000000000000000000000000000000000000000');
+            var bigint2 = bigint1 * 2n;
+            console.log(bigint2);
+
+            console.log("Converting a normal small number to type BigInt:");
+            var num1 = 777;
+            var bigint3 = BigInt(num1);
+            console.log(bigint3);
+
+            String.prototype.replaceAt = function(index, replacement) {
+                return   this.substring(0, index) 
+                       + replacement 
+                       + this.substring(index + replacement.length);
+            }
+
+
+            function getRandomInt(max) {
+              return Math.floor(Math.random() * max);
+            }
+
+            /* Keep generating a random  */
+
+            var ran1 = getRandomInt(2147483647);
+
+            while(ran1 < 1000000000){
+                ran1 = getRandomInt(2147483647);
+            }
+            console.log("Generate a random number (not big int):");
+            console.log(ran1);
+
+            // Expected output: 0 to 32000
+            console.log("Generate two more BigInts:");
+            var bigint4 = BigInt(ran1);
+            console.log(bigint4);
+            
+            var bigint5 = BigInt(1n);
+            console.log(bigint5);
+            
+            var temp_bigint;
+            console.log("Generate 9 small random nums, > 1b");
+            for(var xxx = 0; xxx < 9; ++xxx){
+                ran1 = 0;
+                while(ran1 < 1000000000){
+                    ran1 = getRandomInt(2147483647);
+                }
+                console.log(ran1);
+                temp_bigint = BigInt(ran1);
+                bigint5 = bigint5 * temp_bigint;
+            }
+
+            var bigintZ = BigInt(1000000000);
+            console.log("1000000000 in binary as chars in a string: (it's big endian)")
+            var Z_str = bigintZ.toString(2);
+            console.log(Z_str);
+
+            console.log("Binary bits of this big number, in a char string:")            
+            var bigint_str = bigint5.toString(2);
+            console.log(bigint_str);
+
+            var mymsg_str = "Hello this here is to be encrypted with XOR!";
+            var letter = mymsg_str.charCodeAt(0);
+            console.log("Type of letter: " + typeof(letter));
+            console.log("*** First letter  : " + letter + " ***");
+            console.log("First letter (bin): " + letter.toString(2));
+            console.log("First letter (dec): " + letter.toString(10));
+            /*
+            var letter = Number(letter);
+            console.log("Type of letter: " + typeof(letter));
+            console.log("First letter      : " + letter);
+            console.log("First letter (bin): " + letter.toString(2));
+            console.log("First letter (dec): " + letter.toString(10));
+            */
+            var byte1_str = bigint_str.substr(0, 8);
+            console.log("Type of substr()ed 8 bits in byte1_str: " + typeof(byte1_str)); 
+            console.log("First 8 bit chars of N:(substr()ed type): " + byte1_str);
+
+            var byte1_num = parseInt(byte1_str, 2);
+            console.log("parseInt()ed Type of byte1_num: " + typeof(byte1_num));
+            console.log("*** First 8 bit chars of N (parsed):   " + byte1_num + " ***");
+            console.log("Binary  representation of byte1_num:   " + byte1_num.toString(2));
+
+            /* XOR the 2 things. */
+            var letter_2 = byte1_num ^ letter;
+
+            console.log("Type of letter_2 (XOR result var): " + typeof(letter_2));
+            console.log("Plain print representation of XOR result     " + letter_2);
+            console.log("Binary string representation of XOR result:  " + letter_2.toString(2));
+
+            console.log("FINAL BITWISE OPERATION: ");
+            console.log(byte1_num.toString(2));
+            console.log("XOR");
+            console.log(letter.toString(2));
+            console.log("=");
+            console.log(letter_2.toString(2));
+
+
+            console.log("Reverse check:");
+            console.log((letter_2 ^ letter).toString() + " =?= " + byte1_num.toString());
+
+            /* ==================================================================================*/                
+        
+        </script>
+    
+    </body>
+
+</html>
+

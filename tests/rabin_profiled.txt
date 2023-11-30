@@ -1,0 +1,314 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  Ks/call  Ks/call  name    
+ 79.35   2401.72  2401.72 120256275     0.00     0.00  bigint_add2
+ 16.55   2902.53   500.82 13350546     0.00     0.00  bigint_sub2
+  3.93   3021.47   118.94 147012604     0.00     0.00  bigint_equate2
+  0.09   3024.16     2.69 26832644     0.00     0.00  bigint_create
+  0.03   3025.03     0.87 93627395     0.00     0.00  bigint_compare2
+  0.02   3025.53     0.50                             _init
+  0.01   3025.91     0.39     8938     0.00     0.00  bigint_div2
+  0.01   3026.26     0.34    14944     0.00     0.00  bigint_mul2
+  0.01   3026.51     0.25 133704721     0.00     0.00  bigint_nullify
+  0.00   3026.53     0.02 13368846     0.00     0.00  output_rst
+  0.00   3026.55     0.02                             bigint_print_info
+  0.00   3026.56     0.01 13368846     0.00     0.00  output_red
+  0.00   3026.57     0.01        2     0.00     0.00  bigint_create_from_string
+  0.00   3026.57     0.01                             output_yel
+  0.00   3026.57     0.00     5998     0.00     0.00  bigint_pow
+  0.00   3026.57     0.00        2     0.00     0.44  bigint_mod_mul
+  0.00   3026.57     0.00        2     0.00     1.51  bigint_mod_pow
+  0.00   3026.57     0.00        1     0.00     3.03  Rabin_Miller
+  0.00   3026.57     0.00        1     0.00     0.00  bigint_get_ascii_bits
+  0.00   3026.57     0.00        1     0.00     0.00  bigint_print_bits_bigend
+  0.00   3026.57     0.00        1     0.00     0.00  bitstring_big_to_little_end
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 4 byte(s) for 0.00% of 3026.57 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]    100.0    0.00 3026.05                 main [1]
+                0.00 3026.04       1/1           Rabin_Miller [2]
+                0.01    0.00       2/2           bigint_create_from_string [18]
+                0.00    0.00       1/26832644     bigint_create [11]
+                0.00    0.00       1/13368846     output_rst [15]
+                0.00    0.00       1/13368846     output_red [17]
+                0.00    0.00       1/1           bitstring_big_to_little_end [22]
+                0.00    0.00       1/1           bigint_print_bits_bigend [21]
+-----------------------------------------------
+                0.00 3026.04       1/1           main [1]
+[2]    100.0    0.00 3026.04       1         Rabin_Miller [2]
+                0.00 3025.55       2/2           bigint_mod_pow [3]
+                0.00    0.49       2/8938        bigint_div2 [5]
+                0.00    0.00       1/13350546     bigint_sub2 [9]
+                0.00    0.00       3/147012604     bigint_equate2 [10]
+                0.00    0.00      17/26832644     bigint_create [11]
+                0.00    0.00       4/93627395     bigint_compare2 [12]
+-----------------------------------------------
+                0.00 3025.55       2/2           Rabin_Miller [2]
+[3]    100.0    0.00 3025.55       2         bigint_mod_pow [3]
+                0.26 1471.53    6000/8938        bigint_div2 [5]
+                0.00  884.61       2/2           bigint_mod_mul [6]
+                0.00  669.15    5998/5998        bigint_pow [8]
+                0.00    0.00    2948/147012604     bigint_equate2 [10]
+                0.00    0.00    2960/26832644     bigint_create [11]
+                0.00    0.00      12/93627395     bigint_compare2 [12]
+                0.00    0.00       2/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.12    0.00    5998/120256275     bigint_pow [8]
+              800.51    0.07 40082446/120256275     bigint_mul2 [7]
+             1601.08    0.15 80167831/120256275     bigint_div2 [5]
+[4]     79.4 2401.72    0.22 120256275         bigint_add2 [4]
+                0.22    0.00 120256275/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.00    0.49       2/8938        Rabin_Miller [2]
+                0.13  720.07    2936/8938        bigint_mod_mul [6]
+                0.26 1471.53    6000/8938        bigint_mod_pow [3]
+[5]     72.4    0.39 2192.09    8938         bigint_div2 [5]
+             1601.08    0.15 80167831/120256275     bigint_add2 [4]
+              500.82   13.87 13350545/13350546     bigint_sub2 [9]
+               75.66    0.00 93527314/147012604     bigint_equate2 [10]
+                0.50    0.00 53511350/93627395     bigint_compare2 [12]
+                0.00    0.00   35752/26832644     bigint_create [11]
+                0.00    0.00    8938/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.00  884.61       2/2           bigint_mod_pow [3]
+[6]     29.2    0.00  884.61       2         bigint_mod_mul [6]
+                0.13  720.07    2936/8938        bigint_div2 [5]
+                0.07  164.34    2948/14944       bigint_mul2 [7]
+                0.00    0.00    2950/147012604     bigint_equate2 [10]
+                0.00    0.00    2948/93627395     bigint_compare2 [12]
+                0.00    0.00       6/26832644     bigint_create [11]
+-----------------------------------------------
+                0.07  164.34    2948/14944       bigint_mod_mul [6]
+                0.27  668.74   11996/14944       bigint_pow [8]
+[7]     27.5    0.34  833.08   14944         bigint_mul2 [7]
+              800.51    0.07 40082446/120256275     bigint_add2 [4]
+               32.45    0.00 40112334/147012604     bigint_equate2 [10]
+                0.02    0.00 13368845/13368846     output_rst [15]
+                0.01    0.00 13368845/13368846     output_red [17]
+                0.00    0.00   44832/26832644     bigint_create [11]
+                0.00    0.00   14944/93627395     bigint_compare2 [12]
+                0.00    0.00   14944/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.00  669.15    5998/5998        bigint_mod_pow [3]
+[8]     22.1    0.00  669.15    5998         bigint_pow [8]
+                0.27  668.74   11996/14944       bigint_mul2 [7]
+                0.12    0.00    5998/120256275     bigint_add2 [4]
+                0.01    0.00   17994/147012604     bigint_equate2 [10]
+                0.00    0.00   47984/26832644     bigint_create [11]
+                0.00    0.00   47984/93627395     bigint_compare2 [12]
+                0.00    0.00    5998/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.00    0.00       1/13350546     Rabin_Miller [2]
+              500.82   13.87 13350545/13350546     bigint_div2 [5]
+[9]     17.0  500.82   13.87 13350546         bigint_sub2 [9]
+               10.80    0.00 13349061/147012604     bigint_equate2 [10]
+                2.67    0.00 26701092/26832644     bigint_create [11]
+                0.37    0.00 40050153/93627395     bigint_compare2 [12]
+                0.02    0.00 13350546/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.00    0.00       3/147012604     Rabin_Miller [2]
+                0.00    0.00    2948/147012604     bigint_mod_pow [3]
+                0.00    0.00    2950/147012604     bigint_mod_mul [6]
+                0.01    0.00   17994/147012604     bigint_pow [8]
+               10.80    0.00 13349061/147012604     bigint_sub2 [9]
+               32.45    0.00 40112334/147012604     bigint_mul2 [7]
+               75.66    0.00 93527314/147012604     bigint_div2 [5]
+[10]     3.9  118.93    0.00 147012604         bigint_equate2 [10]
+                0.00    0.00   68018/133704721     bigint_nullify [14]
+-----------------------------------------------
+                0.00    0.00       1/26832644     main [1]
+                0.00    0.00       6/26832644     bigint_mod_mul [6]
+                0.00    0.00      17/26832644     Rabin_Miller [2]
+                0.00    0.00    2960/26832644     bigint_mod_pow [3]
+                0.00    0.00   35752/26832644     bigint_div2 [5]
+                0.00    0.00   44832/26832644     bigint_mul2 [7]
+                0.00    0.00   47984/26832644     bigint_pow [8]
+                2.67    0.00 26701092/26832644     bigint_sub2 [9]
+[11]     0.1    2.69    0.00 26832644         bigint_create [11]
+-----------------------------------------------
+                0.00    0.00       4/93627395     Rabin_Miller [2]
+                0.00    0.00      12/93627395     bigint_mod_pow [3]
+                0.00    0.00    2948/93627395     bigint_mod_mul [6]
+                0.00    0.00   14944/93627395     bigint_mul2 [7]
+                0.00    0.00   47984/93627395     bigint_pow [8]
+                0.37    0.00 40050153/93627395     bigint_sub2 [9]
+                0.50    0.00 53511350/93627395     bigint_div2 [5]
+[12]     0.0    0.87    0.00 93627395         bigint_compare2 [12]
+-----------------------------------------------
+                                                 <spontaneous>
+[13]     0.0    0.50    0.00                 _init [13]
+-----------------------------------------------
+                0.00    0.00       2/133704721     bigint_mod_pow [3]
+                0.00    0.00    5998/133704721     bigint_pow [8]
+                0.00    0.00    8938/133704721     bigint_div2 [5]
+                0.00    0.00   14944/133704721     bigint_mul2 [7]
+                0.00    0.00   68018/133704721     bigint_equate2 [10]
+                0.02    0.00 13350546/133704721     bigint_sub2 [9]
+                0.22    0.00 120256275/133704721     bigint_add2 [4]
+[14]     0.0    0.25    0.00 133704721         bigint_nullify [14]
+-----------------------------------------------
+                0.00    0.00       1/13368846     main [1]
+                0.02    0.00 13368845/13368846     bigint_mul2 [7]
+[15]     0.0    0.02    0.00 13368846         output_rst [15]
+-----------------------------------------------
+                                                 <spontaneous>
+[16]     0.0    0.02    0.00                 bigint_print_info [16]
+-----------------------------------------------
+                0.00    0.00       1/13368846     main [1]
+                0.01    0.00 13368845/13368846     bigint_mul2 [7]
+[17]     0.0    0.01    0.00 13368846         output_red [17]
+-----------------------------------------------
+                0.01    0.00       2/2           main [1]
+[18]     0.0    0.01    0.00       2         bigint_create_from_string [18]
+-----------------------------------------------
+                                                 <spontaneous>
+[19]     0.0    0.01    0.00                 output_yel [19]
+-----------------------------------------------
+                0.00    0.00       1/1           bigint_print_bits_bigend [21]
+[20]     0.0    0.00    0.00       1         bigint_get_ascii_bits [20]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[21]     0.0    0.00    0.00       1         bigint_print_bits_bigend [21]
+                0.00    0.00       1/1           bigint_get_ascii_bits [20]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[22]     0.0    0.00    0.00       1         bitstring_big_to_little_end [22]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+   [2] Rabin_Miller           [10] bigint_equate2         [21] bigint_print_bits_bigend
+  [13] _init                  [20] bigint_get_ascii_bits  [16] bigint_print_info
+   [4] bigint_add2             [6] bigint_mod_mul          [9] bigint_sub2
+  [12] bigint_compare2         [3] bigint_mod_pow         [22] bitstring_big_to_little_end
+  [11] bigint_create           [7] bigint_mul2            [17] output_red
+  [18] bigint_create_from_string [14] bigint_nullify      [15] output_rst
+   [5] bigint_div2             [8] bigint_pow             [19] output_yel
