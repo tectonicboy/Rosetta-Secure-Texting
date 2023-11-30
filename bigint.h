@@ -18,6 +18,7 @@ struct bigint{
     uint32_t free_bits;
 };
 
+/* First constructor - from a uint32_t. */
 void bigint_create (struct bigint* num, uint32_t bitsize, uint32_t initial){
     if( (bitsize % 0x08) || (bitsize < 0x40) || (bitsize > MAX_BITS) ){
         printf("[ERR] Bigint: Invalid bitlength L of new big int. (from uint32)\n");
@@ -42,6 +43,7 @@ void bigint_create (struct bigint* num, uint32_t bitsize, uint32_t initial){
     } 
 }
 
+/* Second constructor - from a binary string. Little-endian assumed. */
 void bigint_create_from_string (struct bigint* num, uint32_t bitsize
                                ,char* initial, uint32_t strlen)
                                {
@@ -96,6 +98,7 @@ void bigint_create_from_string (struct bigint* num, uint32_t bitsize
     num->free_bits = (bitsize - num->used_bits);
 }
 
+/* Place a BigInt's bits into a preallocated memory buffer. */
 void bigint_get_ascii_bits (struct bigint* num, char* target_buffer){
   
     uint32_t bits_to_8 = num->used_bits
@@ -121,6 +124,7 @@ void bigint_get_ascii_bits (struct bigint* num, char* target_buffer){
     }
 }
 
+/* Print only the used bits of a BigInt. */
 void bigint_print_bits(struct bigint* n){
 
     if( ! n->used_bits ){
@@ -155,6 +159,7 @@ void bigint_print_bits(struct bigint* n){
     return; 
 }
 
+/* Print the big-endian version of the BigInt's bits. */
 void bigint_print_bits_bigend(struct bigint* n){
 
     if( ! n->used_bits ){
@@ -197,6 +202,7 @@ void bigint_print_bits_bigend(struct bigint* n){
     return; 
 }
 
+/* Switch the endianness of a binary bit string. */
 void bitstring_switch_endian(char* old_str, uint32_t bytes_used, char* new_str){
     for(uint32_t i = 0; i < bytes_used; ++i){
         for(uint32_t j = 0; j < 8; ++j){
@@ -206,6 +212,7 @@ void bitstring_switch_endian(char* old_str, uint32_t bytes_used, char* new_str){
     return;   
 }
 
+/* Print all bits, including all unsued zeros, of a BigInt. */
 void bigint_print_all_bits(struct bigint* n){
     uint32_t old_used_bits = n->used_bits;
     n->used_bits = n->size_bits;
@@ -214,6 +221,7 @@ void bigint_print_all_bits(struct bigint* n){
     return;
 }
 
+/* Print essential information about an existing BigInt. */
 void bigint_print_info(struct bigint* num){
     printf("\n\n"
            "*******************************\n"
@@ -229,12 +237,14 @@ void bigint_print_info(struct bigint* num){
     );
 }
 
+/* Make a BigInt equal to zero. */
 void bigint_nullify(struct bigint* num){
     memset(num->bits, 0x00, num->size_bits/8);
     num->free_bits = num->size_bits;
     num->used_bits = 0;
 }
 
+/* Bitwise XOR operation of two BigInts n1 and n2. */
 void bigint_XOR2 (struct bigint* n1, struct bigint* n2, struct bigint* res){
     uint32_t smaller;
 
@@ -253,6 +263,7 @@ void bigint_XOR2 (struct bigint* n1, struct bigint* n2, struct bigint* res){
     }
 }
 
+/* Bitwise AND operation of two BigInts n1 and n2. */
 void bigint_AND2 (struct bigint* n1, struct bigint* n2, struct bigint* res){
     uint32_t smaller;
 
@@ -271,6 +282,7 @@ void bigint_AND2 (struct bigint* n1, struct bigint* n2, struct bigint* res){
     }
 }
 
+/* Standard bitwise shift to the left of a BigInt by X bits. */
 void bigint_SHIFT_L_by_X(struct bigint* n, uint32_t amount){
 
     if(amount >= n->size_bits){
@@ -298,6 +310,7 @@ void bigint_SHIFT_L_by_X(struct bigint* n, uint32_t amount){
     }  
 }
 
+/* Standard bitwise shift to the right of a BigInt by X bits. */
 void bigint_SHIFT_R_by_X(struct bigint* n, uint32_t amount){
 
     if(amount >= n->size_bits){
@@ -323,7 +336,7 @@ void bigint_SHIFT_R_by_X(struct bigint* n, uint32_t amount){
     }  
 }
 
-/*   bigint_compare2() Returns:
+/*   Compare two BigInts. Returns:
  *  
  *   1  if n1 > n2
  *   2  if n1 = n2
@@ -367,6 +380,7 @@ uint8_t bigint_compare2 (struct bigint* n1, struct bigint* n2){
     }
 }
 
+/* Make BigInt n1 equal to the BigInt n2. */
 void bigint_equate2(struct bigint* n1, struct bigint* n2){
 
     if(n1->size_bits < n2->used_bits){ 
@@ -403,7 +417,8 @@ void bigint_equate2(struct bigint* n1, struct bigint* n2){
      
 }
 
-/*  WARNING: N1, N2 and R's reserved bits must be divisible by 32. 
+/*  Standard addition of two BigInts.
+ *  WARNING: N1, N2 and R's reserved bits must be divisible by 32. 
  *           This will not be checked by the library for performance reasons.
  *
  *           R must have at least 32 more reserved bits than the bigger ADD operand's.
@@ -495,6 +510,7 @@ void bigint_add_fast(struct bigint* n1, struct bigint* n2, struct bigint* R){
     return;
 }
 
+/* Standard multiplication of two BigInts. */
 void bigint_mul_fast(struct bigint* n1, struct bigint* n2, struct bigint* R){
     bigint_nullify(R);
    
@@ -561,7 +577,7 @@ void bigint_mul_fast(struct bigint* n1, struct bigint* n2, struct bigint* R){
     return;    
 }
 
-
+/* BigInt n1 to the power of BigInt n2. */
 void bigint_pow(struct bigint* n1, struct bigint* n2, struct bigint* R){
     struct bigint n1_used_bits, R_req_bits, zero, one
                  ,R_res_bits, R_temp, starter, starter_temp;
@@ -632,6 +648,7 @@ ret_label:
     return;
 }
 
+/* Standard subtraction of two BigInts. R = n1 - n2. */
 void bigint_sub2 (struct bigint* n1, struct bigint* n2, struct bigint* R){
 
     struct bigint zero, n1_copy;   
@@ -739,6 +756,7 @@ label_ret:
     return;    
 }
 
+/* Standard division of two BigInts with integer quotient and remainder. */
 void bigint_div2 ( struct bigint* n1, struct bigint* n2
                   ,struct bigint* R,  struct bigint* rem)
                 {
@@ -841,6 +859,7 @@ label_ret:
     return; 
 } 
 
+/* Modular Multiplication. Multiply many BigInts, modulo another BigInt. */
 void bigint_mod_mul(struct bigint** nums, struct bigint* mod, uint32_t how_many, struct bigint* R){
     struct bigint div_res, rem, mul_res;
 
@@ -877,6 +896,7 @@ label_ret:
     return;
 }  
 
+/* Modular powering. BigInt_N to the power of BigInt_P, modulo BigInt_M. */
 void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct bigint* R){
 
     bigint_nullify(R);
@@ -996,6 +1016,8 @@ label_ret:
     free(two.bits);
 }
 
+/* Fast algorithm for determining whether a BigInt is prime or not. */
+/* Returns 1 if the big number is prime, or 0 otherwise. */
 uint8_t Rabin_Miller(struct bigint* N, uint32_t passes){
     
     struct bigint N_minus_one, zero, one, two, M, B0, Bi_prev, Bi, div_res, rem, aux1;

@@ -67,6 +67,8 @@ void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
 
 /*****************************************************************************/
 /*                   CHACHA20 IMPLEMENTATION BEGINS                          */
+/*                                                                           */
+/*     The implementation is based on RFC 8439's theoretical description.    */
 /*****************************************************************************/    
 
 void CHACHA_QROUND(uint32_t* matrix, uint8_t a, uint8_t b, uint8_t c, uint8_t d){
@@ -270,6 +272,12 @@ void CHACHA20(char* plaintext, uint32_t txt_len
     return;
 }
 
+/*****************************************************************************/
+/*                   BLAKE2B IMPLEMENTATION BEGINS                           */
+/*                                                                           */
+/*     The implementation is based on RFC 7693's theoretical description.    */
+/*****************************************************************************/  
+
 void BLAKE2B_G(uint64_t* v, uint64_t a, uint64_t b, uint64_t c
               ,uint64_t  d, uint64_t x, uint64_t y
               )
@@ -455,8 +463,10 @@ void BLAKE2B_INIT(char* m, uint64_t ll, uint64_t kk, uint64_t nn, char* rr){
 }
     
 /*****************************************************************************/
-/*                    ARGON2 IMPLEMENTATION BEGINS                           */
-/*****************************************************************************/
+/*                   Argon2id IMPLEMENTATION BEGINS                          */
+/*                                                                           */
+/*     The implementation is based on RFC 9106's theoretical description.    */
+/*****************************************************************************/ 
 
 /* NOTE: The arithmetic operations here are done modulo 2^64. 
  *       Since we're working with uint64_t's, this simply
