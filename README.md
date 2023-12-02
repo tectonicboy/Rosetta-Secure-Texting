@@ -2,10 +2,9 @@
 Rosetta is an instant text-messaging application designed with utmost security and privacy not only in mind, but as its main feature! That's right, modern cryptographic algorithms and their proper usage ensure it's mathematically impossible for anyone to ever find out what you're saying on Rosetta. It is
 room-oriented, you're able to create your own new chatroom, or enter someone else's existing chatroom, after registering.
 
-Many thanks to fgrieu from Cryptography Stack Exchange for all the extensive know-how he has personally given me about everything related to Cryptography. Without him
-it would have been close to impossible to get the theoretical cryptography aspect of this correct.
+Many thanks to fgrieu, moderator at crypto.stackexchange.com, for all the extensive know-how he has shared with me about relevant topics in cryptography.
 
-I am implementing everything from scratch:
+I am implementing everything myself from scratch:
 
 - A BigNum arithmetic library in C, since cryptographic algorithms often require working with huge numbers of thousands of digits to be secure.
 - A cryptographic library in C. These algorithms are to be used to construct the actual security scheme of the chatting application.
@@ -22,10 +21,10 @@ The Big Number arithmetic library supports:
 - Multiplication of 2 or more BigInts, modulo another BigInt
 - BigInt to the power of another BigInt, modulo a third BigInt
 
-The cryptographic algorithms implemented are:
+The cryptographic algorithms that are part of the chat's security scheme:
 - Diffie-Hellman
-- BLAKE2B
-- ChaCha20 
-- Argon2id
+- ChaCha20 implemented as per RFC 8439
+- BLAKE2   implemented as per RFC 7693
+- Argon2id implemented as per RFC 9106
 - Schnorr Signature generator
 - Rabin-Miller primality test on my BigNums
