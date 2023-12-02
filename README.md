@@ -2,10 +2,10 @@
 Rosetta is an instant text-messaging application designed with utmost security and privacy not only in mind, but as its main feature! That's right, modern cryptographic algorithms and their proper usage ensure it's mathematically impossible for anyone to ever find out what you're saying on Rosetta. It is
 room-oriented, you're able to create your own new chatroom, or enter someone else's existing chatroom, after registering.
 
-Many thanks to fgrieu from Cryptography Stack Exchange for all the extensive know-how he has personally given me about everything related to Cryptography. Without him
+Many thanks to fgrieu, moderator at crypto.stackexchange.com, for all the extensive know-how he has personally given me about everything related to Cryptography. Without him
 it would have been close to impossible to get the theoretical cryptography aspect of this correct.
 
-I am implementing everything from scratch:
+I am implementing everything myself from scratch:
 
 - A BigNum arithmetic library in C, since cryptographic algorithms often require working with huge numbers of thousands of digits to be secure.
 - A cryptographic library in C. These algorithms are to be used to construct the actual security scheme of the chatting application.
