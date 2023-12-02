@@ -22,10 +22,10 @@ The Big Number arithmetic library supports:
 - Multiplication of 2 or more BigInts, modulo another BigInt
 - BigInt to the power of another BigInt, modulo a third BigInt
 
-The cryptographic algorithms implemented are:
+The cryptographic algorithms that are part of the chat's security scheme:
 - Diffie-Hellman
-- BLAKE2B
-- ChaCha20 
-- Argon2id
+- ChaCha20 implemented as per RFC 8439
+- BLAKE2   implemented as per RFC 7693
+- Argon2id implemented as per RFC 9106
 - Schnorr Signature generator
 - Rabin-Miller primality test on my BigNums
