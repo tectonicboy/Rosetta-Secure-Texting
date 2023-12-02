@@ -65,7 +65,9 @@ void uint32_roll_left(uint32_t* n, uint32_t roll_amount){
     uint8_t last_on = 0;
     while(roll_amount > 0){
         last_on = 0;
-        if((*n) & ((uint32_t)1 << 31)) { last_on = 1; }
+        if((*n) & ((uint32_t)1 << 31)) {
+            last_on = 1; 
+        }
         (*n) <<= 1;
         if(last_on){
             (*n) |= 1;
@@ -79,7 +81,9 @@ void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
     uint8_t last_on = 0;
     while(roll_amount > 0){
         last_on = 0;
-        if((*n) & ((uint64_t)1)) { last_on = 1; }
+        if((*n) & ((uint64_t)1)) { 
+            last_on = 1; 
+        }
         (*n) >>= 1;
         if(last_on){
             (*n) |= ((uint64_t)1 << 63);
