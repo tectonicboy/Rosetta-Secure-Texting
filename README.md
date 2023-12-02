@@ -2,8 +2,7 @@
 Rosetta is an instant text-messaging application designed with utmost security and privacy not only in mind, but as its main feature! That's right, modern cryptographic algorithms and their proper usage ensure it's mathematically impossible for anyone to ever find out what you're saying on Rosetta. It is
 room-oriented, you're able to create your own new chatroom, or enter someone else's existing chatroom, after registering.
 
-Many thanks to fgrieu, moderator at crypto.stackexchange.com, for all the extensive know-how he has personally shared with me about relevant topics in cryptography. Without him
-it would have been close to impossible to get the theoretical security aspect of this correct.
+Many thanks to fgrieu, moderator at crypto.stackexchange.com, for all the extensive know-how he has shared with me about relevant topics in cryptography.
 
 I am implementing everything myself from scratch:
 
