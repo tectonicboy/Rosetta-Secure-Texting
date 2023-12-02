@@ -11,6 +11,31 @@
 #define R3 16
 #define R4 63
 
+/* Parameters of Argon2
+ * 
+ * Every user of Argon2 should initialize an instance of this structure
+ * and pass it to Argon2_MAIN(), which will, on its own, initialize
+ * H_0 based on fields of this struct, and proceed with Argon2 operation.
+ */
+struct Argon2_parms{
+    uint32_t p;  /* Paralellism - how many threads to use. 1   to (2^24) - 1 */
+    uint32_t T;  /* Output Tag's desired length in bytes.  4   to (2^32) - 1 */
+    uint32_t m;  /* Memory usage - kikibytes to use.       8*p to (2^32) - 1 */
+    uint32_t t;  /* Number of passes Argon2 should do.     1   to (2^32) - 1 */
+    uint32_t v;  /* Version number.                        It is always 0x13 */
+    uint32_t y;  /* Type of Argon2 algorithm.              0x02 for Argon2id */ 
+    
+    char* P;  /* Password plaintext to hash. */
+    char* S;  /* Salt.                       */
+    char* K;  /* OPTIONAL secret value.      */
+    char* X;  /* OPTIONAL associated data.   */
+    
+    uint32_t len_P; /* Length of password plaintext in bytes. <= (2^32) - 1  */
+    uint32_t len_S; /* Length of Salt in bytes.               <= (2^32) - 1  */                    
+    uint32_t len_K; /* Length of secret value in bytes.       <= (2^32) - 1  */
+    uint32_t len_X; /* Length of associated data in bytes.    <= (2^32) - 1  */   
+}; 
+
 /* Initialization vector of constants for BLAKE2b */
 const uint64_t IV[8] = {
     0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
@@ -628,7 +653,7 @@ void Argon2_G(char* X, char* Y, char* out_1024){
     return;
 }
     
-    
+  
     
     
     
