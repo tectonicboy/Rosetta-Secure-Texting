@@ -11,6 +11,15 @@
 #define R3 16
 #define R4 63
 
+/* Simplifies pointer arithmetic for access to Argon2's memory matrix B. */
+typedef struct block{
+    uint8_t block_data[1024];
+} block_t;
+
+typedef struct 64_byte{
+    uint8_t block_data[64];    
+} block64_t
+
 /* Parameters of Argon2
  * 
  * Every user of Argon2 should initialize an instance of this structure
@@ -657,7 +666,182 @@ void Argon2_G(char* X, char* Y, char* out_1024){
     return;
 }
     
-  
+void Argon2_H_dash(uint8_t* input,   uint8_t* output
+                  ,uint32_t out_len, uint64_t in_len
+                  )
+{  
+
+    uint8_t*   H_input;
+    uint32_t   r;
+    block64_t* V;
+    
+    H_input = malloc(4 + in_len);
+    
+    memcpy(H_input + 0, &out_len, sizeof(uint32_t)); 
+    memcpy(H_input + 4, input,    in_len); 
+    
+    if(out_len <= 64){ 
+        BLAKE2B_INIT(H_input, (4 + in_len), 0, out_len, output);
+        return;
+    }
+    else{
+        r = ceil(T / 32) - 2;
+        
+        /* We allocate memory for (r+1) 64-byte V[i]'s.                  
+         * We pass a pointer to the next 64-byte memory block V[i] 
+         * as the output destination of BLAKE2.
+         */
+        
+        V = malloc( (r+1) * sizeof(block64_t));
+        
+        BLAKE2B_INIT(H_input, (4 + in_len), 0, 64, V[0].block_data);
+        
+        for(uint64_t i = 1; i <= r-1; ++i){
+            BLAKE2B_INIT(V[i-1].block_data, 64, 0, 64, V[i].block_data);    
+        }
+        
+        BLAKE2B_INIT(
+                      V[r-1].block_data, 64, 0,
+                      (out_len-(32*r)), V[r].block_data
+                    ); 
+                  
+        /* Construct a buffer of concatenated W1 || W2 ... || Wr || V_(r+1)  
+         * and place this result in the output target buffer of H_dash here. 
+         * Note, Wi is the 32 least significant bytes of 64-byte Vi. 
+         */ 
+        
+        /* Output buffer's size must be ((r * 4) + 8) bytes. Preallocated. */
+        for(uint64_t i = 0; i <= r-1; ++i){
+            memcpy(output + (32*i), V[i].block_data, 32);
+        }      
+        memcpy(output + (32*r), V[r].block_data, 64);
+    }
+
+
+    return;
+}
+    
+void Argon2_MAIN(struct Argon2_parms* parms, char* output){
+    
+    /* Length of input to the generator of 64-byte H0, BLAKE2B() here. */
+    uint64_t H0_input_len =   10 * sizeof(uint32_t)
+                            + parms->len_P + parms->len_S
+                            + parms->len_K + parms->len_X
+                           ;
+    /* Input to the generator of H0. */
+    char* H0_input = malloc(H0_input_len);
+      
+    /* Construct the input buffer to H{64}() that generates 64-byte H0. */
+    *(H0_input + 0 ) = parms->p;
+    *(H0_input + 4 ) = parms->T;
+    *(H0_input + 8 ) = parms->m;
+    *(H0_input + 12) = parms->t;
+    *(H0_input + 16) = parms->v;
+    *(H0_input + 20) = parms->y;
+    
+    *(H0_input + 24) = parms->len_P;
+    memcpy((H0_input + 28), parms->P, parms->len_P);
+    
+    *(H0_input + 28 + parms->len_P) = parms->len_S;
+    memcpy((H0_input + 28 + parms->len_P + 4), parms->S, parms->len_S);
+    
+    *(H0_input + 28 + parms->len_P + 4 + parms->len_S) = parms->len_K;
+    
+    H0_in_offset = 28 + parms->len_P + 4 + parms->len_S + 4;
+    
+    if(parms->len_K){
+        memcpy((H0_input + H0_in_offset), parms->K, parms->len_K);
+        H0_in_offset += parms->len_K; 
+    }
+    
+    *(H0_input + H0_in_offset) = parms->len_X;
+    H0_in_offset += 4;
+    
+    if(parms->len_X){
+        memcpy((H0_input + H0_in_offset), parms->X, parms->len_X);
+        H0_in_offset += parms->len_X;  
+    }
+    
+    /* The offset also tells us the total length of the input to H{64}() now.*/
+    
+    /* Generate H_0 now. */
+    uint8_t* H0 = malloc(64);
+    
+    BLAKE2B_INIT(H0_input, H0_in_offset, 0, 64, H0);
+    
+    
+    /* Construct the working memory of Argon2 now. */
+    
+    /* How many 1024-byte blocks in B. */
+    uint64_t m_dash = 4 * parms->p * floor(parms->m / (4 * parms->p));
+    
+    /* How many columns in B. Also size of one row in 1024-byte blocks. */
+    /* Each column intersecting a row is one 1024-byte block.           */
+    uint64_t q = m_dash / parms->p;
+                      
+    /* The best we can do to help simplify the pointer arithmetic here is to 
+     * set a pointer to each row of the B[][] memory matrix. Each row consists
+     * of many 1024-byte blocks, but at least we will be able to directly use
+     * the [index] notation when accessing B[][] for the "get to row X" part
+     * as described in the Argon2 RFC specification, ie the first bracket.
+     *
+     * For the second bracket where B[][] is used in the specification, we will
+     * use a specially defined struct that only has a 1024-byte array in it
+     * and typedef'd as block_t. This changes the behind-the-scenes multiplier
+     * of the C compiler's pointer arithmetic to (* 1024), just like it would
+     * do (* 4) behind the scenes for a pointer to uint32_t.
+     *
+     * To work inside a particular 1024-byte block, we will likely need actual
+     * carefully written raw pointer arithmetic.
+     */
+    
+    /* Allocate the working memory matrix of Argon2. */
+    uint8_t* working_memory = malloc(m_dash * sizeof(block_t));
+    
+    /* Split the memory matrix into p rows by setting pointers to the 
+     * start of each row. Each row has many 1024-byte blocks. 
+     */
+    block_t** B = malloc(parms->p * sizeof(block_t*));
+    
+    uint64_t i, j;
+    
+    /* How many blocks are there in a row? */
+    for(i = 0; i < parms->p; ++i){
+        B[i] = (block_t*)(working_memory + (i * (q * sizeof(block_t))));
+        printf("Row[%lu] in B[][]: working_memory + %lu bytes\n",
+               i, (i * (q * sizeof(block_t)))
+              );
+    }
+    
+    /* Now where B[x][y] is used in the RFC specification, here in this
+     * implementation it too can be written as B[x][y], which would mean
+     * to the compiler "start from memory address B, which is a pointer
+     * to a 1024-byte block. Go +x such pointers into B, to get to the
+     * actual row x in Argon2's working memory matrix B[][]. Then from
+     * this pointer to a 1024-byte block, go +y such blocks, to the 
+     * exact 1024-byte block you need and dereference the pointer to it." 
+     *
+     * All while keeping the entire memory (all p rows of 1024-byte blocks)
+     * contiguous in the process memory as required in the RFC specification
+     * in order for the security of the hashing algorithm to work.
+     */
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+
+}
     
     
     
