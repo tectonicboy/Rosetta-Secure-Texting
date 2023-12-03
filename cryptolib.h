@@ -803,10 +803,9 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
      */
     block_t** B = malloc(parms->p * sizeof(block_t*));
     
-    uint64_t i, j;
     
-    /* How many blocks are there in a row? */
-    for(i = 0; i < parms->p; ++i){
+    /* Set a pointer to the start of each row in the memory matrix. */
+    for(uint64_t i = 0; i < parms->p; ++i){
         B[i] = (block_t*)(working_memory + (i * (q * sizeof(block_t))));
         printf("Row[%lu] in B[][]: working_memory + %lu bytes\n",
                i, (i * (q * sizeof(block_t)))
@@ -826,7 +825,36 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
      * in order for the security of the hashing algorithm to work.
      */
     
+    uint8_t* B_init_buf = malloc(64 + 4 + 4);
     
+    memcpy(B_init_buf + 0 , H0, 64);
+    memcpy(B_init_buf + 64, (uint32_t)0, 4);
+    
+    for(uint32_t i = 0; i < parms->p; ++i){
+        memcpy(B_init_buf + 64 + 4, i, 4);   
+        Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][0]), 1024, (64 + 4 + 4));
+    }
+    
+    memcpy(B_init_buf + 64, (uint32_t)1, 4);
+    
+    for(uint32_t i = 0; i < parms->p; ++i){
+        memcpy(B_init_buf + 64 + 4, i, 4);   
+        Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][1]), 1024, (64 + 4 + 4));
+    }
+    
+    /* Each of the 4 vertical slices is computed and finished before the next
+     * slice's threads can begin. All threads process their 1/4 rows in that
+     * slice in parallel.
+     */
+     
+    for (uint64_t sl = 0; sl < 4; ++sl){ /* slice number. */
+        for(uint64_t i = 0; i < p; ++i){ /* lane number. */
+        
+            /* Set loose a thread for each row of blocks in the matrix. */    
+            /* 21845 1024-byte blocks will be processed by each thread. */
+            /* provided 2 gigibytes of memory usage and 24 threads.     */
+        } 
+    }
     
     
     
