@@ -21,7 +21,7 @@ The Big Number arithmetic library supports:
 - Multiplication of 2 or more BigInts, modulo another BigInt
 - BigInt to the power of another BigInt, modulo a third BigInt
 
-The cryptographic algorithms that are part of the chat's security scheme:
+The cryptography library shall include implementations of the following algorithms:
 - Diffie-Hellman
 - ChaCha20 implemented as per RFC 8439
 - BLAKE2   implemented as per RFC 7693
