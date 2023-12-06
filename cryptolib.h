@@ -27,22 +27,22 @@ typedef struct 64_byte{
  * H_0 based on fields of this struct, and proceed with Argon2 operation.
  */
 struct Argon2_parms{
-    uint32_t p;  /* Paralellism - how many threads to use. 1   to (2^24) - 1 */
-    uint32_t T;  /* Output Tag's desired length in bytes.  4   to (2^32) - 1 */
-    uint32_t m;  /* Memory usage - kikibytes to use.       8*p to (2^32) - 1 */
-    uint32_t t;  /* Number of passes Argon2 should do.     1   to (2^32) - 1 */
-    uint32_t v;  /* Version number.                        It is always 0x13 */
-    uint32_t y;  /* Type of Argon2 algorithm.              0x02 for Argon2id */ 
+    uint64_t p;  /* Paralellism - how many threads to use. 1   to (2^24) - 1 */
+    uint64_t T;  /* Output Tag's desired length in bytes.  4   to (2^32) - 1 */
+    uint64_t m;  /* Memory usage - kikibytes to use.       8*p to (2^32) - 1 */
+    uint64_t t;  /* Number of passes Argon2 should do.     1   to (2^32) - 1 */
+    uint64_t v;  /* Version number.                        It is always 0x13 */
+    uint64_t y;  /* Type of Argon2 algorithm.              0x02 for Argon2id */ 
     
     char* P;  /* Password plaintext to hash. */
     char* S;  /* Salt.                       */
     char* K;  /* OPTIONAL secret value.      */
     char* X;  /* OPTIONAL associated data.   */
     
-    uint32_t len_P; /* Length of password plaintext in bytes. <= (2^32) - 1  */
-    uint32_t len_S; /* Length of Salt in bytes.               <= (2^32) - 1  */                    
-    uint32_t len_K; /* Length of secret value in bytes.       <= (2^32) - 1  */
-    uint32_t len_X; /* Length of associated data in bytes.    <= (2^32) - 1  */   
+    uint64_t len_P; /* Length of password plaintext in bytes. <= (2^32) - 1  */
+    uint64_t len_S; /* Length of Salt in bytes.               <= (2^32) - 1  */                    
+    uint64_t len_K; /* Length of secret value in bytes.       <= (2^32) - 1  */
+    uint64_t len_X; /* Length of associated data in bytes.    <= (2^32) - 1  */   
 }; 
 
 /* Initialization vector of constants for BLAKE2b */
@@ -720,6 +720,9 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
 
     return;
 }
+   
+void* Argon2_process_blocks
+   
     
 void Argon2_MAIN(struct Argon2_parms* parms, char* output){
     
@@ -732,29 +735,39 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
     char* H0_input = malloc(H0_input_len);
       
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
-    *(H0_input + 0 ) = parms->p;
-    *(H0_input + 4 ) = parms->T;
-    *(H0_input + 8 ) = parms->m;
-    *(H0_input + 12) = parms->t;
-    *(H0_input + 16) = parms->v;
-    *(H0_input + 20) = parms->y;
+    *((uint32_t*)(H0_input + 0 )) = *( (uint32_t*)(&(parms->p)) );
+    *((uint32_t*)(H0_input + 4 )) = *( (uint32_t*)(&(parms->T)) );
+    *((uint32_t*)(H0_input + 8 )) = *( (uint32_t*)(&(parms->m)) );
+    *((uint32_t*)(H0_input + 12)) = *( (uint32_t*)(&(parms->t)) );
+    *((uint32_t*)(H0_input + 16)) = *( (uint32_t*)(&(parms->v)) );
+    *((uint32_t*)(H0_input + 20)) = *( (uint32_t*)(&(parms->y)) );
     
-    *(H0_input + 24) = parms->len_P;
-    memcpy((H0_input + 28), parms->P, parms->len_P);
+    *((uint32_t*)(H0_input + 24)) = *( (uint32_t*)(&(parms->len_P)) );
     
-    *(H0_input + 28 + parms->len_P) = parms->len_S;
-    memcpy((H0_input + 28 + parms->len_P + 4), parms->S, parms->len_S);
+    size_t H0_in_offset = 28;
+      
+    memcpy((H0_input + H0_in_offset), parms->P, parms->len_P);
     
-    *(H0_input + 28 + parms->len_P + 4 + parms->len_S) = parms->len_K;
+    H0_in_offset += parms->len_P;
     
-    H0_in_offset = 28 + parms->len_P + 4 + parms->len_S + 4;
+    *((uint32_t*)(H0_input + H0_in_offset)) = *( (uint32_t*)(&(parms->len_S)) );
+    
+    H0_in_offset += 4;
+    
+    memcpy((H0_input + H0_in_offset), parms->S, parms->len_S);
+    
+    H0_in_offset += parms->len_S;
+    
+    *((uint32_t*)(H0_input + H0_in_offset)) = *( (uint32_t*)(&(parms->len_K)) );
+    
+    H0_in_offset += 4;
     
     if(parms->len_K){
         memcpy((H0_input + H0_in_offset), parms->K, parms->len_K);
         H0_in_offset += parms->len_K; 
     }
     
-    *(H0_input + H0_in_offset) = parms->len_X;
+    *((uint32_t*)(H0_input + H0_in_offset)) = *( (uint32_t*)(&(parms->len_X)) );
     H0_in_offset += 4;
     
     if(parms->len_X){
@@ -842,33 +855,103 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
         Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][1]), 1024, (64 + 4 + 4));
     }
     
+    /* Counter that keeps track of which Argon2 pass we are currently on. */
+    uint64_t r = 0;
+    
     /* Each of the 4 vertical slices is computed and finished before the next
      * slice's threads can begin. All threads process their 1/4 rows in that
      * slice in parallel.
      */
-     
-    for (uint64_t sl = 0; sl < 4; ++sl){ /* slice number. */
-        for(uint64_t i = 0; i < p; ++i){ /* lane number. */
-        
-            /* Set loose a thread for each row of blocks in the matrix. */    
-            /* 21845 1024-byte blocks will be processed by each thread. */
-            /* provided 2 gigibytes of memory usage and 24 threads.     */
-        } 
+    
+    /* Create p thread_id's - one for each thread we will run. */
+    pthread_t argon2_thread_ids[parms->p];
+    
+    /* Offset into the input buffer of Argon2 threads. */
+    size_t thread_in_offset = 0;
+    
+    /* Allocate input buffers for each thread.                    */
+    /* Each input buffer will contain a pointer and 8 uint64_t's. */
+    void** thread_inputs = malloc(parms->p * sizeof(void*));
+    
+    for(uint32_t i = 0; i < parms->p; ++i){
+        thread_inputs[i] = malloc(sizeof(block_t*) + (8 * sizeof(uint64_t)));  
     }
     
+    for (uint64_t sl = 0; sl < 4; ++sl){ /* slice number. */
+        
+        for(uint64_t i = 0; i < parms->p; ++i){ /* lane/thread number. */
+                    
+            /*  Third for-loop 3.1 that will:                            
+             *  Set loose a thread for each row of blocks in the matrix.    
+             *  21845 1024-byte blocks will be processed by each thread. 
+             *  provided 2 gigibytes of memory usage and 24 threads.     
+             *
+             *  Each thread will call G() in a for-loop going over each
+             *  1024-block in that segment of the working memory matrix.
+             * 
+             *  For that reason, each thread will need INPUT:
+             * 
+             *  - Pointer to start of segment to be transformed by that thread,
+             *    based on which we will take G()'s i/o 1024-byte blocks.
+             *  - Parameters that are constant during a thread's operatrion for
+             *    computing J_1 and J_2 for Argon2i: r, l, sl, m', t, y, p, q
+             *       
+             *  Third for-loop 3.2 that will join all threads before the  
+             *  the next set of threads can be set loose on next vertical 
+             *  slice (set of segments, each of which is a set of 1024-byte 
+             *  blocks) of the working memory matrix B[][].
+             */
+             
+             
+            /* Populate this thread's input buffer before starting it. */
+            
+            /* First is a pointer to this thread's segment in memory matrix. */
+            *((block_t**)(((char*)(thread_inputs[i])) + 0)) = B[i];
+            
+            /* Offset in bytes into the thread's input buffer. */
+            thread_in_offset = sizeof(block_t*);
+            
+            /* Second is r, the current pass number. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = r;   
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Third is l, the current lane number. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = i;
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Fourth is sl, the current slice number. */ 
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = sl;
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Now m', the total number of 1024-byte blocks in the matrix. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            = m_dash;   
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Sixth is t, the total number of passes. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            = parms->t;
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Seventh is y, the Argon2 type. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            = parms->y;
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Eighth is p, the total number of threads Argon2 should use. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            = parms->p;
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Ninth is q, the total number of 1024-byte blocks in 1 row. */
+            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = q;
+            thread_in_offset += sizeof(uint64_t);
+            
+            /* Now that the input buffer for this thread is ready, start it. */
+             
+        } 
+    } 
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-
 }
     
     
