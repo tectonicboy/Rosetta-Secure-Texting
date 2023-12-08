@@ -783,6 +783,14 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
  *                         + r, l, sl, m', t, y, p, q as uint64_t's.
  */
 void* argon2_transform_segment(void* thread_input){
+
+    /* The first thing in the thread's input buffer
+     * is an array of pointers, each pointing to the start of 
+     * the respective lane in the working memory matrix B[][].
+     *
+     * First ever actual necessary use of a triple pointer. Wow.
+     */
+    block_t** B = *((block_t***)(thread_input))
     
     uint64_t J_1 = 0, J_2 = 0, l_ix = 0, z_ix = 0, n, j, j_start, j_end;
     
@@ -1013,7 +1021,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
             /* Populate this thread's input buffer before starting it. */
             
             /* First is a pointer to the start of the memory matrix B[][]. */
-            *((block_t**)(((char*)(thread_inputs[i])) + 0)) = B[i];
+            *((block_t**)(((char*)(thread_inputs[i])) + 0)) = B;
             
             /* Offset in bytes into the thread's input buffer. */
             thread_in_offset = sizeof(block_t*);
