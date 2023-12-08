@@ -790,7 +790,7 @@ void* argon2_transform_segment(void* thread_input){
      *
      * First ever actual necessary use of a triple pointer. Wow.
      */
-    block_t** B = *((block_t***)(thread_input))
+    block_t** B = *((block_t***)(thread_input));
     
     uint64_t J_1 = 0, J_2 = 0, l_ix = 0, z_ix = 0, n, j, j_start, j_end;
     
