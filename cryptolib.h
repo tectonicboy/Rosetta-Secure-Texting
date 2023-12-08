@@ -69,6 +69,16 @@ const uint64_t sigma[12][16] = {
     { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
 };
 
+/* Useful offsets into the input buffer for the thread function of Argon2. */
+#define OFFSET_r  (sizeof(block_t*) + (0 * sizeof(uint64_t)))
+#define OFFSET_l  (sizeof(block_t*) + (1 * sizeof(uint64_t)))
+#define OFFSET_sl (sizeof(block_t*) + (2 * sizeof(uint64_t)))
+#define OFFSET_md (sizeof(block_t*) + (3 * sizeof(uint64_t)))
+#define OFFSET_t  (sizeof(block_t*) + (4 * sizeof(uint64_t)))
+#define OFFSET_y  (sizeof(block_t*) + (5 * sizeof(uint64_t)))
+#define OFFSET_p  (sizeof(block_t*) + (6 * sizeof(uint64_t)))
+#define OFFSET_q  (sizeof(block_t*) + (7 * sizeof(uint64_t)))
+
 /* Bitwise rolling means shifts but the erased bits go back to the start. */
 void uint32_roll_left(uint32_t* n, uint32_t roll_amount){
     uint8_t last_on = 0;
@@ -109,7 +119,8 @@ void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
 /*     The implementation is based on RFC 8439's theoretical description.    */
 /*****************************************************************************/    
 
-void CHACHA_QROUND(uint32_t* matrix, uint8_t a, uint8_t b, uint8_t c, uint8_t d){
+void CHACHA_QROUND(uint32_t* matrix, uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
     matrix[a] += matrix[b];
     matrix[d] ^= matrix[a];
     uint32_roll_left((matrix + d), 16);
@@ -158,7 +169,8 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
                  )
 {
     if(key_len + counter_len + nonce_len != 12){
-        printf("[ERR] Cryptolib - lengths of key, counter, nonce DOES NOT add up to 12.\n");
+        printf("[ERR] Cryptolib - lengths of key, counter,"
+               " nonce DOES NOT add up to 12.\n");
         return;
     }
     
@@ -174,7 +186,8 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     
     for(i = key_len; i > 0; --i){
         for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(state[next_ix]))) + (3-j)) = *(((uint8_t*)(&(key[key_len - i]))) + j);
+            *(((uint8_t*)(&(state[next_ix]))) + (3-j)) 
+              = *(((uint8_t*)(&(key[key_len - i]))) + j);
         }
         ++next_ix;
     }           
@@ -184,7 +197,8 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     }  
     for(i = nonce_len; i > 0; --i){
         for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(state[next_ix])))+(3-j)) = *(((uint8_t*)(&(nonce[nonce_len - i])))+j);
+            *(((uint8_t*)(&(state[next_ix])))+(3-j)) 
+              = *(((uint8_t*)(&(nonce[nonce_len - i])))+j);
         }
         ++next_ix;
     }      
@@ -192,10 +206,15 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     memcpy((void*)initial_state, (void*)state, 16 * sizeof(uint32_t));
     
     printf("\nCONSTRUCTED CHACHA STATE MATRIX:\n");
+    
     printf("%08X\t%08X\t%08X\t%08X\n", state[0], state[1], state[2], state[3]);
+    
     printf("%08X\t%08X\t%08X\t%08X\n", state[4], state[5], state[6], state[7]);
-    printf("%08X\t%08X\t%08X\t%08X\n", state[8], state[9], state[10], state[11]);
-    printf("%08X\t%08X\t%08X\t%08X\n", state[12], state[13], state[14], state[15]);
+    
+    printf("%08X\t%08X\t%08X\t%08X\n",
+             state[8], state[9], state[10], state[11]);
+    printf("%08X\t%08X\t%08X\t%08X\n", 
+             state[12], state[13], state[14], state[15]);
     
         
     for(i = 1; i <= 10; ++i){
@@ -207,17 +226,27 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     }
     
     printf("\nRESULTING CHACHA STATE MATRIX:\n");
-    printf("%08X\t%08X\t%08X\t%08X\n", state[0], state[1], state[2], state[3]);
-    printf("%08X\t%08X\t%08X\t%08X\n", state[4], state[5], state[6], state[7]);
-    printf("%08X\t%08X\t%08X\t%08X\n", state[8], state[9], state[10], state[11]);
-    printf("%08X\t%08X\t%08X\t%08X\n", state[12], state[13], state[14], state[15]);
+    
+    printf("%08X\t%08X\t%08X\t%08X\n",
+             state[0],  state[1],  state[2],  state[3]);
+            
+    printf("%08X\t%08X\t%08X\t%08X\n",
+             state[4],  state[5],  state[6],  state[7]);
+            
+    printf("%08X\t%08X\t%08X\t%08X\n",
+             state[8],  state[9],  state[10], state[11]);
+             
+    printf("%08X\t%08X\t%08X\t%08X\n",
+             state[12], state[13], state[14], state[15]);
+             
     
     /* Every uint32_t has its bytes reversed. This is the serialized result. */
     /* So each uint32_t goes:                                                */
     /* from [byte_0 byte_1 byte_2 byte_3] to [byte_3 byte_2 byte_1 byte_0]   */
     for(i = 0; i < 16; ++i){
         for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(serialized_result[i]))) + j) = *(((uint8_t*)(&(state[i]))) + j);
+            *(((uint8_t*)(&(serialized_result[i]))) + j) 
+              = *(((uint8_t*)(&(state[i]))) + j);
         }     
     }
     return;
@@ -230,10 +259,12 @@ void CHACHA20(char* plaintext, uint32_t txt_len
              )
 {
     /* This sum can be either 16 or 15. 16 means no space for Counter,
-     * 15 means one uint32 space for counter. 64-bit counters or bigger are unsupported.
+     * 15 means one uint32 space for counter. 
+     * 64-bit counters or bigger are unsupported.
      */
     if(key_len + nonce_len + 4 > 16 || key_len + nonce_len + 4 < 15){
-        printf("[ERR] Cryptolib - sum of lengths of key, nonce, constants is invalid.\n");
+        printf("[ERR] Cryptolib - sum of lengths of key,"
+               " nonce, constants is invalid.\n");
         return;
     }
 
@@ -255,10 +286,17 @@ void CHACHA20(char* plaintext, uint32_t txt_len
         *counter = 1;
     }
     
-    printf("Required number of chacha matrices: %u, with txt_len: %u\n", num_matrices, txt_len);
+    printf("Required number of chacha matrices: %u, with txt_len: %u\n"
+            , num_matrices, txt_len
+          );
     for(i = 0; i < num_matrices; ++i){
-        CHACHA_BLOCK_FUNC(key, key_len, counter, counter_len, nonce, nonce_len, outputs[i]);
-        if(counter){ ++(*counter); } 
+    
+        CHACHA_BLOCK_FUNC(key, key_len, counter, counter_len, 
+                          nonce, nonce_len, outputs[i]
+                         );      
+        if(counter){ 
+            ++(*counter); 
+        } 
     }
     
     
@@ -360,10 +398,12 @@ void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
     
     uint64_t s[16];
     
-    printf("\n\n***** BEFORE Entering the 12 for-loop. v = \n\n");
+    printf("\n\n***** BEFORE Entering the 12 for-loop. v = \n\n");                  
 
         for(uint64_t x = 0; x < 16; ++x){
-            printf("v[%lu] (HEX)\t= %lX\nv[%lu] (DEC)\t= %lu\n\n", x, v[x], x, v[x]);    
+            printf(  "v[%lu] (HEX)\t= %lX\nv[%lu] (DEC)\t= %lu\n\n"
+                     , x, v[x], x, v[x]
+                  );          
         } printf("\n\n");
     
     printf("NOW ENTERING the 12 for-loop... It prints v[] at every run.\n\n");
@@ -423,7 +463,10 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
     
     printf("\nTHIS GAVE THE HEX RESULT: h[0] = v[0] = %lX\n\n", h[0]);
     
-    printf("BEFORE CALLING F(), ll = %lu (decimal). We pass(ll+128) to F().\n\n", ll);
+    printf("BEFORE CALLING F(), ll = %lu (decimal). "
+           "We pass(ll+128) to F().\n\n"
+           ,ll
+          );
     
     /* Process padded key and data blocks. */
     if(dd > 1){
@@ -720,13 +763,76 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
 
     return;
 }
-   
-void* Argon2_process_blocks
+
+/*  Each thread processes one segment of the Argon2 memory matrix B[][].
+ *  A segment is the intersection of one of the 4 vertical slices, with
+ *  a row. Therefore one segment contains many 1024-byte blocks. To be
+ *  precise, ( (m' / p) / 4) 1024-byte blocks in a single segment.
+ *
+ *  The operation of a single thread is the following:
+ * 
+ *  - Begin the loop that transforms each 1024-byte block in this segment.
+ *
+ *    Each cycle of that loop does the following:
+ *
+ *      - Compute J_1 and J_2 in one of 2 ways, using the provided thread input.
+ *      - Use J_1 and J_2 to compute indices l and z.
+ *      - Call compression function G(), transforming this 1024-byte block.
+ *
+ *  Input buffer contains: Pointer to start of this thread's segment in B[][] 
+ *                         + r, l, sl, m', t, y, p, q as uint64_t's.
+ */
+void* argon2_transform_segment(void* thread_input){
+    
+    uint64_t J_1 = 0, J_2 = 0, l_ix = 0, z_ix = 0, n, j, j_start, j_end;
+    
+    /* Determine the start and end control values of this thread's j-loop. */
+    /* In short, which quarter of this thread's row we're transforming.    */
+    
+    /* Let n be the number of 1024-byte blocks in one segment = (m' / p)/4. */
+    n = (     *((uint64_t*)( ((char*)thread_input) + OFFSET_md ))
+            / *((uint64_t*)( ((char*)thread_input) + OFFSET_p  ))
+        )/4;
+    
+    /* First block transformed will be (n * (sl + 0))      */
+    /* Last  block transformed will be (n * (sl + 1)) - 1  */  
+    j_start = n *  (*((uint64_t*)( ((char*)thread_input) + OFFSET_sl )));
+    j_end   = n * ((*((uint64_t*)( ((char*)thread_input) + OFFSET_sl ))) + 1);  
+     
+    for(j = j_start; j < j_end; ++j){
+            /* If pass number r=0 and slice number sl=0,1:  */
+            /* compute 32-bit values J_1, J_2 for Argon2i.  */
+            if(
+                  *( (uint64_t*)(((char*)thread_input) + OFFSET_r )) == 0  
+                &&     
+                  *( (uint64_t*)(((char*)thread_input) + OFFSET_sl))  < 2
+              )
+            {
+                /* Yet to be implemented. */
+                argon2_getJ1J2_for2i();        
+            }   
+            /* Otherwise: get J_1, J_2 for Argon2d. */
+            else{
+                /* Yet to be implemented. */
+                argon2_getJ1J2_for2d();
+            }
+
+            /* Now that we have the values of J_1 and J_2, */
+            /* use them to compute indices l and z. */
+            
+            /* Yet to be implemented. */
+            argon2_get_LZ();
+
+            /* Now we're ready for this loop cycle's call to G(). */
+            void Argon2_G(char* X, char* Y, char* out_1024);    
+       }
+    return NULL;
+}
    
     
 void Argon2_MAIN(struct Argon2_parms* parms, char* output){
     
-    /* Length of input to the generator of 64-byte H0, BLAKE2B() here. */
+    /* Length of input to the generator of 64-byte H0, BLAKE2B() in this case.*/
     uint64_t H0_input_len =   10 * sizeof(uint32_t)
                             + parms->len_P + parms->len_S
                             + parms->len_K + parms->len_X
@@ -735,6 +841,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
     char* H0_input = malloc(H0_input_len);
       
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
+    /* The order has to be exactly as specified in the RFC.             */
     *((uint32_t*)(H0_input + 0 )) = *( (uint32_t*)(&(parms->p)) );
     *((uint32_t*)(H0_input + 4 )) = *( (uint32_t*)(&(parms->T)) );
     *((uint32_t*)(H0_input + 8 )) = *( (uint32_t*)(&(parms->m)) );
@@ -905,7 +1012,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
              
             /* Populate this thread's input buffer before starting it. */
             
-            /* First is a pointer to this thread's segment in memory matrix. */
+            /* First is a pointer to the start of the memory matrix B[][]. */
             *((block_t**)(((char*)(thread_inputs[i])) + 0)) = B[i];
             
             /* Offset in bytes into the thread's input buffer. */
@@ -948,7 +1055,21 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
             thread_in_offset += sizeof(uint64_t);
             
             /* Now that the input buffer for this thread is ready, start it. */
+            pthread_create(
+                 &(argon2_thread_ids[i])
+                ,NULL
+                ,argon2_transform_segment
+                ,thread_inputs[i]
+            );
              
+        }
+        
+        /* After the previous loop starts all threads, this loop joins them. 
+         * All segments of this slice of the memory matrix must be finished 
+         * before any thread can start processing its segment of next slice.
+         */
+        for(uint64_t i = 0; i < parms->p; ++i){
+            pthread_join(argon2_thread_ids[i], NULL);    
         } 
     } 
     
