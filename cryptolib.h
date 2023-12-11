@@ -17,9 +17,9 @@ typedef struct block{
 } block_t;
 
 typedef struct 64_byte{
-    uint8_t block_data[64];    
+    uint8_t block_data[64]; 
 } block64_t
-
+        
 /* Parameters of Argon2
  * 
  * Every user of Argon2 should initialize an instance of this structure
@@ -629,8 +629,9 @@ void Argon2_P(char* input_128){
  *
  * Does not change the input memory blocks X and Y directly.
  */
-void Argon2_G(char* X, char* Y, char* out_1024){
-    char* matrix_R = malloc(1024);
+void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
+
+    uint8_t* matrix_R = malloc(1024);
     
     size_t i, j;
     
@@ -643,7 +644,7 @@ void Argon2_G(char* X, char* Y, char* out_1024){
      *  matrix Q, then Q into matrix Z.
      */
     
-    char* R_transformed = malloc(1024);
+    uint8_t* R_transformed = malloc(1024);
     
     memcpy(R_transformed, matrix_R, 1024);
     
@@ -665,7 +666,7 @@ void Argon2_G(char* X, char* Y, char* out_1024){
      *  the transformed output buffers we will use to construct 
      *  matrix Z at the end.
      */
-    char* Q_columns = malloc(1024);
+    uint8_t* Q_columns = malloc(1024);
     
     for(i = 0; i < 8; ++i){ /* for each of the 8 rows in Q */
         for(j = 0; j < 8; ++j){ /* for each 16-byte register in that row */
@@ -684,7 +685,7 @@ void Argon2_G(char* X, char* Y, char* out_1024){
         Argon2_P(Q_columns + (i * 128));    
     }   
     
-    char* matrix_Z = malloc(1024);
+    uint8_t* matrix_Z = malloc(1024);
     
     /* Reconstruct the contiguous rows of Z. This is the final matrix. */
     for(i = 0; i < 8; ++i){ /* for each column of matrix Q */
@@ -764,6 +765,62 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     return;
 }
 
+void argon2_getJ1J2_for2i(uint8_t* Z, uint64_t q,uint64_t* J_1@, uint64_t* J_2@)
+{
+    /* We are about to compute ( q / (128*SL) ) 1024-byte blocks. SL=4 slices.*/
+    /* Allocate memory for them after working out exactly how many to compute */
+    uint64_t num_blocks = q / (128 * 4),
+             G_inner_counter = 0;
+    
+    block_t* blocks = malloc(num_blocks * (1024));
+    
+    /* Some helpers for constructing the input to the usage of G() here. */
+    uint8_t *zero1024 = malloc(1024),
+           ,*zero968  = malloc(968);
+           
+    memset(zero1024, 0x00, 1024);
+    memset(zero968,  0x00, 968 );
+    
+    /* Remember, Argon2 G() takes two 1024-byte blocks and outputs one block. */
+    
+    uint8_t *G_inner_input_2 = malloc(1024); /* 2nd arg. of inner G() call.  */
+            *G_inner_output  = malloc(1024); /* outout   of inner G() call,  */
+                                             /* which is input to outer G(). */
+            *G_outer_output  = malloc(1024); /* output of outer call to G(). */
+            
+    /* Initialize the buffer for 2nd input block to inner call of G(). */
+    memcpy(G_inner_input_2, Z, 6*sizeof(uint64_t));
+           
+    memcpy(G_inner_input_2 + (7*sizeof(uint64_t))
+          ,zero968
+          ,968
+          );
+          
+    /* Generate the 1024-byte blocks. */      
+    for(uint64_t i = 0; i < num_blocks; ++i){
+    
+        /* Increment the counter inside 2nd input to inner G() call. */
+        ++G_inner_counter;
+        
+        memcpy(G_inner_input_2 + (6*sizeof(uint64_t))
+              ,&G_inner_counter
+              ,sizeof(uint64_t)
+              );
+    
+        /* First do the inner G(), whose output is 2nd input to outer G(). */
+        Argon2_G(zero1024, G_inner_input_2, G_inner_output);
+        
+        /* Now the outer G() that generates this actual 1024-byte block. */
+        Argon2_G(zero1024, G_inner_output, (char*)(&(blocks[i])));  
+    }
+    
+    /* Extract J_1 and J_2. */
+    *J_1@ = *((uint32_t*)(&(blocks[0])));
+    *J_2@ = *((uint32_t*)(blocks + (num_blocks / 2)));
+    
+    return; 
+} 
+
 /*  Each thread processes one segment of the Argon2 memory matrix B[][].
  *  A segment is the intersection of one of the 4 vertical slices, with
  *  a row. Therefore one segment contains many 1024-byte blocks. To be
@@ -790,9 +847,18 @@ void* argon2_transform_segment(void* thread_input){
      *
      * First ever actual necessary use of a triple pointer. Wow.
      */
-    block_t** B = *((block_t***)(thread_input));
+    block_t **B = *((block_t***)(thread_input));
     
-    uint64_t J_1 = 0, J_2 = 0, l_ix = 0, z_ix = 0, n, j, j_start, j_end;
+    uint64_t J_1 = 0, J_2 = 0, l_ix = 0, z_ix = 0, n, j, j_start, j_end
+            ,cur_lane = *((uint64_t*)( ((char*)thread_input) + OFFSET_l ))
+            ;
+    
+    
+    uint8_t* Z_buf = malloc(6 * sizeof(uint64-t));
+    memcpy(Z_buf, ((char*)thread_input) + OFFSET_r, (6 * sizeof(uint64_t)));
+    
+    uint64_t q  = *((uint64_t*)( ((char*)thread_input) + OFFSET_q  ))
+            ,sl = *((uint64_t*)( ((char*)thread_input) + OFFSET_sl ));
     
     /* Determine the start and end control values of this thread's j-loop. */
     /* In short, which quarter of this thread's row we're transforming.    */
@@ -804,26 +870,31 @@ void* argon2_transform_segment(void* thread_input){
     
     /* First block transformed will be (n * (sl + 0))      */
     /* Last  block transformed will be (n * (sl + 1)) - 1  */  
-    j_start = n *  (*((uint64_t*)( ((char*)thread_input) + OFFSET_sl )));
-    j_end   = n * ((*((uint64_t*)( ((char*)thread_input) + OFFSET_sl ))) + 1);  
-     
+    j_start = n *  sl;
+    j_end   = n * (sl + 1);  
+    
+    /* If at first slice (sl=0), we will do 2 fewer cycles of threaded loop, */
+    /* as the first 2 loop cycles in pass 0 are hardcoded and different.     */
+    if(sl == 0){
+        j = 2;
+    } 
+    
     for(j = j_start; j < j_end; ++j){
             /* If pass number r=0 and slice number sl=0,1:  */
             /* compute 32-bit values J_1, J_2 for Argon2i.  */
             if(
                   *( (uint64_t*)(((char*)thread_input) + OFFSET_r )) == 0  
                 &&     
-                  *( (uint64_t*)(((char*)thread_input) + OFFSET_sl))  < 2
+                  sl < 2
               )
             {
-                /* Yet to be implemented. */
-                argon2_getJ1J2_for2i();        
+                argon2_getJ1J2_for2i(Z_buf, q, sl, &J_1, &J_2);        
             }   
             /* Otherwise: get J_1, J_2 for Argon2d. */
             else{
-                /* Yet to be implemented. */
-                argon2_getJ1J2_for2d();
-            }
+                J_1 = (uint64_t)*(((uint32_t*)(&(B[i][j-1]))) + 0);  
+                J_2 = (uint64_t)*(((uint32_t*)(&(B[i][j-1]))) + 1);
+            }   
 
             /* Now that we have the values of J_1 and J_2, */
             /* use them to compute indices l and z. */
@@ -1025,6 +1096,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output){
             
             /* Offset in bytes into the thread's input buffer. */
             thread_in_offset = sizeof(block_t*);
+           
             
             /* Second is r, the current pass number. */
             *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = r;   
