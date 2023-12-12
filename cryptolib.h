@@ -888,7 +888,7 @@ void* argon2_transform_segment(void* thread_input){
                   sl < 2
               )
             {
-                argon2_getJ1J2_for2i(Z_buf, q, sl, &J_1, &J_2);        
+                argon2_getJ1J2_for2i(Z_buf, q, &J_1, &J_2);        
             }   
             /* Otherwise: get J_1, J_2 for Argon2d. */
             else{
