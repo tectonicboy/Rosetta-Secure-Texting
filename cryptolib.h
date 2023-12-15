@@ -765,6 +765,8 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     return;
 }
 
+
+
 void argon2_getJ1J2_for2i(uint8_t* Z, uint64_t q,uint64_t* J_1@, uint64_t* J_2@)
 {
     /* We are about to compute ( q / (128*SL) ) 1024-byte blocks. SL=4 slices.*/
@@ -786,7 +788,7 @@ void argon2_getJ1J2_for2i(uint8_t* Z, uint64_t q,uint64_t* J_1@, uint64_t* J_2@)
     uint8_t *G_inner_input_2 = malloc(1024); /* 2nd arg. of inner G() call.  */
             *G_inner_output  = malloc(1024); /* outout   of inner G() call,  */
                                              /* which is input to outer G(). */
-            *G_outer_output  = malloc(1024); /* output of outer call to G(). */
+            *G_outer_output  = malloc(1024); /* Output of outer call to G(). */
             
     /* Initialize the buffer for 2nd input block to inner call of G(). */
     memcpy(G_inner_input_2, Z, 6*sizeof(uint64_t));
@@ -821,6 +823,7 @@ void argon2_getJ1J2_for2i(uint8_t* Z, uint64_t q,uint64_t* J_1@, uint64_t* J_2@)
     return; 
 } 
 
+
 /*  Each thread processes one segment of the Argon2 memory matrix B[][].
  *  A segment is the intersection of one of the 4 vertical slices, with
  *  a row. Therefore one segment contains many 1024-byte blocks. To be
@@ -847,26 +850,30 @@ void* argon2_transform_segment(void* thread_input){
      *
      * First ever actual necessary use of a triple pointer. Wow.
      */
-    block_t **B = *((block_t***)(thread_input));
+    block_t **B = *((block_t***)(thread_input))
+            ,*G_input_one
+            ,*G_input_two
+            ,*G_output
+             
     
     uint64_t J_1 = 0, J_2 = 0, l_ix = 0, z_ix = 0, n, j, j_start, j_end
             ,cur_lane = *((uint64_t*)( ((char*)thread_input) + OFFSET_l ))
-            ;
-    
-    
-    uint8_t* Z_buf = malloc(6 * sizeof(uint64-t));
+            ,q  = *((uint64_t*)( ((char*)thread_input) + OFFSET_q  ))
+            ,sl = *((uint64_t*)( ((char*)thread_input) + OFFSET_sl ))
+            ,r  = *((uint64_t*)( ((char*)thread_input) + OFFSET_r  ))
+            ,p  = *((uint64_t*)( ((char*)thread_input) + OFFSET_p  ))
+            ,md = *((uint64_t*)( ((char*)thread_input) + OFFSET_md ))
+            ,W_siz, *W, W_ix, computed_blocks = 0, x, y, zz;
+
+    uint8_t* Z_buf = malloc(6 * sizeof(uint64_t));
     memcpy(Z_buf, ((char*)thread_input) + OFFSET_r, (6 * sizeof(uint64_t)));
     
-    uint64_t q  = *((uint64_t*)( ((char*)thread_input) + OFFSET_q  ))
-            ,sl = *((uint64_t*)( ((char*)thread_input) + OFFSET_sl ));
     
     /* Determine the start and end control values of this thread's j-loop. */
     /* In short, which quarter of this thread's row we're transforming.    */
     
     /* Let n be the number of 1024-byte blocks in one segment = (m' / p)/4. */
-    n = (     *((uint64_t*)( ((char*)thread_input) + OFFSET_md ))
-            / *((uint64_t*)( ((char*)thread_input) + OFFSET_p  ))
-        )/4;
+    n = (md / p) / 4;
     
     /* First block transformed will be (n * (sl + 0))      */
     /* Last  block transformed will be (n * (sl + 1)) - 1  */  
@@ -876,18 +883,14 @@ void* argon2_transform_segment(void* thread_input){
     /* If at first slice (sl=0), we will do 2 fewer cycles of threaded loop, */
     /* as the first 2 loop cycles in pass 0 are hardcoded and different.     */
     if(sl == 0){
-        j = 2;
+        j_start = 2;
+        computed_blocks = 2;
     } 
     
     for(j = j_start; j < j_end; ++j){
             /* If pass number r=0 and slice number sl=0,1:  */
             /* compute 32-bit values J_1, J_2 for Argon2i.  */
-            if(
-                  *( (uint64_t*)(((char*)thread_input) + OFFSET_r )) == 0  
-                &&     
-                  sl < 2
-              )
-            {
+            if( r == 0 && sl < 2 ){
                 argon2_getJ1J2_for2i(Z_buf, q, &J_1, &J_2);        
             }   
             /* Otherwise: get J_1, J_2 for Argon2d. */
@@ -899,11 +902,105 @@ void* argon2_transform_segment(void* thread_input){
             /* Now that we have the values of J_1 and J_2, */
             /* use them to compute indices l and z. */
             
-            /* Yet to be implemented. */
-            argon2_get_LZ();
+            /* Generate index l_ix. */
+            if(r == 0 && sl == 0){
+                l_ix = cur_lane;
+            }
+            else{
+                l_ix = J_2 % p;
+            }
+                   
+            /* Compute the size of, allocate and populate index array W[]. */
+            W_ix = 0;
+            if(l_ix != cur_lane){
+                W_siz = sl * n;  
+                W = malloc(W_siz * sizeof(size_t));
+                
+                for(size_t old_slice = 0; old_slice < sl; ++old_slice){
+                
+                    for(  size_t block_ix = ( (l_ix*q) + (old_slice*(q/4)) ) 
+                        ; block_ix <= ( (l_ix*q) + ((old_slice+1)*(q/4)) - 1 )
+                        ; ++block_ix
+                       )
+                    {
+                        W[W_ix] = block_ix; 
+                        ++W_ix;
+                    }     
+                }
+                if(computed_blocks == 0){
+                    --W_siz;
+                }
+            }
+            else{
+                W_siz = (sl * n) + computed_blocks;
+                W = malloc(W_siz * sizeof(size_t));
+                
+                for(size_t old_slice = 0; old_slice < sl; ++old_slice){
+                
+                    for(  size_t block_ix = ( (l_ix*q) + (old_slice*(q/4)) ) 
+                        ; block_ix <= ( (l_ix*q) + ((old_slice+1)*(q/4)) - 1 )
+                        ; ++block_ix
+                       )
+                    {
+                        W[W_ix] = block_ix; 
+                        ++W_ix;
+                    }     
+                }
+                
+                /* In this case we take all blocks in the current semgment
+                 * that have already been transformed, except the block that
+                 * was transformed in the previous loop cycle. 
+                 */
+                old_slice = sl;
+                
+                for(  size_t block_ix = (  (l_ix*q) + (old_slice*(q/4)) ) 
+                        ; block_ix   <= ( ((l_ix*q) + (old_slice*(q/4)) + 
+                                        (computed_blocks - 1)) )
+                        ; ++block_ix
+                       )
+                    {
+                        W[W_ix] = block_ix; 
+                        ++W_ix;
+                    }  
+                
+                --W_siz; 
+            }
+            
+            /* Now pick one block index from W[]. This will be z in B[l][z]. */
+            
+            x  = (J_1 * J_1) / (uint64_t)4294967296;
+            y  = (W_siz * x) / (uint64_t)4294967296;
+            zz = W_siz - 1 - y;
+            
+            z_ix = W[zz]; 
 
             /* Now we're ready for this loop cycle's call to G(). */
-            void Argon2_G(char* X, char* Y, char* out_1024);    
+            
+            /* Prepare arguments of G().
+             * These will be pointers directly to the two 1024-byte blocks
+             * that will be read by G() as its algorithmic input, and one
+             * pointer directly to the start of the 1024-byte block that
+             * G() will transform. They are of type block_t*
+             */
+            
+            /* j is the index of the block we're about to transform in this
+             * loop cycle RELATIVE TO THE START OF THE CURRENT LANE!!!
+             */ 
+            G_input_one = (((block_t*)B) + (cur_lane*q)) + (j-1);
+            G_output    = (((block_t*)B) + (cur_lane*q)) + (j);
+            
+            /* On the other hand, z is the index of the block we feed as second
+             * input to G() RELATIVE TO THE START OF B[][] ITSELF!! Not relative
+             * to the start of lane l_ix. l_ix was already taken into account
+             * when computing index z. It's relative to start of B[][].
+             */
+            G_input_two = ((block_t*)B) + z;
+            
+            Argon2_G(G_input_one, G_input_two, G_output); 
+            
+            ++computed_blocks;
+             
+            free(W);  
        }
     return NULL;
 }
