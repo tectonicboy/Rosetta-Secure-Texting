@@ -109,9 +109,57 @@ int main(){
     for(uint32_t i = 0; i < 64; ++i){
         if(i % 16 == 0 && i > 0){printf("\n");}
         printf("%02x ", (uint8_t)b2b_out_buf[i]);
-
     }
     printf("\n\n");
+    
+    
+    /**************************************************************************/
+    /********************   NOW TESTING ARGON2id  *****************************/
+    /**************************************************************************/
+       
+    struct Argon2_parms prms;
+    
+    prms.p = 4;   
+    prms.T = 32;  
+    prms.m = 32;  
+    prms.t = 3;  
+    prms.v = 19;  
+    prms.y = 2;  
+    
+    char *P = malloc(32),
+         *S = malloc(16),
+         *K = malloc(8),
+         *X = malloc(12);
+         
+    memset(P, 0x01, 32);     
+    memset(S, 0x02, 16);
+    memset(K, 0x03, 8 );
+    memset(X, 0x04, 12);
+    
+    prms.P = P;
+    prms.S = S;
+    prms.K = K;
+    prms.X = X;
+    
+    prms.len_P = 32;
+    prms.len_S = 16;
+    prms.len_K = 8 ;
+    prms.len_X = 12;
+    
+    char* argon2_output_tag = malloc(prms.T);
+    
+    Argon2_MAIN(&prms, argon2_output_tag);
+    
+    printf("\n\n***** ARGON2id produced %lu-byte Tag: ******\n\n", prms.T);
+    
+    for(uint32_t i = 0; i < 32; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02x ", (uint8_t)argon2_output_tag[i]);
+    }
+    printf("\n\n");
+    
+    
+    
 }
 
 
