@@ -861,7 +861,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
 {
     uint64_t W_siz, *W, W_ix, x, y, zz, l_ix, z_ix;
     size_t old_slice;
-    
+    printf("PASSED TO getLZ() n = %lu\n", n);
     /* Generate index l_ix. */
     if(r == 0 && sl == 0){
         l_ix = cur_lane;
@@ -869,7 +869,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
     else{
         l_ix = J_2 % p;
     }
-           
+    uint64_t malloc_limit = PTRDIFF_MAX;      
     /* Compute the size of, allocate and populate index array W[]. */
     W_ix = 0;
     if(l_ix != cur_lane){
@@ -877,7 +877,8 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
         printf("*** For W[] allocating memory = %lu bytes\n", 
                     (uint64_t)(W_siz * sizeof(size_t))
         ); 
-        
+        printf("LIMIT: At most %lu bytes can be malloc()'d in one call.\n"
+                , malloc_limit);
         printf("W_siz = sl * n, which is W_siz = %lu * %lu = %lu\n", sl, n, W_siz);
         
         W = malloc(W_siz * sizeof(size_t));
@@ -892,6 +893,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
                 printf("\t getLZ() ??? 1_a block_ix = %lu, old_slice = %lu\n"
                         ,block_ix, old_slice
                 );
+                printf("W_ix = %lu\n", W_ix);
                 W[W_ix] = block_ix; 
                 ++W_ix;
                 printf("\t getLZ() ??? 1_b block_ix = %lu, old_slice = %lu\n"
@@ -1060,7 +1062,7 @@ void* argon2_transform_segment(void* thread_input){
             printf("??? 6 j=%lu\n", j);
         }   
         printf("??? 7 j=%lu\n", j);
-        z_ix = Argon2_getLZ(r, sl, cur_lane, p, n, J_1, J_2, q,computed_blocks);
+        z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
         printf("??? 8 j=%lu\n", j);
         /* Now we're ready for this loop cycle's call to G(). */
         
@@ -1112,7 +1114,7 @@ label_further_passes:
         J_1 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][q-1]))) + 0);  
         J_2 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][q-1]))) + 1);
 
-        z_ix = Argon2_getLZ(r, sl, cur_lane, p, n, J_1, J_2, q,computed_blocks);
+        z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
 
         G_input_one = (((block_t*)B) + (cur_lane*q)) + (q-1);
         G_output    = (((block_t*)B) + (cur_lane*q)) + (0);
@@ -1141,7 +1143,7 @@ label_further_passes:
         J_1 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][j-1]))) + 0);  
         J_2 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][j-1]))) + 1);
 
-        z_ix = Argon2_getLZ(r, sl, cur_lane, p, n, J_1, J_2, q,computed_blocks);
+        z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
 
         G_input_one = (((block_t*)B) + (cur_lane*q)) + (j-1);
         G_output    = (((block_t*)B) + (cur_lane*q)) + (j);       
@@ -1330,7 +1332,6 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
         thread_inputs[i] = malloc(sizeof(block_t*) + (8 * sizeof(uint64_t)));
         printf("\t?? 8 i=%u\n", i);  
     }
-
 label_start_pass:
      printf("ARGON2id at CURRENT PASS r = %lu\n", r);
     for (uint64_t sl = 0; sl < 4; ++sl){ /* slice number. */
