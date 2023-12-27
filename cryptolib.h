@@ -867,6 +867,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
         l_ix = cur_lane;
     }
     else{
+        printf("Not in pass 0, slice 0. J_2 = %lu, p = %lu\n", J_2, p);
         l_ix = J_2 % p;
     }
     uint64_t malloc_limit = PTRDIFF_MAX;      
@@ -932,7 +933,15 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
          * was transformed in the previous loop cycle. 
          */
         old_slice = sl;
-        
+        printf( "BEFORE ERRONEOUS 3_a loop:\n"
+                "Current pass number r = %lu\n"
+                "computed_blocks = %lu\n"
+                "l_ix = %lu\n"
+                "q = %lu\n"
+                "old_slice = %lu\n"
+                "current slice number sl = %lu\n"
+                ,r,computed_blocks, l_ix, q, old_slice, sl
+        );
         for(  size_t block_ix = (  (l_ix*q) + (old_slice*(q/4)) ) 
                 ; block_ix   <= ( ((l_ix*q) + (old_slice*(q/4)) + 
                                 (computed_blocks - 1)) )
@@ -1076,16 +1085,16 @@ void* argon2_transform_segment(void* thread_input){
         /* j is the index of the block we're about to transform in this
          * loop cycle RELATIVE TO THE START OF THE CURRENT LANE!!!
          */ 
-        G_input_one = (((block_t*)B) + (cur_lane*q)) + (j-1);
+        G_input_one = (B[0] + (cur_lane*q)) + (j-1);
         printf("??? 9 j=%lu\n", j);
-        G_output    = (((block_t*)B) + (cur_lane*q)) + (j);
+        G_output    = (B[0] + (cur_lane*q)) + (j);
         printf("??? 10 j=%lu\n", j);
         /* On the other hand, z is the index of the block we feed as second
          * input to G() RELATIVE TO THE START OF B[][] ITSELF!! Not relative
          * to the start of lane l_ix. l_ix was already taken into account
          * when computing index z. It's relative to start of B[][].
          */
-        G_input_two = ((block_t*)B) + z_ix;
+        G_input_two = B[0] + z_ix;
         printf("??? 11 j=%lu\n", j);
         Argon2_G((uint8_t*)G_input_one, (uint8_t*)G_input_two, (uint8_t*)G_output); 
         printf("??? 12 j=%lu\n", j);
@@ -1113,12 +1122,18 @@ label_further_passes:
      if(sl == 0){
         J_1 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][q-1]))) + 0);  
         J_2 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][q-1]))) + 1);
-
+        
+        /* We're populating W[] (the set of block indices we pick from when
+         * computing indices l and z) in this case from all blocks in this
+         * lane. I think? The RFC doesn't say anything specific about this.
+         */
+        computed_blocks = n;
+        sl = 3;
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
-
-        G_input_one = (((block_t*)B) + (cur_lane*q)) + (q-1);
-        G_output    = (((block_t*)B) + (cur_lane*q)) + (0);
-        G_input_two =  ((block_t*)B) + z_ix;
+        
+        G_input_one = (B[0] + (cur_lane*q)) + (q-1);
+        G_output    = (B[0] + (cur_lane*q));
+        G_input_two =  B[0] + z_ix;
         
         /* Before we let G() write to the output block, copy it over and save it
          * here so we can later XOR the result G() wrote there with the old
@@ -1137,6 +1152,7 @@ label_further_passes:
         /* as the first 1024-byte block in passes 1+ is hardcoded.            */
         j_start = 1;
         computed_blocks = 1;
+        sl = 0;
     } 
     for(j = j_start; j < j_end; ++j){
 
@@ -1145,9 +1161,9 @@ label_further_passes:
 
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
 
-        G_input_one = (((block_t*)B) + (cur_lane*q)) + (j-1);
-        G_output    = (((block_t*)B) + (cur_lane*q)) + (j);       
-        G_input_two = ((block_t*)B) + z_ix;
+        G_input_one = (B[0] + (cur_lane*q)) + (j-1);
+        G_output    = (B[0] + (cur_lane*q)) + (j);       
+        G_input_two =  B[0] + z_ix;
                 
         /* Before we let G() write to the output block, copy it over and save it
          * here so we can later XOR the result G() wrote there with the old
@@ -1423,14 +1439,60 @@ label_start_pass:
             pthread_join(argon2_thread_ids[i], NULL);    
         } 
     } /* End of one slice. */
-    
+    if(r == 1){
+        printf("Finished 2nd pass. Didnt increment pass number yet.\n");
+        printf("r = %lu\n", r);
+        printf("After this pass, first 4 batches of 8 bytes of Block 0:\n");
+        
+        for(uint32_t eeee = 0; eeee < 8; ++eeee){
+            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+        }
+        printf("\n");
+        for(uint32_t eeee = 8; eeee < 16; ++eeee){
+            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+        }
+        printf("\n");
+        for(uint32_t eeee = 16; eeee < 24; ++eeee){
+            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+        }
+        printf("\n");
+        for(uint32_t eeee = 24; eeee < 32; ++eeee){
+            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+        }
+        printf("\n");
+        printf("EXITING AT THIS PASS FOR TESTING. Terminating now.\n");
+        exit(0);
+    }
     /* Finished all 4 slices of a pass. Increment pass number.*/
     ++r;
+    
+    
+    
+    
     
     /* If Argon2 is to perform more than the zeroth pass, do them. */
     if (r < parms->t){
         goto label_start_pass;    
     }
+    
+    printf("After final pass, first 4 batches of 8 bytes of Block 0:\n");
+    
+    for(uint32_t eeee = 0; eeee < 8; ++eeee){
+        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+    }
+    
+    for(uint32_t eeee = 8; eeee < 16; ++eeee){
+        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+    }
+    
+    for(uint32_t eeee = 16; eeee < 24; ++eeee){
+        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+    }
+    
+    for(uint32_t eeee = 24; eeee < 32; ++eeee){
+        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
+    }
+    
     
     /* Done with all required passes. */
     /* Compute final 1024-byte block C by XORing the last block of every lane.*/
