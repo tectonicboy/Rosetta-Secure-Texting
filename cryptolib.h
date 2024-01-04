@@ -1436,8 +1436,42 @@ label_start_pass:
     free(H0_input);
     free(final_block_C);
 }
+
+/* Generate a cryptographic signature of a sender's message
+ * according to the method pioneered by Claus-Peter Schnorr.
+ *
+ * PH = BLAKE2B{64}(data);
+ *  k = (BLAKE2B{64}(a || PH) mod (Q-1)) + 1;
+ *  R = G^k mod M;
+ *  e = trunc{bitwidth(Q)}(BLAKE2B{64}(R || PH));
+ *  s = ((k - (a * e)) mod Q;
+ *
+ * where M is a 3072-bit prime number, Q is a 320-bit prime
+ * number which exactly dibides (M-1), G = 2^((M-1)/Q) mod M,
+ * and a is the private key of the message sender. 
+ *
+ * The signature itself is (s,e).
+ */ 
+void Signature_GENERATE(struct   bigint* M,  struct bigint* Q
+                        struct   bigint* G,  char*  data
+                        uint64_t data_len,   char*  output_buf
+                       )
+{
+        
+    char *b2b_output = malloc(64);      
+    memset(b2b_output, 0x00, 64);
+
     
-    
+    BLAKE2B_INIT(data, data_len, 0, 64, b2b_output);
+      
+}
+
+
+
+void Signature_VALIDATE(){
+
+
+}
     
     
     

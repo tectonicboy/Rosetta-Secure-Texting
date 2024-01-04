@@ -579,6 +579,7 @@ void bigint_mul_fast(struct bigint* n1, struct bigint* n2, struct bigint* R){
 
 /* BigInt n1 to the power of BigInt n2. */
 void bigint_pow(struct bigint* n1, struct bigint* n2, struct bigint* R){
+
     struct bigint n1_used_bits, R_req_bits, zero, one
                  ,R_res_bits, R_temp, starter, starter_temp;
 
@@ -983,7 +984,15 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
     bigint_div2(N, M, &div_res, &aux1);
 
     /* The long loop */
-    for(uint32_t i = 0; i < P->used_bits; ++i){     
+    for(uint32_t i = 0; i < P->used_bits; ++i){   
+    
+     
+        printf("[BigInt] - Long loop in MOD_POW moved  i = %u to %u"
+               " (power's used bits).\n"
+               , i, P->used_bits
+               ); 
+               
+               
         if( i == arr1[arr1_curr_ind] ){
             bigint_equate2( arr_ptrs[arr1_curr_ind], &aux1);
             ++arr1_curr_ind;
