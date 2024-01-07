@@ -1,0 +1,308 @@
+Rosetta Security Scheme
+
+NOTE: All uses of BLAKE2B are unkeyed.
+
+===============================================================================
+PART O - Server generates its own (public/private) key pair. Its public key
+.	     is automatically distributed to whoever installs the client app.
+.		 Server will use these to compute Schorr Signatures that will be 
+.		 checked by the receivers of its transmissions, just like senders of
+.		 messages sign their messages which are checked by message receivers.
+
+
+PART I - Registration, login, credentials storage & validation
+
+On registration, Alice enters Username and Password.
+
+IF her selected username is available: 
+
+0. The server sends her publicly:
+
+	M - the diffie-hellman modulus which is a 3071-bit prime.
+	Q - the 320-bit prime number that exactly divides (M-1)
+	G - the diffie-hellman generator, G = H^((M-1)/Q) mod M, where H = 2.
+	
+1. Alice's client generates her private key, a:
+
+	a = random in the range [1, Q) and can be non-prime.
+	
+	NOTE: Alice won't store her own private key itself in her filesystem
+	.	  directly. Instead, the password hash produced by Argon2id with
+	.	  her password will become the KEY for ChaCha20, which we use to
+	.     hash her private key and store that instead. Alice's own 
+	.	  filesystem wont store the password hash. It can store the 
+	.     Nonce used for ChaCha20 to store her hashed private key.
+	
+2. Alice's client computes her public key, A:
+
+	A = G^a mod M
+	
+3. Alice's client performs the SECURE PASSWORD-PROTECTED KEY STORAGE PROTOCOL:
+
+	3.0. Generate a random 8-byte string S.
+	
+	3.1. Use Argon2id algorithm with the following INPUT:
+	
+		- Salt 	   = S||BLAKE2B{64}(A);
+		- Password = Alice's chosen registration password.
+		- Parms    : t = 1, p = 1, m = 2^21 (2 GiB RAM)
+
+		OUTPUT of Argon2id is a 64-byte T.
+	
+	3.2. Let V be the most significant 40 bytes of T.
+		 (since Q is 40 bytes)
+	
+	3.3. Compute a' with:
+	
+		a' = a XOR V
+	
+	3.4. Store in Alice's own filesystem (A,S,V,a',(t,p,m)).
+
+4. Lastly, Alice has to login. To do that, her client:
+
+	4.0. Ask Alice to enter Username and Password to login with.
+
+	4.1. Check if the Username she entered exists.
+
+	4.2. Check the stored (t,p,m) are valid Argon2id parameters.
+		 If they are not valid, update them.
+	
+	
+	4.3. Use Argon2id algorithm with the following INPUT:
+	
+		- Salt 	   = S||BLAKE2B{64}(A)
+		- Password = password Alice tried logging in with. 
+		- Parms    : t = 1, p = 1, m = 2^21 (2 GiB RAM).
+		
+		OUTPUT of Argon2id is a 64-byte T.
+		
+	4.4. Let V be the most significant 40 bytes of T.
+		 (since Q is 40 bytes)
+
+	4.5. Compute a = a' XOR V
+
+	4.6. Compute A = G^a mod M
+	
+	4.6. If this A is the same as the public key stored on this 
+		 same computer's filesystem, then the password is correct 
+		 and login is now completed.
+		
+===============================================================================
+
+PART II - Creating a chatroom, joining and leaving chatrooms.
+
+
+CREATING A NEW CHAT ROOM
+
+When a user creates a new chatroom, at first it has no other people in it
+other than the owner. Then, other people are able to find it and join it.
+
+
+JOINING AN EXISTING CHAT ROOM
+
+When Alice joins a chatroom, the server tells Alice which people in the room 
+she can already talk to, and who she can not yet talk to. 
+
+Being able to talk to someone in this context means having exchanged
+public keys and computed a LONG-TERM SYMMETRIC BIDIRECTIONAL KEY-PAIR.
+
+The server will keep, for every registered user, a list of all people
+this user can already talk to.
+
+If Bob is in the chatroom that Alice just joined and the server finds 
+that Alice can not yet talk to Bob (they never met in a chatroom so far):
+
+THE SECURE COMMUNICATION ALLOWANCE PROTOCOL:
+
+Let (a,A) be Alice's private/public key pair and similarly (b,B) for Bob's.
+
+0. Bob sends Alice his public key (B), Alice sends Bob her public key (A).
+
+1. Alice's client computes: X = B^a mod M
+   Bob's   client computes: X = A^b mod M
+   
+2. On Alice's side:
+.		KAB = least significant 32 bytes of X, KBA = next 32 bytes of X.
+
+.  On Bob's side: 
+.	    KBA = least significant 32 bytes of X, KAB = next 32 bytes of X.
+
+3. On Alice's side, swap KAB with KBA if A < B.
+   On Bob's side,   swap KBA with KAB if A > B.
+   
+   This ensures KAB and KBA are the same on both Alice's and Bob's side.
+
+   Store both KAB and KBA on both Alice's and Bob's filesystem.
+   
+   Now Bob and Alice are able to send and receive each other's messages,
+   without needing to do this procedure again. Described in Part III.
+   
+   If a person loses their public/private key pair, they have to make 
+   a new registration. The old registration will be automatically deleted
+   in 3 months of inactivity, as the password won't work if the keys on
+   the filesystem somehow got corrupted.
+   
+   
+EXITING A CHAT ROOM
+
+If a person exits a chat room and they were NOT the owner of that room, then
+the server simply updates the internal chatroom structure to remove that 
+user from the list of "people currently in this chat room" and the rest of
+the people who are still in it will stop sending messages to whoever just left.
+
+If the owner of a chatroom leaves it, the chat room gets automatically deleted
+and everyone else who was in the chatroom gets removed from it.
+
+===============================================================================
+
+PART III - Sending and receiving chat messages in a chat room.
+
+Suppose Alice already knows how to talk to Bob, Carol and Fred and she's in a 
+chatroom with the three of them. To send them a message, Alice's client does:
+
+THE SECURE MESSAGE EXCHANGE PROTOCOL:
+
+0. Alice draws a random 32-byte one-use key K. New K drawn with each message.
+
+1. Uses ChaCha20 algorithm to encrypt K. Here, we call ChaCha once for every 
+   person Alice will be sending a message to (everyone else in this chatroom).
+   
+   K gets XORed with the first 64 bytes of the output 
+   of the chacha core to form KB, KC, KF:
+   
+   For Alice sending to Bob, Carol and Fred, K gets XORed with 
+   the first 64 bytes of the output of the chacha core to form KB, KC, KF:
+   
+   - One ChaCha call with KAB as the ChaCha Key. Produces KB.
+   - One ChaCha call with KAC as the ChaCha Key. Produces KC.
+   - One ChaCha call with KAF as the ChaCha Key. Produces KF.
+   
+   ChaCha Constants: Always the same. They're part of the ChaCha specification.
+   
+   ChaCha Nonce: A new 16-byte Nonce is randomly drawn the moment a user joins
+    		     or creates a chatroom. After each message this user sends in
+				 that chatroom, their ChaCha Nonce is incremented by 1.
+
+   ChaCha Counter: No counter for the above usages of ChaCha. The fourth 4-byte 
+				   section of the 16-byte Nonce (which is usually 12-byte) takes
+				   the spot of the Counter in the ChaCha State Matrix here.
+				   
+   Each usage of ChaCha here generates a message-sending Key for each receiver.
+   KAB key (key Alice-to-Bob) produced KB (key Bob as receiver), and so on.   
+   The only purpose of these keys is to convey Alice's one-time use key K 
+   to each and every receiver of her message.
+   
+2. Forms the message's Associated Data:
+
+   Let idA, idB be Alice's registered Username, Bob's Username and so on.
+   To form this message's Associated Data AD, Alice's client concatenates:
+   
+   AD = [(idA, Nonce_A), (idB, KB), (idC, KC), (idF, KF)]
+   
+3. Alice's client invokes a new, different usage of ChaCha20:
+
+   This time, ChaCha encyphers Alice's message plaintext itself. INPUT:
+   
+   ChaCha Key    : K
+   ChaCha Nonce  : Least significant 12 bytes of Alice's current 16-byte Nonce
+   ChaCha Counter: Starts at 1, incremented for each chacha matrix required.
+   
+4. Compute Alice's Schnorr Signature of the encrypted message and its AD.
+
+5. Send these three things to the server: Alice's signature, AD, encrypted MSG.
+
+   Server routes this message to everyone else in this chatroom's list of 
+   "people currently in the chatroom".
+   
+6. When Carol (and everyone else, similarly) receives Alice's message:
+
+	6.0. Carol parses Associated Data, finds Alice's username (idA), so
+	     presumes the message was sent by Alice.
+		 
+    6.1. Carol checks the Schnorr Signature contained therein, against Alice's 
+	     public key A and (associated data, encrypted message), which assures 
+		 her that the message was sent indeed by Alice.
+	
+	6.2. Further examines Associated Data, finds her own username (idC).
+		 If not found, discard the message and report it to the server.
+		 
+    6.3. Thus, gets her KC from Associated Data as well.
+	
+	6.4. Decyphers KC with ChaCha, using KAC as ChaCha Key, Alice's Nonce 
+	     (which Alice sent inside AD), the full 16 bytes of it. As with 
+		 encyphering the message by Alice, here Carol uses no ChaCha Counter.
+		 
+		 This step reveals Alice's one-time 32-byte random key K to Carol.
+		 
+	6.5. Uses the obtained K as a ChaCha Key decypher the actual encrypted 
+	     message that Alice sent her, to reveal it in plaintext. Here, we
+	     use the least significant 12 bytes of Alice's Nonce and we do use 
+		 a ChaCha Counter here, starting at 1 and incremented for each 
+		 ChaCha State Matrix needed.
+		 
+<<< END >>>
+		 
+	Every other recipient of Alice's messages (everyone else who was in the
+    chat room with her when she sent the message) does similarly as Carol.	
+
+===============================================================================
+
+ADDENDUM 1 - How to compute a Schnorr Signature and check against it.	
+
+Let:
+
+(a,A) - Alice's private/public key pair and:
+	M - the diffie-hellman modulus which is a 3071-bit prime
+	Q - the 320-bit prime number that exactly divides (M-1)
+	G - the diffie-hellman generator.
+	
+To compute a Schnorr Signature of something, follow the steps:
+
+SCHNORR CRYPTOGRAPHIC SIGNATURE
+
+0. Call BLAKE2B{64} with input - whatever we're signing. 
+   OUTPUT of this is a Prehash PH.
+   
+1. Call BLAKE2B{64} with input - the signer's private key concatenated with 
+   the prehash, reduce the result of this modulo (Q-1), add 1. Yields secret k:
+   
+   k = (BLAKE2B{64}(a||PH) mod (Q-1)) + 1
+   
+2. Compute R = G^k mod M 
+
+3. Compute e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
+
+4. Compute s = ((k - (a * e)) mod Q 
+
+
+The signature itself is (s,e).
+
+
+To verify against public key A and whatever was signed, the receiver:
+
+0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
+
+1. Computes the prehash PH as in step 1. above.
+
+2. Computes R = (G^s * A^e) mod M.
+
+3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
+   Check that this is equal to e. If it is, validation passed. 
+   In any other circumstance, the validation fails.
+   
+===============================================================================
+
+ADDENDUM 2 - Where to find other algorithms used in the scheme, explained:
+
+- ChaCha20 - RFC8439
+- BLAKE2B  - RFC7693
+- Argon2id - RFC9106
+
+===============================================================================
+   
+   
+	
+
+   
+
+

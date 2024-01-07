@@ -1437,6 +1437,139 @@ label_start_pass:
     free(final_block_C);
 }
 
+struct bigint* get_BIGINT_from_DAT(uint32_t bits, char* fn, uint32_t used_bits
+                                  ,uint32_t reserve_bits){
+
+    if(reserve_bits < used_bits){
+        printf("[ERR] Cryptolib: Too few reserved bits for .dat file: %s\n",fn);
+        return NULL;
+    }
+    
+    FILE* dat_file;
+    
+    if ( (dat_file = fopen(fn, "r")) == NULL){
+        printf("[ERR] Cryptolib: Opening .dat file failed.\n");
+        return NULL;
+    }
+    
+    uint32_t bytes = (uint32_t)(bits/8);
+    
+    char* bigint_buf = malloc(bytes);
+    
+    fread(bigint_buf, 1, bytes, dat_file);
+    
+    struct bigint* big_n_ptr = malloc(sizeof(struct bigint));
+    
+    bigint_create(big_n_ptr, reserve_bits, 0); 
+    
+    memcpy(big_n_ptr->bits, bigint_buf, bytes);
+    
+    big_n_ptr->used_bits = used_bits;
+    big_n_ptr->free_bits = bits - used_bits;
+    
+    free(bigint_buf);
+    
+    return big_n_ptr;
+}
+
+/* G = ( 2^((M-1)/Q) ) mod M */
+struct bigint* get_DH_G(struct bigint* M, struct bigint* Q){
+    
+    struct bigint M_minus_one, power, zero, one, two, div_rem, *G;
+    
+    G = malloc(sizeof(struct bigint));
+    
+    printf("IN FUNCTION to get G: M->size_bits = %u\n", M->size_bits);
+    
+    bigint_create(&M_minus_one, M->size_bits, 0);
+    bigint_create(&power,       M->size_bits, 0);
+    bigint_create(&one,         M->size_bits, 1);
+    bigint_create(&two,         M->size_bits, 2);   
+    bigint_create(G,            M->size_bits, 0);     
+    bigint_create(&div_rem,     M->size_bits, 0); 
+    bigint_create(&zero,        M->size_bits, 0);
+    
+             
+    bigint_sub2(M, &one, &M_minus_one);
+   
+    bigint_div2(&M_minus_one, Q, &power,  &div_rem);
+    
+    if( bigint_compare2(&div_rem, &zero) != 2 ){
+        printf("ERROR: (M-1) / Q gave a remainder somehow.\n");
+        return NULL;
+    }
+    
+    bigint_mod_pow(&two, &power, M, G);
+    
+    printf("---->>> COMPUTED G = 2^(M-1/Q) mod M\n\n");
+    
+    bigint_print_info(G);
+    bigint_print_bits(G);
+    bigint_print_all_bits(G);
+    
+    free(M_minus_one.bits); free(power.bits); free(one.bits); free(two.bits);
+    free(div_rem.bits); free(zero.bits);
+             
+    return G;    
+}
+
+void get_M_Q_G(struct bigint* M, struct bigint* Q, struct bigint* G){
+
+    uint32_t bits_Q = 320,  used_bits_Q = 320,  res_bits_Q = 6400
+            ,bits_M = 3072, used_bits_M = 3071, res_bits_M = 6400;
+    
+    char* filename_Q_dat = "Q_raw_bytes.dat";
+    
+    Q = get_BIGINT_from_DAT(bits_Q, filename_Q_dat, used_bits_Q, res_bits_Q);
+    
+    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for Q!!\n");
+    
+    printf("Now printing the Q BigInt's info:\n\n");
+    
+    bigint_print_info(Q);
+    
+    printf("\nNow printing the Q BigInt's bits:\n\n");
+    
+    bigint_print_bits(Q);
+    
+    printf("\nNow printing the Q BigInt's ALL bits:\n\n");
+    
+    bigint_print_all_bits(Q);
+    
+    uint32_t bits_M = 3072, used_bits_M = 3071, res_bits_M = 6400;
+    
+    char* filename_M_dat = "M_raw_bytes.dat";
+    
+    M = get_BIGINT_from_DAT(bits_M, filename_M_dat, used_bits_M, res_bits_M);
+    
+    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for M!!\n");
+    
+    printf("Now printing the M BigInt's info:\n\n");
+    
+    bigint_print_info(M);
+    
+    printf("\nNow printing the M BigInt's bits:\n\n");
+    
+    bigint_print_bits(M);
+    
+    printf("\nNow printing the M BigInt's ALL bits:\n\n");
+    
+    bigint_print_all_bits(M);    
+      
+    printf("Now we can generate G.\n");
+    
+    /* Now finally generate the Diffie-Hellman generator number G. */
+    G = get_DH_G(M, Q);
+    
+    printf("Retrieved result from function - G has been generated:\n\n");
+    
+    bigint_print_info(G);
+    bigint_print_all_bits(G);
+    
+    return 0;
+
+}
+
 /* Generate a cryptographic signature of a sender's message
  * according to the method pioneered by Claus-Peter Schnorr.
  *
@@ -1446,7 +1579,7 @@ label_start_pass:
  *  e = trunc{bitwidth(Q)}(BLAKE2B{64}(R || PH));
  *  s = ((k - (a * e)) mod Q;
  *
- * where M is a 3072-bit prime number, Q is a 320-bit prime
+ * where M is a 3071-bit prime number, Q is a 320-bit prime
  * number which exactly dibides (M-1), G = 2^((M-1)/Q) mod M,
  * and a is the private key of the message sender. 
  *
@@ -1454,16 +1587,103 @@ label_start_pass:
  */ 
 void Signature_GENERATE(struct   bigint* M,  struct bigint* Q
                         struct   bigint* G,  char*  data
-                        uint64_t data_len,   char*  output_buf
+                        uint64_t data_len,   char*  signature
+                        struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
-        
-    char *b2b_output = malloc(64);      
-    memset(b2b_output, 0x00, 64);
 
+    /* Compute the signature generation prehash. */
+    uint32_t prehash_len = 64;
+    char* prehash = malloc(prehash_len);   
+    memset(prehash, 0x00, prehash_len);
     
-    BLAKE2B_INIT(data, data_len, 0, 64, b2b_output);
-      
+    BLAKE2B_INIT(data, data_len, 0, 64, prehash);
+    
+    char *2nd_btb_outbuf = malloc(64)
+        ,*2nd_btb_inbuf  = malloc(key_len_bytes + prehash_len);
+        
+    memcpy(2nd_btb_inbuf, private_key->bits, key_len_bytes);
+    memcpy(2nd_btb_inbuf + key_len_bytes, prehash, prehash_len);
+    
+    BLAKE2B_INIT(2nd_btb_inbuf,key_len_bytes + prehash_len,0,64,2nd_btb_outbuf);
+    
+    struct bigint 2nd_btb_outnum, one, Q_minus_one, reduced_btb_res, k, R, e, s
+          ,div_result, aux1, aux2;
+        
+    bigint_create(&2nd_btb_outnum,  M->size_bits, 0);
+    bigint_create(&Q_minus_one,     M->size_bits, 0);
+    bigint_create(&reduced_btb_res, M->size_bits, 0);
+    bigint_create(&div_result,      M->size_bits, 0);
+    
+    bigint_create(&one,  M->size_bits, 1);
+    bigint_create(&k,    M->size_bits, 0);
+    bigint_create(&R,    M->size_bits, 0);
+    bigint_create(&e,    M->size_bits, 0);
+    bigint_create(&s,    M->size_bits, 0);
+    bigint_create(&aux1, M->size_bits, 0);
+    bigint_create(&aux2, M->size_bits, 0);
+    
+    /* Now compute k. */  
+    memcpy(2nd_btb_outnum.bits, 2nd_btb_outbuf, 64);
+    2nd_btb_outnum.used_bits = 64 * 8;
+    2nd_btb_outnum.used_bits = 2nd_btb_outnum.size_bits - (64*8);
+    
+    
+    bigint_sub2(Q, &one, &Q_minus_one);    
+    bigint_div2(&2nd_btb_outnum, &Q_minus_one, &div_result, &reduced_btb_res);  
+    bigint_add2(&reduced_btb_res, &one, &k);   
+    
+    /* Now compute R. */
+    bigint_mod_pow(G, &k, M, &R);
+    
+    /* Now compute e. */
+    uint32_t R_used_bytes = R.used_bits;
+    
+    while(R_used_bytes % 8 != 0){
+        ++R_used_bytes;
+    }
+    
+    R_used_bytes /= 8;
+    
+    char *R_with_prehash = malloc(R_used_bytes + prehash_len),
+         *e_buf = malloc(40), /* e has bitwidth of Q. */
+         *3rd_btb_outbuf = malloc(64);
+         
+    memcpy(R_with_prehash, R.bits, R_used_bytes);
+    memcpy(R_with_prehash + R_used_bytes, prehash, prehash_len);
+    
+    BLAKE2B_INIT(R_with_prehash,R_used_bytes + prehash_len,0,64,3rd_btb_outbuf);
+    
+    memcpy(e.bits, 3rd_btb_outbuf, 40);
+    e.used_bits = 40*8;
+    e.free_bits = e.size_bits - (40*8);
+        
+    /* Lastly, compute s. */
+    bigint_mul2(private_key, &e, &aux1);
+    bigint_sub2(&k, &aux1, &aux2);
+    bigint_div2(&aux2, Q, &div_result, &s);
+    
+    /* signature buffer must have been allocated with exactly 
+     * ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )
+     * bytes of memory. No checks performed for performance.
+     */
+    uint32_t offset = 0;
+    memcpy(signature + offset, &s, sizeof(struct bigint));
+    offset += sizeof(struct bigint);
+    memcpy(signature + offset, s.bits, 40);
+    offset += 40;
+    memcpy(signature + offset, &e, sizeof(struct bigint));
+    offset += sizeof(struct bigint);
+    memcpy(signature + offset, e.bits, 40);
+    
+    /* Cleanup. */
+    free(2nd_btb_outnum.bits); free(one.bits); free(Q_minus_one.bits); 
+    free(reduced_btb_res.bits); free(k.bits); free(R.bits); free(e.bits); 
+    free(s.bits); free(div_result.bits); free(aux1.bits); free(aux2.bits);
+    free(prehash); free(2nd_btb_outbuf); free(2nd_btb_inbuf); free(e_buf);  
+    free(R_with_prehash); free(3rd_btb_outbuf);
+     
+    return;
 }
 
 
