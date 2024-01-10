@@ -158,7 +158,79 @@ int main(){
     }
     printf("\n\n");
     
+    /**************************************************************************/
+    /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
+    /**************************************************************************/
+
+    struct bigint *M, *Q, *G;
+  
+    get_M_Q_G(&M, &Q, &G);
     
+    uint64_t data_len = 197;
+ 
+    char* msg = malloc(data_len);
+
+    memset(msg, 65, data_len); /* 197 AAAAAAA's. */
+
+    /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
+    /* Cuz the signature itself is (s,e) both of which are BigInts whose */
+    /* bitwidth is up to the bitwidth of Q and no more.                  */
+    char* result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
+
+    /* Assume this private key got generated with 39 bytes. */
+    struct bigint priv_key;
+
+    bigint_create(&priv_key, M->size_bits, 0);
+
+    FILE* rand_file = fopen("/dev/urandom", "r");
+
+    if (  (fread(priv_key.bits, 1, 39, rand_file)) == 0  ){
+        printf("[ERR] Test Cryptolib - Couldn't read from /dev/urandom.\n");
+        if(rand_file){
+            fclose(rand_file);
+        }
+        exit(1);
+    }
+    /* Make sure the most significant bit is set, so we can really claim
+     * that used bits are 39 * 8. 
+     */
+
+    *(priv_key.bits + 38) |= ( ((uint8_t)1) << 7 );
+
+    priv_key.used_bits = 39 * 8;
+
+    priv_key.free_bits = priv_key.size_bits - priv_key.used_bits;
+
+    printf("Calling Signature_GENERATE() NOW!!!\n");
+    
+    Signature_GENERATE(M, Q, G, msg, data_len, result_signature, &priv_key, 39);
+                       
+    printf("FINISHED SIGNATURE!!\n");
+    printf("The resulting signature itself is (s,e) both BigInts.\n");
+    printf("But we have to point the .bits pointer to their returned buffer\n");
+    
+    struct bigint *s = (struct bigint *)(result_signature + 0);
+    
+    s->bits = result_signature + sizeof(struct bigint);
+    
+    struct bigint *e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);
+    
+    e->bits = result_signature + (2*sizeof(struct bigint)) + 40;
+    
+    printf("Reconstructed BigInts e and s from what's in Signature.\n");
+    printf("\n***** s: *****\n");
+    
+    bigint_print_info(s);
+    bigint_print_bits(s);
+    bigint_print_all_bits(s);
+    
+    printf("\n***** r: *****\n");
+
+    bigint_print_info(e);
+    bigint_print_bits(e);
+    bigint_print_all_bits(e); 
+    
+    fclose(rand_file);
     
 }
 

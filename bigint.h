@@ -879,6 +879,10 @@ void bigint_mod_mul(struct bigint** nums, struct bigint* mod, uint32_t how_many,
 
     /* The long loop */
     for(uint32_t i = 0; i < how_many; ++i){
+        printf("[BigInt] - Long loop in MOD_MUL moved  i = %u to %u"
+              " (how many big numbers we multiply).\n"
+              , i, how_many
+              ); 
         bigint_mul_fast(R, nums[i], &mul_res);
            
         if( (compare_res = bigint_compare2(&mul_res, mod)) != 3){
