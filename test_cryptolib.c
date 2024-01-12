@@ -217,6 +217,11 @@ int main(){
     
     e->bits = result_signature + (2*sizeof(struct bigint)) + 40;
     
+    
+    
+    
+    
+    
     printf("Reconstructed BigInts e and s from what's in Signature.\n");
     printf("\n***** s: *****\n");
     
@@ -224,7 +229,7 @@ int main(){
     bigint_print_bits(s);
     bigint_print_all_bits(s);
     
-    printf("\n***** r: *****\n");
+    printf("\n***** e: *****\n");
 
     bigint_print_info(e);
     bigint_print_bits(e);

@@ -1714,6 +1714,13 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     
     e.used_bits -= bits_to_take;
     
+    printf("---->> Before the erroneous SUB operation\n"
+           "(and before MUL, which is before SUB),\n"
+           "e.used_bits = %u\n",
+           e.used_bits
+           );
+           
+    printf("---->> This is after we subtracted some bits from 40*8 possibly\n");
     e.free_bits = e.size_bits - (e.used_bits);
         
     /* Lastly, compute s. */
