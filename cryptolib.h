@@ -206,19 +206,7 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     }      
     
     memcpy((void*)initial_state, (void*)state, 16 * sizeof(uint32_t));
-    /*
-    printf("\nCONSTRUCTED CHACHA STATE MATRIX:\n");
-    
-    printf("%08X\t%08X\t%08X\t%08X\n", state[0], state[1], state[2], state[3]);
-    
-    printf("%08X\t%08X\t%08X\t%08X\n", state[4], state[5], state[6], state[7]);
-    
-    printf("%08X\t%08X\t%08X\t%08X\n",
-             state[8], state[9], state[10], state[11]);
-    printf("%08X\t%08X\t%08X\t%08X\n", 
-             state[12], state[13], state[14], state[15]);
-    
-        */
+
     for(i = 1; i <= 10; ++i){
         CHACHA_INNER(state);
     }
@@ -226,22 +214,7 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     for(i = 0; i < 16; ++i){
         state[i] += initial_state[i];
     }
-    /*
-    printf("\nRESULTING CHACHA STATE MATRIX:\n");
-    
-    printf("%08X\t%08X\t%08X\t%08X\n",
-             state[0],  state[1],  state[2],  state[3]);
-            
-    printf("%08X\t%08X\t%08X\t%08X\n",
-             state[4],  state[5],  state[6],  state[7]);
-            
-    printf("%08X\t%08X\t%08X\t%08X\n",
-             state[8],  state[9],  state[10], state[11]);
-             
-    printf("%08X\t%08X\t%08X\t%08X\n",
-             state[12], state[13], state[14], state[15]);
-             */
-    
+
     /* Every uint32_t has its bytes reversed. This is the serialized result. */
     /* So each uint32_t goes:                                                */
     /* from [byte_0 byte_1 byte_2 byte_3] to [byte_3 byte_2 byte_1 byte_0]   */
@@ -287,10 +260,7 @@ void CHACHA20(char* plaintext, uint32_t txt_len
         counter = malloc(sizeof(uint32_t));
         *counter = 1;
     }
-    /*
-    printf("Required number of chacha matrices: %u, with txt_len: %u\n"
-            , num_matrices, txt_len
-          );*/
+
     for(i = 0; i < num_matrices; ++i){
     
         CHACHA_BLOCK_FUNC(key, key_len, counter, counter_len, 
@@ -300,19 +270,7 @@ void CHACHA20(char* plaintext, uint32_t txt_len
             ++(*counter); 
         } 
     }
-    
-    
-    uint32_t bytes_printed = 0;
-    /*printf("\nGenerated ChaCha KEYSTREAM:\n");
-    for(i = 0; i < num_matrices; ++i){
-        for(j = 0; j < 64; ++j){
-            printf("%02X:", ((uint8_t*)(outputs[i]))[j]);
-            ++bytes_printed;
-            if(bytes_printed % 23 == 0 && bytes_printed > 0){ printf("\n"); }
-        }
-    }
-    printf("\n\n");
-    */
+
     uint32_t full_txt_blocks = 0;
     if(num_matrices == 1 && last_txt_block_len == 0){
         full_txt_blocks = 1;
@@ -400,24 +358,10 @@ void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
     
     uint64_t s[16];
     
-    /*printf("\n\n***** BEFORE Entering the 12 for-loop. v = \n\n");      */            
-    /*
-        for(uint64_t x = 0; x < 16; ++x){
-            printf(  "v[%lu] (HEX)\t= %lX\nv[%lu] (DEC)\t= %lu\n\n"
-                     , x, v[x], x, v[x]
-                  );          
-        } printf("\n\n");
-    
-    printf("NOW ENTERING the 12 for-loop... It prints v[] at every run.\n\n");
-    */
+   
     for(uint8_t i = 0; i < 12; ++i){
         memcpy(s, (sigma[i % 12]), (16*sizeof(uint64_t)));
-     
-            /* printf("(i = %u) v[16] = \n", i);
-        for(uint64_t x = 0; x < 16; ++x){
-            printf("v[%lu]\t=\t%lX\n", x, v[x]);    
-        } printf("\n\n");
-     */
+
         BLAKE2B_G(v, 0, 4, 8,  12, m[s[0]], m[s[1]]);
         BLAKE2B_G(v, 1, 5, 9,  13, m[s[2]], m[s[3]]);
         BLAKE2B_G(v, 2, 6, 10, 14, m[s[4]], m[s[5]]);
@@ -446,31 +390,11 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
             )
 {
     uint64_t h[8];
-    /*
-    printf("\n B2B Unkeyed Data blocks:\n");
-    for(uint64_t i = 0; i < dd; ++i){
-        for(uint64_t j = 0; j < 16; ++j){
-            if(j % 3 == 0 && j > 0){ printf("\n"); }
-            printf("%16lX ", d[i][j]);
-        }
-    } printf("\n");
-    */
+
     memcpy(h, IV, 8*sizeof(uint64_t));
-    /*
-    printf("h[0..8] POPULATED. Now changing h[0] where v[0] comes from.");
-    printf("BEFORE THE ERRONEOUS v[0], the calculation operands in HEX:\n");
-    printf("h[0]\t\t\t^=\t0x01010000\t^\t(kk\t<<\t8)\t^\tnn = \n");
-    printf("%lX\t^=\t0x01010000\t^\t(%lX\t<<\t8)\t^\t%lX\n", h[0], kk, nn);
-    */
+
     h[0] ^= 0x01010000 ^ (kk << 8) ^ nn;
-    /*
-    printf("\nTHIS GAVE THE HEX RESULT: h[0] = v[0] = %lX\n\n", h[0]);
-    
-    printf("BEFORE CALLING F(), ll = %lu (decimal). "
-           "We pass(ll+128) to F().\n\n"
-           ,ll
-          );
-    */
+
     /* Process padded key and data blocks. */
     if(dd > 1){
         for(uint64_t i = 0; i < (dd-1); ++i){
@@ -478,8 +402,12 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
         }
     }
     /* Final block. */
-    if(kk == 0){ BLAKE2B_F(h, d[dd-1], ll, 1); }
-    else       { BLAKE2B_F(h, d[dd-1], ll + 128, 1); }
+    if(kk == 0){ 
+        BLAKE2B_F(h, d[dd-1], ll, 1); 
+    }
+    else{ 
+        BLAKE2B_F(h, d[dd-1], ll + 128, 1); 
+    }
     /* Return the first NN bytes of the resulting little-endian word array h. 
      * The BLAKE2B initializer function must provide this buffer with enough 
      * memory allocated to hold NN bytes.
@@ -511,7 +439,7 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
  */      
 void BLAKE2B_INIT(char* m, uint64_t ll, uint64_t kk, uint64_t nn, char* rr){
 
-    /* Hardcoded to 0 for now, as no current use of BLAKE2B uses a key input. */
+    /* Hardcoded to 0 for now, as no current use of BLAKE2B is keyed. */
     kk = 0;
     
     /* Find how many data blocks we will need in the 2D array d */
@@ -528,7 +456,9 @@ void BLAKE2B_INIT(char* m, uint64_t ll, uint64_t kk, uint64_t nn, char* rr){
         /* at last block? */
         if(i == dd-1){
             /* if it's 0, that means last block's length is 128. */
-            if(last_len == 0){ last_len = 128; }
+            if(last_len == 0){ 
+                last_len = 128; 
+            }
             memcpy(data_blocks[i], m + ((dd-1) * 128), last_len); 
             break;
         }
@@ -560,21 +490,28 @@ void Argon2_GB(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* d){
     (*a) = (*a) + (*b) 
            +    /* Take only the 32 least significant bits of a and b. */ 
            (2 * ((uint64_t)(*((uint32_t*)a))) * ((uint64_t)(*((uint32_t*)b))));
+           
     (*d) = ((*d) ^ (*a));
     uint64_roll_right(d, 32);
+    
     (*c) = (*c) + (*d) 
            + 
            (2 * ((uint64_t)(*((uint32_t*)c))) * ((uint64_t)(*((uint32_t*)d))));
+           
     (*b) = ((*b) ^ (*c));
     uint64_roll_right(b, 24);
+    
     (*a) = (*a) + (*b) 
            + 
-           (2 * ((uint64_t)(*((uint32_t*)a))) * ((uint64_t)(*((uint32_t*)b))));     
+           (2 * ((uint64_t)(*((uint32_t*)a))) * ((uint64_t)(*((uint32_t*)b))));   
+             
     (*d) = ((*d) ^ (*a));
     uint64_roll_right(d, 16);
+    
     (*c) = (*c) + (*d) 
            +   
            (2 * ((uint64_t)(*((uint32_t*)c))) * ((uint64_t)(*((uint32_t*)d))));   
+           
     (*b) = ((*b) ^ (*c));
     uint64_roll_right(b, 63);
     return;
@@ -713,6 +650,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     
     memcpy(H_input + 0, &out_len, sizeof(uint32_t)); 
     memcpy(H_input + 4, input,    in_len); 
+    
     if(out_len <= 64){ 
         BLAKE2B_INIT(H_input, (4 + in_len), 0, out_len, output);
         return;
@@ -724,7 +662,6 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
          * We pass a pointer to the next 64-byte memory block V[i] 
          * as the output destination of BLAKE2.
          */
-        
         V = malloc( (r+1) * sizeof(block64_t));
         
         BLAKE2B_INIT(H_input, (4 + in_len), 0, 64, V[0].block_data);
@@ -825,24 +762,19 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
 {
     uint64_t W_siz, *W, W_ix, x, y, zz, l_ix, z_ix;
     size_t old_slice;
-    printf("PASSED TO getLZ() n = %lu\n", n);
+
     /* Generate index l_ix. */
     if(r == 0 && sl == 0){
         l_ix = cur_lane;
     }
     else{
-        printf("Not in pass 0, slice 0. J_2 = %lu, p = %lu\n", J_2, p);
         l_ix = J_2 % p;
     }     
     /* Compute the size of, allocate and populate index array W[]. */
     W_ix = 0;
     if(l_ix != cur_lane){
         W_siz = sl * n; 
-        printf("*** For W[] allocating memory = %lu bytes\n", 
-                    (uint64_t)(W_siz * sizeof(size_t))
-        ); 
-        printf("W_siz = sl * n, which is W_siz = %lu * %lu = %lu\n", sl, n, W_siz);
-        
+
         W = malloc(W_siz * sizeof(size_t));
         
         for(old_slice = 0; old_slice < sl; ++old_slice){
@@ -882,15 +814,15 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
          */
         old_slice = sl;
         
-        for(  size_t block_ix = (  (l_ix*q) + (old_slice*(q/4)) ) 
-                ; block_ix   <= ( ((l_ix*q) + (old_slice*(q/4)) + 
-                                (computed_blocks - 1)) )
-                ; ++block_ix
-               )
-            {
-                W[W_ix] = block_ix; 
-                ++W_ix;
-            }  
+        for(size_t block_ix = (  (l_ix*q) + (old_slice*(q/4)) ) 
+            ;   block_ix   <= ( ((l_ix*q) + (old_slice*(q/4)) + 
+                              (computed_blocks - 1)) )
+            ; ++block_ix
+           )
+        {
+            W[W_ix] = block_ix; 
+            ++W_ix;
+        }  
         
         --W_siz; 
     }
@@ -948,8 +880,11 @@ void* argon2_transform_segment(void* thread_input){
             ,computed_blocks = 0;
 
     uint8_t* Z_buf = malloc(6 * sizeof(uint64_t));
+    
     memcpy(Z_buf, ((char*)thread_input) + OFFSET_r, (6 * sizeof(uint64_t)));
+    
     old_block = malloc(sizeof(block_t));
+    
     /* Determine the start and end control values of this thread's j-loop.    
      * In short, which quarter of this thread's row we're transforming,      
      * in terms of THE INDICES of 1024-byte blocks where the 0th block is
@@ -958,7 +893,7 @@ void* argon2_transform_segment(void* thread_input){
      * This is in contrast to index z, which is the index of a 1024-byte block
      * relative to the START OF B[][], not to the start of any particular lane.
      */
-    
+
     /* Let n be the number of 1024-byte blocks in one segment = (m' / p)/4. */
     n = (md / p) / 4;
 
@@ -1115,7 +1050,6 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
     char *H0_input      = malloc(H0_input_len),
          *final_block_C = malloc(sizeof(block_t));
          
-    uint32_t Tg_len = *( (uint32_t*)(&(parms->T)) ); 
      
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
     /* The order has to be exactly as specified in the RFC.             */
@@ -1165,14 +1099,11 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
     uint8_t* H0 = malloc(64);
     
     BLAKE2B_INIT(H0_input, H0_in_offset, 0, 64, H0);
-    
-    
+
     /* Construct the working memory of Argon2 now. */
     
     /* How many 1024-byte blocks in B. */
     uint64_t m_dash = 4 * parms->p * floor(parms->m / (4 * parms->p));
-    
-    printf("m_dash = %lu\n\n", m_dash);
     
     /* How many columns in B. Also size of one row in 1024-byte blocks. */
     /* Each column intersecting a row is one 1024-byte block.           */
@@ -1191,7 +1122,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
      * do (* 4) behind the scenes for a pointer to uint32_t.
      *
      * To work inside a particular 1024-byte block, we will likely need actual
-     * carefully written raw pointer arithmetic.
+     * carefully written pointer arithmetic.
      */
     
     /* Allocate the working memory matrix of Argon2. */
@@ -1202,19 +1133,15 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
      */
     block_t** B = malloc(parms->p * sizeof(block_t*));
     
-    
     /* Set a pointer to the start of each row in the memory matrix. */
     for(uint64_t i = 0; i < parms->p; ++i){
         B[i] = (block_t*)(working_memory + (i * (q * sizeof(block_t))));
-        printf("Row[%lu] in B[][]: working_memory + %lu bytes\n",
-               i, (i * (q * sizeof(block_t)))
-              );
     }
     
     /* Now where B[x][y] is used in the RFC specification, here in this
      * implementation it too can be written as B[x][y], which would mean
-     * to the compiler "start from memory address B, which is a pointer
-     * to a 1024-byte block. Go +x such pointers into B, to get to the
+     * to the compiler "start from contents of memory address B, wherein is a
+     * pointer to a 1024-byte block. Go +x such pointers into B, to get to the
      * actual row x in Argon2's working memory matrix B[][]. Then from
      * this pointer to a 1024-byte block, go +y such blocks, to the 
      * exact 1024-byte block you need and dereference the pointer to it." 
@@ -1225,15 +1152,18 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
      */
     
     uint8_t* B_init_buf = malloc(64 + 4 + 4);
-    memcpy(B_init_buf + 0 , H0, 64);
     uint32_t zero = 0, one = 1;
     
+    memcpy(B_init_buf + 0 , H0, 64); 
     memcpy(B_init_buf + 64, &zero, 4);
+    
     for(uint32_t i = 0; i < parms->p; ++i){
         memcpy(B_init_buf + 64 + 4, &i, 4);   
         Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][0]), 1024, (64+4+4));
     }
+    
     memcpy(B_init_buf + 64, &one, 4);
+    
     for(uint32_t i = 0; i < parms->p; ++i){
         memcpy(B_init_buf + 64 + 4, &i, 4); 
         Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][1]), 1024, (64+4+4));
@@ -1260,12 +1190,15 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
     for(uint32_t i = 0; i < parms->p; ++i){
         thread_inputs[i] = malloc(sizeof(block_t*) + (8 * sizeof(uint64_t)));
     }
+    
 label_start_pass:
+
      printf("ARGON2id at CURRENT PASS r = %lu\n", r);
+     
     for (uint64_t sl = 0; sl < 4; ++sl){ /* slice number. */
         printf("\tARGON2id at CURRENT SLICE sl = %lu\n", sl);
         for(uint64_t i = 0; i < parms->p; ++i){ /* lane/thread number. */
-            printf("\t\tARGON2id starting LANE = %lu\n", i);        
+            printf("\t\tARGON2id now starting LANE = %lu\n", i);        
             /*  Third for-loop 3.1 that will:                            
              *  Set loose a thread for each row of blocks in the matrix.    
              *  21845 1024-byte blocks will be processed by each thread. 
@@ -1351,6 +1284,8 @@ label_start_pass:
             pthread_join(argon2_thread_ids[i], NULL);    
         } 
     } /* End of one slice. */
+    
+    /* This if statement is for testing only. */
     if(r == 1){
         printf("Finished 2nd pass. Didnt increment pass number yet.\n");
         printf("r = %lu\n", r);
@@ -1375,18 +1310,16 @@ label_start_pass:
         printf("RETURNING AT THIS PASS FOR TESTING. Terminating now.\n");
         return;
     }
+    
     /* Finished all 4 slices of a pass. Increment pass number.*/
     ++r;
-    
-    
-    
-    
     
     /* If Argon2 is to perform more than the zeroth pass, do them. */
     if (r < parms->t){
         goto label_start_pass;    
     }
     
+    /* More testing prints. */
     printf("After final pass, first 4 batches of 8 bytes of Block 0:\n");
     
     for(uint32_t eeee = 0; eeee < 8; ++eeee){
@@ -1403,12 +1336,10 @@ label_start_pass:
     
     for(uint32_t eeee = 24; eeee < 32; ++eeee){
         printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-    }
-    
-    
+    } 
+      
     /* Done with all required passes. */
-    /* Compute final 1024-byte block C by XORing the last block of every lane.*/
-    
+    /* Compute final 1024-byte block C by XORing the last block of every lane.*/    
     memcpy(final_block_C, &(B[0][q-1]), sizeof(block_t));
     
     for(size_t ln = 1; ln < parms->p; ++ln){
@@ -1419,16 +1350,13 @@ label_start_pass:
        
     /* Finally, feed final block C to H' producing Tag-length bytes of output:
      * Result = H'{T}(C)
-     */ 
-    
+     */     
     Argon2_H_dash(final_block_C, output_tag, parms->T, 1024);
  
-    /* Cleanup. */
-    
+    /* Cleanup. */    
     for(uint32_t i = 0; i < parms->p; ++i){
         free(thread_inputs[i]); 
-    } 
-    
+    }    
     free(thread_inputs);
     free(B_init_buf);
     free(working_memory);
@@ -1699,7 +1627,7 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     flag_found = 0;
     for(uint8_t bytes = 0; bytes < 40; ++bytes){
         for(uint8_t bits = 0; bits < 8; ++bits){
-            if (! ( *(e.bits + (39 - bytes)) &= ( ((uint8_t)1) << bits ) ) ){
+            if (! ( *(e.bits + (39 - bytes)) &= ( ((uint8_t)1) << (7-bits) ) ) ){
                 ++bits_to_take;        
             }
             else{
@@ -1713,19 +1641,38 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     }
     
     e.used_bits -= bits_to_take;
-    
-    printf("---->> Before the erroneous SUB operation\n"
-           "(and before MUL, which is before SUB),\n"
-           "e.used_bits = %u\n",
-           e.used_bits
-           );
-           
-    printf("---->> This is after we subtracted some bits from 40*8 possibly\n");
     e.free_bits = e.size_bits - (e.used_bits);
         
     /* Lastly, compute s. */
+    printf("Now we compute s:\n");
+    printf("aux1 = private_key * e\n");
+    printf("aux2 = k - aux1\n");
+    printf("s = remainder of (aux2 / Q)\n");
+    printf("----> The s computation step by step:\n\n");
+    
+    printf("BEFORE MUL:\nprivate_key:\n");
+    bigint_print_info(private_key);
+    bigint_print_bits(private_key);   
+    printf("e:\n");
+    bigint_print_info(&e);
+    bigint_print_bits(&e);  
+    
     bigint_mul_fast(private_key, &e, &aux1);
+      
+    printf("AFTER MUL, result is aux1:\n");    
+    bigint_print_info(&aux1);
+    bigint_print_bits(&aux1);
+    
+    printf("BEFORE SUB (k - aux1 = aux2), k:\n");
+    bigint_print_info(&k);
+    bigint_print_bits(&k);
+    
     bigint_sub2(&k, &aux1, &aux2);
+    
+    printf("AFTER SUB, aux2:\n");
+    bigint_print_info(&aux2);
+    bigint_print_bits(&aux2);
+     
     bigint_div2(&aux2, Q, &div_res, &s);
     
     /* signature buffer must have been allocated with exactly 

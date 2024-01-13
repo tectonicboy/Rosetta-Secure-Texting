@@ -3,7 +3,7 @@
 void uint32_print_bits(uint32_t n){
     printf("\n****** Printing bits of uint32 N = %u ******\n", n);
     for(uint8_t i = 0; i < 32; ++i){
-        if(n & (1 << 31-i)){
+        if(n & ( 1 << (31-i) )){
             printf("1");    
         }
         else{
