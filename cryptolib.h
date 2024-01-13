@@ -1419,7 +1419,6 @@ struct bigint* get_DH_G(struct bigint* M, struct bigint* Q){
     bigint_create(G,            M->size_bits, 0);     
     bigint_create(&div_rem,     M->size_bits, 0); 
     bigint_create(&zero,        M->size_bits, 0);
-    
              
     bigint_sub2(M, &one, &M_minus_one);
    
@@ -1542,7 +1541,7 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     BLAKE2B_INIT(second_btb_inbuf, len_key_PH, 0, 64, second_btb_outbuf);
     
     struct bigint second_btb_outnum, one, Q_minus_one, reduced_btb_res,
-           k, R, e, s, div_res, aux1, aux2;
+           k, R, e, s, div_res, aux1, aux2, aux3;
         
     bigint_create(&second_btb_outnum,  M->size_bits, 0);
     bigint_create(&Q_minus_one,     M->size_bits, 0);
@@ -1556,6 +1555,7 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     bigint_create(&s,    M->size_bits, 0);
     bigint_create(&aux1, M->size_bits, 0);
     bigint_create(&aux2, M->size_bits, 0);
+    bigint_create(&aux3, M->size_bits, 0);
     
     /* Now compute k. */  
     memcpy(second_btb_outnum.bits, second_btb_outbuf, 64);
@@ -1582,11 +1582,8 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
         }
     }
     
-    second_btb_outnum.used_bits -= bits_to_take;
-    
-    
+    second_btb_outnum.used_bits -= bits_to_take; 
     second_btb_outnum.free_bits = second_btb_outnum.size_bits - second_btb_outnum.used_bits;
-    
     
     bigint_sub2(Q, &one, &Q_minus_one);    
     bigint_div2(&second_btb_outnum, &Q_minus_one, &div_res, &reduced_btb_res);  
@@ -1643,38 +1640,21 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     e.used_bits -= bits_to_take;
     e.free_bits = e.size_bits - (e.used_bits);
         
-    /* Lastly, compute s. */
-    printf("Now we compute s:\n");
-    printf("aux1 = private_key * e\n");
-    printf("aux2 = k - aux1\n");
-    printf("s = remainder of (aux2 / Q)\n");
-    printf("----> The s computation step by step:\n\n");
+    /* Lastly, compute s = ( k + ((Q-a)×e) ) mod Q */
+    bigint_sub2(Q, private_key, &aux1);
+
+    bigint_mul_fast(&aux1, &e, &aux2);
+   
+    bigint_add_fast(&aux2, &k, &aux3);
     
-    printf("BEFORE MUL:\nprivate_key:\n");
-    bigint_print_info(private_key);
-    bigint_print_bits(private_key);   
-    printf("e:\n");
+    bigint_div2(&aux3, Q, &div_res, &s);
+    
+    printf("Signature generator computed e and s!!\ne:\n");
     bigint_print_info(&e);
-    bigint_print_bits(&e);  
-    
-    bigint_mul_fast(private_key, &e, &aux1);
-      
-    printf("AFTER MUL, result is aux1:\n");    
-    bigint_print_info(&aux1);
-    bigint_print_bits(&aux1);
-    
-    printf("BEFORE SUB (k - aux1 = aux2), k:\n");
-    bigint_print_info(&k);
-    bigint_print_bits(&k);
-    
-    bigint_sub2(&k, &aux1, &aux2);
-    
-    printf("AFTER SUB, aux2:\n");
-    bigint_print_info(&aux2);
-    bigint_print_bits(&aux2);
-     
-    bigint_div2(&aux2, Q, &div_res, &s);
-    
+    bigint_print_bits(&e);
+    printf("s:\n");
+    bigint_print_info(&s);
+    bigint_print_bits(&s);    
     /* signature buffer must have been allocated with exactly 
      * ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )
      * bytes of memory. No checks performed for performance.
@@ -1689,11 +1669,24 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     memcpy(signature + offset, e.bits, 40);
     
     /* Cleanup. */
-    free(second_btb_outnum.bits); free(one.bits); free(Q_minus_one.bits); 
-    free(reduced_btb_res.bits); free(k.bits); free(R.bits); free(s.bits);    
-    free(div_res.bits); free(aux1.bits); free(aux2.bits); free(prehash);
-    free(second_btb_outbuf); free(second_btb_inbuf); free(e_buf);    
-    free(R_with_prehash); free(third_btb_outbuf); free(e.bits);  
+    free(second_btb_outnum.bits);
+    free(one.bits); 
+    free(Q_minus_one.bits); 
+    free(reduced_btb_res.bits); 
+    free(k.bits); 
+    free(R.bits); 
+    free(s.bits);    
+    free(div_res.bits); 
+    free(aux1.bits); 
+    free(aux2.bits); 
+    free(aux3.bits);
+    free(prehash);
+    free(second_btb_outbuf); 
+    free(second_btb_inbuf); 
+    free(e_buf);    
+    free(R_with_prehash); 
+    free(third_btb_outbuf); 
+    free(e.bits);  
      
     return;
 }

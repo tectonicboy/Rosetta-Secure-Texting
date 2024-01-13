@@ -272,8 +272,7 @@ SCHNORR CRYPTOGRAPHIC SIGNATURE
 
 3. Compute e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
 
-4. Compute s = ((k - (a * e)) mod Q 
-
+4. Compute s = (k + (Q-a)×e) mod Q
 
 The signature itself is (s,e).
 
