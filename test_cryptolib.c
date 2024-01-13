@@ -166,6 +166,15 @@ int main(){
   
     get_M_Q_G(&M, &Q, &G);
     
+    
+    FILE* G_dat = fopen("G_raw_bytes.dat", "w");
+    
+    size_t bytes_written_to_dat = 0;
+    
+    bytes_written_to_dat = fwrite(G->bits, 1, 400, G_dat);
+    
+    printf("Saved raw bytes of DH G to DAT. %lu bytes written.\n", bytes_written_to_dat);
+    
     uint64_t data_len = 197;
  
     char* msg = malloc(data_len);
@@ -210,17 +219,13 @@ int main(){
     printf("But we have to point the .bits pointer to their returned buffer\n");
     
     struct bigint *s = (struct bigint *)(result_signature + 0);
+    struct bigint *e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);    
     
-    s->bits = result_signature + sizeof(struct bigint);
-    
-    struct bigint *e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);
-    
-    e->bits = result_signature + (2*sizeof(struct bigint)) + 40;
-    
-    
-    
-    
-    
+    s->bits = calloc(1, (size_t)(s->size_bits / 8));
+    e->bits = calloc(1, (size_t)(e->size_bits / 8));
+ 
+    memcpy(s->bits, result_signature + (1*sizeof(struct bigint)) +  0, 40);
+    memcpy(e->bits, result_signature + (2*sizeof(struct bigint)) + 40, 40);
     
     printf("Reconstructed BigInts e and s from what's in Signature.\n");
     printf("\n***** s: *****\n");

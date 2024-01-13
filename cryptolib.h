@@ -1365,10 +1365,20 @@ label_start_pass:
     free(H0_input);
     free(final_block_C);
 }
-
+/* To view the bytes of the DAT files from linux terminal window: */
+/* xxd -b G_raw_bytes.dat                                         */
 struct bigint* get_BIGINT_from_DAT(uint32_t bits, char* fn, uint32_t used_bits
                                   ,uint32_t reserve_bits){
 
+     
+    if(    (reserve_bits % 0x08) 
+        || (reserve_bits < 0x40) 
+        || (reserve_bits > 4290000000) 
+      )
+    {
+        printf("[ERR] Cryptolib: get_BIGINT_from_DAT - Invalid reserve_bits\n");
+        return NULL;
+    }  
     if(reserve_bits < used_bits){
         printf("[ERR] Cryptolib: Too few reserved bits for .dat file: %s\n",fn);
         return NULL;
@@ -1381,20 +1391,24 @@ struct bigint* get_BIGINT_from_DAT(uint32_t bits, char* fn, uint32_t used_bits
         return NULL;
     }
     
-    uint32_t bytes = (uint32_t)(bits/8);
+    uint32_t bytes = bits;
+    while(bytes % 8 != 0){
+        ++bytes;
+    }
+    bytes /= 8;
     
-    char* bigint_buf = malloc(bytes);
+    char* bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
     
     fread(bigint_buf, 1, bytes, dat_file);
     
-    struct bigint* big_n_ptr = malloc(sizeof(struct bigint));
+    struct bigint* big_n_ptr = calloc(1, sizeof(struct bigint));
     
     bigint_create(big_n_ptr, reserve_bits, 0); 
     
     memcpy(big_n_ptr->bits, bigint_buf, bytes);
     
     big_n_ptr->used_bits = used_bits;
-    big_n_ptr->free_bits = bits - used_bits;
+    big_n_ptr->free_bits = reserve_bits - used_bits;
     
     free(bigint_buf);
     
@@ -1447,7 +1461,9 @@ struct bigint* get_DH_G(struct bigint* M, struct bigint* Q){
 void get_M_Q_G(struct bigint** M, struct bigint** Q, struct bigint** G){
 
     uint32_t bits_Q = 320,  used_bits_Q = 320,  res_bits_Q = 8192
-            ,bits_M = 3072, used_bits_M = 3071, res_bits_M = 8192;
+            ,bits_M = 3072, used_bits_M = 3071, res_bits_M = 8192
+            ,bits_G = 3072, used_bits_G = 3071, res_bits_G = 8192
+            ;
     
     char* filename_Q_dat = "Q_raw_bytes.dat";
     
@@ -1486,16 +1502,25 @@ void get_M_Q_G(struct bigint** M, struct bigint** Q, struct bigint** G){
     
     bigint_print_all_bits(*M);    
       
-    printf("Now we can generate G.\n");
+    char* filename_G_dat = "G_raw_bytes.dat";
     
-    /* Now finally generate the Diffie-Hellman generator number G. */
-    *G = get_DH_G(*M, *Q);
+    *G = get_BIGINT_from_DAT(bits_G, filename_G_dat, used_bits_G, res_bits_G);
     
-    printf("Retrieved result from function - G has been generated:\n\n");
+    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for G!!\n");
+    
+    printf("Now printing the G BigInt's info:\n\n");
     
     bigint_print_info(*G);
-    bigint_print_all_bits(*G);
     
+    printf("\nNow printing the G BigInt's bits:\n\n");
+    
+    bigint_print_bits(*G);
+    
+    printf("\nNow printing the G BigInt's ALL bits:\n\n");
+    
+    bigint_print_all_bits(*G);    
+    
+
     return;
 
 }
