@@ -166,15 +166,6 @@ int main(){
   
     get_M_Q_G(&M, &Q, &G);
     
-    
-    FILE* G_dat = fopen("G_raw_bytes.dat", "w");
-    
-    size_t bytes_written_to_dat = 0;
-    
-    bytes_written_to_dat = fwrite(G->bits, 1, 400, G_dat);
-    
-    printf("Saved raw bytes of DH G to DAT. %lu bytes written.\n", bytes_written_to_dat);
-    
     uint64_t data_len = 197;
  
     char* msg = malloc(data_len);
