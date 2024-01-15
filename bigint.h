@@ -396,12 +396,17 @@ void bigint_equate2(struct bigint* n1, struct bigint* n2){
     
     uint32_t aux = n2->used_bits, aux2 = n1->used_bits;
     
+    /* Get used bits to next the nearest used byte. */
     while(aux  % 8) { ++aux; }
     while(aux2 % 8) { ++aux2; }
     
     aux  /= 8;   
     aux2 /= 8;
     
+    /* If N1 will be made a smaller number than what it currently is,
+     * clear the occupied bytes that would not be overwritten by 
+     * the new smaller number's bytes.
+     */
     if(aux > aux2){
         for(uint32_t i = aux2; i < aux; ++i){
             *(n1->bits + i) = 0x00;

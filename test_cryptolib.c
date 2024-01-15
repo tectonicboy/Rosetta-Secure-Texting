@@ -20,6 +20,8 @@ int main(){
 
     /* Test the bitwise rolling */
     
+    /*
+    
     uint32_t T1 = pow(2, 31);
     uint32_t roll_amount = 4;
     
@@ -42,8 +44,14 @@ int main(){
     printf("T1 after left roll : %u\nThe left-rolled bits by %u are:\n", T1, roll_amount);
     uint32_print_bits(T1);
     
+    
+    */
+    
+    
     /* Test ChaCha20 */
     
+    
+    /*
     char* plaintext = "Ladies and Gentlemen of the class of '99: If I could offer you"
                       " only one tip for the future, sunscreen would be it.\0"
                       ;
@@ -83,18 +91,26 @@ int main(){
     
     printf("\n\n**** NOW TESTING BLAKE2b ****\n\n");
     
+    */
+    
+    
+    
     /* Prepare message to be processed by BLAKE2b. */
     
+    
+    /*
     char *b2b_raw_msg = "abc\0",
          *b2b_out_buf = malloc(65 * sizeof(char));
          
     memset(b2b_out_buf, 0x00, 65*sizeof(char));
     
+    
     uint64_t b2b_ll = strlen(b2b_raw_msg)
             ,b2b_kk = 0
-            ,b2b_nn = 64 /* 64 bytes of output */
+            ,b2b_nn = 64
             ;
-            
+    */   
+    /*     
     printf("**** PASSING ARGUMENTS TO BLAKE2B:\n");
     printf("ll = %lu\n", b2b_ll);
     BLAKE2B_INIT(b2b_raw_msg
@@ -111,12 +127,12 @@ int main(){
         printf("%02x ", (uint8_t)b2b_out_buf[i]);
     }
     printf("\n\n");
-    
+    */
     
     /**************************************************************************/
     /********************   NOW TESTING ARGON2id  *****************************/
     /**************************************************************************/
-       
+    /*   
     struct Argon2_parms prms;
     
     prms.p = 4;   
@@ -157,6 +173,9 @@ int main(){
         printf("%02x ", (uint8_t)argon2_output_tag[i]);
     }
     printf("\n\n");
+    
+    */
+    
     
     /**************************************************************************/
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */

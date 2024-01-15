@@ -1,0 +1,338 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 75.17     23.85    23.85   741377     0.00     0.00  bigint_sub2
+ 18.26     29.64     5.79  5937269     0.00     0.00  bigint_equate2
+  4.18     30.97     1.32  4450370     0.00     0.00  bigint_add_fast
+  1.86     31.56     0.59      804     0.00     0.00  bigint_mul_fast
+  0.32     31.66     0.10  1487926     0.00     0.00  bigint_create
+  0.13     31.70     0.04      486     0.00     0.06  bigint_div2
+  0.03     31.71     0.01 11131112     0.00     0.00  bigint_nullify
+  0.03     31.72     0.01  5197520     0.00     0.00  bigint_compare2
+  0.03     31.73     0.01                             _init
+  0.00     31.73     0.00     2688     0.00     0.00  uint64_roll_right
+  0.00     31.73     0.00      672     0.00     0.00  BLAKE2B_G
+  0.00     31.73     0.00      319     0.00     0.00  bigint_pow
+  0.00     31.73     0.00       12     0.00     0.00  bigint_get_ascii_bits
+  0.00     31.73     0.00       12     0.00     0.00  bigint_print_bits
+  0.00     31.73     0.00        7     0.00     0.00  BLAKE2B_F
+  0.00     31.73     0.00        7     0.00     0.00  bigint_print_info
+  0.00     31.73     0.00        5     0.00     0.00  bigint_print_all_bits
+  0.00     31.73     0.00        3     0.00     0.00  BLAKE2B
+  0.00     31.73     0.00        3     0.00     0.00  BLAKE2B_INIT
+  0.00     31.73     0.00        3     0.00     0.00  get_BIGINT_from_DAT
+  0.00     31.73     0.00        1     0.00    31.72  Signature_GENERATE
+  0.00     31.73     0.00        1     0.00    10.63  bigint_mod_mul
+  0.00     31.73     0.00        1     0.00    31.59  bigint_mod_pow
+  0.00     31.73     0.00        1     0.00     0.00  get_M_Q_G
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 4 byte(s) for 0.03% of 31.73 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]    100.0    0.00   31.72                 main [1]
+                0.00   31.72       1/1           Signature_GENERATE [2]
+                0.00    0.00       1/1           get_M_Q_G [16]
+                0.00    0.00       1/1487926     bigint_create [11]
+                0.00    0.00       2/7           bigint_print_info [22]
+                0.00    0.00       2/5           bigint_print_all_bits [23]
+                0.00    0.00       2/12          bigint_print_bits [20]
+-----------------------------------------------
+                0.00   31.72       1/1           main [1]
+[2]    100.0    0.00   31.72       1         Signature_GENERATE [2]
+                0.00   31.59       1/1           bigint_mod_pow [3]
+                0.00    0.13       2/486         bigint_div2 [4]
+                0.00    0.00       1/804         bigint_mul_fast [9]
+                0.00    0.00       2/741377      bigint_sub2 [5]
+                0.00    0.00      12/1487926     bigint_create [11]
+                0.00    0.00       2/4450370     bigint_add_fast [8]
+                0.00    0.00       3/3           BLAKE2B_INIT [25]
+                0.00    0.00       2/7           bigint_print_info [22]
+                0.00    0.00       2/12          bigint_print_bits [20]
+-----------------------------------------------
+                0.00   31.59       1/1           Signature_GENERATE [2]
+[3]     99.6    0.00   31.59       1         bigint_mod_pow [3]
+                0.03   20.47     320/486         bigint_div2 [4]
+                0.00   10.63       1/1           bigint_mod_mul [6]
+                0.00    0.47     319/319         bigint_pow [10]
+                0.00    0.00     165/5937269     bigint_equate2 [7]
+                0.00    0.00     171/1487926     bigint_create [11]
+                0.00    0.00       6/5197520     bigint_compare2 [13]
+                0.00    0.00       1/11131112     bigint_nullify [12]
+-----------------------------------------------
+                0.00    0.13       2/486         Signature_GENERATE [2]
+                0.01   10.49     164/486         bigint_mod_mul [6]
+                0.03   20.47     320/486         bigint_mod_pow [3]
+[4]     98.1    0.04   31.09     486         bigint_div2 [4]
+               23.85    0.83  741375/741377      bigint_sub2 [5]
+                5.07    0.00 5191910/5937269     bigint_equate2 [7]
+                1.32    0.01 4450049/4450370     bigint_add_fast [8]
+                0.01    0.00 2970666/5197520     bigint_compare2 [13]
+                0.00    0.00    2430/1487926     bigint_create [11]
+                0.00    0.00     972/11131112     bigint_nullify [12]
+-----------------------------------------------
+                0.00    0.00       2/741377      Signature_GENERATE [2]
+               23.85    0.83  741375/741377      bigint_div2 [4]
+[5]     77.8   23.85    0.83  741377         bigint_sub2 [5]
+                0.72    0.00  741377/5937269     bigint_equate2 [7]
+                0.10    0.00 1482754/1487926     bigint_create [11]
+                0.00    0.00 2224131/5197520     bigint_compare2 [13]
+                0.00    0.00  741377/11131112     bigint_nullify [12]
+-----------------------------------------------
+                0.00   10.63       1/1           bigint_mod_pow [3]
+[6]     33.5    0.00   10.63       1         bigint_mod_mul [6]
+                0.01   10.49     164/486         bigint_div2 [4]
+                0.12    0.00     165/804         bigint_mul_fast [9]
+                0.00    0.00     166/5937269     bigint_equate2 [7]
+                0.00    0.00     165/5197520     bigint_compare2 [13]
+                0.00    0.00       3/1487926     bigint_create [11]
+-----------------------------------------------
+                0.00    0.00       1/5937269     bigint_mul_fast [9]
+                0.00    0.00     165/5937269     bigint_mod_pow [3]
+                0.00    0.00     166/5937269     bigint_mod_mul [6]
+                0.00    0.00     957/5937269     bigint_pow [10]
+                0.00    0.00    2693/5937269     bigint_add_fast [8]
+                0.72    0.00  741377/5937269     bigint_sub2 [5]
+                5.07    0.00 5191910/5937269     bigint_div2 [4]
+[7]     18.3    5.79    0.01 5937269         bigint_equate2 [7]
+                0.01    0.00 5937269/11131112     bigint_nullify [12]
+-----------------------------------------------
+                0.00    0.00       2/4450370     Signature_GENERATE [2]
+                0.00    0.00     319/4450370     bigint_pow [10]
+                1.32    0.01 4450049/4450370     bigint_div2 [4]
+[8]      4.2    1.32    0.01 4450370         bigint_add_fast [8]
+                0.00    0.00 4450370/11131112     bigint_nullify [12]
+                0.00    0.00    2693/5937269     bigint_equate2 [7]
+-----------------------------------------------
+                0.00    0.00       1/804         Signature_GENERATE [2]
+                0.12    0.00     165/804         bigint_mod_mul [6]
+                0.47    0.00     638/804         bigint_pow [10]
+[9]      1.9    0.59    0.00     804         bigint_mul_fast [9]
+                0.00    0.00       1/5937269     bigint_equate2 [7]
+                0.00    0.00     804/11131112     bigint_nullify [12]
+-----------------------------------------------
+                0.00    0.47     319/319         bigint_mod_pow [3]
+[10]     1.5    0.00    0.47     319         bigint_pow [10]
+                0.47    0.00     638/804         bigint_mul_fast [9]
+                0.00    0.00     957/5937269     bigint_equate2 [7]
+                0.00    0.00    2552/1487926     bigint_create [11]
+                0.00    0.00     319/4450370     bigint_add_fast [8]
+                0.00    0.00    2552/5197520     bigint_compare2 [13]
+                0.00    0.00     319/11131112     bigint_nullify [12]
+-----------------------------------------------
+                0.00    0.00       1/1487926     main [1]
+                0.00    0.00       3/1487926     bigint_mod_mul [6]
+                0.00    0.00       3/1487926     get_BIGINT_from_DAT [15]
+                0.00    0.00      12/1487926     Signature_GENERATE [2]
+                0.00    0.00     171/1487926     bigint_mod_pow [3]
+                0.00    0.00    2430/1487926     bigint_div2 [4]
+                0.00    0.00    2552/1487926     bigint_pow [10]
+                0.10    0.00 1482754/1487926     bigint_sub2 [5]
+[11]     0.3    0.10    0.00 1487926         bigint_create [11]
+-----------------------------------------------
+                0.00    0.00       1/11131112     bigint_mod_pow [3]
+                0.00    0.00     319/11131112     bigint_pow [10]
+                0.00    0.00     804/11131112     bigint_mul_fast [9]
+                0.00    0.00     972/11131112     bigint_div2 [4]
+                0.00    0.00  741377/11131112     bigint_sub2 [5]
+                0.00    0.00 4450370/11131112     bigint_add_fast [8]
+                0.01    0.00 5937269/11131112     bigint_equate2 [7]
+[12]     0.0    0.01    0.00 11131112         bigint_nullify [12]
+-----------------------------------------------
+                0.00    0.00       6/5197520     bigint_mod_pow [3]
+                0.00    0.00     165/5197520     bigint_mod_mul [6]
+                0.00    0.00    2552/5197520     bigint_pow [10]
+                0.00    0.00 2224131/5197520     bigint_sub2 [5]
+                0.01    0.00 2970666/5197520     bigint_div2 [4]
+[13]     0.0    0.01    0.00 5197520         bigint_compare2 [13]
+-----------------------------------------------
+                                                 <spontaneous>
+[14]     0.0    0.01    0.00                 _init [14]
+-----------------------------------------------
+                0.00    0.00       3/3           get_M_Q_G [16]
+[15]     0.0    0.00    0.00       3         get_BIGINT_from_DAT [15]
+                0.00    0.00       3/1487926     bigint_create [11]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[16]     0.0    0.00    0.00       1         get_M_Q_G [16]
+                0.00    0.00       3/3           get_BIGINT_from_DAT [15]
+                0.00    0.00       3/7           bigint_print_info [22]
+                0.00    0.00       3/12          bigint_print_bits [20]
+                0.00    0.00       3/5           bigint_print_all_bits [23]
+-----------------------------------------------
+                0.00    0.00    2688/2688        BLAKE2B_G [18]
+[17]     0.0    0.00    0.00    2688         uint64_roll_right [17]
+-----------------------------------------------
+                0.00    0.00     672/672         BLAKE2B_F [21]
+[18]     0.0    0.00    0.00     672         BLAKE2B_G [18]
+                0.00    0.00    2688/2688        uint64_roll_right [17]
+-----------------------------------------------
+                0.00    0.00      12/12          bigint_print_bits [20]
+[19]     0.0    0.00    0.00      12         bigint_get_ascii_bits [19]
+-----------------------------------------------
+                0.00    0.00       2/12          Signature_GENERATE [2]
+                0.00    0.00       2/12          main [1]
+                0.00    0.00       3/12          get_M_Q_G [16]
+                0.00    0.00       5/12          bigint_print_all_bits [23]
+[20]     0.0    0.00    0.00      12         bigint_print_bits [20]
+                0.00    0.00      12/12          bigint_get_ascii_bits [19]
+-----------------------------------------------
+                0.00    0.00       7/7           BLAKE2B [24]
+[21]     0.0    0.00    0.00       7         BLAKE2B_F [21]
+                0.00    0.00     672/672         BLAKE2B_G [18]
+-----------------------------------------------
+                0.00    0.00       2/7           Signature_GENERATE [2]
+                0.00    0.00       2/7           main [1]
+                0.00    0.00       3/7           get_M_Q_G [16]
+[22]     0.0    0.00    0.00       7         bigint_print_info [22]
+-----------------------------------------------
+                0.00    0.00       2/5           main [1]
+                0.00    0.00       3/5           get_M_Q_G [16]
+[23]     0.0    0.00    0.00       5         bigint_print_all_bits [23]
+                0.00    0.00       5/12          bigint_print_bits [20]
+-----------------------------------------------
+                0.00    0.00       3/3           BLAKE2B_INIT [25]
+[24]     0.0    0.00    0.00       3         BLAKE2B [24]
+                0.00    0.00       7/7           BLAKE2B_F [21]
+-----------------------------------------------
+                0.00    0.00       3/3           Signature_GENERATE [2]
+[25]     0.0    0.00    0.00       3         BLAKE2B_INIT [25]
+                0.00    0.00       3/3           BLAKE2B [24]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+  [24] BLAKE2B                [11] bigint_create          [10] bigint_pow
+  [21] BLAKE2B_F               [4] bigint_div2            [23] bigint_print_all_bits
+  [18] BLAKE2B_G               [7] bigint_equate2         [20] bigint_print_bits
+  [25] BLAKE2B_INIT           [19] bigint_get_ascii_bits  [22] bigint_print_info
+   [2] Signature_GENERATE      [6] bigint_mod_mul          [5] bigint_sub2
+  [14] _init                   [3] bigint_mod_pow         [15] get_BIGINT_from_DAT
+   [8] bigint_add_fast         [9] bigint_mul_fast        [16] get_M_Q_G
+  [13] bigint_compare2        [12] bigint_nullify         [17] uint64_roll_right
