@@ -73,4 +73,6 @@ DEBUGS TO TRY IF IT AINT WORKING:
     the relevant css/js files, and the web server should be able to send them too
     cuz when the user's web browser sees that index.html has included these other
     files, it will proceed to request them from the web server as well.
+
+/* just random text to do first commit and push from new Pop!_OS real machine. */
    
