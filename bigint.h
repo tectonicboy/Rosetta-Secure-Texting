@@ -98,7 +98,7 @@ void bigint_create_from_string (struct bigint* num, uint32_t bitsize
     num->free_bits = (bitsize - num->used_bits);
 }
 
-/* Place a BigInt's bits into a preallocated memory buffer. */
+/* Place a BigInt's bits as ASCII characters into a given memory buffer. */
 void bigint_get_ascii_bits (struct bigint* num, char* target_buffer){
   
     uint32_t bits_to_8 = num->used_bits
@@ -159,7 +159,7 @@ void bigint_print_bits(struct bigint* n){
     return; 
 }
 
-/* Print the big-endian version of the BigInt's bits. */
+/* Print the big-endian version of the BigInt's bytes. */
 void bigint_print_bits_bigend(struct bigint* n){
 
     if( ! n->used_bits ){
@@ -236,6 +236,13 @@ void bigint_print_info(struct bigint* num){
            ,num->free_bits
     );
 }
+
+
+/* Get the i-th bit of BigInt n and store it in buffer identified by target. */
+/* Indexed from bit 0 onward. Little-endian bytes.						     */
+#define BIGINT_GET_BIT(n, i, target)										   \
+target = (*((n).bits + (uint32_t)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0; \
+
 
 /* Make a BigInt equal to zero. */
 void bigint_nullify(struct bigint* num){
@@ -435,8 +442,13 @@ void bigint_add_fast(struct bigint* n1, struct bigint* n2, struct bigint* R){
     uint64_t A, B, C, i = 0, carry = 0, temp_res = 0;
     uint8_t* more_bits = NULL;
 
-    if( n1->used_bits < n2->used_bits ){ A = n2->used_bits; more_bits = n2->bits;}
-    else{ A = n1->used_bits; more_bits = n1->bits;}
+    if( n1->used_bits < n2->used_bits ){ 
+    	A = n2->used_bits; more_bits = n2->bits;
+   	}
+    else{ 
+    	A = n1->used_bits;
+    	more_bits = n1->bits;
+    }
     
     if(!n1->used_bits){
         bigint_equate2(R, n2);
