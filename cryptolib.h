@@ -5,6 +5,8 @@
 #include <math.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <immintrin.h> /* for _mulx_u64      */
+#include <adxintrin.h> /* for _addcarryx_u64 */
 #include "bigint.h"
 
 /* Rotation constants for BLAKE2b */
@@ -12,6 +14,11 @@
 #define R2 24
 #define R3 16
 #define R4 63
+
+/* Montgomery Modular Multiplication constants. */
+#define MONT_LIMB_SIZ 8  /* Size in bytes of limbs in Montgomery numbers.    */
+#define MONT_L        48 /* Non-zero-padded number of limbs in DH modulus M. */
+#define MONT_MU       8134521109493763343 /* Special constant in Montgomery. */
 
 /* Simplifies pointer arithmetic for access to Argon2's memory matrix B. */
 typedef struct block{
@@ -1566,7 +1573,7 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     BLAKE2B_INIT(second_btb_inbuf, len_key_PH, 0, 64, second_btb_outbuf);
     
     struct bigint second_btb_outnum, one, Q_minus_one, reduced_btb_res,
-           k, R, e, s, div_res, aux1, aux2, aux3;
+                  k, R, e, s, div_res, aux1, aux2, aux3;
         
     bigint_create(&second_btb_outnum,  M->size_bits, 0);
     bigint_create(&Q_minus_one,     M->size_bits, 0);
@@ -1615,7 +1622,7 @@ void Signature_GENERATE(struct   bigint* M,  struct bigint* Q,
     bigint_add_fast(&reduced_btb_res, &one, &k);   
     
     /* Now compute R. */
-    bigint_mod_pow(G, &k, M, &R);
+    bigint_mod_pow(G, &k, M, &R); /* This will change to "overall procedure". */
     
     /* Now compute e. */
     uint32_t R_used_bytes = R.used_bits
@@ -1723,7 +1730,132 @@ void Signature_VALIDATE(){
 
 }
     
+/* The caller must have made sure in advance that X and Y are each L-limb, 
+ * L being the number of (non-zero-padded) limbs in the Montgomery modulus N.
+ *
+ * If X and Y are Montgomery representatives of A and B, then this algorithm
+ * computes R, the Montgomery representative of (A*B).
+ *
+ * This algorithm can also be used to convert from base-2 of a number to the
+ * base-beta Montgomery representative of the same number, and also to go
+ * back from Montgomery representative to base-2.
+ *
+ * I use base-2^64 Montgomery representatives, which means beta=2^64. This leads
+ * to having 64-bit limbs in the Montgomery representatives of numbers. It also
+ * leads to having 64-bit MUL and ADD operations, which are not directly 
+ * supported in C, instead most C compilers provide intrinsics for it, which we
+ * make use of here to boost performance. Here, L = ceil(N_used_bits / 64).
+ *
+ * Note: beta is ignored everywhere where we'd multiply by it, so don't even
+ *       pass it here.
+ */
+void Montgomery_MUL(struct bigint* X, struct bigint* Y, 
+					struct bigint* N, struct bigint* R
+				   )
+{
+	
+	unsigned char C, D;
+	unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
+	
+	/* Set R = 0, all of its (L+1) limbs. */
+	bigint_nullify(R);
+	
+	/* T - 3-limb variable. */
+	/* q - 1-limb variable. */
+	/* Keep them both temporarily as part of R->bits in limbs [l+1] to [l+4]. */
+    T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ));
+	memset(T, 0x00, (3 * MONT_LIMB_SIZ));
+	
+	for(uint64_t i = 0; i < MONT_L; ++i){
+	
+		/* 2. */
+		Ul = _mulx_u64(  *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
+						,*((uint64_t*)(X->bits))
+						,&Uh
+					  );
+	    
+	    C = _addcarryx_u64((unsigned char)0, Ul, *((uint64_t*)R->bits), Ul);
+	    
+	    Uh += (uint64_t)C;
+
+	    *(T + 0) = Ul;
+	    *(T + 1) = Uh;
+	    *(T + 2) = 0;	
+	    
+		/* 3. */
+		q = _mulx_64((uint64_t)MONT_MU, *(T + 0), &Uh);
+		
+		/* 4. */
+		for(uint64_t j = 1; j < MONT_L; ++j){
+			
+			/* Compute T. */
+			Ul = _mulx_u64(q, *((uint64_t*)(N->bits + (j*MONT_LIMB_SIZ))), Uh);
+			
+			
+			Vl = _mulx_u64( *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
+						   ,*((uint64_t*)(X->bits + (j * MONT_LIMB_SIZ)))
+						   ,Vh
+						  );
+						  
+			C = _addcarryx_u64((unsigned char)0
+							  ,Ul
+							  ,*((uint64_t*)(R->bits+(j*MONT_LIMB_SIZ)))
+							  ,Ul
+							  );			  
+						  
+			Uh += (uint64_t)C;			  
+						  
+			D = _addcarryx_u64((unsigned char)0, Vl, *(T + 1), Vl);
+			
+			C = _addcarryx_u64((unsigned char)0, Ul, Vl, *(T + 0));
+			
+			D = _addcarryx_u64(D, Uh, Vh, W);
+			
+			C = _addcarryx_u64(C, W, *(T + 2), *(T + 1));
+			
+			*(T + 2) = (uint64_t)C + (uint64_t)D;
+			
+			
+						  
+			/* Set r_(j-1) = t_0 */
+			*((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
+				
+			
+		}
+		
+		/* 5. */
+		C = _addcarryx_u64((unsigned char)0, *(T+1), *(T+2), *(T+0));
+		
+		D = _addcarryx_u64( (unsigned char)0, 
+						   ,*(T + 0)
+						   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
+						   ,*(T + 0)
+						  );
+						 
+		*(T + 1) = (uint64_t)C + (uint64_t)D;
+		
+		/* 6. */ 
+		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
+		*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ))) = *(T + 1);	
+	}
+	
+	/* 7. */
+	if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){
+		/* Standard BigInt subtraction. Update R's used and free bits.     */
+		/* Easy to calculate R's used bits now cuz we basically know em.   */
+		/* R = R - N; discard r_L after that, return the new R as L limbs. */	
+	}
+	
+}
     
-    
-                 
+/* We use this specific algorithm to compute mu for Montgomery.   		*/
+/* invmod(beta - lowest_64bit_limb_of_DH_modulus_M) = mu for MMM. 		*/
+/* beta being the radix for MMM, in our case 2^64 (2^limb_size_in_bits)	*/
+uint64_t invmod(uint64_t a){
+	uint32_t x = (((a + 2u)&4u)<<1)+a;
+	x    =  (2u-1u*a*x)*x;
+	x    =  (2u-1u*a*x)*x;
+	x    =  (2u-1u*a*x)*x;
+	return ((2u-1u*a*x)*x);
+}            
 

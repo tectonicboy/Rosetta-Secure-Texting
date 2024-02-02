@@ -429,6 +429,8 @@ void bigint_equate2(struct bigint* n1, struct bigint* n2){
      
 }
 
+
+
 /*  Standard addition of two BigInts.
  *  WARNING: N1, N2 and R's reserved bits must be divisible by 32. 
  *           This will not be checked by the library for performance reasons.
@@ -956,7 +958,9 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
         goto label_ret;
     }
     
-    if(bigint_compare2(M, &one) == 2){ goto label_ret; }
+    if(bigint_compare2(M, &one) == 2){ 
+    	goto label_ret; 
+    }
     
     if(bigint_compare2(P, &zero) == 2){
         bigint_equate2(R, &one);
@@ -1045,6 +1049,7 @@ label_ret:
     free(div_res.bits);
     free(two.bits);
 }
+
 
 /* Fast algorithm for determining whether a BigInt is prime or not. */
 /* Returns 1 if the big number is prime, or 0 otherwise. */
@@ -1163,6 +1168,7 @@ label_ret:
 
 
 
+				  
 
 
 
