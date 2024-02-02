@@ -1842,7 +1842,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	/* 7. */
 	if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){
 		/* Standard BigInt subtraction. Update R's used and free bits.     */
-		/* Easy to calculate R's used bits now cuz we basically know em.   */
+		/* Easy to calculate R's used bits now cuz we b asically know em.   */
 		/* R = R - N; discard r_L after that, return the new R as L limbs. */	
 	}
 	
