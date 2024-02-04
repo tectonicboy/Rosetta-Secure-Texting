@@ -237,6 +237,23 @@ void bigint_print_info(struct bigint* num){
     );
 }
 
+/* Given a buffer of bytes, get the index of the biggest ON bit. This would be
+ * the "used_bits" count of a BigInt represented by this buffer.
+ */
+uint32_t get_used_bits(uint8_t* buf, uint32_t siz_bytes){
+	uint32_t used_bits = siz_bytes * 8;
+	/* Start from the rightmost byte, as this is biggest in little-endian. */
+	for(int64_t i = siz_bytes - 1; i >= 0; --i){
+		/* Examine each byte individually. */
+		for(uint8_t j = 0; j < 8; ++j){
+			if(buf[i] & (1 << (7 - j))){
+				return used_bits;
+			}  		
+			--used_bits;
+		}		
+	}
+	return used_bits; 	
+}
 
 /* Get the i-th bit of BigInt n and store it in buffer identified by target. */
 /* Indexed from bit 0 onward. Little-endian bytes.						     */

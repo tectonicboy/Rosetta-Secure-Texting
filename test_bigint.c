@@ -44,5 +44,25 @@ int main(){
 		,bitA, bitB, bitC, bitD
 	);
 	
+	/**********************************************/
+	/*****		TESTING USED_BITS COUNTER		***/
+	/**********************************************/
+	
+	uint32_t x1 = 7894440;
+	
+	uint32_t used_bits_x1 = get_used_bits((char*)(&x1), 8);
+	
+	printf("\n\nUSED BITS OF %u computed: %u\n", x1, used_bits_x1);
+	
+	uint32_t used_bits_res = get_used_bits(result->bits, (uint32_t)(64000/8));
+	
+	printf("USED BITS COMPUTEDE OF 11^12 's buffer:%u\n", used_bits_res);
+	
+	printf("Result should be 42?\n\n");
+		
+	
+	
+	
+	
 	return 0;
 }

@@ -181,9 +181,11 @@ int main(){
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
 
-    struct bigint *M, *Q, *G;
+    struct bigint *M, *Q, *G, *Gmont;
   
-    get_M_Q_G(&M, &Q, &G);
+    get_M_Q_G(&M, &Q, &G, 12800);
+    
+    get_Gmont(&Gmont, 12800);
     
     uint64_t data_len = 197;
  
@@ -220,9 +222,10 @@ int main(){
 
     priv_key.free_bits = priv_key.size_bits - priv_key.used_bits;
 
+
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
-    Signature_GENERATE(M, Q, G, msg, data_len, result_signature, &priv_key, 39);
+    Signature_GENERATE(M, Q, G, Gmont, msg, data_len, result_signature, &priv_key, 39);
                        
     printf("FINISHED SIGNATURE!!\n");
     printf("The resulting signature itself is (s,e) both BigInts.\n");
