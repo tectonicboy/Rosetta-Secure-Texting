@@ -1697,6 +1697,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	
 	memset(T, 0x00, 3 * MONT_LIMB_SIZ);
 	
+	free(R_aux.bits);
 	return;
 	
 }
@@ -1866,9 +1867,9 @@ void Signature_GENERATE(struct   bigint* M, struct bigint* Q,
 	end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
     
-    printf("\n\nCPU TIME USED in OLD R = G^k mod M: %f\n\n\n", cpu_time_used);
+    printf("\n\nCPU TIME USED in NEW R = G^k mod M: %f\n\n\n", cpu_time_used);
     
-	printf("OLD R = G^k mod M FINISHED!!!  R:\n\n");
+	printf("NEW R = G^k mod M FINISHED!!!  R:\n\n");
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
 	 
