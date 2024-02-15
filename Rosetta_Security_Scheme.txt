@@ -29,9 +29,9 @@ IF her selected username is available:
 	NOTE: Alice won't store her own private key itself in her filesystem
 	.	  directly. Instead, the password hash produced by Argon2id with
 	.	  her password will become the KEY for ChaCha20, which we use to
-	.     hash her private key and store that instead. Alice's own 
+	.     hash her private key and store that instead, Alice's own 
 	.	  filesystem wont store the password hash. It can store the 
-	.     Nonce used for ChaCha20 to store her hashed private key.
+	.     Nonce (random) used for ChaCha20 to store her hashed private key.
 	
 2. Alice's client computes her public key, A:
 
@@ -281,7 +281,7 @@ To verify against public key A and whatever was signed, the receiver:
 
 0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
 
-1. Computes the prehash PH as in step 1. above.
+1. Computes the prehash PH as in step 0. above.
 
 2. Computes R = (G^s * A^e) mod M.
 

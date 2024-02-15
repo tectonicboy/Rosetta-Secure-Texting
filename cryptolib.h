@@ -11,6 +11,10 @@
 
 #include <time.h> /* for performance testing only. */
 
+/* Global test counter for MONTGOMERY's inner loop runs.  */
+/* to verify that it really is running properly and fast. */
+uint64_t MONT_inner_count = 0;
+
 /* Rotation constants for BLAKE2b */
 #define R1 32
 #define R2 24
@@ -1591,6 +1595,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	
 	unsigned char C, D;
 	unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
+
 	
 	struct bigint R_aux;
 	bigint_create(&R_aux, R->size_bits, 0);
@@ -1605,7 +1610,8 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	memset(T, 0x00, (3 * MONT_LIMB_SIZ));
 	
 	for(uint64_t i = 0; i < MONT_L; ++i){
-	
+
+		
 		/* 2. */
 		Ul = _mulx_u64(  *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
 						,*((uint64_t*)(X->bits))
@@ -1625,7 +1631,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		
 		/* 4. */
 		for(uint64_t j = 1; j < MONT_L; ++j){
-			
+			++MONT_inner_count;
 			/* Compute T. */
 			Ul = _mulx_u64(q, *((uint64_t*)(N->bits + (j*MONT_LIMB_SIZ))), &Uh);
 			
@@ -1660,7 +1666,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 				
 			
 		}
-		
+
 		/* 5. */
 		C = _addcarryx_u64((unsigned char)0, *(T+1), *(T+2), (T+0));
 		
@@ -1702,6 +1708,89 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	
 }
 
+/* Computes B^P mod M using Montgomery Modular Multiplication. Result goes in R.
+ * The base B must be in Montgomery Form. 
+ * The result R is NOT the Montgomery Form of the result of powering, it
+ * is the actual result in regular positional notation.
+ *
+ * Note: This function is somewhat general, but not fully general - it computes
+ *	 	 any modular powering mod M using Montgomery Multiplication, and the
+ *       parameters that depend on the modulus M (MU and L) are defined at
+ *		 the top of this file. However, it won't work for modular powering mod
+ *       some other number, other than M, which for the purposes of the secure
+ *       chat system this library was originally written for is global static.
+ *		 If you want a function for modular powering mod M using Montgomery
+ *		 Multiplication for a different modulus, M, you have to change the
+ *       Montgomery parameters MU and L as well - they are different for each
+ *       Montgomery modulus.
+ */
+void MONT_POW_modM(struct bigint* B, struct bigint* P,
+				   struct bigint* M, struct bigint* R)
+{
+	struct bigint X, Y, R_1, one, div_res;
+    bigint_create(&X,  		M->size_bits, 0);
+    bigint_create(&Y,  		M->size_bits, 0);
+    bigint_create(&R_1, 	M->size_bits, 0);
+    bigint_create(&one, 	M->size_bits, 1);
+    bigint_create(&div_res, M->size_bits, 0);
+    
+    bigint_equate2(&X, B);
+    bigint_equate2(&Y, B);
+    
+    int32_t p_used_bytes = P->used_bits, p_last_byte_bits = 0;
+    
+    while(p_used_bytes % 8 != 0){
+    	++p_used_bytes;
+    	++p_last_byte_bits;
+    }
+    
+    p_used_bytes /= 8;
+    p_last_byte_bits = 8 - p_last_byte_bits;
+
+	for(int32_t j = 0; j < p_last_byte_bits; ++j){
+	
+		Montgomery_MUL(&Y, &Y, M, R);
+		bigint_equate2(&Y, R);
+		
+		if( (P->bits[p_used_bytes - 1]) 
+			& 
+			((uint8_t)1 << (p_last_byte_bits - j))
+		  )
+		{
+			Montgomery_MUL(&Y, &X, M, R);
+			bigint_equate2(&Y, R);	  
+		}  		
+	}
+    for(int32_t i = p_used_bytes - 2; i >= 0; --i){
+
+		for(int32_t j = 0; j < 8; ++j){	
+			
+			Montgomery_MUL(&Y, &Y, M, R);
+			bigint_equate2(&Y, R);
+					
+			if( (P->bits[p_used_bytes - 1]) 
+				& 
+				((uint8_t)1 << (7 - j))
+			  )
+			{
+				Montgomery_MUL(&Y, &X, M, R);
+				bigint_equate2(&Y, R);	  
+			}  		
+		}
+    }  
+	
+	Montgomery_MUL(&one, R, M, &R_1);
+	bigint_div2(&R_1, M, &div_res, R);	
+	
+	free(X.bits);
+	free(Y.bits);
+	free(R_1.bits);
+	free(one.bits);
+	free(div_res.bits);
+	
+	return;
+}
+
 /* Generate a cryptographic signature of a sender's message
  * according to the method pioneered by Claus-Peter Schnorr.
  *
@@ -1717,15 +1806,12 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
  *
  * The signature itself is (s,e).
  */ 
-void Signature_GENERATE(struct   bigint* M, struct bigint* Q,
-                        struct bigint *G,   struct   bigint* Gmont, 
+void Signature_GENERATE(struct bigint* M, struct bigint* Q,
+                        struct bigint *G, struct bigint* Gmont, 
                         char*  data, uint64_t data_len,   char*  signature,
                         struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
-	
-	
-	
     /* Compute the signature generation prehash. */
     uint64_t prehash_len = 64, len_key_PH = prehash_len + key_len_bytes;
     char* prehash = malloc(prehash_len);   
@@ -1794,87 +1880,13 @@ void Signature_GENERATE(struct   bigint* M, struct bigint* Q,
     bigint_add_fast(&reduced_btb_res, &one, &k);  /* <----- k */ 
     
     /* Now compute R. */
-    
-     clock_t start, end;
-     double cpu_time_used;
-     
-     start = clock();
-   
-   
-   
-   
-   
-    struct bigint X, Y, R_1;
-    bigint_create(&X,  M->size_bits, 0);
-    bigint_create(&Y,  M->size_bits, 0);
-    bigint_create(&R_1, M->size_bits, 0);
-    
-    bigint_equate2(&X, Gmont);
-    bigint_equate2(&Y, Gmont);
-    
-    int32_t k_used_bytes = k.used_bits, k_last_byte_bits = 0;
-    while(k_used_bytes % 8 != 0){
-    	++k_used_bytes;
-    	++k_last_byte_bits;
-    }
-    k_used_bytes /= 8;
-    k_last_byte_bits = 8 - k_last_byte_bits;
-    
 
-	for(int32_t j = 0; j < k_last_byte_bits; ++j){
-	
-		Montgomery_MUL(&Y, &Y, M, &R);
-		bigint_equate2(&Y, &R);
-		
-		if( (k.bits[k_used_bytes - 1]) 
-			& 
-			((uint8_t)1 << (k_last_byte_bits - j))
-		  )
-		{
-			Montgomery_MUL(&Y, &X, M, &R);
-			bigint_equate2(&Y, &R);	  
-		}  
-				
-	}
-    for(int32_t i = k_used_bytes - 2; i >= 0; --i){
-
-		for(int32_t j = 0; j < 8; ++j){
-		
-			Montgomery_MUL(&Y, &Y, M, &R);
-			bigint_equate2(&Y, &R);
-			
-			if( (k.bits[k_used_bytes - 1]) 
-				& 
-				((uint8_t)1 << (7 - j))
-			  )
-			{
-				Montgomery_MUL(&Y, &X, M, &R);
-				bigint_equate2(&Y, &R);	  
-			}  
-					
-		}
-
-    }  
-	
-	Montgomery_MUL(&one, &R, M, &R_1);
-	
-	bigint_div2(&R_1, M, &div_res, &R);
-
-	 
-	/*bigint_mod_pow(G, &k, M, &R);*/ /* This will change to "overall procedure". */
-	 
-	 
-	end = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    
-    printf("\n\nCPU TIME USED in NEW R = G^k mod M: %f\n\n\n", cpu_time_used);
-    
+	MONT_POW_modM(Gmont, &k, M, &R); 
+ 
 	printf("NEW R = G^k mod M FINISHED!!!  R:\n\n");
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
 	 
-    
-    
     /* Now compute e. */
     uint32_t R_used_bytes = R.used_bits
             ,len_Rused_PH;
@@ -1938,6 +1950,7 @@ void Signature_GENERATE(struct   bigint* M, struct bigint* Q,
     printf("s:\n");
     bigint_print_info(&s);
     bigint_print_bits(&s);    
+    
     /* signature buffer must have been allocated with exactly 
      * ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )
      * bytes of memory. No checks performed for performance.
@@ -1975,9 +1988,31 @@ void Signature_GENERATE(struct   bigint* M, struct bigint* Q,
 }
 
 
+/*
+ *  To verify against public key A and whatever was signed, the receiver:
+ *
+ *	0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
+ *
+ *	1. Computes the prehash PH as in step 0. above.
+ *
+ *	2. Computes R = (G^s * A^e) mod M.
+ *
+ *	3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
+ *	   Check that this is equal to e. If it is, validation passed. 
+ * 	   In any other circumstance, the validation fails.
+ *
+ *	RETURNS: 1 if signature is valid for this message
+ *
+ */
+uint8_t Signature_VALIDATE(struct bigint* G, struct bigint* A, struct bigint* M,
+						   struct bigint* Q, struct bigint* s, struct bigint* e,
+						   char* data, uint32_t data_len, char* signature)
+{
+	if( bigint_compare2(s, Q) != 3){
+		return 0;		
+	}
 
-void Signature_VALIDATE(){
-
+	
 
 }
     

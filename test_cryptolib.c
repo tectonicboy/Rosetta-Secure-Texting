@@ -226,6 +226,8 @@ int main(){
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
     Signature_GENERATE(M, Q, G, Gmont, msg, data_len, result_signature, &priv_key, 39);
+    
+    printf("MONTGOMERY total inner loop runs: %lu\n", MONT_inner_count);
                        
     printf("FINISHED SIGNATURE!!\n");
     printf("The resulting signature itself is (s,e) both BigInts.\n");
@@ -254,6 +256,10 @@ int main(){
     bigint_print_all_bits(e); 
     
     fclose(rand_file);
+    
+
+    
+    return 0;
     
 }
 
