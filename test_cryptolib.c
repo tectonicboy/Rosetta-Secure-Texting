@@ -258,6 +258,9 @@ int main(){
     fclose(rand_file);
     
 
+	/* Compute a public key from the generated private key. 				  */
+	/* This key is used in validating a signature generated from private key. */
+
     
     return 0;
     

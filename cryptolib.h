@@ -1813,14 +1813,18 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
                        )
 {
     /* Compute the signature generation prehash. */
-    uint64_t prehash_len = 64, len_key_PH = prehash_len + key_len_bytes;
+    uint64_t prehash_len = 64
+    		,len_key_PH = prehash_len + key_len_bytes
+    		,R_used_bytes = R.used_bits
+            ,len_Rused_PH
+            ,bits_to_take = 0;
+            
     char* prehash = malloc(prehash_len);   
     memset(prehash, 0x00, prehash_len);
     
-    uint64_t bits_to_take = 0;
     uint8_t flag_found = 0;
     
-    BLAKE2B_INIT(data, data_len, 0, 64, prehash);
+    BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
     
     char *second_btb_outbuf = malloc(64)
         ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
@@ -1887,16 +1891,13 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
 	 
-    /* Now compute e. */
-    uint32_t R_used_bytes = R.used_bits
-            ,len_Rused_PH;
-    
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }
     
     R_used_bytes /= 8;
     
+    /* Now compute e. */
     char *R_with_prehash = malloc(R_used_bytes + prehash_len),
          *e_buf = malloc(40), /* e has bitwidth of Q. */
          *third_btb_outbuf = malloc(64);
@@ -2001,19 +2002,52 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
  *	   Check that this is equal to e. If it is, validation passed. 
  * 	   In any other circumstance, the validation fails.
  *
- *	RETURNS: 1 if signature is valid for this message
+ *	RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
  *
  */
 uint8_t Signature_VALIDATE(struct bigint* G, struct bigint* A, struct bigint* M,
 						   struct bigint* Q, struct bigint* s, struct bigint* e,
-						   char* data, uint32_t data_len, char* signature)
+						   char* data, uint32_t data_len)
 {
-	if( bigint_compare2(s, Q) != 3){
+	if( (bigint_compare2(s, Q) != 3) || (e->used_bits != Q->used_bits) ){
 		return 0;		
 	}
-
 	
+    uint64_t prehash_len = 64
+    		,R_used_bytes = R.used_bits
+            ,len_Rused_PH
+            ,bits_to_take = 0;
+            
+    char* prehash = malloc(prehash_len);   
+    memset(prehash, 0x00, prehash_len);
+    
+    uint8_t flag_found = 0;
+    
+    struct bigint R_aux1, R_aux2, div_res
+    
+    /* Compute the signature validation prehash. Same as during generation. */ 
+      
+    BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
+    
+    
+    /* Compute  R =  (G^s * A^e) mod M. 			  */
+    /* This is: R = ((G^s mod M) * (A^e mod M)) mod M */
+    
+    /* Now compute R. */
 
+	MONT_POW_modM(Gmont, s, M, &R_aux1); 
+	MONT_POW_modM(
+
+	printf("NEW R = G^k mod M FINISHED!!!  R:\n\n");
+	bigint_print_info(&R);
+	bigint_print_bits(&R);
+	  
+    while(R_used_bytes % 8 != 0){
+        ++R_used_bytes;
+    }
+    
+    R_used_bytes /= 8;
+	
 }
     
 

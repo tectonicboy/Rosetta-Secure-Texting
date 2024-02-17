@@ -11,8 +11,11 @@
  * changes with each message and thus each generated signature?...
  *
  * The other method was: X = (A * (beta^L)) mod N)
+ * where A is the number want to find the Montgomery representative of, N is
+ * the Montgomery modulus (M in out case) and beta and L are constants derived
+ * from the Montgomery modulus. X is the generated Montgomery form of A.
  *
- *
+ * This is what we use here for now, for public key's Montgomery form too.
  */
 
 int main(){
