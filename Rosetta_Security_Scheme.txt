@@ -285,7 +285,7 @@ To verify against public key A and whatever was signed, the receiver:
 
 2. Computes R = (G^s * A^e) mod M.
 
-3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
+3. Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
    Check that this is equal to e. If it is, validation passed. 
    In any other circumstance, the validation fails.
    

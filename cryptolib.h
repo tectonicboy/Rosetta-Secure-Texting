@@ -1378,57 +1378,6 @@ label_start_pass:
     free(H0_input);
     free(final_block_C);
 }
-/* To view the bytes of the DAT files from linux terminal window: */
-/* xxd -b G_raw_bytes.dat                                         */
-struct bigint* get_BIGINT_from_DAT(uint32_t bits, char* fn, uint32_t used_bits
-                                  ,uint32_t reserve_bits){
-
-     
-    if(    (reserve_bits % 0x08) 
-        || (reserve_bits < 0x40) 
-        || (reserve_bits > 4290000000) 
-      )
-    {
-        printf("[ERR] Cryptolib: get_BIGINT_from_DAT - Invalid reserve_bits\n");
-        return NULL;
-    }  
-    if(reserve_bits < used_bits){
-        printf("[ERR] Cryptolib: Too few reserved bits for .dat file: %s\n",fn);
-        return NULL;
-    }
-    
-    FILE* dat_file;
-    
-    if ( (dat_file = fopen(fn, "r")) == NULL){
-        printf("[ERR] Cryptolib: Opening .dat file failed.\n");
-        return NULL;
-    }
-    
-    uint32_t bytes = bits;
-    while(bytes % 8 != 0){
-        ++bytes;
-    }
-    bytes /= 8;
-    
-    char* bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
-    
-    fread(bigint_buf, 1, bytes, dat_file);
-    
-    struct bigint* big_n_ptr = calloc(1, sizeof(struct bigint));
-    
-    bigint_create(big_n_ptr, reserve_bits, 0); 
-    
-    memcpy(big_n_ptr->bits, bigint_buf, bytes);
-    
-    big_n_ptr->used_bits = used_bits;
-    big_n_ptr->free_bits = reserve_bits - used_bits;
-    
-    free(bigint_buf);
-    
-    fclose(dat_file);
-    
-    return big_n_ptr;
-}
 
 /* G = ( 2^((M-1)/Q) ) mod M */
 struct bigint* get_DH_G(struct bigint* M, struct bigint* Q){
@@ -1493,16 +1442,16 @@ void get_M_Q_G(struct bigint** M, struct bigint** Q
     printf("\nNow printing the Q BigInt's bits:\n\n");
     
     bigint_print_bits(*Q);
-    
+    /*
     printf("\nNow printing the Q BigInt's ALL bits:\n\n");
     
     bigint_print_all_bits(*Q);
-    
+    */
     
     char* filename_M_dat = "M_raw_bytes.dat";
     
     *M = get_BIGINT_from_DAT(bits_M, filename_M_dat, used_bits_M, res_bits_M);
-    
+
     printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for M!!\n");
     
     printf("Now printing the M BigInt's info:\n\n");
@@ -1512,16 +1461,19 @@ void get_M_Q_G(struct bigint** M, struct bigint** Q
     printf("\nNow printing the M BigInt's bits:\n\n");
     
     bigint_print_bits(*M);
-    
+    /*
     printf("\nNow printing the M BigInt's ALL bits:\n\n");
     
     bigint_print_all_bits(*M);    
-      
+    */ 
+    
+    
     char* filename_G_dat = "G_raw_bytes.dat";
     
     *G = get_BIGINT_from_DAT(bits_G, filename_G_dat, used_bits_G, res_bits_G);
     
     printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for G!!\n");
+    
     
     printf("Now printing the G BigInt's info:\n\n");
     
@@ -1530,11 +1482,11 @@ void get_M_Q_G(struct bigint** M, struct bigint** Q
     printf("\nNow printing the G BigInt's bits:\n\n");
     
     bigint_print_bits(*G);
-    
+    /*
     printf("\nNow printing the G BigInt's ALL bits:\n\n");
     
     bigint_print_all_bits(*G);    
-    
+    */
 
     return;
 
@@ -1812,28 +1764,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
                         struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
-    /* Compute the signature generation prehash. */
-    uint64_t prehash_len = 64
-    		,len_key_PH = prehash_len + key_len_bytes
-    		,R_used_bytes = R.used_bits
-            ,len_Rused_PH
-            ,bits_to_take = 0;
-            
-    char* prehash = malloc(prehash_len);   
-    memset(prehash, 0x00, prehash_len);
-    
-    uint8_t flag_found = 0;
-    
-    BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
-    
-    char *second_btb_outbuf = malloc(64)
-        ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
-        
-    memcpy(second_btb_inbuf, private_key->bits, key_len_bytes);
-    memcpy(second_btb_inbuf + key_len_bytes, prehash, prehash_len);
-    
-    BLAKE2B_INIT(second_btb_inbuf, len_key_PH, 0, 64, second_btb_outbuf);
-    
+
     struct bigint second_btb_outnum, one, Q_minus_one, reduced_btb_res,
                   k, R, e, s, div_res, aux1, aux2, aux3;
         
@@ -1851,33 +1782,40 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     bigint_create(&aux2, M->size_bits, 0);
     bigint_create(&aux3, M->size_bits, 0);
     
+    /* Compute the signature generation prehash. */
+    uint64_t prehash_len = 64
+    		,len_key_PH = prehash_len + key_len_bytes
+    		,R_used_bytes = R.used_bits
+            ,len_Rused_PH
+            ,bits_to_take = 0;
+            
+    char* prehash = malloc(prehash_len);   
+    memset(prehash, 0x00, prehash_len);
+    
+    uint8_t flag_found = 0;
+    
+    uint32_t byte_rounder = 0;
+    
+    BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
+    
+    char *second_btb_outbuf = malloc(64)
+        ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
+        
+    memcpy(second_btb_inbuf, private_key->bits, key_len_bytes);
+    memcpy(second_btb_inbuf + key_len_bytes, prehash, prehash_len);
+    
+    BLAKE2B_INIT(second_btb_inbuf, len_key_PH, 0, 64, second_btb_outbuf);
+    
+
+    
     /* Now compute k. */  
     memcpy(second_btb_outnum.bits, second_btb_outbuf, 64);
     
-    second_btb_outnum.used_bits = 64 * 8;
+    second_btb_outnum.used_bits = get_used_bits(second_btb_outnum.bits, 64);
     
-    /* No guarantee the most significant bit of the 64th byte is actually set
-     * so check the biggest set bit to see the EXACT number of used bits. 
-     */
-    bits_to_take = 0;
-    flag_found = 0;
-    for(uint8_t bytes = 0; bytes < 64; ++bytes){
-        for(uint8_t bits = 0; bits < 8; ++bits){
-            if (! ( *(second_btb_outnum.bits + (63 - bytes)) &= ( ((uint8_t)1) << bits ) ) ){
-                ++bits_to_take;        
-            }
-            else{
-                flag_found = 1;
-                break;
-            }           
-        }
-        if(flag_found){
-            break;
-        }
-    }
-    
-    second_btb_outnum.used_bits -= bits_to_take; 
-    second_btb_outnum.free_bits = second_btb_outnum.size_bits - second_btb_outnum.used_bits;
+    second_btb_outnum.free_bits = second_btb_outnum.size_bits 
+    							  - 
+    							  second_btb_outnum.used_bits;
     
     bigint_sub2(Q, &one, &Q_minus_one);    
     bigint_div2(&second_btb_outnum, &Q_minus_one, &div_res, &reduced_btb_res);  
@@ -1890,7 +1828,16 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
 	printf("NEW R = G^k mod M FINISHED!!!  R:\n\n");
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
-	 
+	
+	
+	/* OLD WAY TO COMPUTE R FOR TESTING ONLY!!! */
+	struct bigint R_test;
+	bigint_create(&R_test, M->size_bits, 0);
+	bigint_mod_pow(G, &k, M, &R_test);
+	printf("JUST FOR TESTING - SIG_GEN computed R the old way. R_test:\n");
+	bigint_print_info(&R_test);
+	bigint_print_bits(&R_test);
+	
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }
@@ -1910,31 +1857,9 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
     
     memcpy(e.bits, third_btb_outbuf, 40);
-    
-    e.used_bits = 40*8;
-    
-    /* No guarantee the most significant bit of the 40th byte is actually set
-     * so check the biggest set bit to see the EXACT number of used bits. 
-     */
-    bits_to_take = 0;
-    flag_found = 0;
-    for(uint8_t bytes = 0; bytes < 40; ++bytes){
-        for(uint8_t bits = 0; bits < 8; ++bits){
-            if (! ( *(e.bits + (39 - bytes)) &= ( ((uint8_t)1) << (7-bits) ) ) ){
-                ++bits_to_take;        
-            }
-            else{
-                flag_found = 1;
-                break;
-            }           
-        }
-        if(flag_found){
-            break;
-        }
-    }
-    
-    e.used_bits -= bits_to_take;
-    e.free_bits = e.size_bits - (e.used_bits);
+      
+    e.used_bits = get_used_bits(e.bits, 40);
+    e.free_bits = e.size_bits - e.used_bits;
         
     /* Lastly, compute s = ( k + ((Q-a)×e) ) mod Q */
     bigint_sub2(Q, private_key, &aux1);
@@ -2005,16 +1930,27 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
  *	RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
  *
  */
-uint8_t Signature_VALIDATE(struct bigint* G, struct bigint* A, struct bigint* M,
-						   struct bigint* Q, struct bigint* s, struct bigint* e,
+ 
+uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
+						   struct bigint* M,     struct bigint* Q, 
+						   struct bigint* s, 	 struct bigint* e,
 						   char* data, uint32_t data_len)
 {
-	if( (bigint_compare2(s, Q) != 3) || (e->used_bits != Q->used_bits) ){
+	/*
+	if(e->used_bits != Q->used_bits){
+		printf("[INFO] Cryptolib: SIG_VAL: e->used_bits != Q->used_bits.\n");
+		printf("e->used_bits = %u\n", e->used_bits);
+		printf("Q->used_bits = %u\n", Q->used_bits);
+		return 0;
+	}
+	*/
+	if(bigint_compare2(s, Q) != 3){
+		printf("[INFO] Cryptolib: sig_validate: passed s =/= passed Q.\n");
 		return 0;		
 	}
-	
+
     uint64_t prehash_len = 64
-    		,R_used_bytes = R.used_bits
+    		,R_used_bytes
             ,len_Rused_PH
             ,bits_to_take = 0;
             
@@ -2023,30 +1959,89 @@ uint8_t Signature_VALIDATE(struct bigint* G, struct bigint* A, struct bigint* M,
     
     uint8_t flag_found = 0;
     
-    struct bigint R_aux1, R_aux2, div_res
+    struct bigint R, R_aux1, R_aux2, R_aux3, div_res, val_e;
+    
+    bigint_create(&R, 	   	M->size_bits, 0);
+    bigint_create(&R_aux1, 	M->size_bits, 0);
+    bigint_create(&R_aux2,	M->size_bits, 0);
+    bigint_create(&R_aux3, 	M->size_bits, 0);
+    bigint_create(&div_res, M->size_bits, 0); 
+    bigint_create(&val_e,	M->size_bits, 0);
     
     /* Compute the signature validation prehash. Same as during generation. */ 
       
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
-    
-    
+
     /* Compute  R =  (G^s * A^e) mod M. 			  */
     /* This is: R = ((G^s mod M) * (A^e mod M)) mod M */
-    
-    /* Now compute R. */
 
 	MONT_POW_modM(Gmont, s, M, &R_aux1); 
-	MONT_POW_modM(
-
-	printf("NEW R = G^k mod M FINISHED!!!  R:\n\n");
+	MONT_POW_modM(Amont, e, M, &R_aux2);
+	
+	bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
+	
+	bigint_div2(&R_aux3, M, &div_res, &R);
+	
+	printf("R = (G^s * A^e) mod M   FINISHED!!!  R:\n\n");
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
+	
+	R_used_bytes = R.used_bits;
 	  
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }
     
     R_used_bytes /= 8;
+    
+    /* Last step: 															*/
+    /* Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 	*/
+ 	/* Check that this is equal to e. If it is, validation passed. 			*/
+ 	
+ 	/* Now compute val_e. */
+    char *R_with_prehash = malloc(R_used_bytes + prehash_len),
+         *e_buf = malloc(40), /* e has bitwidth of Q. */
+         *third_btb_outbuf = malloc(64); /* Not rlly 3rd here. Change it. */
+         
+    memcpy(R_with_prehash, R.bits, R_used_bytes);
+    memcpy(R_with_prehash + R_used_bytes, prehash, prehash_len);
+    
+    len_Rused_PH = R_used_bytes + prehash_len;
+    
+    BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
+    
+    memcpy(val_e.bits, third_btb_outbuf, 40);
+
+    val_e.used_bits = get_used_bits(val_e.bits, 40);
+    val_e.free_bits = val_e.size_bits - val_e.used_bits;
+    
+    
+    if( bigint_compare2(e, &val_e) != 2 ){
+    	printf("[INFO] Cryptolib: SIG_VAL: val_e =/= passed e. Ret 0.\n");
+    	
+    	printf("Passed e:\n");
+    	bigint_print_info(e);
+    	bigint_print_bits(e);
+    	
+    	printf("Computed val_e:\n");
+    	bigint_print_info(&val_e);
+    	bigint_print_bits(&val_e);
+    	
+    	return 0;
+    }
+
+    free(prehash);   
+    free(R.bits);
+    free(R_aux1.bits);
+    free(R_aux2.bits);
+    free(R_aux3.bits);
+    free(div_res.bits); 
+    free(val_e.bits);
+    free(R_with_prehash);
+    free(e_buf);
+    free(third_btb_outbuf); /* Not rlly 3rd here. Change it. */
+    
+    return 1;
 	
 }
     

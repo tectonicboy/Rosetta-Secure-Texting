@@ -240,7 +240,7 @@ void bigint_print_info(struct bigint* num){
 /* Given a buffer of bytes, get the index of the biggest ON bit. This would be
  * the "used_bits" count of a BigInt represented by this buffer.
  */
-uint32_t get_used_bits(uint8_t* buf, uint32_t siz_bytes){
+uint32_t get_used_bits(char* buf, uint32_t siz_bytes){
 	uint32_t used_bits = siz_bytes * 8;
 	/* Start from the rightmost byte, as this is biggest in little-endian. */
 	for(int64_t i = siz_bytes - 1; i >= 0; --i){
@@ -260,6 +260,81 @@ uint32_t get_used_bits(uint8_t* buf, uint32_t siz_bytes){
 #define BIGINT_GET_BIT(n, i, target)										   \
 target = (*((n).bits + (uint32_t)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0; \
 
+/* To view the bytes of the DAT files from linux terminal window: */
+/* xxd -b G_raw_bytes.dat                                         */
+struct bigint* get_BIGINT_from_DAT(uint32_t file_bits, char* fn, 
+								   uint32_t used_bits, uint32_t reserve_bits)
+{  
+    if(reserve_bits % 0x08 || reserve_bits < 0x40 || reserve_bits > 4290000000){ 
+        printf("[ERR] Cryptolib: get_BIGINT_from_DAT - Invalid reserve_bits\n");
+        return NULL;
+    }  
+    if(reserve_bits < used_bits){
+        printf("[ERR] Cryptolib: Too few reserved bits for .dat file: %s\n",fn);
+        return NULL;
+    }
+    
+    FILE* dat_file;
+    if ( (dat_file = fopen(fn, "r")) == NULL){
+        printf("[ERR] Cryptolib: Opening .dat file failed. Returning NULL.\n");
+        return NULL;
+    }
+    
+    uint32_t file_bytes = file_bits;
+    while(file_bytes % 8 != 0){
+        ++file_bytes;
+    }
+    file_bytes /= 8;
+    
+    char* bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
+    
+    if(!fread(bigint_buf, 1, file_bytes, dat_file)){
+    	printf("[WARN] Cryptolib: No bytes read from bigint file %s\n", fn);
+    }
+    
+    struct bigint* big_n_ptr = calloc(1, sizeof(struct bigint)); 
+    bigint_create(big_n_ptr, reserve_bits, 0);  
+    memcpy(big_n_ptr->bits, bigint_buf, file_bytes);  
+    big_n_ptr->used_bits = used_bits;
+    big_n_ptr->free_bits = reserve_bits - used_bits;
+    
+    free(bigint_buf);
+    
+    if( fclose(dat_file) != 0){
+    	printf("[ERR] Cryptolib: fclose() in READ failed for file: %s\n", fn);
+    }
+    
+    return big_n_ptr;
+}
+
+void save_BIGINT_to_DAT(char* fn, struct bigint* num){  
+
+    FILE* dat_file;
+    size_t bytes_written;
+    if ( (dat_file = fopen(fn, "w")) == NULL){
+        printf("[ERR] Cryptolib: Opening .dat file failed in SAVE.\n");
+        return;
+    }
+    
+    uint32_t file_bytes = num->used_bits;
+    
+    while(file_bytes % 8 != 0){
+        ++file_bytes;
+    }
+    file_bytes /= 8;
+        
+    if(! (bytes_written = fwrite(num->bits, 1, file_bytes, dat_file)) ){
+    	printf("[WARN] Cryptolib: No bytes written to bigint dat file.\n");
+    }
+    
+    printf("Written %lu bytes to bigint file %s\n", bytes_written, fn);
+    
+    if( fclose(dat_file) != 0){
+    	printf("[ERR] Cryptolib: fclose() in SAVE failed for file %s\n", fn);
+    }
+    
+    return;
+}
 
 /* Make a BigInt equal to zero. */
 void bigint_nullify(struct bigint* num){

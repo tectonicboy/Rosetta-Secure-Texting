@@ -1,5 +1,7 @@
 #include "cryptolib.h"
 
+#define RESBITS 12800
+
 void uint32_print_bits(uint32_t n){
     printf("\n****** Printing bits of uint32 N = %u ******\n", n);
     for(uint8_t i = 0; i < 32; ++i){
@@ -183,9 +185,9 @@ int main(){
 
     struct bigint *M, *Q, *G, *Gmont;
   
-    get_M_Q_G(&M, &Q, &G, 12800);
+    get_M_Q_G(&M, &Q, &G, RESBITS);
     
-    get_Gmont(&Gmont, 12800);
+    get_Gmont(&Gmont, RESBITS);
     
     uint64_t data_len = 197;
  
@@ -199,33 +201,19 @@ int main(){
     char* result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
 
     /* Assume this private key got generated with 39 bytes. */
-    struct bigint priv_key;
+    struct bigint *priv_key;
 
-    bigint_create(&priv_key, M->size_bits, 0);
 
-    FILE* rand_file = fopen("/dev/urandom", "r");
-
-    if (  (fread(priv_key.bits, 1, 39, rand_file)) == 0  ){
-        printf("[ERR] Test Cryptolib - Couldn't read from /dev/urandom.\n");
-        if(rand_file){
-            fclose(rand_file);
-        }
-        exit(1);
-    }
-    /* Make sure the most significant bit is set, so we can really claim
-     * that used bits are 39 * 8. 
-     */
-
-    *(priv_key.bits + 38) |= ( ((uint8_t)1) << 7 );
-
-    priv_key.used_bits = 39 * 8;
-
-    priv_key.free_bits = priv_key.size_bits - priv_key.used_bits;
-
+    priv_key = get_BIGINT_from_DAT(312, "testprivkey_raw_bytes.dat\0", 
+								   312, RESBITS);
+	
+	printf("Obtained the saved test private key:\n");
+	bigint_print_info(priv_key);
+	bigint_print_bits(priv_key);
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
-    Signature_GENERATE(M, Q, G, Gmont, msg, data_len, result_signature, &priv_key, 39);
+    Signature_GENERATE(M, Q, G, Gmont, msg, data_len, result_signature, priv_key, 39);
     
     printf("MONTGOMERY total inner loop runs: %lu\n", MONT_inner_count);
                        
@@ -247,21 +235,64 @@ int main(){
     
     bigint_print_info(s);
     bigint_print_bits(s);
-    bigint_print_all_bits(s);
+
     
     printf("\n***** e: *****\n");
 
     bigint_print_info(e);
     bigint_print_bits(e);
-    bigint_print_all_bits(e); 
-    
-    fclose(rand_file);
+
     
 
 	/* Compute a public key from the generated private key. 				  */
 	/* This key is used in validating a signature generated from private key. */
+	
+	/* A = G^a mod M */
+    
+    /* We can use montgomery modular MUL mod M function here. */
+    /* We already have Gmont above. */
+    struct bigint pub_key, *pub_key_mont;
+    
+    bigint_create(&pub_key, RESBITS, 0);
+
 
     
+    MONT_POW_modM(Gmont, priv_key, M, &pub_key);
+    
+    
+    
+    printf("Computed PUBLIC KEY from private key using MONT POW mod M:\n");
+ 
+    bigint_print_info(&pub_key);
+    bigint_print_bits(&pub_key);
+
+    
+    /* We also now already have the Montgomery form of the public key 
+     * from that other C file I wrote. It's in a DAT file like the rest.
+     * Read the MONT form of public key here to pass it to signature_validate.
+     */
+    pub_key_mont = get_BIGINT_from_DAT(3072, "testpubkeyMONT_raw_bytes.dat\0", 
+								   3071, RESBITS);
+								   
+	printf("Obtained MONT form of PUB_KEY from dat file:\n");
+	
+	bigint_print_info(pub_key_mont);
+	bigint_print_bits(pub_key_mont);
+
+	
+	printf("Should be ready to call SIGNATURE VALIDATE now!\n");
+	
+	uint8_t isValid = 
+			Signature_VALIDATE(Gmont, pub_key_mont, M, Q, s, e, msg, data_len);
+    
+    printf("FINISHED VALIDATING THE SIGNATURE!\n");
+    
+    if(!isValid){
+    	printf("Valid Signature: NO\n");
+    }
+    else{
+    	printf("Valid Signature: YES\n");
+    }
     return 0;
     
 }
