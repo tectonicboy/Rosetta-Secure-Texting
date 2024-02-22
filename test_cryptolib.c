@@ -183,11 +183,11 @@ int main(){
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
 
-    struct bigint *M, *Q, *G, *Gmont;
+    struct bigint *M, *Q, *G, *PRACTICAL_Gmont;
   
     get_M_Q_G(&M, &Q, &G, RESBITS);
     
-    get_Gmont(&Gmont, RESBITS);
+    get_Gmont(&PRACTICAL_Gmont, RESBITS);
     
     uint64_t data_len = 197;
  
@@ -213,7 +213,9 @@ int main(){
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
-    Signature_GENERATE(M, Q, G, Gmont, msg, data_len, result_signature, priv_key, 39);
+    Signature_GENERATE(  M, Q, G, PRACTICAL_Gmont, msg, data_len
+    			        ,result_signature, priv_key, 39
+    			      );
     
     printf("MONTGOMERY total inner loop runs: %lu\n", MONT_inner_count);
                        
@@ -251,39 +253,58 @@ int main(){
     
     /* We can use montgomery modular MUL mod M function here. */
     /* We already have Gmont above. */
-    struct bigint pub_key, *pub_key_mont;
     
+    struct bigint pub_key, *PRACTICAL_pub_key_mont;
+    
+    /*
     bigint_create(&pub_key, RESBITS, 0);
 
-
+	printf("test_cryptolib: Calling MONT_POW_modM with Gmont^priv_key mod M\n");
+	printf("to compute a new public key.\n");
     
-    MONT_POW_modM(Gmont, priv_key, M, &pub_key);
+    MONT_POW_modM(PRACTICAL_Gmont, priv_key, M, &pub_key);
     
+    pub_key.used_bits = get_used_bits(pub_key.bits, 1600);
+    pub_key.free_bits = pub_key.size_bits - pub_key.used_bits; 
     
-    
-    printf("Computed PUBLIC KEY from private key using MONT POW mod M:\n");
+    printf("Computed PRACTICAL PUBLIC KEY using MONT POW mod M:\n");
  
     bigint_print_info(&pub_key);
     bigint_print_bits(&pub_key);
+	
 
+	save_BIGINT_to_DAT("PRACTICAL_testpubkey_raw_bytes.dat\0", &pub_key);
+	
+	printf("For now, exit()ing after public key was generated and saved\n"
+		   "(from the new Montgomery form of G, using practical method)\n"
+		   "as we need to compute a new Montgomery form of it now b4 reading\n"
+		   "it from the file. R verification happens in sig. gen. anyway.\n"
+		   );
+	
+    exit(0);
+    */
+    
+    
     
     /* We also now already have the Montgomery form of the public key 
      * from that other C file I wrote. It's in a DAT file like the rest.
      * Read the MONT form of public key here to pass it to signature_validate.
      */
-    pub_key_mont = get_BIGINT_from_DAT(3072, "testpubkeyMONT_raw_bytes.dat\0", 
-								   3071, RESBITS);
+    PRACTICAL_pub_key_mont = get_BIGINT_from_DAT
+    									   (
+    										3072
+    									   ,"PRACTICAL_Amont_raw_bytes.dat\0" 
+								           ,3071
+								           ,RESBITS
+								           );
 								   
-	printf("Obtained MONT form of PUB_KEY from dat file:\n");
-	
-	bigint_print_info(pub_key_mont);
-	bigint_print_bits(pub_key_mont);
 
-	
 	printf("Should be ready to call SIGNATURE VALIDATE now!\n");
 	
 	uint8_t isValid = 
-			Signature_VALIDATE(Gmont, pub_key_mont, M, Q, s, e, msg, data_len);
+			Signature_VALIDATE(  PRACTICAL_Gmont, PRACTICAL_pub_key_mont
+								,M, Q, s, e, msg, data_len
+							  );
     
     printf("FINISHED VALIDATING THE SIGNATURE!\n");
     

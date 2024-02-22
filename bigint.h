@@ -258,7 +258,7 @@ uint32_t get_used_bits(char* buf, uint32_t siz_bytes){
 /* Get the i-th bit of BigInt n and store it in buffer identified by target. */
 /* Indexed from bit 0 onward. Little-endian bytes.						     */
 #define BIGINT_GET_BIT(n, i, target)										   \
-target = (*((n).bits + (uint32_t)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0; \
+target = (*((n).bits + (uint32_t)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0 \
 
 /* To view the bytes of the DAT files from linux terminal window: */
 /* xxd -b G_raw_bytes.dat                                         */

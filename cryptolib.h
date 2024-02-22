@@ -24,7 +24,7 @@ uint64_t MONT_inner_count = 0;
 /* Montgomery Modular Multiplication constants. */
 #define MONT_LIMB_SIZ 8  /* Size in bytes of limbs in Montgomery numbers.    */
 #define MONT_L        48 /* Non-zero-padded number of limbs in DH modulus M. */
-#define MONT_MU       8134521109493763343 /* Special constant in Montgomery. */
+#define MONT_MU       5519087143809977509 /* Special constant in Montgomery. */
 
 /* Simplifies pointer arithmetic for access to Argon2's memory matrix B. */
 typedef struct block{
@@ -1495,10 +1495,10 @@ void get_M_Q_G(struct bigint** M, struct bigint** Q
 void get_Gmont(struct bigint **Gmont, uint32_t res_bits){
 
 	uint32_t bits_Gmont 	 = 3072
-			,used_bits_Gmont = 3071
+			,used_bits_Gmont = 3072
 			,res_bits_Gmont  = res_bits;
     
-    char* filename_Gmont_dat = "Gmont_raw_bytes.dat";
+    char* filename_Gmont_dat = "PRACTICAL_Gmont_raw_bytes.dat\0";
     
     *Gmont = get_BIGINT_from_DAT(bits_Gmont
 								,filename_Gmont_dat
@@ -1679,6 +1679,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 void MONT_POW_modM(struct bigint* B, struct bigint* P,
 				   struct bigint* M, struct bigint* R)
 {
+	uint64_t bit = 0;
 	struct bigint X, Y, R_1, one, div_res;
     bigint_create(&X,  		M->size_bits, 0);
     bigint_create(&Y,  		M->size_bits, 0);
@@ -1689,57 +1690,24 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
     
-    int32_t p_used_bytes = P->used_bits, p_last_byte_bits = 0;
-    
-    while(p_used_bytes % 8 != 0){
-    	++p_used_bytes;
-    	++p_last_byte_bits;
-    }
-    
-    p_used_bytes /= 8;
-    p_last_byte_bits = 8 - p_last_byte_bits;
 
-	for(int32_t j = 0; j < p_last_byte_bits; ++j){
-	
-		Montgomery_MUL(&Y, &Y, M, R);
-		bigint_equate2(&Y, R);
-		
-		if( (P->bits[p_used_bytes - 1]) 
-			& 
-			((uint8_t)1 << (p_last_byte_bits - j))
-		  )
-		{
+    
+    for(int64_t i = P->used_bits - 2; i >= 0; --i){ 	
+    	Montgomery_MUL(&Y, &Y, M, R);
+	    bigint_equate2(&Y, R);
+    	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
+
 			Montgomery_MUL(&Y, &X, M, R);
-			bigint_equate2(&Y, R);	  
-		}  		
-	}
-    for(int32_t i = p_used_bytes - 2; i >= 0; --i){
+			bigint_equate2(&Y, R);	
+    	}
 
-		for(int32_t j = 0; j < 8; ++j){	
-			
-			Montgomery_MUL(&Y, &Y, M, R);
-			bigint_equate2(&Y, R);
-					
-			if( (P->bits[p_used_bytes - 1]) 
-				& 
-				((uint8_t)1 << (7 - j))
-			  )
-			{
-				Montgomery_MUL(&Y, &X, M, R);
-				bigint_equate2(&Y, R);	  
-			}  		
-		}
-    }  
+    }
 	
 	Montgomery_MUL(&one, R, M, &R_1);
 	bigint_div2(&R_1, M, &div_res, R);	
 	
-	free(X.bits);
-	free(Y.bits);
-	free(R_1.bits);
-	free(one.bits);
-	free(div_res.bits);
-	
+	free(X.bits); free(Y.bits); free(R_1.bits);
+	free(one.bits); free(div_res.bits);
 	return;
 }
 

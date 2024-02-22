@@ -20,7 +20,7 @@ int main(){
 				, *two        = malloc(sizeof(struct bigint))
 				, *sixty_four = malloc(sizeof(struct bigint))
 				, *div_res    = malloc(sizeof(struct bigint))
-				, *M		  = malloc(sizeof(struct bigint))
+				, *M		  = malloc(sizeof(struct bigint))	
 				, *Q		  = malloc(sizeof(struct bigint))
 				, *G	      = malloc(sizeof(struct bigint))
 				, *X		  = malloc(sizeof(struct bigint))
@@ -31,10 +31,7 @@ int main(){
 	bigint_create(two,		  RESERVED_BITS,  2);
 	bigint_create(sixty_four, RESERVED_BITS, 64);
 	bigint_create(div_res	, RESERVED_BITS,  0);
-	
-	bigint_create(M, RESERVED_BITS, 0);
-	bigint_create(Q, RESERVED_BITS, 0);
-	bigint_create(G, RESERVED_BITS, 0);
+
 	bigint_create(X, RESERVED_BITS, 0);
 	bigint_create(L, RESERVED_BITS, MONT_L);
 	
