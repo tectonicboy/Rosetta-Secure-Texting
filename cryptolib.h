@@ -11,10 +11,6 @@
 
 #include <time.h> /* for performance testing only. */
 
-/* Global test counter for MONTGOMERY's inner loop runs.  */
-/* to verify that it really is running properly and fast. */
-uint64_t MONT_inner_count = 0;
-
 /* Rotation constants for BLAKE2b */
 #define R1 32
 #define R2 24
@@ -1506,7 +1502,7 @@ void get_Gmont(struct bigint **Gmont, uint32_t res_bits){
 								,res_bits_Gmont
     						    );
     
-    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for Gmont!!\n");
+    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for PRACTICAL_Gmont!!\n");
     
     printf("Now printing the Gmont BigInt's info:\n\n");
     
@@ -1547,29 +1543,24 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	
 	unsigned char C, D;
 	unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
-
-	
 	struct bigint R_aux;
 	bigint_create(&R_aux, R->size_bits, 0);
 	
 	/* Set R = 0, all of its (L+1) limbs. */
 	bigint_nullify(R);
 	
-	/* T - 3-limb variable. */
-	/* q - 1-limb variable. */
+	/* T - 3-limb variable, q - 1-limb variable. */
 	/* Keep T temporarily as part of R->bits in limbs [l+1] to [l+3]. */
-    T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ));
+    T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ)); 
 	memset(T, 0x00, (3 * MONT_LIMB_SIZ));
 	
 	for(uint64_t i = 0; i < MONT_L; ++i){
-
-		
 		/* 2. */
 		Ul = _mulx_u64(  *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
 						,*((uint64_t*)(X->bits))
 						,&Uh
 					  );
-	    
+					  
 	    C = _addcarryx_u64((unsigned char)0, Ul, *((uint64_t*)R->bits), &Ul);
 	    
 	    Uh += (uint64_t)C;
@@ -1583,7 +1574,6 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		
 		/* 4. */
 		for(uint64_t j = 1; j < MONT_L; ++j){
-			++MONT_inner_count;
 			/* Compute T. */
 			Ul = _mulx_u64(q, *((uint64_t*)(N->bits + (j*MONT_LIMB_SIZ))), &Uh);
 			
@@ -1595,7 +1585,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						  
 			C = _addcarryx_u64((unsigned char)0
 							  ,Ul
-							  ,*((uint64_t*)(R->bits+(j*MONT_LIMB_SIZ)))
+							  ,*((uint64_t*)(R->bits+(j * MONT_LIMB_SIZ)))
 							  ,&Ul
 							  );			  
 						  
@@ -1610,13 +1600,9 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 			C = _addcarryx_u64(C, W, *(T + 2), (T + 1));
 			
 			*(T + 2) = (uint64_t)C + (uint64_t)D;
-			
-			
-						  
+					  
 			/* Set r_(j-1) = t_0 */
 			*((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
-				
-			
 		}
 
 		/* 5. */
@@ -1632,9 +1618,11 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		
 		/* 6. */ 
 		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
-		*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ))) = *(T + 1);	
+		*((uint64_t*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);	
 	}
-	
+
+	memset((uint8_t*)T, 0x00, 3 * MONT_LIMB_SIZ);
+
 	/* 7. */
 	if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){
 		/* Standard BigInt subtraction. Update R's used and free bits.     */
@@ -1642,18 +1630,17 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		/* R = R - N; Return the new R as L limbs. */
 		R->used_bits = (MONT_LIMB_SIZ * 8 * MONT_L) + 1;
 		R->free_bits = R->size_bits - R->used_bits;		
+		
 		bigint_equate2(&R_aux, R);		
 		bigint_sub2(&R_aux, N, R);
 	}
 	else{
 		/* R is ready to be returned with the correct bits. Just update its
 		 * bigint structure members to reflect the its new bits.
-		 */
+		 */	
 		R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
 		R->free_bits = R->size_bits - R->used_bits;
 	}	
-	
-	memset(T, 0x00, 3 * MONT_LIMB_SIZ);
 	
 	free(R_aux.bits);
 	return;
@@ -1693,8 +1680,40 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
 
     
     for(int64_t i = P->used_bits - 2; i >= 0; --i){ 	
+    
+    	
+    	printf("Entered MONT_POW_modM loop!!\n");
+    	printf("First MUL is (Y * Y) mod M = R.\n");
+    	printf("Y was made equal to B, which was passed as Gmont by GEN.\n");
+    	printf("Here's B: (should be equal to PRACTICAL_Gmont)\n");
+    	bigint_print_info(B);
+    	bigint_print_bits(B);
+    	save_BIGINT_to_DAT("test_mont/PRACTICAL_Gmont_3072_bits.dat\0", B);
+    	printf("Here's Y: (should be equal to PRACTICAL_Gmont and to B)\n");
+    	bigint_print_info(&Y);
+    	bigint_print_bits(&Y);
+    	
+    	
     	Montgomery_MUL(&Y, &Y, M, R);
+    	
+    	
+    	printf("The result of Montgomery_MUL: Y * Y mod M = R:\n");
+    	bigint_print_info(R);
+    	bigint_print_bits(R);
+    	save_BIGINT_to_DAT("test_mont/R_3071_bits_result_of_Gmont*Gmont_mod_M.dat\0", R);
+    	
+    	
 	    bigint_equate2(&Y, R);
+	    
+	    
+	    printf("R, result of 1st Mont_MUL Y*Y mod M, written to Y. Now Y:\n");
+	    bigint_print_info(&Y);
+	    bigint_print_bits(&Y);
+	    printf("exit(0)-ing right now, for testing.\n");
+	    exit(0);
+	    
+	    
+	    
     	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
 
 			Montgomery_MUL(&Y, &X, M, R);

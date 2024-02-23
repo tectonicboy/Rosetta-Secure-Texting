@@ -5,6 +5,10 @@
 /* We use this specific algorithm to compute mu for Montgomery.   		*/
 /* invmod(beta - lowest_64bit_limb_of_DH_modulus_M) = mu for MMM. 		*/
 /* beta being the radix for MMM, in our case 2^64 (2^limb_size_in_bits)	*/
+
+/* WARNING - THIS CODE DOES NOT GET THE CORRECT MU RIGHT NOW. idk why. */
+
+
 uint64_t invmod(uint64_t a){
 	uint32_t x = (((a + 2u)&4u)<<1)+a;
 	x    =  (2u-1u*a*x)*x;

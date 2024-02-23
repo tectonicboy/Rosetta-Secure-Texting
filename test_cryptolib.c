@@ -216,9 +216,7 @@ int main(){
     Signature_GENERATE(  M, Q, G, PRACTICAL_Gmont, msg, data_len
     			        ,result_signature, priv_key, 39
     			      );
-    
-    printf("MONTGOMERY total inner loop runs: %lu\n", MONT_inner_count);
-                       
+                  
     printf("FINISHED SIGNATURE!!\n");
     printf("The resulting signature itself is (s,e) both BigInts.\n");
     printf("But we have to point the .bits pointer to their returned buffer\n");
@@ -256,9 +254,11 @@ int main(){
     
     struct bigint pub_key, *PRACTICAL_pub_key_mont;
     
-    /*
+    
     bigint_create(&pub_key, RESBITS, 0);
 
+
+/*
 	printf("test_cryptolib: Calling MONT_POW_modM with Gmont^priv_key mod M\n");
 	printf("to compute a new public key.\n");
     
@@ -282,8 +282,8 @@ int main(){
 		   );
 	
     exit(0);
-    */
     
+  */  
     
     
     /* We also now already have the Montgomery form of the public key 
@@ -299,7 +299,7 @@ int main(){
 								           );
 								   
 
-	printf("Should be ready to call SIGNATURE VALIDATE now!\n");
+	printf("Ready to call SIGNATURE VALIDATE now!\n");
 	
 	uint8_t isValid = 
 			Signature_VALIDATE(  PRACTICAL_Gmont, PRACTICAL_pub_key_mont
