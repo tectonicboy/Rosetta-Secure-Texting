@@ -972,7 +972,10 @@ label_ret:
 } 
 
 /* Modular Multiplication. Multiply many BigInts, modulo another BigInt. */
-void bigint_mod_mul(struct bigint** nums, struct bigint* mod, uint32_t how_many, struct bigint* R){
+void bigint_mod_mul(struct bigint** nums, struct bigint* mod, 
+			        uint32_t how_many,    struct bigint* R
+			       )
+{
     struct bigint div_res, rem, mul_res;
 
     bigint_create(&div_res, nums[0]->size_bits, 1);
@@ -995,9 +998,43 @@ void bigint_mod_mul(struct bigint** nums, struct bigint* mod, uint32_t how_many,
               , i, how_many
               ); 
         bigint_mul_fast(R, nums[i], &mul_res);
-           
+        
+        printf("MOD_MUL same loop i=%u R * nums[%u] = mul_res.\n", i, i);
+        
+        printf("R:\n");
+        bigint_print_info(R);
+        bigint_print_bits(R);
+        
+        printf("nums[%u]:\n", i);
+        bigint_print_info(nums[i]);
+        bigint_print_bits(nums[i]);
+        
+        printf("mul_res:\n");
+        bigint_print_info(&mul_res);
+        bigint_print_bits(&mul_res);
+        
         if( (compare_res = bigint_compare2(&mul_res, mod)) != 3){
-            bigint_div2(&mul_res, mod, &div_res, &rem);                                    
+        	printf("The modular MUL accumulator got bigger than modulus M.\n");
+        	printf("mul_res / mod = div_res, rem.\n");
+           
+            bigint_div2(&mul_res, mod, &div_res, &rem);    
+              	
+        	printf("mul_res:\n");
+        	bigint_print_info(&mul_res);
+            bigint_print_bits(&mul_res);
+            
+            printf("mod:\n");
+            bigint_print_info(mod);
+            bigint_print_bits(mod);
+            
+            printf("div_res:\n");
+            bigint_print_info(&div_res);
+            bigint_print_bits(&div_res);
+            
+            printf("rem:\n");
+            bigint_print_info(&rem);
+            bigint_print_bits(&rem);
+                                            
             bigint_equate2(R, &rem);
         }
         else{
@@ -1077,11 +1114,13 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
     }
     
     P_used_bytes /= 8;
-
+	printf("P_used_bytes computed as: %u\n", P_used_bytes);
+	printf("Now entering loop populating array of SET indices in power.\n");
     for(uint32_t i = 0; i < P_used_bytes; ++i){
-        for(uint8_t j = 0; j < 8; ++j){
+        for(uint32_t j = 0; j < 8; ++j){
             if( ( (*(P->bits + i)) >> j) & 0x01){
                 arr1[arr1_curr_ind] = (i * 8) + j;
+                printf("mod_pow set arr1[%u] = %u\n",arr1_curr_ind,(i * 8) + j);
                 ++arr1_curr_ind;
                 ++c1;
             }      
@@ -1099,8 +1138,28 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
     arr1_curr_ind = 0;  
      
     bigint_div2(N, M, &div_res, &aux1);
-
+	printf("aux1 = remainder of N/M aka 2^64/M.\n\n N:\n");
+	bigint_print_info(N);
+	bigint_print_bits(N);
+	
+	printf("M:\n");
+	bigint_print_info(M);
+	bigint_print_bits(M);
+	
+	printf("div_res:\n");
+	bigint_print_info(&div_res);
+	bigint_print_bits(&div_res);
+	
+	printf("aux1 (rem):\n");
+    bigint_print_info(&aux1);
+    bigint_print_bits(&aux1);
+	
+	
     /* The long loop */
+    printf("mod_pow entering loop that each time raises remainder of 2^64/M\n"
+    	   "to the power of 2, then takes remainder when DIV that by M.\n\n"
+    	   "M is a huge number so let's see when this squaring of 2^64 exceeds it:\n"
+    );
     for(uint32_t i = 0; i < P->used_bits; ++i){   
     
      
@@ -1109,13 +1168,23 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
                , i, P->used_bits
                ); 
                
-               
         if( i == arr1[arr1_curr_ind] ){
+        	printf("i=%u placing previous i's aux1 into arr_ptrs[%u]\n"
+        			, i, arr1_curr_ind);
             bigint_equate2( arr_ptrs[arr1_curr_ind], &aux1);
             ++arr1_curr_ind;
         }
         bigint_pow(&aux1, &two, &aux2);
+        printf("Same loop: i=%u  aux2 = aux1^2:\n", i);
+        bigint_print_info(&aux2);
+        bigint_print_bits(&aux2);
         bigint_div2(&aux2, M, &div_res, &aux1);
+        printf("Same loop: i=%u  aux1 = rem of aux2/M. aux1 now:\n", i);
+        bigint_print_info(&aux1);
+        bigint_print_bits(&aux1);
+        printf("(wrong) DIV_RES:\n");
+		bigint_print_info(&div_res);
+		bigint_print_bits(&div_res);        
     }  
      
     if(c1 == 1){
