@@ -1606,6 +1606,8 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		}
 
 		/* 5. */
+		
+		/*
 		C = _addcarryx_u64((unsigned char)0, *(T+1), *(T+2), (T+0));
 		
 		D = _addcarryx_u64( (unsigned char)0
@@ -1615,6 +1617,15 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						  );
 						 
 		*(T + 1) = (uint64_t)C + (uint64_t)D;
+		*/
+		
+		C = _addcarryx_u64( (unsigned char)0
+				   ,*(T + 1)
+				   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
+				   , (T + 0)
+				  );
+		
+		*(T + 1) = (*(T + 2)) + (uint64_t)C;
 		
 		/* 6. */ 
 		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
@@ -1624,23 +1635,14 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	memset((uint8_t*)T, 0x00, 3 * MONT_LIMB_SIZ);
 
 	/* 7. */
+	R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
+	R->free_bits = R->size_bits - R->used_bits;
+
 	if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){
-		/* Standard BigInt subtraction. Update R's used and free bits.     */
-		/* Easy to calculate R's used bits now cuz we basically know em.   */
-		/* R = R - N; Return the new R as L limbs. */
-		R->used_bits = (MONT_LIMB_SIZ * 8 * MONT_L) + 1;
-		R->free_bits = R->size_bits - R->used_bits;		
-		
+		/* Standard BigInt subtraction.  */
 		bigint_equate2(&R_aux, R);		
 		bigint_sub2(&R_aux, N, R);
 	}
-	else{
-		/* R is ready to be returned with the correct bits. Just update its
-		 * bigint structure members to reflect the its new bits.
-		 */	
-		R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
-		R->free_bits = R->size_bits - R->used_bits;
-	}	
 	
 	free(R_aux.bits);
 	return;

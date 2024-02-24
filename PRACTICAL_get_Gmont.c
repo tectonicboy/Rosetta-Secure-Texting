@@ -32,6 +32,16 @@ int main(){
  	/* Will call bigint_create() for them. */	
  	get_M_Q_G(&M, &Q, &G, RESBITS);
  	
+ 	printf("M and G obtained from get_M_Q_G().\n\nM:\n");
+ 	bigint_print_info(M);
+ 	bigint_print_bits(M);
+ 	
+ 	printf("G:\n");
+ 	bigint_print_info(G);
+ 	bigint_print_bits(G);
+ 	
+ 	save_BIGINT_to_DAT("G_raw_bytes.dat\0", G);
+ 	
 	bigint_create(two, 		 RESBITS, 2 );					
 	bigint_create(sixtyfour, RESBITS, 64);
 	bigint_create(beta,		 RESBITS, 0 );
