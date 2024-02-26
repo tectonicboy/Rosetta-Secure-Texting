@@ -96,6 +96,13 @@ void bigint_create_from_string (struct bigint* num, uint32_t bitsize
     }   
     
     num->free_bits = (bitsize - num->used_bits);
+    return;
+}
+
+void bigint_remake(struct bigint* num, uint32_t bitsize, uint32_t initial){
+	free(num->bits);
+	bigint_create (num, bitsize, initial);
+	return;
 }
 
 /* Place a BigInt's bits as ASCII characters into a given memory buffer. */
@@ -122,6 +129,7 @@ void bigint_get_ascii_bits (struct bigint* num, char* target_buffer){
             }
         }
     }
+    return;
 }
 
 /* Print only the used bits of a BigInt. */
@@ -235,6 +243,7 @@ void bigint_print_info(struct bigint* num){
            ,num->used_bits
            ,num->free_bits
     );
+    return;
 }
 
 /* Given a buffer of bytes, get the index of the biggest ON bit. This would be
@@ -341,6 +350,7 @@ void bigint_nullify(struct bigint* num){
     memset(num->bits, 0x00, num->size_bits/8);
     num->free_bits = num->size_bits;
     num->used_bits = 0;
+    return;
 }
 
 /* Bitwise XOR operation of two BigInts n1 and n2. */
@@ -360,6 +370,7 @@ void bigint_XOR2 (struct bigint* n1, struct bigint* n2, struct bigint* res){
     for(uint32_t i = 0; i < (smaller/8); ++i){
         *(res->bits + i) = ( (*(n1->bits + i)) ^ (*(n2->bits + i)) ); 
     }
+    return;
 }
 
 /* Bitwise AND operation of two BigInts n1 and n2. */
@@ -379,6 +390,7 @@ void bigint_AND2 (struct bigint* n1, struct bigint* n2, struct bigint* res){
     for(uint32_t i = 0; i < (smaller/8); ++i){
         *(res->bits + i) = ( (*(n1->bits + i)) & (*(n2->bits + i)) ); 
     }
+    return;
 }
 
 /* Standard bitwise shift to the left of a BigInt by X bits. */
@@ -406,7 +418,8 @@ void bigint_SHIFT_L_by_X(struct bigint* n, uint32_t amount){
                 }   
             }  
         } 
-    }  
+    } 
+    return;
 }
 
 /* Standard bitwise shift to the right of a BigInt by X bits. */
@@ -432,7 +445,8 @@ void bigint_SHIFT_R_by_X(struct bigint* n, uint32_t amount){
                 }          
             }
         } 
-    }  
+    } 
+    return; 
 }
 
 /*   Compare two BigInts. Returns:
@@ -518,7 +532,8 @@ void bigint_equate2(struct bigint* n1, struct bigint* n2){
     for(uint32_t i = 0x00; i < aux; ++i){
         *(n1->bits + i) = *(n2->bits + i);
     }
-     
+    
+    return;
 }
 
 
@@ -970,6 +985,80 @@ label_ret:
     free(temp_aux.bits);
     return; 
 } 
+
+/* Implementation of Algorithm 20.4 "Multiple Precision Division" in Handbook */
+/* of Applied Cryptography.	Using 16-bit limbs to enable uint64_t storage.    */						  */
+void bigint_div_fast( struct bigint *A,   struct bigint *B
+					 ,struct bigint *Res, struct bigint *Rem)
+{	  
+	uint64_t num_temps = 19; /* How many temporary BigInts we need. */
+	struct bigint big_temps[num_temps];
+	for(uint64_t i = 0; i < num_temps; ++i){
+		bigint_create(&(big_temps[i]), A->size_bits, 0);
+	}
+
+	bigint_equate2(&(big_temps[0]), A);
+	bigint_equate2(&(big_temps[2]), B);
+	
+	uint64_t b = pow(2,16), b_squared = b*b, n, t, i, j;
+	
+	n = big_temps[0].used_bits;
+	while(n % 16){
+		++n;		
+	} 
+	n /= 16;
+	--n;
+	t = big_temps[2].used_bits;
+	while(t % 16){
+		++t;
+	}
+	t /= 16;
+	--t;
+	
+	/* Initialize the bigints that will stay constant during the algorithm. */
+	bigint_remake(&(big_temps[5]),  A->size_bits, (uint32_t)1);
+	bigint_remake(&(big_temps[6]),  A->size_bits, (uint32_t)b);
+	bigint_remake(&(big_temps[7]),  A->size_bits, (uint32_t)n);
+	bigint_remake(&(big_temps[8]),  A->size_bits, (uint32_t)t);
+	bigint_remake(&(big_temps[10]), A->size_bits, (uint32_t)(n-t));
+	
+	bigint_pow(&(big_temps[6]), &(big_temps[10]), &(big_temps[11));
+	bigint_mul_fast(&(big_temps[11]), &(big_temps[2]), &(big_temps[12]));
+	
+	/* Part 2 */
+	while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 1){
+		++ *( (uint16_t*)(big_temps[3]->bits) + (n-t) );
+		bigint_equate2(&(big_temps[1]), &(big_temps[0]));
+		bigint_sub2(&(big_temps[1]), &(big_temps[12]), &(big_temps[0]));
+	}
+	
+	/* Part 3 */
+	for(i = n; i >= (t+1); --i){
+		if(   *( (uint16_t*)(big_temps[0]->bits) + i ) 
+		   == *( (uint16_t*)(big_temps[2]->bits) + t )			
+		){
+			/* q_(i-t-1) a limb, also stored as a bigint in big_temps[17]. */
+			*( (uint16_t*)(big_temps[3]->bits) + (i-t-1) ) = (uint16_t)(b - 1); 	
+		    bigint_remake(&(big_temps[17]), A->size_bits, (uint32_t)(b - 1));
+		}
+		else{
+			*( (uint16_t*)(big_temps[3]->bits) + (i-t-1) ) = (uint16_t)floor(
+	(uint64_t)( 
+	 (uint64_t)(
+			    ((uint64_t)(*( (uint16_t*)(big_temps[0]->bits) + i ))) 
+			    *
+			    b
+			   )
+			   + 
+			   ((uint64_t)(*( (uint16_t*)(big_temps[0]->bits) + (i-1) )))
+			  )
+			  / 
+			  ((uint64_t)(*( (uint16_t*)(big_temps[2]->bits) + t )))
+			);
+		}
+	}
+}
+
 
 /* Modular Multiplication. Multiply many BigInts, modulo another BigInt. */
 void bigint_mod_mul(struct bigint** nums, struct bigint* mod, 
