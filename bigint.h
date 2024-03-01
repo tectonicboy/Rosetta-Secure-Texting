@@ -751,6 +751,18 @@ void bigint_pow(struct bigint* n1, struct bigint* n2, struct bigint* R){
     
     if( bigint_compare2(&R_res_bits, &R_req_bits) == 3){
         printf("[ERR] BigInt: Not enough bits to store the result of POW.\n");
+        printf("POW() operands:\nn1:\n");
+        bigint_print_info(n1);
+        bigint_print_bits(n1);
+        printf("\nn2:\n");
+        bigint_print_info(n2);
+        bigint_print_bits(n2);
+        printf("R_res_bits:\n");
+        bigint_print_info(&R_res_bits);
+        bigint_print_bits(&R_res_bits);
+        printf("R_req_bits:\n");
+        bigint_print_info(&R_req_bits);
+        bigint_print_bits(&R_req_bits);
         goto ret_label;    
     }
      
@@ -786,7 +798,8 @@ void bigint_sub2 (struct bigint* n1, struct bigint* n2, struct bigint* R){
     bigint_nullify(R);
     
     if( bigint_compare2(n1, n2) == 3){
-        printf("[ERR] Bigint: n1 was smaller than n2 in a SUB operation. Returning 0.\n"); 
+        printf("[ERR] Bigint: n1 was smaller than n2 in a SUB operation. EXITING!\n"); 
+        exit(0);
         goto label_ret;  
     }
     if( bigint_compare2(n1, n2) == 2){ 
@@ -884,7 +897,7 @@ label_ret:
 }
 
 /* Standard division of two BigInts with integer quotient and remainder. */
-void bigint_div2 ( struct bigint* n1, struct bigint* n2
+void bigint_div2_slow ( struct bigint* n1, struct bigint* n2
                   ,struct bigint* R,  struct bigint* rem)
                 {
                 
@@ -910,7 +923,7 @@ void bigint_div2 ( struct bigint* n1, struct bigint* n2
     }    
     if( bigint_compare2(n2, &one) == 2){ 
         bigint_equate2(R, n1);
-        printf("[DIV]: RET 2\n");
+        printf("[DIV]: RET n1\n");
         goto label_ret;
     }            
     if( bigint_compare2(n2, &zero) == 2){
@@ -987,20 +1000,41 @@ label_ret:
 } 
 
 /* Implementation of Algorithm 20.4 "Multiple Precision Division" in Handbook */
-/* of Applied Cryptography.	Using 16-bit limbs to enable uint64_t storage.    */						  */
-void bigint_div_fast( struct bigint *A,   struct bigint *B
+/* of Applied Cryptography.	Using 16-bit limbs to enable uint64_t storage.    */
+void bigint_div2( struct bigint *A,   struct bigint *B
 					 ,struct bigint *Res, struct bigint *Rem)
 {	  
+
 	uint64_t num_temps = 19; /* How many temporary BigInts we need. */
 	struct bigint big_temps[num_temps];
 	for(uint64_t i = 0; i < num_temps; ++i){
 		bigint_create(&(big_temps[i]), A->size_bits, 0);
 	}
 
+	/* Quickly check if A or B are zero. */
+	if(bigint_compare2(B, &(big_temps[0])) == 2){
+		printf("\n\n[ERR] BIGINT - Division by ZERO.\n\nOPERAND 1:\n");
+		bigint_print_info(A);
+		bigint_print_bits(A);
+		return;
+	}
+	if(bigint_compare2(A, &(big_temps[0])) == 2){
+		bigint_nullify(Res);
+		bigint_nullify(Rem);
+		return;
+	}
+	/* if B > A, return RES=0, REM=A */
+	if(bigint_compare2(A, B) == 3){
+		bigint_nullify(Res);
+		bigint_equate2(Rem, A);
+		return;
+	}
+	
+	
 	bigint_equate2(&(big_temps[0]), A);
 	bigint_equate2(&(big_temps[2]), B);
 	
-	uint64_t b = pow(2,16), b_squared = b*b, n, t, i, j;
+	uint64_t b = (uint64_t)pow(2,16), b_squared = b*b, n, t, i;
 	
 	n = big_temps[0].used_bits;
 	while(n % 16){
@@ -1014,49 +1048,146 @@ void bigint_div_fast( struct bigint *A,   struct bigint *B
 	}
 	t /= 16;
 	--t;
-	
+
 	/* Initialize the bigints that will stay constant during the algorithm. */
 	bigint_remake(&(big_temps[5]),  A->size_bits, (uint32_t)1);
 	bigint_remake(&(big_temps[6]),  A->size_bits, (uint32_t)b);
 	bigint_remake(&(big_temps[7]),  A->size_bits, (uint32_t)n);
 	bigint_remake(&(big_temps[8]),  A->size_bits, (uint32_t)t);
 	bigint_remake(&(big_temps[10]), A->size_bits, (uint32_t)(n-t));
-	
-	bigint_pow(&(big_temps[6]), &(big_temps[10]), &(big_temps[11));
+
+	bigint_pow(&(big_temps[6]), &(big_temps[10]), &(big_temps[11]));
+
 	bigint_mul_fast(&(big_temps[11]), &(big_temps[2]), &(big_temps[12]));
 	
 	/* Part 2 */
-	while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 1){
-		++ *( (uint16_t*)(big_temps[3]->bits) + (n-t) );
+	while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 3){
+		++(*( ((uint16_t*)(big_temps[3].bits)) + (n-t) ));
 		bigint_equate2(&(big_temps[1]), &(big_temps[0]));
 		bigint_sub2(&(big_temps[1]), &(big_temps[12]), &(big_temps[0]));
 	}
 	
 	/* Part 3 */
 	for(i = n; i >= (t+1); --i){
-		if(   *( (uint16_t*)(big_temps[0]->bits) + i ) 
-		   == *( (uint16_t*)(big_temps[2]->bits) + t )			
+		if(   *( ((uint16_t*)(big_temps[0].bits)) + i ) 
+		   == *( ((uint16_t*)(big_temps[2].bits)) + t )			
 		){
 			/* q_(i-t-1) a limb, also stored as a bigint in big_temps[17]. */
-			*( (uint16_t*)(big_temps[3]->bits) + (i-t-1) ) = (uint16_t)(b - 1); 	
+			*( ((uint16_t*)(big_temps[3].bits)) + (i-t-1) ) = (uint16_t)(b - 1); 	
 		    bigint_remake(&(big_temps[17]), A->size_bits, (uint32_t)(b - 1));
 		}
 		else{
-			*( (uint16_t*)(big_temps[3]->bits) + (i-t-1) ) = (uint16_t)floor(
-	(uint64_t)( 
-	 (uint64_t)(
-			    ((uint64_t)(*( (uint16_t*)(big_temps[0]->bits) + i ))) 
-			    *
-			    b
-			   )
-			   + 
-			   ((uint64_t)(*( (uint16_t*)(big_temps[0]->bits) + (i-1) )))
-			  )
-			  / 
-			  ((uint64_t)(*( (uint16_t*)(big_temps[2]->bits) + t )))
+			*( ((uint16_t*)(big_temps[3].bits)) + (i-t-1) ) = (uint16_t)floor(
+			    ( 
+				  (
+		 	        ((uint64_t)(*( ((uint16_t*)(big_temps[0].bits)) + i ))) 
+		 	        *
+		 	        b
+			      )
+			      + 
+			      ((uint64_t)(*( ((uint16_t*)(big_temps[0].bits)) + (i-1) )))
+			    )
+			    / 
+			    ((uint64_t)(*( ((uint16_t*)(big_temps[2].bits)) + t )))
 			);
 		}
+		
+		while(
+			  (
+			  	( 
+				  (
+		 	        ((uint64_t)(*( ((uint16_t*)(big_temps[2].bits)) + t ))) 
+		 	        *
+		 	        b
+				  )
+				  + 
+				  ((uint64_t)(*( ((uint16_t*)(big_temps[2].bits)) + (t-1) )))
+				)
+				* 
+				((uint64_t)(*( ((uint16_t*)(big_temps[3].bits)) + (i-t-1) )))
+			  )
+			  
+		  	  >
+		  	  
+			  (
+			  	( 
+		 	      ((uint64_t)(*( ((uint16_t*)(big_temps[0].bits)) + i ))) 
+		 	      *
+		 	      b_squared
+		        )
+			    + 
+		        (
+		 	      ((uint64_t)(*( ((uint16_t*)(big_temps[0].bits)) + (i-1) ))) 
+		 	      *
+		 	      b
+			    )
+			    +
+				((uint64_t)(*( ((uint16_t*)(big_temps[0].bits)) + (i-2) )))
+			  )		  
+		)
+		{
+			--(*( ((uint16_t*)(big_temps[3].bits)) + (i-t-1) ));
+		}
+		
+		/* IMPORTANT: Update X's bits before this, as its limbs were altered. 
+		 * 
+		 * if( x < q_(i-t-1) * y * b^(i-t-1 ) ) THEN {q_(i-t-1) -= 1;}
+		 * 
+		 * x -= q_(i-t-1) * y * b^(i-t-1) ;
+		 */
+		big_temps[0].used_bits = get_used_bits( big_temps[0].bits,
+											    (uint32_t)((A->size_bits)/8)
+											  );
+		big_temps[0].free_bits = A->size_bits - big_temps[0].used_bits; 
+		
+		bigint_remake(&(big_temps[9]), A->size_bits, (uint32_t)i);
+
+		bigint_sub2(&(big_temps[ 9]), &(big_temps[8]), &(big_temps[13]));
+
+		bigint_sub2(&(big_temps[13]), &(big_temps[5]), &(big_temps[14]));
+
+		bigint_pow(&(big_temps[6]), &(big_temps[14]), &(big_temps[15]));
+
+		bigint_mul_fast(&(big_temps[2]), &(big_temps[15]), &(big_temps[16]));
+		
+		bigint_remake(&(big_temps[17])
+					 ,A->size_bits
+					 ,((uint32_t)(*( ((uint16_t*)(big_temps[3].bits))+(i-t-1))))
+					 );
+					 
+	    bigint_mul_fast(&(big_temps[16]), &(big_temps[17]), &(big_temps[18]));
+	    
+	    if(bigint_compare2(&(big_temps[0]), &(big_temps[18])) == 3){
+			--(*( ((uint16_t*)(big_temps[3].bits)) + (i-t-1) ));
+			bigint_remake(
+			   	 &(big_temps[17])
+				,A->size_bits
+				,((uint32_t)(*( ((uint16_t*)(big_temps[3].bits))+(i-t-1))))
+			);
+			bigint_mul_fast(&(big_temps[16]),&(big_temps[17]),&(big_temps[18]));
+		}
+		bigint_equate2(&(big_temps[1]), &(big_temps[0]));
+
+		bigint_sub2(&(big_temps[1]), &(big_temps[18]), &(big_temps[0])); 
 	}
+	
+	big_temps[0].used_bits = get_used_bits( big_temps[0].bits,
+											(uint32_t)((A->size_bits)/8)
+										  );
+	big_temps[0].free_bits = A->size_bits - big_temps[0].used_bits; 
+	
+	big_temps[3].used_bits = get_used_bits( big_temps[3].bits,
+										    (uint32_t)((A->size_bits)/8) 
+										  );
+	big_temps[3].free_bits = A->size_bits - big_temps[3].used_bits; 
+	
+	bigint_equate2(Rem, &(big_temps[0]));
+	bigint_equate2(Res, &(big_temps[3]));
+	
+	for(uint64_t i = 0; i < num_temps; ++i){
+		free(big_temps[i].bits);
+	}
+	return;
 }
 
 
@@ -1087,43 +1218,10 @@ void bigint_mod_mul(struct bigint** nums, struct bigint* mod,
               , i, how_many
               ); 
         bigint_mul_fast(R, nums[i], &mul_res);
-        
-        printf("MOD_MUL same loop i=%u R * nums[%u] = mul_res.\n", i, i);
-        
-        printf("R:\n");
-        bigint_print_info(R);
-        bigint_print_bits(R);
-        
-        printf("nums[%u]:\n", i);
-        bigint_print_info(nums[i]);
-        bigint_print_bits(nums[i]);
-        
-        printf("mul_res:\n");
-        bigint_print_info(&mul_res);
-        bigint_print_bits(&mul_res);
+
         
         if( (compare_res = bigint_compare2(&mul_res, mod)) != 3){
-        	printf("The modular MUL accumulator got bigger than modulus M.\n");
-        	printf("mul_res / mod = div_res, rem.\n");
-           
-            bigint_div2(&mul_res, mod, &div_res, &rem);    
-              	
-        	printf("mul_res:\n");
-        	bigint_print_info(&mul_res);
-            bigint_print_bits(&mul_res);
-            
-            printf("mod:\n");
-            bigint_print_info(mod);
-            bigint_print_bits(mod);
-            
-            printf("div_res:\n");
-            bigint_print_info(&div_res);
-            bigint_print_bits(&div_res);
-            
-            printf("rem:\n");
-            bigint_print_info(&rem);
-            bigint_print_bits(&rem);
-                                            
+            bigint_div2(&mul_res, mod, &div_res, &rem);                                   
             bigint_equate2(R, &rem);
         }
         else{
@@ -1203,13 +1301,10 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
     }
     
     P_used_bytes /= 8;
-	printf("P_used_bytes computed as: %u\n", P_used_bytes);
-	printf("Now entering loop populating array of SET indices in power.\n");
     for(uint32_t i = 0; i < P_used_bytes; ++i){
         for(uint32_t j = 0; j < 8; ++j){
             if( ( (*(P->bits + i)) >> j) & 0x01){
                 arr1[arr1_curr_ind] = (i * 8) + j;
-                printf("mod_pow set arr1[%u] = %u\n",arr1_curr_ind,(i * 8) + j);
                 ++arr1_curr_ind;
                 ++c1;
             }      
@@ -1225,30 +1320,9 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
     }
 
     arr1_curr_ind = 0;  
-     
     bigint_div2(N, M, &div_res, &aux1);
-	printf("aux1 = remainder of N/M aka 2^64/M.\n\n N:\n");
-	bigint_print_info(N);
-	bigint_print_bits(N);
-	
-	printf("M:\n");
-	bigint_print_info(M);
-	bigint_print_bits(M);
-	
-	printf("div_res:\n");
-	bigint_print_info(&div_res);
-	bigint_print_bits(&div_res);
-	
-	printf("aux1 (rem):\n");
-    bigint_print_info(&aux1);
-    bigint_print_bits(&aux1);
-	
-	
+
     /* The long loop */
-    printf("mod_pow entering loop that each time raises remainder of 2^64/M\n"
-    	   "to the power of 2, then takes remainder when DIV that by M.\n\n"
-    	   "M is a huge number so let's see when this squaring of 2^64 exceeds it:\n"
-    );
     for(uint32_t i = 0; i < P->used_bits; ++i){   
     
      
@@ -1258,22 +1332,11 @@ void bigint_mod_pow(struct bigint* N, struct bigint* P, struct bigint* M, struct
                ); 
                
         if( i == arr1[arr1_curr_ind] ){
-        	printf("i=%u placing previous i's aux1 into arr_ptrs[%u]\n"
-        			, i, arr1_curr_ind);
             bigint_equate2( arr_ptrs[arr1_curr_ind], &aux1);
             ++arr1_curr_ind;
         }
         bigint_pow(&aux1, &two, &aux2);
-        printf("Same loop: i=%u  aux2 = aux1^2:\n", i);
-        bigint_print_info(&aux2);
-        bigint_print_bits(&aux2);
-        bigint_div2(&aux2, M, &div_res, &aux1);
-        printf("Same loop: i=%u  aux1 = rem of aux2/M. aux1 now:\n", i);
-        bigint_print_info(&aux1);
-        bigint_print_bits(&aux1);
-        printf("(wrong) DIV_RES:\n");
-		bigint_print_info(&div_res);
-		bigint_print_bits(&div_res);        
+        bigint_div2(&aux2, M, &div_res, &aux1);  
     }  
      
     if(c1 == 1){

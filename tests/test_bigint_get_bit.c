@@ -6,6 +6,8 @@
 
 int main(){
 
+
+
 	/* TESTING BIGINT_GET_BIT() PARAMETERIZED MACRO!! */
 
 	struct bigint *eleven = malloc(sizeof(struct bigint))

@@ -1683,7 +1683,7 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     
     for(int64_t i = P->used_bits - 2; i >= 0; --i){ 	
     
-    	
+    	/*
     	printf("Entered MONT_POW_modM loop!!\n");
     	printf("First MUL is (Y * Y) mod M = R.\n");
     	printf("Y was made equal to B, which was passed as Gmont by GEN.\n");
@@ -1694,26 +1694,26 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     	printf("Here's Y: (should be equal to PRACTICAL_Gmont and to B)\n");
     	bigint_print_info(&Y);
     	bigint_print_bits(&Y);
-    	
+    	*/
     	
     	Montgomery_MUL(&Y, &Y, M, R);
     	
-    	
+    	/*
     	printf("The result of Montgomery_MUL: Y * Y mod M = R:\n");
     	bigint_print_info(R);
     	bigint_print_bits(R);
     	save_BIGINT_to_DAT("test_mont/R_3071_bits_result_of_Gmont*Gmont_mod_M.dat\0", R);
-    	
+    	*/
     	
 	    bigint_equate2(&Y, R);
 	    
-	    
+	    /*
 	    printf("R, result of 1st Mont_MUL Y*Y mod M, written to Y. Now Y:\n");
 	    bigint_print_info(&Y);
 	    bigint_print_bits(&Y);
 	    printf("exit(0)-ing right now, for testing.\n");
 	    exit(0);
-	    
+	    */
 	    
 	    
     	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
@@ -1822,6 +1822,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
 	/* OLD WAY TO COMPUTE R FOR TESTING ONLY!!! */
 	struct bigint R_test;
 	bigint_create(&R_test, M->size_bits, 0);
+	printf("ENTERING OLD MOD_POW with NEW DIV --- G^k mod M.\n");
 	bigint_mod_pow(G, &k, M, &R_test);
 	printf("JUST FOR TESTING - SIG_GEN computed R the old way. R_test:\n");
 	bigint_print_info(&R_test);

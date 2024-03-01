@@ -11,7 +11,7 @@
 #define RM_checks_M  2
 #define factor_siz   40     /* bytes */
 #define prime_siz    384    /* bytes */
-#define reserved_siz 10000  /* bits  */
+#define reserved_siz 12800  /* bits  */
 #define num_threads  4
 
 struct bigint* Ms;

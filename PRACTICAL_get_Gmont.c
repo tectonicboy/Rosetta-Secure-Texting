@@ -36,7 +36,7 @@ int main(){
 	bigint_create(beta,		 RESBITS, 0 );
 	bigint_create(two_L,	 RESBITS, 2 * MONT_L );
 	
-			
+		
 		    			
 	bigint_create(beta_to_the_twoL_modM, RESBITS, 0);
     bigint_create(Gmont_PRACTICAL, 	     RESBITS, 0);	

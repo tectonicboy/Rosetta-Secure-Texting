@@ -258,7 +258,7 @@ int main(){
     bigint_create(&pub_key, RESBITS, 0);
 
 
-/*
+	/*
 	printf("test_cryptolib: Calling MONT_POW_modM with Gmont^priv_key mod M\n");
 	printf("to compute a new public key.\n");
     
@@ -282,8 +282,8 @@ int main(){
 		   );
 	
     exit(0);
-    
-  */  
+    */
+  
     
     
     /* We also now already have the Montgomery form of the public key 
