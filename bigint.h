@@ -920,7 +920,7 @@ void bigint_div2( struct bigint *A,   struct bigint *B
 		bigint_nullify(Rem);
 		return;
 	}
-	/* if B > A, return RES=0, REM=A */
+	/* if B > A, return RES=0, REM=A  */
 	if(bigint_compare2(A, B) == 3){
 		bigint_nullify(Res);
 		bigint_equate2(Rem, A);

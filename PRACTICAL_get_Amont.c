@@ -52,7 +52,7 @@ int main(){
     bigint_print_bits(beta_to_the_twoL_modM);
     /* Now call MONT MUL. */
     
-    /* Here, instead of feeding G, we feed the public key A. */
+    /* Here, instead of feeding G, we feed the public key A */
     struct bigint *PRACTICAL_PUBKEY =
     			 get_BIGINT_from_DAT( 3072
 									 ,"PRACTICAL_testpubkey_raw_bytes.dat\0"

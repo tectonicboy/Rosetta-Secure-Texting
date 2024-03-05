@@ -56,7 +56,7 @@ LITTLE-ENDIAN BINARY of G's Montgomery representative Gm:
 
 
 
-BIG-ENDIAN HEX of G's Montgomery representative Gm:
+BIG-ENDIAN HEX of G's Montgomery representative Gm::
 
 4a5ed8f38233f014090dd85de431760a7e64c3ea583cf7fde07fe602ea5d
 05762aebeb0904a0a6d546a1bb716fe0f890912ee5418d7c3719097f2786

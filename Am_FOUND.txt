@@ -2,7 +2,7 @@ LITTLE-ENDIAN BINARY of test public key A's Montgomery representative, Am.
 Notice 3072 used bits for a 3070-bit public key A.
 This is in fact a valid Montgomery representative of test public key A because
 Am mod M = (A * (beta^L)) mod M 
-did in fact hold true.
+did in fact hold true
 
 
 001101111100110111000001001111001101100000000100111010110100

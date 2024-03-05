@@ -1492,7 +1492,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 			
 			*(T + 2) = (uint64_t)C + (uint64_t)D;
 					  
-			/* Set r_(j-1) = t_0 */
+			/* Set r_(j-1) = t_0  */
 			*((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
 		}
 

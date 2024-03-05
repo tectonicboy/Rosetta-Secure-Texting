@@ -287,7 +287,7 @@ int main(){
   
     
     
-    /* We also now already have the Montgomery form of the public key 
+    /* We also now already have the Montgomery form of the public key  
      * from that other C file I wrote. It's in a DAT file like the rest.
      * Read the MONT form of public key here to pass it to signature_validate.
      */

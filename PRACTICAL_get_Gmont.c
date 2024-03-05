@@ -86,7 +86,7 @@ int main(){
     bigint_print_bits(beta_to_the_twoL_modM);
     
 
-    /* Now call MONT MUL. */
+    /* Now call MONT MUL */
     Montgomery_MUL(beta_to_the_twoL_modM, G, M, Gmont_PRACTICAL);
     
     Gmont_PRACTICAL->used_bits = get_used_bits(Gmont_PRACTICAL->bits, 1600);
