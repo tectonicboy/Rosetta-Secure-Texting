@@ -1375,29 +1375,6 @@ label_start_pass:
     free(final_block_C);
 }
 
-/* Input - pointers to bigints for which bigint_create() hasn't been called. */
-void get_M_Q_G(struct bigint** M, struct bigint** Q
-              ,struct bigint** G, uint32_t res_bits)
-{
-    uint32_t bits_Q = 320,  used_bits_Q = 320,  res_bits_Q = res_bits
-            ,bits_M = 3072, used_bits_M = 3071, res_bits_M = res_bits
-            ,bits_G = 3072, used_bits_G = 3071, res_bits_G = res_bits
-            ;
-    
-    char* filename_Q_dat = "Q_raw_bytes.dat"; 
-    *Q = get_BIGINT_from_DAT(bits_Q, filename_Q_dat, used_bits_Q, res_bits_Q); 
-    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for Q!!\n"); 
-    
-    char* filename_M_dat = "M_raw_bytes.dat";
-    *M = get_BIGINT_from_DAT(bits_M, filename_M_dat, used_bits_M, res_bits_M);
-    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for M!!\n");
-
-    char* filename_G_dat = "G_raw_bytes.dat";
-    *G = get_BIGINT_from_DAT(bits_G, filename_G_dat, used_bits_G, res_bits_G);
-    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for G!!\n");
-    return;
-}
-
 
 /* The caller must have made sure in advance that X and Y are each L-limb, 
  * L being the number of (non-zero-padded) limbs in the Montgomery modulus N.
@@ -1537,7 +1514,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
  *	other input set to A itself (in normal PSN notation). The output of this
  *  will in fact be a valid Montgomery representative of A.
  */
-void GetMontForm(struct bigint *src, struct bigint *target, struct bigint* M){
+void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
 
 	struct bigint two, sixtyfour, beta, two_L, aux;
 	
@@ -1576,10 +1553,9 @@ void GetMontForm(struct bigint *src, struct bigint *target, struct bigint* M){
  *		 the top of this file. However, it won't work for modular powering mod
  *       some other number, other than M, which for the purposes of the secure
  *       chat system this library was originally written for is global static.
- *		 If you want a function for modular powering mod M using Montgomery
- *		 Multiplication for a different modulus, M, you have to change the
- *       Montgomery parameters MU and L as well - they are different for each
- *       Montgomery modulus.
+ *		 If a function for modular POW mod M using Montgomery Multiplication
+ *		 for a different modulus is needed, you have to change the Montgomery
+ *       parameters MU and L - they are different for each Montgomery modulus.
  */
 void MONT_POW_modM(struct bigint* B, struct bigint* P,
 				   struct bigint* M, struct bigint* R)
@@ -1595,49 +1571,15 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
     
-
-    
     for(int64_t i = P->used_bits - 2; i >= 0; --i){ 	
-    
-    	/*
-    	printf("Entered MONT_POW_modM loop!!\n");
-    	printf("First MUL is (Y * Y) mod M = R.\n");
-    	printf("Y was made equal to B, which was passed as Gmont by GEN.\n");
-    	printf("Here's B: (should be equal to PRACTICAL_Gmont)\n");
-    	bigint_print_info(B);
-    	bigint_print_bits(B);
-    	save_BIGINT_to_DAT("test_mont/PRACTICAL_Gmont_3072_bits.dat\0", B);
-    	printf("Here's Y: (should be equal to PRACTICAL_Gmont and to B)\n");
-    	bigint_print_info(&Y);
-    	bigint_print_bits(&Y);
-    	*/
-    	
+   	
     	Montgomery_MUL(&Y, &Y, M, R);
-    	
-    	/*
-    	printf("The result of Montgomery_MUL: Y * Y mod M = R:\n");
-    	bigint_print_info(R);
-    	bigint_print_bits(R);
-    	save_BIGINT_to_DAT("test_mont/R_3071_bits_result_of_Gmont*Gmont_mod_M.dat\0", R);
-    	*/
-    	
 	    bigint_equate2(&Y, R);
-	    
-	    /*
-	    printf("R, result of 1st Mont_MUL Y*Y mod M, written to Y. Now Y:\n");
-	    bigint_print_info(&Y);
-	    bigint_print_bits(&Y);
-	    printf("exit(0)-ing right now, for testing.\n");
-	    exit(0);
-	    */
-	    
-	    
+    
     	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
-
 			Montgomery_MUL(&Y, &X, M, R);
 			bigint_equate2(&Y, R);	
     	}
-
     }
 	
 	Montgomery_MUL(&one, R, M, &R_1);
@@ -1734,16 +1676,6 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
 	
-	
-	/* OLD WAY TO COMPUTE R FOR TESTING ONLY!!! */
-	struct bigint R_test;
-	bigint_create(&R_test, M->size_bits, 0);
-	printf("ENTERING OLD MOD_POW with NEW DIV --- G^k mod M.\n");
-	bigint_mod_pow(G, &k, M, &R_test);
-	printf("JUST FOR TESTING - SIG_GEN computed R the old way. R_test:\n");
-	bigint_print_info(&R_test);
-	bigint_print_bits(&R_test);
-	
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }
@@ -1836,20 +1768,11 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
  *	RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
  *
  */
- 
 uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
 						   struct bigint* M,     struct bigint* Q, 
 						   struct bigint* s, 	 struct bigint* e,
 						   char* data, uint32_t data_len)
 {
-	/*
-	if(e->used_bits != Q->used_bits){
-		printf("[INFO] Cryptolib: SIG_VAL: e->used_bits != Q->used_bits.\n");
-		printf("e->used_bits = %u\n", e->used_bits);
-		printf("Q->used_bits = %u\n", Q->used_bits);
-		return 0;
-	}
-	*/
 	if(bigint_compare2(s, Q) != 3){
 		printf("[INFO] Cryptolib: sig_validate: passed s =/= passed Q.\n");
 		return 0;		

@@ -20,10 +20,13 @@ void uint32_print_bits(uint32_t n){
 
 int main(){
 
-    /* Test the bitwise rolling */
+
+
+    /************** NOW TESTING BITWISE ROLLING  ************/
+    
+    
     
     /*
-    
     uint32_t T1 = pow(2, 31);
     uint32_t roll_amount = 4;
     
@@ -43,19 +46,23 @@ int main(){
 
     uint32_roll_left(&T1, roll_amount);
     
-    printf("T1 after left roll : %u\nThe left-rolled bits by %u are:\n", T1, roll_amount);
+    printf("T1 after left roll : %u\nThe left-rolled bits by %u are:\n"
+    	   ,T1, roll_amount
+    	  );
+    	  
     uint32_print_bits(T1);
-    
-    
     */
     
     
-    /* Test ChaCha20 */
+    
+    /********* NOW TESTING ChaCha20 **************/
+    
     
     
     /*
-    char* plaintext = "Ladies and Gentlemen of the class of '99: If I could offer you"
-                      " only one tip for the future, sunscreen would be it.\0"
+    char* plaintext = "Ladies and Gentlemen of the class of '99: "
+    				  "If I could offer you "
+                      "only one tip for the future, sunscreen would be it.\0"
                       ;
                       
     uint32_t msg_len = strlen(plaintext);
@@ -90,16 +97,16 @@ int main(){
 
     }
     printf("\n");
-    
-    printf("\n\n**** NOW TESTING BLAKE2b ****\n\n");
-    
+    free(key); free(nonce); free(cyphertext);
     */
     
     
     
+    /********** NOW TESTING BLAKE2B ***************/
+    
+    
+    
     /* Prepare message to be processed by BLAKE2b. */
-    
-    
     /*
     char *b2b_raw_msg = "abc\0",
          *b2b_out_buf = malloc(65 * sizeof(char));
@@ -129,11 +136,16 @@ int main(){
         printf("%02x ", (uint8_t)b2b_out_buf[i]);
     }
     printf("\n\n");
+    
+    free(b2b_out_buf);
     */
     
-    /**************************************************************************/
-    /********************   NOW TESTING ARGON2id  *****************************/
-    /**************************************************************************/
+    
+
+	/********** NOW TESTING ARGON2id ****************/
+    
+    
+    
     /*   
     struct Argon2_parms prms;
     
@@ -176,6 +188,7 @@ int main(){
     }
     printf("\n\n");
     
+    free(P); free(S); free(K); free(X); free(argon2_output_tag);
     */
     
     
@@ -183,29 +196,36 @@ int main(){
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
 
-    struct bigint *M, *Q, *G, *PRACTICAL_Gmont;
+    struct bigint M, Q, G, Gm, A, Am, priv_key, s, e;
   
-    get_M_Q_G(&M, &Q, &G, RESBITS);
-    
-    PRACTICAL_Gmont = 
-    get_BIGINT_from_DAT(3072, "PRACTICAL_Gmont_raw_bytes.dat\0", 3071, RESBITS);
-    
     uint64_t data_len = 197;
  
-    char* msg = malloc(data_len);
+    char *msg = malloc(data_len);
+    
+        /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
+    	/* Cuz the signature itself is (s,e) both of which are BigInts whose */
+    	/* bitwidth is up to the bitwidth of Q and no more.                  */
+    char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
+  
+
+  
+    get_M_Q_G(&M, &Q, &G, RESBITS);
+
+    Gm = 
+    get_BIGINT_from_DAT( 3072
+    				    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
+    				    ,3071
+    				    ,RESBITS
+    				   );
+    
+
 
     memset(msg, 65, data_len); /* 197 AAAAAAA's. */
 
-    /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
-    /* Cuz the signature itself is (s,e) both of which are BigInts whose */
-    /* bitwidth is up to the bitwidth of Q and no more.                  */
-    char* result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
-
-    /* Assume this private key got generated with 39 bytes. */
-    struct bigint *priv_key;
 
 
-    priv_key = get_BIGINT_from_DAT(312, "testprivkey_raw_bytes.dat\0", 
+
+    priv_key = get_BIGINT_from_DAT(312, "../saved_nums/testprivkey_raw_bytes.dat\0", 
 								   312, RESBITS);
 	
 	printf("Obtained the saved test private key:\n");
@@ -222,8 +242,8 @@ int main(){
     printf("The resulting signature itself is (s,e) both BigInts.\n");
     printf("But we have to point the .bits pointer to their returned buffer\n");
     
-    struct bigint *s = (struct bigint *)(result_signature + 0);
-    struct bigint *e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);    
+    s = (struct bigint *)(result_signature + 0);
+    e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);    
     
     s->bits = calloc(1, (size_t)(s->size_bits / 8));
     e->bits = calloc(1, (size_t)(e->size_bits / 8));
@@ -252,52 +272,21 @@ int main(){
     
     /* We can use montgomery modular MUL mod M function here. */
     /* We already have Gmont above. */
-    
-    struct bigint pub_key, *PRACTICAL_pub_key_mont;
-    
-    
-    bigint_create(&pub_key, RESBITS, 0);
+
+    bigint_create(A, RESBITS, 0);
 
 
-	/*
-	printf("test_cryptolib: Calling MONT_POW_modM with Gmont^priv_key mod M\n");
-	printf("to compute a new public key.\n");
-    
-    MONT_POW_modM(PRACTICAL_Gmont, priv_key, M, &pub_key);
-    
-    pub_key.used_bits = get_used_bits(pub_key.bits, 1600);
-    pub_key.free_bits = pub_key.size_bits - pub_key.used_bits; 
-    
-    printf("Computed PRACTICAL PUBLIC KEY using MONT POW mod M:\n");
- 
-    bigint_print_info(&pub_key);
-    bigint_print_bits(&pub_key);
-	
-
-	save_BIGINT_to_DAT("PRACTICAL_testpubkey_raw_bytes.dat\0", &pub_key);
-	
-	printf("For now, exit()ing after public key was generated and saved\n"
-		   "(from the new Montgomery form of G, using practical method)\n"
-		   "as we need to compute a new Montgomery form of it now b4 reading\n"
-		   "it from the file. R verification happens in sig. gen. anyway.\n"
-		   );
-	
-    exit(0);
-    */
-  
-    
-    
     /* We also now already have the Montgomery form of the public key  
      * from that other C file I wrote. It's in a DAT file like the rest.
      * Read the MONT form of public key here to pass it to signature_validate.
      */
     PRACTICAL_pub_key_mont = get_BIGINT_from_DAT
-    									   (
-    										3072
-    									   ,"PRACTICAL_Amont_raw_bytes.dat\0" 
-								           ,3072
-								           ,RESBITS
-								           );
+							   (
+								3072
+							   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
+					           ,3072
+					           ,RESBITS
+					           );
 								   
 	printf("\nchange this file WTF.\n\n");
 	printf("Ready to call SIGNATURE VALIDATE now!\n");
