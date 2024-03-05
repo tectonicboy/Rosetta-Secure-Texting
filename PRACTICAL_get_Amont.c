@@ -35,10 +35,8 @@ int main(){
 	bigint_create(two, 		 RESBITS, 2 );					
 	bigint_create(sixtyfour, RESBITS, 64);
 	bigint_create(beta,		 RESBITS, 0 );
-	bigint_create(two_L,	 RESBITS, 0 );
-	
-	bigint_create(L, RESBITS, MONT_L);				
-		    			
+	bigint_create(two_L,	 RESBITS, 2 * MONT_L );
+		
 	bigint_create(beta_to_the_twoL_modM, RESBITS, 0);
     bigint_create(Amont_PRACTICAL, 	     RESBITS, 0);	
     
@@ -47,12 +45,11 @@ int main(){
     /* beta = 2^64 */
     bigint_pow(two, sixtyfour, beta);
     
-    /* 2*L */
-    bigint_mul_fast(L, two, two_L);
-    
     /* beta^(2*L) mod M */
     bigint_mod_pow(beta, two_L, M, beta_to_the_twoL_modM);
-    
+    printf("GET_Amont: beta_to_the_twoL_modM before Mont_MUL call:\n");
+    bigint_print_info(beta_to_the_twoL_modM);
+    bigint_print_bits(beta_to_the_twoL_modM);
     /* Now call MONT MUL. */
     
     /* Here, instead of feeding G, we feed the public key A. */
@@ -63,6 +60,11 @@ int main(){
 									 ,RESBITS
 									);
 
+	printf("BIG-ENDIAN PRACTICAL_PUBKEY before Mont_MUL call:\n\n");
+    printf("Printing info and BIG-ENDIAN bytes of PRACTICAL PUBKEY:\n");
+    bigint_print_info(PRACTICAL_PUBKEY);
+    bigint_print_bits_bigend(PRACTICAL_PUBKEY);
+    
     Montgomery_MUL(beta_to_the_twoL_modM, PRACTICAL_PUBKEY, M, Amont_PRACTICAL);
     
     Amont_PRACTICAL->used_bits = get_used_bits(Amont_PRACTICAL->bits, 1600);
@@ -78,6 +80,9 @@ int main(){
     printf("Saving it to file now.\n");
     
     save_BIGINT_to_DAT("PRACTICAL_Amont_raw_bytes.dat\0", Amont_PRACTICAL);
+    
+    printf("Printing BIG-ENDIAN bytes of PRACTICAL Amont:\n");
+    bigint_print_bits_bigend(Amont_PRACTICAL);
     
     return 0;
      

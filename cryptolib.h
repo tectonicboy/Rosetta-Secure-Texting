@@ -1375,145 +1375,27 @@ label_start_pass:
     free(final_block_C);
 }
 
-/* G = ( 2^((M-1)/Q) ) mod M */
-struct bigint* get_DH_G(struct bigint* M, struct bigint* Q){
-    
-    struct bigint M_minus_one, power, zero, one, two, div_rem, *G;
-    
-    G = malloc(sizeof(struct bigint));
-    
-    printf("IN FUNCTION to get G: M->size_bits = %u\n", M->size_bits);
-    
-    bigint_create(&M_minus_one, M->size_bits, 0);
-    bigint_create(&power,       M->size_bits, 0);
-    bigint_create(&one,         M->size_bits, 1);
-    bigint_create(&two,         M->size_bits, 2);   
-    bigint_create(G,            M->size_bits, 0);     
-    bigint_create(&div_rem,     M->size_bits, 0); 
-    bigint_create(&zero,        M->size_bits, 0);
-             
-    bigint_sub2(M, &one, &M_minus_one);
-   
-    bigint_div2(&M_minus_one, Q, &power,  &div_rem);
-    
-    if( bigint_compare2(&div_rem, &zero) != 2 ){
-        printf("ERROR: (M-1) / Q gave a remainder somehow.\n");
-        return NULL;
-    }
-
-    bigint_mod_pow(&two, &power, M, G);
-    
-    printf("---->>> COMPUTED G = 2^(M-1/Q) mod M\n\n");
-    
-    bigint_print_info(G);
-    bigint_print_bits(G);
-    bigint_print_all_bits(G);
-    
-    free(M_minus_one.bits); free(power.bits); free(one.bits); free(two.bits);
-    free(div_rem.bits); free(zero.bits);
-             
-    return G;    
-}
-
 /* Input - pointers to bigints for which bigint_create() hasn't been called. */
 void get_M_Q_G(struct bigint** M, struct bigint** Q
               ,struct bigint** G, uint32_t res_bits)
 {
-
     uint32_t bits_Q = 320,  used_bits_Q = 320,  res_bits_Q = res_bits
             ,bits_M = 3072, used_bits_M = 3071, res_bits_M = res_bits
             ,bits_G = 3072, used_bits_G = 3071, res_bits_G = res_bits
             ;
     
-    char* filename_Q_dat = "Q_raw_bytes.dat";
-    
-    *Q = get_BIGINT_from_DAT(bits_Q, filename_Q_dat, used_bits_Q, res_bits_Q);
-    
-    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for Q!!\n");
-    
-    printf("Now printing the Q BigInt's info:\n\n");
-    
-    bigint_print_info(*Q);
-    
-    printf("\nNow printing the Q BigInt's bits:\n\n");
-    
-    bigint_print_bits(*Q);
-    /*
-    printf("\nNow printing the Q BigInt's ALL bits:\n\n");
-    
-    bigint_print_all_bits(*Q);
-    */
+    char* filename_Q_dat = "Q_raw_bytes.dat"; 
+    *Q = get_BIGINT_from_DAT(bits_Q, filename_Q_dat, used_bits_Q, res_bits_Q); 
+    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for Q!!\n"); 
     
     char* filename_M_dat = "M_raw_bytes.dat";
-    
     *M = get_BIGINT_from_DAT(bits_M, filename_M_dat, used_bits_M, res_bits_M);
-
     printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for M!!\n");
-    
-    printf("Now printing the M BigInt's info:\n\n");
-    
-    bigint_print_info(*M);
-    
-    printf("\nNow printing the M BigInt's bits:\n\n");
-    
-    bigint_print_bits(*M);
-    /*
-    printf("\nNow printing the M BigInt's ALL bits:\n\n");
-    
-    bigint_print_all_bits(*M);    
-    */ 
-    
-    
+
     char* filename_G_dat = "G_raw_bytes.dat";
-    
     *G = get_BIGINT_from_DAT(bits_G, filename_G_dat, used_bits_G, res_bits_G);
-    
     printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for G!!\n");
-    
-    
-    printf("Now printing the G BigInt's info:\n\n");
-    
-    bigint_print_info(*G);
-    
-    printf("\nNow printing the G BigInt's bits:\n\n");
-    
-    bigint_print_bits(*G);
-    /*
-    printf("\nNow printing the G BigInt's ALL bits:\n\n");
-    
-    bigint_print_all_bits(*G);    
-    */
-
     return;
-
-}
-
-void get_Gmont(struct bigint **Gmont, uint32_t res_bits){
-
-	uint32_t bits_Gmont 	 = 3072
-			,used_bits_Gmont = 3072
-			,res_bits_Gmont  = res_bits;
-    
-    char* filename_Gmont_dat = "PRACTICAL_Gmont_raw_bytes.dat\0";
-    
-    *Gmont = get_BIGINT_from_DAT(bits_Gmont
-								,filename_Gmont_dat
-								,used_bits_Gmont
-								,res_bits_Gmont
-    						    );
-    
-    printf("OBTAINED A BIGINT OBJECT FROM .DAT FILE for PRACTICAL_Gmont!!\n");
-    
-    printf("Now printing the Gmont BigInt's info:\n\n");
-    
-    bigint_print_info(*Gmont);
-    
-    printf("\nNow printing the Gmont BigInt's bits:\n\n");
-    
-    bigint_print_bits(*Gmont);
-    
-    return;
-
 }
 
 
@@ -1572,6 +1454,15 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		/* 3. */
 		q = _mulx_u64((uint64_t)MONT_MU, *(T + 0), &Uh);
 		
+		/* 3.5:  T += q*n0. */
+		Vl = _mulx_u64(q, *((uint64_t*)(N->bits + (0*MONT_LIMB_SIZ))), &Vh);
+		
+		C = _addcarryx_u64( (unsigned char)0, *(T + 0), Vl, (T + 0) );
+		
+		D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
+		
+		*(T + 2) += (uint64_t)D;
+		
 		/* 4. */
 		for(uint64_t j = 1; j < MONT_L; ++j){
 			/* Compute T. */
@@ -1607,7 +1498,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 
 		/* 5. */
 		
-		/*
+		
 		C = _addcarryx_u64((unsigned char)0, *(T+1), *(T+2), (T+0));
 		
 		D = _addcarryx_u64( (unsigned char)0
@@ -1617,8 +1508,9 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						  );
 						 
 		*(T + 1) = (uint64_t)C + (uint64_t)D;
-		*/
 		
+		
+		/*
 		C = _addcarryx_u64( (unsigned char)0
 				   ,*(T + 1)
 				   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
@@ -1626,6 +1518,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 				  );
 		
 		*(T + 1) = (*(T + 2)) + (uint64_t)C;
+		*/
 		
 		/* 6. */ 
 		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);

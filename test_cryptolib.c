@@ -187,7 +187,8 @@ int main(){
   
     get_M_Q_G(&M, &Q, &G, RESBITS);
     
-    get_Gmont(&PRACTICAL_Gmont, RESBITS);
+    PRACTICAL_Gmont = 
+    get_BIGINT_from_DAT(3072, "PRACTICAL_Gmont_raw_bytes.dat\0", 3071, RESBITS);
     
     uint64_t data_len = 197;
  
@@ -294,7 +295,7 @@ int main(){
     									   (
     										3072
     									   ,"PRACTICAL_Amont_raw_bytes.dat\0" 
-								           ,3071
+								           ,3072
 								           ,RESBITS
 								           );
 								   

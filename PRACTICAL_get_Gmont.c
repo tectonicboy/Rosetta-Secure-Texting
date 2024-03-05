@@ -27,20 +27,26 @@ int main(){
 				, *beta				     = malloc(sizeof(struct bigint))
 				, *two_L				 = malloc(sizeof(struct bigint))
 				, *beta_to_the_twoL_modM = malloc(sizeof(struct bigint))
+				, *aux					 = malloc(sizeof(struct bigint))
+				, *div_res				 = malloc(sizeof(struct bigint))				 
  				;
  	/* Will call bigint_create() for them. */	
  	get_M_Q_G(&M, &Q, &G, RESBITS);
  	
+ 	printf("Printing BIG-ENDIAN bytes of G:\n\n");
+ 	bigint_print_bits_bigend(G);
+
 	bigint_create(two, 		 RESBITS, 2 );					
 	bigint_create(sixtyfour, RESBITS, 64);
 	bigint_create(beta,		 RESBITS, 0 );
-	bigint_create(two_L,	 RESBITS, 2 * MONT_L );
+	bigint_create(two_L,	 RESBITS, 2 * MONT_L ); 
 	
 		
 		    			
 	bigint_create(beta_to_the_twoL_modM, RESBITS, 0);
     bigint_create(Gmont_PRACTICAL, 	     RESBITS, 0);	
-    
+    bigint_create(aux,				 	 RESBITS, 0);
+    bigint_create(div_res,				 RESBITS, 0);
     /* Now we can perform the actual computations to get (beta^(2*L) mod M). */
     
     /* beta = 2^64 */
@@ -87,7 +93,7 @@ int main(){
     
     Gmont_PRACTICAL->free_bits =   Gmont_PRACTICAL->size_bits
     							 - Gmont_PRACTICAL->used_bits;
-    							 
+			 
     printf("Computed PRACTICAL Montgomery representative of G:\n");
     
     bigint_print_info(Gmont_PRACTICAL);
@@ -96,6 +102,9 @@ int main(){
     printf("Saving it to file now.\n");
     
     save_BIGINT_to_DAT("PRACTICAL_Gmont_raw_bytes.dat\0", Gmont_PRACTICAL);
+    
+    printf("Printing BIG-ENDIAN bytes of PRACTICAL Gmont:\n");
+    bigint_print_bits_bigend(Gmont_PRACTICAL);
      
  
 }
