@@ -299,7 +299,7 @@ int main(){
 								           ,RESBITS
 								           );
 								   
-
+	printf("\nchange this file WTF.\n\n");
 	printf("Ready to call SIGNATURE VALIDATE now!\n");
 	
 	uint8_t isValid = 
