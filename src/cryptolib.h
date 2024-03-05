@@ -1496,9 +1496,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 			*((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
 		}
 
-		/* 5. */
-		
-		
+		/* 5. */	
 		C = _addcarryx_u64((unsigned char)0, *(T+1), *(T+2), (T+0));
 		
 		D = _addcarryx_u64( (unsigned char)0
@@ -1508,18 +1506,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						  );
 						 
 		*(T + 1) = (uint64_t)C + (uint64_t)D;
-		
-		
-		/*
-		C = _addcarryx_u64( (unsigned char)0
-				   ,*(T + 1)
-				   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
-				   , (T + 0)
-				  );
-		
-		*(T + 1) = (*(T + 2)) + (uint64_t)C;
-		*/
-		
+	
 		/* 6. */ 
 		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
 		*((uint64_t*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);	
@@ -1540,6 +1527,42 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	free(R_aux.bits);
 	return;
 	
+}
+
+/*  PRACTICAL METHOD TO OBTAIN A MONTGOMERY REPRESENTATIVE
+ *  
+ *	To find the Montgomery representative (mod M) of A, do the following:
+ *
+ *  Call Montgomery MUL mod M with input one set to (beta^(2*L) mod M), the 
+ *	other input set to A itself (in normal PSN notation). The output of this
+ *  will in fact be a valid Montgomery representative of A.
+ */
+void GetMontForm(struct bigint *src, struct bigint *target, struct bigint* M){
+
+	struct bigint two, sixtyfour, beta, two_L, aux;
+	
+	bigint_create(&two, 	  M->size_bits, 2 );					
+	bigint_create(&sixtyfour, M->size_bits, 64);
+	bigint_create(&beta,	  M->size_bits, 0 );
+	bigint_create(&aux,       M->size_bits, 0 );
+	bigint_create(&two_L,	  M->size_bits, 2 * MONT_L );
+  	
+  	bigint_nullify(target);
+  	
+    /* beta = 2^64 for 64-bit Montgomery limbs. */
+    bigint_pow(&two, &sixtyfour, &beta);
+    
+    /* aux = beta^(2*L) mod M */
+    bigint_mod_pow(&beta, &two_L, M, &aux);
+
+    /* Now generate the source's Montgomery form. */
+    Montgomery_MUL(&aux, src, M, target);
+    
+    target->used_bits = get_used_bits(target->bits, (uint32_t)(M->size_bits/8));
+    target->free_bits = target->size_bits - target->used_bits;
+ 					 
+    printf("[OK] Cryptolib: Montgomery Form computed successfully.\n");
+    return;
 }
 
 /* Computes B^P mod M using Montgomery Modular Multiplication. Result goes in R.
