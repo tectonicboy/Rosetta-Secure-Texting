@@ -196,8 +196,11 @@ int main(){
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
 
-    struct bigint M, Q, G, Gm, A, Am, priv_key, s, e;
-  
+    struct bigint *M, *Q, *G, *Gm, *A, *Am, *a, *s, *e,
+    			  *A_computed = malloc(sizeof(struct bigint));
+    
+    bigint_create(A_computed, RESBITS, 0);
+    
     uint64_t data_len = 197;
  
     char *msg = malloc(data_len);
@@ -206,36 +209,84 @@ int main(){
     	/* Cuz the signature itself is (s,e) both of which are BigInts whose */
     	/* bitwidth is up to the bitwidth of Q and no more.                  */
     char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
-  
 
-  
-    get_M_Q_G(&M, &Q, &G, RESBITS);
-
-    Gm = 
-    get_BIGINT_from_DAT( 3072
-    				    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
-    				    ,3071
-    				    ,RESBITS
-    				   );
+	M = get_BIGINT_from_DAT( 3072
+    				    	,"../saved_nums/M_raw_bytes.dat\0"
+    				    	,3071
+    				    	,RESBITS
+    				   	   );
     
+    Q = get_BIGINT_from_DAT( 320
+    				    	,"../saved_nums/Q_raw_bytes.dat\0"
+    				    	,320
+    				    	,RESBITS
+    				       );
+    G = get_BIGINT_from_DAT( 3072
+						    ,"../saved_nums/G_raw_bytes.dat\0"
+						    ,3071
+						    ,RESBITS
+						   );
 
+    Gm = get_BIGINT_from_DAT( 3072
+						    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
+						    ,3071
+						    ,RESBITS
+						   );
+    
+    a = get_BIGINT_from_DAT(312
+    							   ,"../saved_nums/testprivkey_raw_bytes.dat\0"
+    							   ,312
+    							   ,RESBITS
+    							  );
+    							  
+    							  
+    A = get_BIGINT_from_DAT
+					   (
+						3072
+					   ,"../saved_nums/PRACTICAL_testpubkey_raw_bytes.dat\0" 
+				       ,3071
+				       ,RESBITS
+				       );
 
-    memset(msg, 65, data_len); /* 197 AAAAAAA's. */
-
-
-
-
-    priv_key = get_BIGINT_from_DAT(312, "../saved_nums/testprivkey_raw_bytes.dat\0", 
-								   312, RESBITS);
+    Am = get_BIGINT_from_DAT
+						   (
+							3072
+						   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
+				           ,3072
+				           ,RESBITS
+				           );							  
+    							  
+    printf("Passing Gm, M and private key to Mont_POW to get a new pubkey.\n");
+    MONT_POW_modM(Gm, a, M, A_computed);
+    
+    printf("The newely computed public key:\n");
+    bigint_print_info(A_computed);
+    bigint_print_bits(A_computed);
+    
+    printf("compare(stored_pubkey, newely computed pubkey:\n");
+ 	printf("%u\n", bigint_compare2(A, A_computed));
+    
+    
+	printf("LITTLE-ENDIAN private key:\n");
+	bigint_print_info(a);
+	bigint_print_bits(a);
 	
-	printf("Obtained the saved test private key:\n");
-	bigint_print_info(priv_key);
-	bigint_print_bits(priv_key);
+	printf("BIG-ENDIAN private key:\n");
+	bigint_print_bits_bigend(a);
+	
+	printf("PUBLIC KEY LITTLE-ENDIAN:\n");
+	bigint_print_info(A);
+	bigint_print_bits(A);
+	
+	printf("PUBLIC KEY BIG-ENDIAN:\n");
+	bigint_print_bits_bigend(A);
+
+	printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
-    Signature_GENERATE(  M, Q, G, PRACTICAL_Gmont, msg, data_len
-    			        ,result_signature, priv_key, 39
+    Signature_GENERATE(  M, Q, G, Gm, msg, data_len
+    			        ,result_signature, a, 39
     			      );
                   
     printf("FINISHED SIGNATURE!!\n");
@@ -274,25 +325,13 @@ int main(){
     /* We already have Gmont above. */
 
     bigint_create(A, RESBITS, 0);
-
-
-    /* We also now already have the Montgomery form of the public key  
-     * from that other C file I wrote. It's in a DAT file like the rest.
-     * Read the MONT form of public key here to pass it to signature_validate.
-     */
-    PRACTICAL_pub_key_mont = get_BIGINT_from_DAT
-							   (
-								3072
-							   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
-					           ,3072
-					           ,RESBITS
-					           );
+	
 								   
 	printf("\nchange this file WTF.\n\n");
 	printf("Ready to call SIGNATURE VALIDATE now!\n");
 	
 	uint8_t isValid = 
-			Signature_VALIDATE(  PRACTICAL_Gmont, PRACTICAL_pub_key_mont
+			Signature_VALIDATE(  Gm,Am 
 								,M, Q, s, e, msg, data_len
 							  );
     

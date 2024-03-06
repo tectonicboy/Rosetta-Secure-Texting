@@ -1568,6 +1568,7 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_create(&one, 	M->size_bits, 1);
     bigint_create(&div_res, M->size_bits, 0);
     
+    /* X and Y both become equal to the passed base B */
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
     
