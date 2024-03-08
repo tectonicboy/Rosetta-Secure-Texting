@@ -1560,28 +1560,48 @@ void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
 void MONT_POW_modM(struct bigint* B, struct bigint* P,
 				   struct bigint* M, struct bigint* R)
 {
-	uint64_t bit = 0;
+	uint32_t bit = 0;
 	struct bigint X, Y, R_1, one, div_res;
     bigint_create(&X,  		M->size_bits, 0);
     bigint_create(&Y,  		M->size_bits, 0);
     bigint_create(&R_1, 	M->size_bits, 0);
     bigint_create(&one, 	M->size_bits, 1);
     bigint_create(&div_res, M->size_bits, 0);
-    
+  
     /* X and Y both become equal to the passed base B */
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
-    
-    for(int64_t i = P->used_bits - 2; i >= 0; --i){ 	
-   	
-    	Montgomery_MUL(&Y, &Y, M, R);
+
+    for(uint32_t i = P->used_bits - 2; i >= 0; --i){ 	
+   		
+    	Montgomery_MUL(&Y, &Y, M, R);   	
 	    bigint_equate2(&Y, R);
-    
+	    if(i > (P->used_bits - 10)){
+			printf("i = %u, Y:\n", i);
+			bigint_print_info(&Y);
+			bigint_print_bits(&Y);
+		}
     	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
-			Montgomery_MUL(&Y, &X, M, R);
+			Montgomery_MUL(&Y, &X, M, R);		
 			bigint_equate2(&Y, R);	
+			if(i > (P->used_bits - 10)){
+				printf("i = %u, power bit was 1, now Y:\n", i);
+				bigint_print_info(&Y);
+				bigint_print_bits(&Y);
+			}
     	}
+    	if(i==0){break;}
     }
+	
+	printf("Mont_POW: finished main loop. Printing Amont b4 converting back\n");
+	printf("R before converting back to normal:\n");
+	printf("This should be a valid Montgomery form of the powering result.\n");
+	bigint_print_info(R);
+	bigint_print_bits(R);
+	printf("Amont big endian (in Mont_POW b4 MUL by 1 to convert back):\n");
+	bigint_print_bits_bigend(R);
+	printf("\nR  ALL bits:\n");
+	bigint_print_all_bits(R);
 	
 	Montgomery_MUL(&one, R, M, &R_1);
 	bigint_div2(&R_1, M, &div_res, R);	
