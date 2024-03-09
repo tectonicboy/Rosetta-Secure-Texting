@@ -1494,8 +1494,10 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 	/* 7. */
 	R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
 	R->free_bits = R->size_bits - R->used_bits;
-
-	if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){
+	
+	 if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
+	/*if ( (bigint_compare2(R, N)) != 3 ){*/
+		printf("---->> We hit the R_L != 0 case at end of Mont_MUL!\n");
 		/* Standard BigInt subtraction.  */
 		bigint_equate2(&R_aux, R);		
 		bigint_sub2(&R_aux, N, R);
@@ -1574,22 +1576,30 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
 
     for(uint32_t i = P->used_bits - 2; i >= 0; --i){ 	
    		
+   		if(i==302){
+   			printf("Apparently (now) i=302 Y*Y nod M = R is wrong. Y:\n");
+   			bigint_print_info(&Y);
+   			bigint_print_bits(&Y);
+   			bigint_print_all_bits(&Y);
+   		}
+   		
     	Montgomery_MUL(&Y, &Y, M, R);   	
 	    bigint_equate2(&Y, R);
-	    if(i > (P->used_bits - 10)){
-			printf("i = %u, Y:\n", i);
-			bigint_print_info(&Y);
-			bigint_print_bits(&Y);
-		}
+		
+		printf("i = %u, Y:\n", i);
+		bigint_print_info(&Y);
+		bigint_print_bits(&Y);
+		
     	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
 			Montgomery_MUL(&Y, &X, M, R);		
 			bigint_equate2(&Y, R);	
-			if(i > (P->used_bits - 10)){
-				printf("i = %u, power bit was 1, now Y:\n", i);
-				bigint_print_info(&Y);
-				bigint_print_bits(&Y);
-			}
+			
+			printf("i = %u, power bit was 1, now Y:\n", i);
+			bigint_print_info(&Y);
+			bigint_print_bits(&Y);
+			
     	}
+    	printf("bit p[%u] was %u\n\n", i, bit);
     	if(i==0){break;}
     }
 	
