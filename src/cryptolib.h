@@ -1438,7 +1438,10 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		
 		D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
 		
-		*(T + 2) += (uint64_t)D;
+		/* *(T + 2) += (uint64_t)D;*/
+		
+		*(T + 2) = 0;
+		
 		
 		/* 4. */
 		for(uint64_t j = 1; j < MONT_L; ++j){
@@ -1474,16 +1477,18 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		}
 
 		/* 5. */	
-		C = _addcarryx_u64((unsigned char)0, *(T+1), *(T+2), (T+0));
 		
-		D = _addcarryx_u64( (unsigned char)0
-						   ,*(T + 0)
-						   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
-						   , (T + 0)
-						  );
-						 
-		*(T + 1) = (uint64_t)C + (uint64_t)D;
-	
+		C = _addcarryx_u64( (unsigned char)0
+				   ,*(T + 1)
+				   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
+				   , (T + 0)
+				  );
+		
+		
+		/*D = _addcarryx_u64(C, *(T+1), 0, (T+1));*/
+		
+		*(T + 2) = (uint64_t)C + *(T + 1); 
+		 
 		/* 6. */ 
 		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
 		*((uint64_t*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);	
