@@ -1437,10 +1437,10 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		C = _addcarryx_u64( (unsigned char)0, *(T + 0), Vl, (T + 0) );
 		
 		D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
+	
+		*(T + 2) += (uint64_t)D;
 		
-		/**(T + 2) += (uint64_t)D;*/
-		
-		*(T + 2) = 0;
+		/**(T + 2) = 0;*/
 		
 		
 		/* 4. */
@@ -1487,7 +1487,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		
 		/*D = _addcarryx_u64(C, *(T+1), 0, (T+1));*/
 		
-		*(T + 1) += (uint64_t)C;
+		*(T + 1) = (uint64_t)C + *(T + 2); 
 		*(T + 2) = 0;
 		/* 6. */ 
 		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
@@ -1580,43 +1580,20 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_equate2(&Y, B);
 
     for(uint32_t i = P->used_bits - 2; i >= 0; --i){ 	
-   		
-   		if(i==302){
-   			printf("Apparently (now) i=302 Y*Y nod M = R is wrong. Y:\n");
-   			bigint_print_info(&Y);
-   			bigint_print_bits(&Y);
-   			bigint_print_all_bits(&Y);
-   		}
+
    		
     	Montgomery_MUL(&Y, &Y, M, R);   	
 	    bigint_equate2(&Y, R);
 		
-		printf("i = %u, Y:\n", i);
-		bigint_print_info(&Y);
-		bigint_print_bits(&Y);
+
 		
     	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
 			Montgomery_MUL(&Y, &X, M, R);		
-			bigint_equate2(&Y, R);	
-			
-			printf("i = %u, power bit was 1, now Y:\n", i);
-			bigint_print_info(&Y);
-			bigint_print_bits(&Y);
-			
+			bigint_equate2(&Y, R);		
     	}
-    	printf("bit p[%u] was %u\n\n", i, bit);
+
     	if(i==0){break;}
     }
-	
-	printf("Mont_POW: finished main loop. Printing Amont b4 converting back\n");
-	printf("R before converting back to normal:\n");
-	printf("This should be a valid Montgomery form of the powering result.\n");
-	bigint_print_info(R);
-	bigint_print_bits(R);
-	printf("Amont big endian (in Mont_POW b4 MUL by 1 to convert back):\n");
-	bigint_print_bits_bigend(R);
-	printf("\nR  ALL bits:\n");
-	bigint_print_all_bits(R);
 	
 	Montgomery_MUL(&one, R, M, &R_1);
 	bigint_div2(&R_1, M, &div_res, R);	
@@ -1704,14 +1681,22 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     bigint_div2(&second_btb_outnum, &Q_minus_one, &div_res, &reduced_btb_res);  
     bigint_add_fast(&reduced_btb_res, &one, &k);  /* <----- k */ 
     
+    printf("Signature generator computed k:\n");
+    bigint_print_info(&k);
+    bigint_print_bits(&k);
+    
+    printf("k in big-endian:\n");
+    bigint_print_bits_bigend(&k);
     /* Now compute R. */
 
 	MONT_POW_modM(Gmont, &k, M, &R); 
  
-	printf("NEW R = G^k mod M FINISHED!!!  R:\n\n");
+	printf("Montgomery R = G^k mod M FINISHED!!!  R:\n\n");
 	bigint_print_info(&R);
 	bigint_print_bits(&R);
 	
+	printf("R in big-endian:\n");
+	bigint_print_bits_bigend(&R);
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }

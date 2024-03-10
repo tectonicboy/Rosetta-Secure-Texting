@@ -244,7 +244,7 @@ int main(){
 					   (
 						3072
 					   ,"../saved_nums/PRACTICAL_testpubkey_raw_bytes.dat\0" 
-				       ,3071
+				       ,3070
 				       ,RESBITS
 				       );
 
@@ -254,10 +254,12 @@ int main(){
 						   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
 				           ,3072
 				           ,RESBITS
-				           );							  
-    							  
+				           );			
+				           				  
+    /*						  
     printf("Passing Gm, M and private key to Mont_POW to get a new pubkey.\n");
     MONT_POW_modM(Gm, a, M, A_computed);
+    
     
     printf("The newely computed public key:\n");
     bigint_print_info(A_computed);
@@ -266,6 +268,17 @@ int main(){
     printf("compare(stored_pubkey, newely computed pubkey:\n");
  	printf("%u\n", bigint_compare2(A, A_computed));
     
+    printf("saving new A to file, getting new Amont, saving it to file too\n");
+    save_BIGINT_to_DAT("../saved_nums/PRACTICAL_testpubkey_raw_bytes.dat\0", A_computed);
+    
+    
+    Get_Mont_Form(A_computed, Am, M);
+    
+    printf("Computed a new Amont:\n");
+    bigint_print_info(Am);
+    bigint_print_bits(Am);
+    save_BIGINT_to_DAT("../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0", Am);
+    */
     
 	printf("LITTLE-ENDIAN private key:\n");
 	bigint_print_info(a);
@@ -280,6 +293,14 @@ int main(){
 	
 	printf("PUBLIC KEY BIG-ENDIAN:\n");
 	bigint_print_bits_bigend(A);
+
+	printf("Amont LITTLE-ENDIAN:\n");
+	bigint_print_info(Am);
+	bigint_print_bits(Am);
+	
+	printf("Amont BIG-ENDIAN:\n");
+	bigint_print_bits_bigend(Am);
+
 
 	printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
