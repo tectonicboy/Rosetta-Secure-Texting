@@ -199,6 +199,8 @@ int main(){
     struct bigint *M, *Q, *G, *Gm, *A, *Am, *a, *s, *e,
     			  *A_computed = malloc(sizeof(struct bigint));
     
+    printf("SIZEOF(STRUCT BIGINT) = %lu\n", sizeof(struct bigint));
+    
     bigint_create(A_computed, RESBITS, 0);
     
     uint64_t data_len = 197;
@@ -279,7 +281,7 @@ int main(){
     bigint_print_bits(Am);
     save_BIGINT_to_DAT("../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0", Am);
     */
-    
+    /*
 	printf("LITTLE-ENDIAN private key:\n");
 	bigint_print_info(a);
 	bigint_print_bits(a);
@@ -301,7 +303,7 @@ int main(){
 	printf("Amont BIG-ENDIAN:\n");
 	bigint_print_bits_bigend(Am);
 
-
+    */
 	printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
@@ -323,7 +325,7 @@ int main(){
     memcpy(s->bits, result_signature + (1*sizeof(struct bigint)) +  0, 40);
     memcpy(e->bits, result_signature + (2*sizeof(struct bigint)) + 40, 40);
     
-    printf("Reconstructed BigInts e and s from what's in Signature.\n");
+    printf("Reconstructed BigInts s and e from what's in Signature.\n");
     printf("\n***** s: *****\n");
     
     bigint_print_info(s);
@@ -345,10 +347,7 @@ int main(){
     /* We can use montgomery modular MUL mod M function here. */
     /* We already have Gmont above. */
 
-    bigint_create(A, RESBITS, 0);
-	
-								   
-	printf("\nchange this file WTF.\n\n");
+
 	printf("Ready to call SIGNATURE VALIDATE now!\n");
 	
 	uint8_t isValid = 
