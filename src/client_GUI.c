@@ -51,10 +51,10 @@ static void activate (GtkApplication *app, gpointer user_data){
 	
 	
 	box_welc   = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-	gtk_box_set_homogeneous(GTK_BOX(box_main), TRUE);	
+	gtk_box_set_homogeneous(GTK_BOX(box_welc), TRUE);	
 	
 	box_logreg = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-	gtk_box_set_homogeneous(GTK_BOX(box_main), TRUE);
+	gtk_box_set_homogeneous(GTK_BOX(box_logreg), TRUE);
 	
 	gtk_box_append(GTK_BOX(box_mid), box_welc);
 	gtk_box_append(GTK_BOX(box_mid), box_logreg);
@@ -63,19 +63,19 @@ static void activate (GtkApplication *app, gpointer user_data){
 	
 	
 	frame_box_left = gtk_frame_new(NULL);
-	gtk_frame_set_child(GTK_FRAME(frame_box_left), box_left);
+	gtk_box_append(GTK_BOX(box_left), frame_box_left);
 	
 	frame_box_mid = gtk_frame_new(NULL);
-	gtk_frame_set_child(GTK_FRAME(frame_box_mid), box_mid);
+	gtk_box_append(GTK_BOX(box_mid), frame_box_mid);
 
 	frame_box_right = gtk_frame_new(NULL);
-	gtk_frame_set_child(GTK_FRAME(frame_box_right), box_right);
+	gtk_box_append(GTK_BOX(box_right), frame_box_right);
 	
 	frame_box_welc = gtk_frame_new(NULL);
-	gtk_frame_set_child(GTK_FRAME(frame_box_welc), box_welc);
+	gtk_box_append(GTK_BOX(box_welc), frame_box_welc);
 	
 	frame_box_logreg = gtk_frame_new(NULL);
-	gtk_frame_set_child(GTK_FRAME(frame_box_logreg), box_logreg);
+	gtk_box_append(GTK_BOX(box_logreg), frame_box_logreg);
 
 	
 	
@@ -94,25 +94,23 @@ static void activate (GtkApplication *app, gpointer user_data){
 	gtk_box_append(GTK_BOX(box_logreg), btn_log);
 	
 	/* Give it a CSS-recognizable name. */
-	gtk_widget_set_name (label_hello, label_hello_CSSname);
+	gtk_widget_set_name(label_hello, label_hello_CSSname);
 	
 	/* Load the CSS file into this GTK app */
 	GtkCssProvider *cssProvider = gtk_css_provider_new();
-	gtk_css_provider_load_from_string(cssProvider,
-		".frame{border:10px solid red;} "
-		"label#CSS_label_hello{font: 30px 'Comic Sans';}"
+	
+	gtk_css_provider_load_from_data(
+		cssProvider,
+		"frame{border:10px solid red;} "
+		"label#CSS_label_hello{font: 30px 'Comic Sans';}\0"
+		,78
 	);
 	
-	/*
-    gtk_css_provider_load_from_file(cssProvider, "styles.css", NULL);
-    
-    gtk_style_context_add_provider_for_display(  gdk_screen_get_default()
+    gtk_style_context_add_provider_for_display(  gdk_display_get_default()
                                				   ,GTK_STYLE_PROVIDER(cssProvider)
                                				   ,GTK_STYLE_PROVIDER_PRIORITY_USER
                                				 );
-     */                          	
-     
-     			 
+                               	 			 
 	/* Render the GUI */
 	gtk_window_present (GTK_WINDOW (window));
 	return;
