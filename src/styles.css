@@ -1,0 +1,7 @@
+.frame{
+	border:10px solid red;
+}
+
+label#CSS_label_hello{
+	font: 30px "Comic Sans";
+}
