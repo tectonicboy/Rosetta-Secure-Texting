@@ -126,17 +126,19 @@ static void activate (GtkApplication *app, gpointer user_data){
 	
 	gtk_css_provider_load_from_data(
 		cssProvider,
-		"frame{border:14px solid red;}"
-	    "label#CSS_label_ROSETTA{font:14px;}"
-	    "label{font-family:monospace; white-space:pre;}"
-	    "button{font-family:monospace; white-space:pre;}"
-	    "box{font-family:monospace; white-space:pre;}\0"
+		"frame{border:14px solid red;}\n"
+	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(245, 207, 54);}\n"
+	    "label{font-family:monospace;}\n"
+	    "button{font-family:monospace;color:rgb(245, 207, 54);font-size:16px;}\n"
+	    "window{background-color:rgb(25,25,25);}\n"
+	    "box{font-family:monospace;}\0"
 		,strlen(
-				"frame{border:14px solid red;}"
-	    "label#CSS_label_ROSETTA{font:14px;}"
-	    "label{font-family:monospace; white-space:pre;}"
-	    "button{font-family:monospace; white-space:pre;}"
-	    "box{font-family:monospace; white-space:pre;}\0"
+		"frame{border:14px solid red;}\n"
+	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(245, 207, 54);}\n"
+	    "label{font-family:monospace;}\n"
+	    "button{font-family:monospace;color:rgb(245, 207, 54);font-size:16px;}\n"
+	    "window{background-color:rgb(25,25,25);}\n"
+	    "box{font-family:monospace;}\0"
 		)
 	);
 	

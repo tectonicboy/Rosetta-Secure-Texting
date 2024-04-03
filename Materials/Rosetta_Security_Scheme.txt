@@ -12,10 +12,8 @@ PART O - Server generates its own (public/private) key pair. Its public key
 
 PART I - Registration, login, credentials storage & validation
 
-On registration, Alice enters Username and Password.
-
-IF her selected username is available: 
-
+On registration, Alice enters a password. Then:
+ 
 0. The server sends her publicly:
 
 	M - the diffie-hellman modulus which is a 3071-bit prime.
@@ -29,9 +27,10 @@ IF her selected username is available:
 	NOTE: Alice won't store her own private key itself in her filesystem
 	.	  directly. Instead, the password hash produced by Argon2id with
 	.	  her password will become the KEY for ChaCha20, which we use to
-	.     hash her private key and store that instead, Alice's own 
-	.	  filesystem wont store the password hash. It can store the 
-	.     Nonce (random) used for ChaCha20 to store her hashed private key.
+	.     hash her private key and store that instead. Her client can store the 
+	.     Nonce (random) used for ChaCha20 to store her hashed private key:
+	
+	a' = ChaCha20(a, Nonce = random, key = V)
 	
 2. Alice's client computes her public key, A:
 
@@ -52,21 +51,20 @@ IF her selected username is available:
 	3.2. Let V be the most significant 40 bytes of T.
 		 (since Q is 40 bytes)
 	
-	3.3. Compute a' with:
+	3.3. Compute pass' with:
 	
-		a' = a XOR V
+		pass' = a XOR V
 	
-	3.4. Store in Alice's own filesystem (A,S,V,a',(t,p,m)).
+	3.4. Store in Alice's own filesystem (Nonce,a',A,S,V,pass',(t,p,m)).
 
-4. Lastly, Alice has to login. To do that, her client:
+--------------------------------------------------------------------------------
 
-	4.0. Ask Alice to enter Username and Password to login with.
+ 4. Lastly, Alice has to login. To do that, her client:
 
-	4.1. Check if the Username she entered exists.
+	4.0. Ask Alice to enter password to login with.
 
-	4.2. Check the stored (t,p,m) are valid Argon2id parameters.
+	4.1. Check the stored (t,p,m) are valid Argon2id parameters.
 		 If they are not valid, update them.
-	
 	
 	4.3. Use Argon2id algorithm with the following INPUT:
 	
@@ -79,7 +77,7 @@ IF her selected username is available:
 	4.4. Let V be the most significant 40 bytes of T.
 		 (since Q is 40 bytes)
 
-	4.5. Compute a = a' XOR V
+	4.5. Compute a = pass' XOR V
 
 	4.6. Compute A = G^a mod M
 	
