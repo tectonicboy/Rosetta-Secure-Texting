@@ -1,6 +1,12 @@
 #include <gtk/gtk.h>
 #include <string.h>
 
+
+static void func_login(GtkWidget *widget, gpointer data);
+static void func_register(GtkWidget *widget, gpointer data);			 	
+static void func_back_log(GtkWidget *widget, gpointer data);	
+static void func_back_reg(GtkWidget *widget, gpointer data);
+
 GtkWidget *window
 		 ,*grid_main
 		 ,*label_emptyM0
@@ -40,13 +46,7 @@ const gchar  *label_btn_reg = "Register"
             ,*label_btn_back_reg = "Back"
             ; 
 			 
-			 	
-static void func_login(GtkWidget *widget, gpointer data);
-static void func_register(GtkWidget *widget, gpointer data);			 	
-static void func_back_log(GtkWidget *widget, gpointer data);	
-static void func_back_reg(GtkWidget *widget, gpointer data);
-
-		 
+			 			 
 static void func_login(GtkWidget *widget, gpointer data){
 
 	FILE* saved;
@@ -267,16 +267,16 @@ static void activate (GtkApplication *app, gpointer user_data){
 	gtk_css_provider_load_from_data(
 		cssProvider,
 		"frame{border:14px solid red;}\n"
-	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(245, 207, 54);}\n"
+	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(54, 194, 8);}\n"
 	    "label{font-family:monospace;}\n"
-	    "button{font-family:monospace;color:rgb(245, 207, 54);font-size:16px;}\n"
+	    "button{font-family:monospace;color:rgb(54, 194, 8);font-size:16px;}\n"
 	    "window{background-color:rgb(25,25,25);}\n"
 	    "box{font-family:monospace;}\0"
 		,strlen(
 		"frame{border:14px solid red;}\n"
-	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(245, 207, 54);}\n"
+	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(54, 194, 8);}\n"
 	    "label{font-family:monospace;}\n"
-	    "button{font-family:monospace;color:rgb(245, 207, 54);font-size:16px;}\n"
+	    "button{font-family:monospace;color:rgb(54, 194, 8);font-size:16px;}\n"
 	    "window{background-color:rgb(25,25,25);}\n"
 	    "box{font-family:monospace;}\0"
 		)
