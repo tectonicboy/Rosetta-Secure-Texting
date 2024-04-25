@@ -14,7 +14,7 @@ PART I - Registration, login, credentials storage & validation
 
 On registration, Alice enters a password. Then:
  
-0. The server sends her publicly:
+0. The server sends her publicly: (or readily available on client install)
 
 	M - the diffie-hellman modulus which is a 3071-bit prime.
 	Q - the 320-bit prime number that exactly divides (M-1)
@@ -23,14 +23,6 @@ On registration, Alice enters a password. Then:
 1. Alice's client generates her private key, a:
 
 	a = random in the range [1, Q) and can be non-prime.
-	
-	NOTE: Alice won't store her own private key itself in her filesystem
-	.	  directly. Instead, the password hash produced by Argon2id with
-	.	  her password will become the KEY for ChaCha20, which we use to
-	.     hash her private key and store that instead. Her client can store the 
-	.     Nonce (random) used for ChaCha20 to store her hashed private key:
-	
-	a' = ChaCha20(a, Nonce = random, key = V)
 	
 2. Alice's client computes her public key, A:
 
@@ -51,11 +43,14 @@ On registration, Alice enters a password. Then:
 	3.2. Let V be the most significant 40 bytes of T.
 		 (since Q is 40 bytes)
 	
-	3.3. Compute pass' with:
+	3.3. the password hash produced by Argon2id with
+	.	 her password will become the KEY for ChaCha20, which we use to
+	.    hash her private key and store that instead. Her client can store the 
+	.    Nonce (random) used for ChaCha20 to store her hashed private key:
 	
-		pass' = a XOR V
+		a' = ChaCha20(a, Nonce = random, key = V)
 	
-	3.4. Store in Alice's own filesystem (Nonce,a',A,S,V,pass',(t,p,m)).
+	3.4. Store in Alice's own filesystem (Nonce,a',A,S).
 
 --------------------------------------------------------------------------------
 
@@ -77,13 +72,14 @@ On registration, Alice enters a password. Then:
 	4.4. Let V be the most significant 40 bytes of T.
 		 (since Q is 40 bytes)
 
-	4.5. Compute a = pass' XOR V
+	4.5. a = ChaCha20(a', stored_Nonce, key = just_obtained_V)
 
-	4.6. Compute A = G^a mod M
+	4.6. Compute A' = G^a mod M
 	
-	4.6. If this A is the same as the public key stored on this 
+	4.6. If this A' is the same as the public key A stored on this 
 		 same computer's filesystem, then the password is correct 
-		 and login is now completed.
+		 and login is now completed, we've decrypted the stored
+		 private key of the user. Ready to communicate securely!
 		
 ===============================================================================
 

@@ -2,10 +2,12 @@
 #include <string.h>
 
 
-static void func_login(GtkWidget *widget, gpointer data);
-static void func_register(GtkWidget *widget, gpointer data);			 	
-static void func_back_log(GtkWidget *widget, gpointer data);	
-static void func_back_reg(GtkWidget *widget, gpointer data);
+static void func_login    (GtkWidget *widget, gpointer data);
+static void func_register (GtkWidget *widget, gpointer data);			 	
+static void func_back_log (GtkWidget *widget, gpointer data);	
+static void func_back_reg (GtkWidget *widget, gpointer data);
+static void func_go_reg	  (GtkWidget *widget, gpointer data);
+static void func_go_log	  (GtkWidget *widget, gpointer data);
 
 GtkWidget *window
 		 ,*grid_main
@@ -45,8 +47,61 @@ const gchar  *label_btn_reg = "Register"
             ,*label_btn_back_log = "Back"
             ,*label_btn_back_reg = "Back"
             ; 
-			 
-			 			 
+		
+static void func_go_reg(GtkWidget *widget, gpointer data){
+
+	//guint16 entered_passlen = gtk_entry_get_text_length(GTK_ENTRY(entry_reg));
+	
+	
+	
+	
+	
+	
+} 
+
+static void func_go_log(GtkWidget *widget, gpointer data){
+
+}
+
+static void func_register(GtkWidget *widget, gpointer data){
+
+	if(label_warn_noregfound != NULL){
+		gtk_grid_remove(GTK_GRID(grid_main), label_warn_noregfound);
+		label_warn_noregfound = NULL;	
+	}
+	
+	
+	FILE* saved;
+	
+	if ( (saved = fopen("saved.dat","r")) != NULL){
+		label_warn_regoverwrite = gtk_label_new("Erases your existing save.");
+		gtk_grid_attach(GTK_GRID(grid_main), label_warn_regoverwrite, 9, 8, 1, 1);
+		fclose(saved);
+	}
+
+
+	gtk_grid_remove(GTK_GRID(grid_main), btn_log);
+	gtk_grid_remove(GTK_GRID(grid_main), btn_reg);
+
+	btn_go_reg   = gtk_button_new_with_label(label_btn_go_reg);
+	btn_back_reg = gtk_button_new_with_label(label_btn_back_reg);
+
+	g_signal_connect(btn_go_reg,   "clicked", G_CALLBACK(func_go_reg),   NULL);
+	g_signal_connect(btn_back_reg, "clicked", G_CALLBACK(func_back_reg), NULL);
+	
+	label_reg = gtk_label_new("Pick a new password\n4 to 16 symbols.");
+	
+	entry_reg = gtk_entry_new();
+	gtk_entry_set_visibility(GTK_ENTRY(entry_reg), FALSE);
+
+	gtk_grid_attach(GTK_GRID(grid_main), label_reg, 9, 3, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid_main), entry_reg, 9,4,1,1);
+	gtk_grid_attach(GTK_GRID(grid_main), btn_go_reg, 9,5,1,1);
+	gtk_grid_attach(GTK_GRID(grid_main), btn_back_reg, 9,6,1,1);
+	
+	return;
+}
+
 static void func_login(GtkWidget *widget, gpointer data){
 
 	FILE* saved;
@@ -61,12 +116,16 @@ static void func_login(GtkWidget *widget, gpointer data){
 		return;
 	}
 
+	if(saved) { fclose(saved); }	
+	
 	gtk_grid_remove(GTK_GRID(grid_main), btn_log);
 	gtk_grid_remove(GTK_GRID(grid_main), btn_reg);
 	
 	btn_go_log   = gtk_button_new_with_label(label_btn_go_log);
 	btn_back_log = gtk_button_new_with_label(label_btn_back_log);
+	
 	g_signal_connect(btn_back_log, "clicked", G_CALLBACK(func_back_log), NULL);
+	g_signal_connect(btn_go_log,   "clicked", G_CALLBACK(func_go_log),   NULL);	
 	
 	label_log = gtk_label_new("Enter your password.\n");
 	
@@ -81,58 +140,6 @@ static void func_login(GtkWidget *widget, gpointer data){
 	return;
 }
 
-static void func_register(GtkWidget *widget, gpointer data){
-
-	if(label_warn_noregfound != NULL){
-		gtk_grid_remove(GTK_GRID(grid_main), label_warn_noregfound);
-		label_warn_noregfound = NULL;	
-	}
-	
-	
-	FILE* saved;
-	
-	if ( (saved = fopen("saved.dat","r")) != NULL){
-
-		label_warn_regoverwrite = gtk_label_new("Will erase your existing save.");
-		gtk_grid_attach(GTK_GRID(grid_main), label_warn_regoverwrite, 9, 8, 1, 1);
-	}
-
-	gtk_grid_remove(GTK_GRID(grid_main), btn_log);
-	gtk_grid_remove(GTK_GRID(grid_main), btn_reg);
-
-	btn_go_reg   = gtk_button_new_with_label(label_btn_go_reg);
-	btn_back_reg = gtk_button_new_with_label(label_btn_back_reg);
-	g_signal_connect(btn_back_reg, "clicked", G_CALLBACK(func_back_reg), NULL);
-	
-	label_reg = gtk_label_new("Pick a new password");
-	
-	entry_reg = gtk_entry_new();
-	gtk_entry_set_visibility(GTK_ENTRY(entry_reg), FALSE);
-
-	gtk_grid_attach(GTK_GRID(grid_main), label_reg, 9, 3, 1, 1);
-	gtk_grid_attach(GTK_GRID(grid_main), entry_reg, 9,4,1,1);
-	gtk_grid_attach(GTK_GRID(grid_main), btn_go_reg, 9,5,1,1);
-	gtk_grid_attach(GTK_GRID(grid_main), btn_back_reg, 9,6,1,1);
-	
-	return;
-}
-
-static void func_back_log(GtkWidget *widget, gpointer data){
-
-	gtk_grid_remove(GTK_GRID(grid_main), label_log);
-	gtk_grid_remove(GTK_GRID(grid_main), entry_log);
-	gtk_grid_remove(GTK_GRID(grid_main), btn_go_log);
-	gtk_grid_remove(GTK_GRID(grid_main), btn_back_log);
-	
-	btn_log = gtk_button_new_with_label(label_btn_log);
-	btn_reg = gtk_button_new_with_label(label_btn_reg);
-	g_signal_connect(btn_log, "clicked", G_CALLBACK(func_login),    NULL);
-	g_signal_connect(btn_reg, "clicked", G_CALLBACK(func_register), NULL);
-	gtk_grid_attach(GTK_GRID(grid_main), btn_log, 9, 10,  1, 1);
-	gtk_grid_attach(GTK_GRID(grid_main), btn_reg, 9, 12, 1, 1);
-
-	return;
-}
 
 static void func_back_reg(GtkWidget *widget, gpointer data){
 
@@ -144,6 +151,24 @@ static void func_back_reg(GtkWidget *widget, gpointer data){
 	gtk_grid_remove(GTK_GRID(grid_main), entry_reg);
 	gtk_grid_remove(GTK_GRID(grid_main), btn_go_reg);
 	gtk_grid_remove(GTK_GRID(grid_main), btn_back_reg);
+	gtk_grid_remove(GTK_GRID(grid_main), label_warn_regoverwrite);
+
+	btn_log = gtk_button_new_with_label(label_btn_log);
+	btn_reg = gtk_button_new_with_label(label_btn_reg);
+	g_signal_connect(btn_log, "clicked", G_CALLBACK(func_login),    NULL);
+	g_signal_connect(btn_reg, "clicked", G_CALLBACK(func_register), NULL);
+	gtk_grid_attach(GTK_GRID(grid_main), btn_log, 9, 10,  1, 1);
+	gtk_grid_attach(GTK_GRID(grid_main), btn_reg, 9, 12, 1, 1);
+
+	return;
+}
+
+static void func_back_log(GtkWidget *widget, gpointer data){
+
+	gtk_grid_remove(GTK_GRID(grid_main), label_log);
+	gtk_grid_remove(GTK_GRID(grid_main), entry_log);
+	gtk_grid_remove(GTK_GRID(grid_main), btn_go_log);
+	gtk_grid_remove(GTK_GRID(grid_main), btn_back_log);
 	
 	btn_log = gtk_button_new_with_label(label_btn_log);
 	btn_reg = gtk_button_new_with_label(label_btn_reg);
@@ -233,7 +258,7 @@ static void activate (GtkApplication *app, gpointer user_data){
 
 	g_signal_connect(btn_log, "clicked", G_CALLBACK(func_login),    NULL);
 	g_signal_connect(btn_reg, "clicked", G_CALLBACK(func_register), NULL);
-
+	
 
 	gtk_grid_attach (
 					  GTK_GRID(grid_main),
@@ -267,16 +292,16 @@ static void activate (GtkApplication *app, gpointer user_data){
 	gtk_css_provider_load_from_data(
 		cssProvider,
 		"frame{border:14px solid red;}\n"
-	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(54, 194, 8);}\n"
+	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(230, 2, 2);}\n"
 	    "label{font-family:monospace;}\n"
-	    "button{font-family:monospace;color:rgb(54, 194, 8);font-size:16px;}\n"
+	    "button{font-family:monospace;color:rgb(230, 2, 2);font-size:16px;}\n"
 	    "window{background-color:rgb(25,25,25);}\n"
 	    "box{font-family:monospace;}\0"
 		,strlen(
 		"frame{border:14px solid red;}\n"
-	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(54, 194, 8);}\n"
+	    "label#CSS_label_ROSETTA{font-size:14px;color:rgb(230, 2, 2);}\n"
 	    "label{font-family:monospace;}\n"
-	    "button{font-family:monospace;color:rgb(54, 194, 8);font-size:16px;}\n"
+	    "button{font-family:monospace;color:rgb(230, 2, 2);font-size:16px;}\n"
 	    "window{background-color:rgb(25,25,25);}\n"
 	    "box{font-family:monospace;}\0"
 		)
