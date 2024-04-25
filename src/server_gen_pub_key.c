@@ -78,12 +78,9 @@ int main(int argc, char* argv[]){
 		   ,pubkeymont_used_bytes
 		  );
 	
-	
-	
 	printf("Montgomery form of public key generated:\n");
 	bigint_print_info(pubkey_montform);
 	bigint_print_bits(pubkey_montform);
 	
-		  
 	return 0;
 }

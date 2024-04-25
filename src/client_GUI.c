@@ -1,5 +1,7 @@
 #include <gtk/gtk.h>
 #include <string.h>
+#include "coreutil.h"
+#include "client_util.h"
 
 
 static void func_login    (GtkWidget *widget, gpointer data);
@@ -50,13 +52,20 @@ const gchar  *label_btn_reg = "Register"
 		
 static void func_go_reg(GtkWidget *widget, gpointer data){
 
-	//guint16 entered_passlen = gtk_entry_get_text_length(GTK_ENTRY(entry_reg));
+	GtkEntryBuffer* passbuf;
+	const char* pass_txt;
+	guint16 entered_passlen = gtk_entry_get_text_length(GTK_ENTRY(entry_reg));
+	
+	if ( ! (entered_passlen < 6 || entered_passlen > 16)) {
+		passbuf  = gtk_entry_get_buffer(GTK_ENTRY(entry_reg));
+		pass_txt = gtk_entry_buffer_get_text(GTK_ENTRY_BUFFER(passbuf));
+		create_save(pass_txt, (uint16_t)entered_passlen);
+	}
 	
 	
 	
 	
-	
-	
+	return;
 } 
 
 static void func_go_log(GtkWidget *widget, gpointer data){
@@ -89,7 +98,7 @@ static void func_register(GtkWidget *widget, gpointer data){
 	g_signal_connect(btn_go_reg,   "clicked", G_CALLBACK(func_go_reg),   NULL);
 	g_signal_connect(btn_back_reg, "clicked", G_CALLBACK(func_back_reg), NULL);
 	
-	label_reg = gtk_label_new("Pick a new password\n4 to 16 symbols.");
+	label_reg = gtk_label_new("Pick a new password\n6 to 16 symbols.");
 	
 	entry_reg = gtk_entry_new();
 	gtk_entry_set_visibility(GTK_ENTRY(entry_reg), FALSE);
