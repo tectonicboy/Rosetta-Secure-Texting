@@ -1,0 +1,343 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 98.77    466.51   466.51   524078     0.89     0.89  argon2_getJ1J2_for2i
+  0.99    471.20     4.69   524044     0.01     0.01  Argon2_getLZ
+  0.17    472.00     0.80                             _init
+  0.06    472.28     0.28                             argon2_transform_segment
+  0.01    472.31     0.03     1158     0.03     0.03  bigint_sub2
+  0.00    472.32     0.01      465     0.02     0.02  Montgomery_MUL
+  0.00    472.32     0.00    59660     0.00     0.00  bigint_equate2
+  0.00    472.32     0.00    34095     0.00     0.00  bigint_compare2
+  0.00    472.32     0.00    29779     0.00     0.00  bigint_mul_fast
+  0.00    472.32     0.00    28614     0.00     0.00  bigint_add_fast
+  0.00    472.32     0.00    24192     0.00     0.00  BLAKE2B_G
+  0.00    472.32     0.00     6952     0.00     0.00  func_login
+  0.00    472.32     0.00      396     0.00     0.00  bigint_pow
+  0.00    472.32     0.00      252     0.00     0.00  BLAKE2B_F
+  0.00    472.32     0.00      250     0.00     0.00  BLAKE2B
+  0.00    472.32     0.00      250     0.00     0.00  BLAKE2B_INIT
+  0.00    472.32     0.00       10     0.00     2.99  bigint_div2
+  0.00    472.32     0.00        8     0.00     0.00  Argon2_H_dash
+  0.00    472.32     0.00        2     0.00     0.00  bigint_get_ascii_bits
+  0.00    472.32     0.00        2     0.00     0.00  bigint_print_bits
+  0.00    472.32     0.00        1     0.00     0.00  Argon2_MAIN
+  0.00    472.32     0.00        1     0.00    26.95  Get_Mont_Form
+  0.00    472.32     0.00        1     0.00    13.05  MONT_POW_modM
+  0.00    472.32     0.00        1     0.00     2.99  bigint_mod_mul
+  0.00    472.32     0.00        1     0.00    26.93  bigint_mod_pow
+  0.00    472.32     0.00        1     0.00     0.00  gen_priv_key
+  0.00    472.32     0.00        1     0.00    13.05  gen_pub_key
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 4 byte(s) for 0.00% of 472.32 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]     99.8    0.28  471.20                 argon2_transform_segment [1]
+              466.51    0.00  524078/524078      argon2_getJ1J2_for2i [2]
+                4.69    0.00  524044/524044      Argon2_getLZ [3]
+-----------------------------------------------
+              466.51    0.00  524078/524078      argon2_transform_segment [1]
+[2]     98.8  466.51    0.00  524078         argon2_getJ1J2_for2i [2]
+-----------------------------------------------
+                4.69    0.00  524044/524044      argon2_transform_segment [1]
+[3]      1.0    4.69    0.00  524044         Argon2_getLZ [3]
+-----------------------------------------------
+                                                 <spontaneous>
+[4]      0.2    0.80    0.00                 _init [4]
+-----------------------------------------------
+                                                 <spontaneous>
+[5]      0.0    0.00    0.04                 create_save [5]
+                0.00    0.03       1/1           Get_Mont_Form [8]
+                0.00    0.01       1/1           gen_pub_key [11]
+                0.00    0.00       2/6952        func_login [19]
+                0.00    0.00       1/1           gen_priv_key [28]
+                0.00    0.00       1/2           bigint_print_bits [26]
+                0.00    0.00       1/250         BLAKE2B_INIT [23]
+                0.00    0.00       1/1           Argon2_MAIN [27]
+-----------------------------------------------
+                0.00    0.00       3/1158        Montgomery_MUL [12]
+                0.03    0.00    1155/1158        bigint_div2 [7]
+[6]      0.0    0.03    0.00    1158         bigint_sub2 [6]
+                0.00    0.00    2316/6952        func_login [19]
+                0.00    0.00    2313/34095       bigint_compare2 [15]
+                0.00    0.00    1155/59660       bigint_equate2 [14]
+-----------------------------------------------
+                0.00    0.00       1/10          bigint_mod_mul [13]
+                0.00    0.00       1/10          MONT_POW_modM [10]
+                0.00    0.02       8/10          bigint_mod_pow [9]
+[7]      0.0    0.00    0.03      10         bigint_div2 [7]
+                0.03    0.00    1155/1158        bigint_sub2 [6]
+                0.00    0.00     975/6952        func_login [19]
+                0.00    0.00     773/29779       bigint_mul_fast [16]
+                0.00    0.00     418/34095       bigint_compare2 [15]
+                0.00    0.00     407/59660       bigint_equate2 [14]
+                0.00    0.00     388/396         bigint_pow [20]
+-----------------------------------------------
+                0.00    0.03       1/1           create_save [5]
+[8]      0.0    0.00    0.03       1         Get_Mont_Form [8]
+                0.00    0.03       1/1           bigint_mod_pow [9]
+                0.00    0.00       1/465         Montgomery_MUL [12]
+                0.00    0.00       5/6952        func_login [19]
+                0.00    0.00       1/396         bigint_pow [20]
+-----------------------------------------------
+                0.00    0.03       1/1           Get_Mont_Form [8]
+[9]      0.0    0.00    0.03       1         bigint_mod_pow [9]
+                0.00    0.02       8/10          bigint_div2 [7]
+                0.00    0.00       1/1           bigint_mod_mul [13]
+                0.00    0.00       8/6952        func_login [19]
+                0.00    0.00       7/396         bigint_pow [20]
+                0.00    0.00       6/34095       bigint_compare2 [15]
+                0.00    0.00       2/59660       bigint_equate2 [14]
+-----------------------------------------------
+                0.00    0.01       1/1           gen_pub_key [11]
+[10]     0.0    0.00    0.01       1         MONT_POW_modM [10]
+                0.01    0.00     464/465         Montgomery_MUL [12]
+                0.00    0.00       1/10          bigint_div2 [7]
+                0.00    0.00     465/59660       bigint_equate2 [14]
+                0.00    0.00       5/6952        func_login [19]
+-----------------------------------------------
+                0.00    0.01       1/1           create_save [5]
+[11]     0.0    0.00    0.01       1         gen_pub_key [11]
+                0.00    0.01       1/1           MONT_POW_modM [10]
+                0.00    0.00       5/6952        func_login [19]
+                0.00    0.00       1/2           bigint_print_bits [26]
+-----------------------------------------------
+                0.00    0.00       1/465         Get_Mont_Form [8]
+                0.01    0.00     464/465         MONT_POW_modM [10]
+[12]     0.0    0.01    0.00     465         Montgomery_MUL [12]
+                0.00    0.00       3/1158        bigint_sub2 [6]
+                0.00    0.00     465/6952        func_login [19]
+                0.00    0.00       3/59660       bigint_equate2 [14]
+-----------------------------------------------
+                0.00    0.00       1/1           bigint_mod_pow [9]
+[13]     0.0    0.00    0.00       1         bigint_mod_mul [13]
+                0.00    0.00       1/10          bigint_div2 [7]
+                0.00    0.00       4/59660       bigint_equate2 [14]
+                0.00    0.00       3/6952        func_login [19]
+                0.00    0.00       2/29779       bigint_mul_fast [16]
+                0.00    0.00       2/34095       bigint_compare2 [15]
+-----------------------------------------------
+                0.00    0.00       2/59660       bigint_mod_pow [9]
+                0.00    0.00       3/59660       Montgomery_MUL [12]
+                0.00    0.00       4/59660       bigint_mod_mul [13]
+                0.00    0.00     407/59660       bigint_div2 [7]
+                0.00    0.00     465/59660       MONT_POW_modM [10]
+                0.00    0.00    1155/59660       bigint_sub2 [6]
+                0.00    0.00   57624/59660       bigint_pow [20]
+[14]     0.0    0.00    0.00   59660         bigint_equate2 [14]
+-----------------------------------------------
+                0.00    0.00       2/34095       bigint_mod_mul [13]
+                0.00    0.00       6/34095       bigint_mod_pow [9]
+                0.00    0.00     418/34095       bigint_div2 [7]
+                0.00    0.00    2313/34095       bigint_sub2 [6]
+                0.00    0.00   31356/34095       bigint_pow [20]
+[15]     0.0    0.00    0.00   34095         bigint_compare2 [15]
+-----------------------------------------------
+                0.00    0.00       2/29779       bigint_mod_mul [13]
+                0.00    0.00     773/29779       bigint_div2 [7]
+                0.00    0.00   29004/29779       bigint_pow [20]
+[16]     0.0    0.00    0.00   29779         bigint_mul_fast [16]
+-----------------------------------------------
+                0.00    0.00   28614/28614       bigint_pow [20]
+[17]     0.0    0.00    0.00   28614         bigint_add_fast [17]
+-----------------------------------------------
+                0.00    0.00   24192/24192       BLAKE2B_F [21]
+[18]     0.0    0.00    0.00   24192         BLAKE2B_G [18]
+-----------------------------------------------
+                                   5             func_login [19]
+                0.00    0.00       2/6952        create_save [5]
+                0.00    0.00       3/6952        bigint_mod_mul [13]
+                0.00    0.00       5/6952        Get_Mont_Form [8]
+                0.00    0.00       5/6952        MONT_POW_modM [10]
+                0.00    0.00       5/6952        gen_pub_key [11]
+                0.00    0.00       8/6952        bigint_mod_pow [9]
+                0.00    0.00     465/6952        Montgomery_MUL [12]
+                0.00    0.00     975/6952        bigint_div2 [7]
+                0.00    0.00    2316/6952        bigint_sub2 [6]
+                0.00    0.00    3168/6952        bigint_pow [20]
+[19]     0.0    0.00    0.00    6952+5       func_login [19]
+                                   5             func_login [19]
+-----------------------------------------------
+                0.00    0.00       1/396         Get_Mont_Form [8]
+                0.00    0.00       7/396         bigint_mod_pow [9]
+                0.00    0.00     388/396         bigint_div2 [7]
+[20]     0.0    0.00    0.00     396         bigint_pow [20]
+                0.00    0.00   57624/59660       bigint_equate2 [14]
+                0.00    0.00   31356/34095       bigint_compare2 [15]
+                0.00    0.00   29004/29779       bigint_mul_fast [16]
+                0.00    0.00   28614/28614       bigint_add_fast [17]
+                0.00    0.00    3168/6952        func_login [19]
+-----------------------------------------------
+                0.00    0.00     252/252         BLAKE2B [22]
+[21]     0.0    0.00    0.00     252         BLAKE2B_F [21]
+                0.00    0.00   24192/24192       BLAKE2B_G [18]
+-----------------------------------------------
+                0.00    0.00     250/250         BLAKE2B_INIT [23]
+[22]     0.0    0.00    0.00     250         BLAKE2B [22]
+                0.00    0.00     252/252         BLAKE2B_F [21]
+-----------------------------------------------
+                0.00    0.00       1/250         Argon2_MAIN [27]
+                0.00    0.00       1/250         create_save [5]
+                0.00    0.00     248/250         Argon2_H_dash [24]
+[23]     0.0    0.00    0.00     250         BLAKE2B_INIT [23]
+                0.00    0.00     250/250         BLAKE2B [22]
+-----------------------------------------------
+                0.00    0.00       8/8           Argon2_MAIN [27]
+[24]     0.0    0.00    0.00       8         Argon2_H_dash [24]
+                0.00    0.00     248/250         BLAKE2B_INIT [23]
+-----------------------------------------------
+                0.00    0.00       2/2           bigint_print_bits [26]
+[25]     0.0    0.00    0.00       2         bigint_get_ascii_bits [25]
+-----------------------------------------------
+                0.00    0.00       1/2           gen_pub_key [11]
+                0.00    0.00       1/2           create_save [5]
+[26]     0.0    0.00    0.00       2         bigint_print_bits [26]
+                0.00    0.00       2/2           bigint_get_ascii_bits [25]
+-----------------------------------------------
+                0.00    0.00       1/1           create_save [5]
+[27]     0.0    0.00    0.00       1         Argon2_MAIN [27]
+                0.00    0.00       8/8           Argon2_H_dash [24]
+                0.00    0.00       1/250         BLAKE2B_INIT [23]
+-----------------------------------------------
+                0.00    0.00       1/1           create_save [5]
+[28]     0.0    0.00    0.00       1         gen_priv_key [28]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+  [24] Argon2_H_dash          [12] Montgomery_MUL         [13] bigint_mod_mul
+  [27] Argon2_MAIN             [4] _init                   [9] bigint_mod_pow
+   [3] Argon2_getLZ            [2] argon2_getJ1J2_for2i   [16] bigint_mul_fast
+  [22] BLAKE2B                 [1] argon2_transform_segment [20] bigint_pow
+  [21] BLAKE2B_F              [17] bigint_add_fast        [26] bigint_print_bits
+  [18] BLAKE2B_G              [15] bigint_compare2         [6] bigint_sub2
+  [23] BLAKE2B_INIT            [7] bigint_div2            [19] func_login
+   [8] Get_Mont_Form          [14] bigint_equate2         [28] gen_priv_key
+  [10] MONT_POW_modM          [25] bigint_get_ascii_bits  [11] gen_pub_key

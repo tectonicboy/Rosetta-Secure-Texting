@@ -31,7 +31,7 @@ STEP 3 - Type on the command line:
 
 gprof your_program's_executable > any_output_text_file.txt
 
-.        FOR EXAMPLE:  gprof test_cryptolib > profiler_result.txt
+.        FOR EXAMPLE:  gprof Client_GUI > profiler_result.txt
 .        
 .        This will place the performance information we're looking for in the
 .        .txt file. 
