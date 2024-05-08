@@ -146,7 +146,7 @@ int main(){
     
     
     
-    /*   
+      
     struct Argon2_parms prms;
     
     prms.p = 4;   
@@ -189,12 +189,14 @@ int main(){
     printf("\n\n");
     
     free(P); free(S); free(K); free(X); free(argon2_output_tag);
-    */
+    
     
     
     /**************************************************************************/
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
+
+	/*
 
     struct bigint *M, *Q, *G, *Gm, *A, *Am, *a, *s, *e,
     			  *A_computed = malloc(sizeof(struct bigint));
@@ -207,9 +209,14 @@ int main(){
  
     char *msg = malloc(data_len);
     
+    */
+    
         /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
     	/* Cuz the signature itself is (s,e) both of which are BigInts whose */
     	/* bitwidth is up to the bitwidth of Q and no more.                  */
+    
+    /*
+    	
     char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
 
 	M = get_BIGINT_from_DAT( 3072
@@ -258,52 +265,7 @@ int main(){
 				           ,RESBITS
 				           );			
 				           				  
-    /*						  
-    printf("Passing Gm, M and private key to Mont_POW to get a new pubkey.\n");
-    MONT_POW_modM(Gm, a, M, A_computed);
-    
-    
-    printf("The newely computed public key:\n");
-    bigint_print_info(A_computed);
-    bigint_print_bits(A_computed);
-    
-    printf("compare(stored_pubkey, newely computed pubkey:\n");
- 	printf("%u\n", bigint_compare2(A, A_computed));
-    
-    printf("saving new A to file, getting new Amont, saving it to file too\n");
-    save_BIGINT_to_DAT("../saved_nums/PRACTICAL_testpubkey_raw_bytes.dat\0", A_computed);
-    
-    
-    Get_Mont_Form(A_computed, Am, M);
-    
-    printf("Computed a new Amont:\n");
-    bigint_print_info(Am);
-    bigint_print_bits(Am);
-    save_BIGINT_to_DAT("../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0", Am);
-    */
-    /*
-	printf("LITTLE-ENDIAN private key:\n");
-	bigint_print_info(a);
-	bigint_print_bits(a);
-	
-	printf("BIG-ENDIAN private key:\n");
-	bigint_print_bits_bigend(a);
-	
-	printf("PUBLIC KEY LITTLE-ENDIAN:\n");
-	bigint_print_info(A);
-	bigint_print_bits(A);
-	
-	printf("PUBLIC KEY BIG-ENDIAN:\n");
-	bigint_print_bits_bigend(A);
 
-	printf("Amont LITTLE-ENDIAN:\n");
-	bigint_print_info(Am);
-	bigint_print_bits(Am);
-	
-	printf("Amont BIG-ENDIAN:\n");
-	bigint_print_bits_bigend(Am);
-
-    */
 	printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
@@ -337,7 +299,7 @@ int main(){
     bigint_print_info(e);
     bigint_print_bits(e);
 
-    
+    */
 
 	/* Compute a public key from the generated private key. 				  */
 	/* This key is used in validating a signature generated from private key. */
@@ -347,7 +309,9 @@ int main(){
     /* We can use montgomery modular MUL mod M function here. */
     /* We already have Gmont above. */
 
-
+    
+    /*
+    
 	printf("Ready to call SIGNATURE VALIDATE now!\n");
 	
 	uint8_t isValid = 
@@ -363,6 +327,10 @@ int main(){
     else{
     	printf("Valid Signature: YES\n");
     }
+    
+    */
+    
+    
     return 0;
     
 }

@@ -171,7 +171,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     
     printf("\n\n***** ARGON2id produced %lu-byte Tag: ******\n\n", prms.T);
     
-    for(uint32_t i = 0; i < 32; ++i){
+    for(uint32_t i = 0; i < prms.T; ++i){
         if(i % 16 == 0 && i > 0){printf("\n");}
         printf("%02x ", (uint8_t)argon2_output_tag[i]);
     }

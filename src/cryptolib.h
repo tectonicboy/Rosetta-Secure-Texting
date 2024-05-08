@@ -106,7 +106,7 @@ void uint32_roll_left(uint32_t* n, uint32_t roll_amount){
     }
     return;
 }
-/*
+
 void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
     uint8_t last_on = 0;
     while(roll_amount > 0){
@@ -122,8 +122,8 @@ void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
     }  
     return; 
 }
-*/
-#define uint64_roll_right(v,n) ((v)>>(n)|(v)<<(64-(n)))
+
+//#define uint64_roll_right(v,n) ( (*((v)))  >>(n)|(*((v)))<<(64-(n)))
 
 /*****************************************************************************/
 /*                   CHACHA20 IMPLEMENTATION BEGINS                          */
@@ -330,19 +330,19 @@ void BLAKE2B_G(uint64_t* v, uint64_t a, uint64_t b, uint64_t c
 {
     v[a] = v[a] + v[b] + x;
     v[d] ^= v[a];
-    uint64_roll_right(v[d], R1);
+    uint64_roll_right(&(v[d]), R1);
     
     v[c] += v[d];
     v[b] ^= v[c];
-    uint64_roll_right(v[b], R2);
+    uint64_roll_right(&(v[b]), R2);
     
     v[a] = v[a] + v[b] + y;
     v[d] ^= v[a];
-    uint64_roll_right(v[d], R3);
+    uint64_roll_right(&(v[d]), R3);
     
     v[c] += v[d];
     v[b] ^= v[c];
-    uint64_roll_right(v[b], R4); 
+    uint64_roll_right(&(v[b]), R4); 
     return;
 }    
     
@@ -497,34 +497,35 @@ void BLAKE2B_INIT(char* m, uint64_t ll, uint64_t kk, uint64_t nn, char* rr){
  *       means we can let overflow happen and ignore it. 
  */
 __attribute__ ((always_inline)) 
-inline void Argon2_GB(uint64_t a, uint64_t b, uint64_t c, uint64_t d){
+inline 
+void Argon2_GB(uint64_t a, uint64_t b, uint64_t c, uint64_t d){
     a = a + b 
           +    /* Take only the 32 least significant bits of a and b. */ 
           ((uint64_t)2 * ((uint64_t)((uint32_t)a)) * ((uint64_t)((uint32_t)b)));
            
     d = d ^ a;
-    uint64_roll_right(d, 32);
+    uint64_roll_right(&d, 32);
     
     c = c + d 
           + 
           ((uint64_t)2 * ((uint64_t)((uint32_t)c)) * ((uint64_t)((uint32_t)d)));
            
     b = b ^ c;
-    uint64_roll_right(b, 24);
+    uint64_roll_right(&b, 24);
     
     a = a + b 
           + 
           ((uint64_t)2 * ((uint64_t)((uint32_t)a)) * ((uint64_t)((uint32_t)b)));   
              
     d = d ^ a;
-    uint64_roll_right(d, 16);
+    uint64_roll_right(&d, 16);
     
     c = c + d
           +   
           ((uint64_t)2 * ((uint64_t)((uint32_t)c)) * ((uint64_t)((uint32_t)d)));   
            
     b = b ^ c;
-    uint64_roll_right(b, 63);
+    uint64_roll_right(&b, 63);
     return;
 }
     
@@ -561,6 +562,7 @@ void Argon2_P(char* input_128){
     return;
 }
 
+
 /* Compression function G() for Argon2. 
  * Takes two 1024-byte blocks as input (X, Y).
  * Outputs one resulting 1024-byte block.
@@ -570,7 +572,8 @@ void Argon2_P(char* input_128){
  * Does not change the input memory blocks X and Y directly.
  */
 __attribute__ ((always_inline)) 
-inline void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
+inline
+void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
 
     uint8_t* matrix_R = malloc(1024);
     
@@ -926,7 +929,7 @@ void* argon2_transform_segment(void* thread_input){
     } 
     
     for(j = j_start; j < j_end; ++j){
-    	//printf("Argon2 segment loop: j = %lu to %lu\n", j, j_end);
+    	printf("Argon2 segment loop: j = %lu to %lu\n", j, j_end);
     	
         /* If pass number r=0 and slice number sl=0,1:  */
         /* compute 32-bit values J_1, J_2 for Argon2i.  */
@@ -1297,14 +1300,14 @@ label_start_pass:
         for(uint64_t i = 0; i < parms->p; ++i){
             pthread_join(argon2_thread_ids[i], NULL);    
         } 
-        exit(1); /* TESTING ONLY!!! */
+        //exit(1); /* TESTING ONLY!!! */
     } /* End of one slice. */
     
     
     
     /* This if statement is for testing only. */
-    if(r == 1){
-        printf("Finished 2nd pass. Didnt increment pass number yet.\n");
+    if(r == 0){
+        printf("Finished 1st pass. Didnt increment pass number yet.\n");
         printf("r = %lu\n", r);
         printf("After this pass, first 4 batches of 8 bytes of Block 0:\n");
         
@@ -1325,6 +1328,7 @@ label_start_pass:
         }
         printf("\n");
         printf("RETURNING AT THIS PASS FOR TESTING. Terminating now.\n");
+        printf("Can't yet do more passes anyway.\n");
         return;
     }
     
