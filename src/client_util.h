@@ -123,7 +123,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	struct Argon2_parms prms;
 	memset(&prms, 0x00, sizeof(struct Argon2_parms));
 	    
-    prms.p = 4;   
+    prms.p = 16;   
     prms.T = 64;  
     prms.m = 2097000;  
     prms.t = 1;  
@@ -166,8 +166,16 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     prms.len_X = 0;
     
     char* argon2_output_tag = malloc(prms.T);
+    clock_t start1, end1;
+    double total_CPU_time_s;
     
+    start1 = clock();
     Argon2_MAIN(&prms, argon2_output_tag);
+    end1 = clock();
+    total_CPU_time_s = (((double) (end1 - start1)) / CLOCKS_PER_SEC) / 8;  
+
+    
+    
     
     printf("\n\n***** ARGON2id produced %lu-byte Tag: ******\n\n", prms.T);
     
@@ -177,6 +185,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     }
     printf("\n\n");
     
+    printf("TOTAL TIME TAKEN for Argon2: %lf seconds\n", total_CPU_time_s);
 label_cleanup:
 
 	if(ran)			          {fclose(ran);}
