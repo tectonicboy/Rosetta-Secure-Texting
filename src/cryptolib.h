@@ -871,7 +871,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
  *                         + r, l, sl, m', t, y, p, q as uint64_t's.
  */
 void* argon2_transform_segment(void* thread_input){
-    
+
     /* TESTING ONLY DECLARATIONS BEGIN */
     // clock_t start_1, start_2, start_3, end_1, end_2, end_3;
      
@@ -971,9 +971,9 @@ void* argon2_transform_segment(void* thread_input){
         
         //start_1 = clock();
 
- 
+
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
-        
+
        // end_1 = clock();
        // cpu_time_used1 = ((double) (end_1 - start_1)) / CLOCKS_PER_SEC;  
      
@@ -998,7 +998,9 @@ void* argon2_transform_segment(void* thread_input){
          * when computing index z. It's relative to start of B[][].
          */
         G_input_two = B[0] + z_ix;
+
         Argon2_G((uint8_t*)G_input_one, (uint8_t*)G_input_two, (uint8_t*)G_output); 
+
         ++computed_blocks;       
         
        // end_3 = clock();
@@ -1104,6 +1106,7 @@ label_finish_segment:
     free(Z_buf);
     free(old_block);
     free(J1J2blockpool); 
+
     return NULL;
 }
    
@@ -1380,37 +1383,18 @@ label_start_pass:
             printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
         }
         printf("\n");
-        printf("RETURNING AT THIS PASS FOR TESTING. Terminating now.\n");
-        printf("Can't yet do more passes anyway.\n");
-        return;
+        printf("\n");
     }
     
     /* Finished all 4 slices of a pass. Increment pass number.*/
-    ++r;
+    //++r;
     
     /* If Argon2 is to perform more than the zeroth pass, do them. */
-    if (r < parms->t){
-        goto label_start_pass;    
-    }
+   // if (r < parms->t){
+   //     goto label_start_pass;    
+   // }
     
-    /* More testing prints. */
-    printf("After final pass, first 4 batches of 8 bytes of Block 0:\n");
     
-    for(uint32_t eeee = 0; eeee < 8; ++eeee){
-        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-    }
-    
-    for(uint32_t eeee = 8; eeee < 16; ++eeee){
-        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-    }
-    
-    for(uint32_t eeee = 16; eeee < 24; ++eeee){
-        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-    }
-    
-    for(uint32_t eeee = 24; eeee < 32; ++eeee){
-        printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-    } 
       
     /* Done with all required passes. */
     /* Compute final 1024-byte block C by XORing the last block of every lane.*/    

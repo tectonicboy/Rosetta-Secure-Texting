@@ -123,7 +123,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	struct Argon2_parms prms;
 	memset(&prms, 0x00, sizeof(struct Argon2_parms));
 	    
-    prms.p = 16;   
+    prms.p = 8;   
     prms.T = 64;  
     prms.m = 2097000;  
     prms.t = 1;  
@@ -172,7 +172,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     start1 = clock();
     Argon2_MAIN(&prms, argon2_output_tag);
     end1 = clock();
-    total_CPU_time_s = (((double) (end1 - start1)) / CLOCKS_PER_SEC) / 8;  
+    total_CPU_time_s = (((double) (end1 - start1)) / CLOCKS_PER_SEC) / 4;  
 
     
     
