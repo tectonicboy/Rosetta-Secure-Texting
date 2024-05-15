@@ -40,8 +40,7 @@ On registration, Alice enters a password. Then:
 
 		OUTPUT of Argon2id is a 64-byte T.
 	
-	3.2. Let V be the most significant 40 bytes of T.
-		 (since Q is 40 bytes)
+	3.2. Let V be the most significant 32 bytes of T.
 	
 	3.3. the password hash produced by Argon2id with
 	.	 her password will become the KEY for ChaCha20, which we use to
@@ -57,9 +56,6 @@ On registration, Alice enters a password. Then:
  4. Lastly, Alice has to login. To do that, her client:
 
 	4.0. Ask Alice to enter password to login with.
-
-	4.1. Check the stored (t,p,m) are valid Argon2id parameters.
-		 If they are not valid, update them.
 	
 	4.3. Use Argon2id algorithm with the following INPUT:
 	
@@ -69,8 +65,7 @@ On registration, Alice enters a password. Then:
 		
 		OUTPUT of Argon2id is a 64-byte T.
 		
-	4.4. Let V be the most significant 40 bytes of T.
-		 (since Q is 40 bytes)
+	4.4. Let V be the most significant 32 bytes of T.
 
 	4.5. a = ChaCha20(a', stored_Nonce, key = just_obtained_V)
 

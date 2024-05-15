@@ -166,13 +166,9 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     prms.len_X = 0;
     
     char* argon2_output_tag = malloc(prms.T);
-    clock_t start1, end1;
-    double total_CPU_time_s;
-    
-    start1 = clock();
+	char* V = malloc(40); /* bitwidth of our current Q is 40 bytes*/
     Argon2_MAIN(&prms, argon2_output_tag);
-    end1 = clock();
-    total_CPU_time_s = (((double) (end1 - start1)) / CLOCKS_PER_SEC) / 4;  
+ 
 
     
     
@@ -185,7 +181,6 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     }
     printf("\n\n");
     
-    printf("TOTAL TIME TAKEN for Argon2: %lf seconds\n", total_CPU_time_s);
 label_cleanup:
 
 	if(ran)			          {fclose(ran);}
