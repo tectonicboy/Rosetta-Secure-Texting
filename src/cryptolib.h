@@ -1356,7 +1356,8 @@ label_start_pass:
         for(uint64_t i = 0; i < parms->p; ++i){
             pthread_join(argon2_thread_ids[i], NULL);    
         } 
-        //exit(1); /* TESTING ONLY!!! */
+
+        printf("Argon2: Slice %lu finished.\n", sl);
     } /* End of one slice. */
     
     
