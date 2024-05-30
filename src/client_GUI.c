@@ -55,21 +55,53 @@ static void func_go_reg(GtkWidget *widget, gpointer data){
 	GtkEntryBuffer* passbuf;
 	const char* pass_txt;
 	guint16 entered_passlen = gtk_entry_get_text_length(GTK_ENTRY(entry_reg));
+	uint8_t reg_status;
 	
 	if ( ! (entered_passlen < 6 || entered_passlen > 16)) {
 		passbuf  = gtk_entry_get_buffer(GTK_ENTRY(entry_reg));
 		pass_txt = gtk_entry_buffer_get_text(GTK_ENTRY_BUFFER(passbuf));
-		create_save(pass_txt, (uint16_t)entered_passlen);
+		reg_status = create_save(pass_txt, (uint16_t)entered_passlen);
+		
+		gtk_grid_remove(GTK_GRID(grid_main), label_reg);
+		
+		if(reg_status != 0){
+			label_reg = gtk_label_new("Registration error.\nTry again.");
+		}
+		else{
+			label_reg = gtk_label_new("Success!\nGo back to login.");
+		}
+		
+		gtk_grid_attach(GTK_GRID(grid_main), label_reg, 9, 3, 1, 1);
 	}
-	
-	
-	
-	
+
 	return;
 } 
 
 static void func_go_log(GtkWidget *widget, gpointer data){
 
+	GtkEntryBuffer* passbuf;
+	const char* pass_txt;
+	guint16 entered_passlen = gtk_entry_get_text_length(GTK_ENTRY(entry_log));
+	uint8_t login_status;
+	
+	if ( ! (entered_passlen < 6 || entered_passlen > 16)) {
+		passbuf  = gtk_entry_get_buffer(GTK_ENTRY(entry_log));
+		pass_txt = gtk_entry_buffer_get_text(GTK_ENTRY_BUFFER(passbuf));
+		login_status = login(pass_txt, (uint16_t)entered_passlen);
+		
+		gtk_grid_remove(GTK_GRID(grid_main), label_log);
+		
+		if(login_status != 0){
+			label_log = gtk_label_new("Login error. Try again.\n"
+									  "Or register anew."
+									 );	
+		}
+		else{
+			label_log = gtk_label_new("Login successful!\n");
+		}
+		
+		gtk_grid_attach(GTK_GRID(grid_main), label_log, 9, 3, 1, 1);
+	}
 }
 
 static void func_register(GtkWidget *widget, gpointer data){
@@ -136,7 +168,7 @@ static void func_login(GtkWidget *widget, gpointer data){
 	g_signal_connect(btn_back_log, "clicked", G_CALLBACK(func_back_log), NULL);
 	g_signal_connect(btn_go_log,   "clicked", G_CALLBACK(func_go_log),   NULL);	
 	
-	label_log = gtk_label_new("Enter your password.\n");
+	label_log = gtk_label_new("Enter your password.\n6 to 16 symbols.");
 	
 	entry_log = gtk_entry_new();
 	gtk_entry_set_visibility(GTK_ENTRY(entry_log), FALSE);
@@ -160,7 +192,6 @@ static void func_back_reg(GtkWidget *widget, gpointer data){
 	gtk_grid_remove(GTK_GRID(grid_main), entry_reg);
 	gtk_grid_remove(GTK_GRID(grid_main), btn_go_reg);
 	gtk_grid_remove(GTK_GRID(grid_main), btn_back_reg);
-	gtk_grid_remove(GTK_GRID(grid_main), label_warn_regoverwrite);
 
 	btn_log = gtk_button_new_with_label(label_btn_log);
 	btn_reg = gtk_button_new_with_label(label_btn_reg);
@@ -192,7 +223,7 @@ static void func_back_log(GtkWidget *widget, gpointer data){
 static void activate (GtkApplication *app, gpointer user_data){
 
 	window = gtk_application_window_new (app);
-	gtk_window_set_title (GTK_WINDOW (window), "Rosetta");
+	gtk_window_set_title (GTK_WINDOW (window), "Rosetta Secure Texting");
 	gtk_window_set_default_size (GTK_WINDOW (window), 1920, 1080);
 
 	grid_main = gtk_grid_new();

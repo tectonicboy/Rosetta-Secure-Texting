@@ -57,7 +57,7 @@ On registration, Alice enters a password. Then:
 
 	4.0. Ask Alice to enter password to login with.
 	
-	4.3. Use Argon2id algorithm with the following INPUT:
+	4.1. Use Argon2id algorithm with the following INPUT:
 	
 		- Salt 	   = S||BLAKE2B{64}(A)
 		- Password = password Alice tried logging in with. 
@@ -65,11 +65,11 @@ On registration, Alice enters a password. Then:
 		
 		OUTPUT of Argon2id is a 64-byte T.
 		
-	4.4. Let V be the most significant 32 bytes of T.
+	4.2. Let V be the most significant 32 bytes of T.
 
-	4.5. a = ChaCha20(a', stored_Nonce, key = just_obtained_V)
+	4.3. a = ChaCha20(a', stored_Nonce, key = just_obtained_V)
 
-	4.6. Compute A' = G^a mod M
+	4.4. Compute A' = G^a mod M
 	
 	4.6. If this A' is the same as the public key A stored on this 
 		 same computer's filesystem, then the password is correct 
@@ -223,7 +223,7 @@ THE SECURE MESSAGE EXCHANGE PROTOCOL:
 		 
 		 This step reveals Alice's one-time 32-byte random key K to Carol.
 		 
-	6.5. Uses the obtained K as a ChaCha Key decypher the actual encrypted 
+	6.5. Uses the obtained K as a ChaCha Key to decypher the actual encrypted 
 	     message that Alice sent her, to reveal it in plaintext. Here, we
 	     use the least significant 12 bytes of Alice's Nonce and we do use 
 		 a ChaCha Counter here, starting at 1 and incremented for each 
@@ -236,7 +236,7 @@ THE SECURE MESSAGE EXCHANGE PROTOCOL:
 
 ===============================================================================
 
-ADDENDUM 1 - How to compute a Schnorr Signature and check against it.	
+PART IV - How to compute a Schnorr Signature and check against it.	
 
 Let:
 
@@ -280,7 +280,7 @@ To verify against public key A and whatever was signed, the receiver:
    
 ===============================================================================
 
-ADDENDUM 2 - Where to find other algorithms used in the scheme, explained:
+ADDENDUM 1 - Where to find other algorithms used in the scheme, explained:
 
 - ChaCha20 - RFC8439
 - BLAKE2B  - RFC7693

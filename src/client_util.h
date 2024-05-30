@@ -1,9 +1,12 @@
-void create_save(const char* pass_txt, uint16_t pass_len){
+uint8_t create_save(const char* pass_txt, uint16_t pass_len){
+	
+	uint8_t status = 0;
 	
  	/* Step 1 - generate the user's private key. */
  	FILE* client_privkey_dat = fopen("client_privkey.dat","w");
 	if(client_privkey_dat == NULL){
 		printf("[ERR] - client_util.h - couldn't open client_privkey.dat\n");
+		status = 1;
 		goto label_cleanup;
 	}
 	
@@ -22,9 +25,9 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	if(bytes_wr != req_key_len_bytes){
 		printf("[ERR] - client_util.h couldnt write %u bytes to "
 			   "client_privkey.dat\n", req_key_len_bytes);
+		status = 1;
 		goto label_cleanup;
 	}
-
 	printf("[OK] Successfully wrote %u bytes to client_privkey.dat\n"
 		   ,req_key_len_bytes
 	);
@@ -67,6 +70,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	FILE* client_pubkey_dat = fopen("client_pubkey.dat","w");
 	if(client_pubkey_dat == NULL){
 		printf("[ERR] Failed to open client_pubkey.dat during REG.\n");
+		status = 1;
 		goto label_cleanup;
 	}
 	bytes_wr = 
@@ -75,6 +79,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	if(bytes_wr != pubkey_used_bytes){
 		printf("[ERR] - client_uilt.h couldn't write %u bytes to "
 			   "client_pubkey.dat\n", pubkey_used_bytes);
+		status = 1;
 		goto label_cleanup;
 	}
 
@@ -97,6 +102,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	FILE* client_pubkeymont_dat = fopen("client_pubkeymont.dat","w");
 	if(client_pubkeymont_dat == NULL){
 		printf("[ERR] Failed to open client_pubkeymont.dat during REG.\n");
+		status = 1;
 		goto label_cleanup;
 	}
 	bytes_wr = 
@@ -107,6 +113,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	if(bytes_wr != pubkeymont_used_bytes){
 		printf("[ERR] - gen_pub_key couldnt write %u bytes to "
 			   "client_pubkeymont.dat\n", pubkeymont_used_bytes);
+		status = 1;
 		goto label_cleanup;
 	}
 
@@ -121,6 +128,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 	int del_rc;
 	if( (del_rc = remove("client_privkey.dat")) != 0){
 		printf("[ERR] - client_util couldn't delete PRIVKEY plain file.\n");
+		status = 1;
 		goto label_cleanup;
 	}
 
@@ -145,11 +153,13 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     FILE* ran = fopen("/dev/urandom","r");
     if(ran == NULL){
     	printf("[ERR] Failed to open /dev/urandom during registration.\n");
+    	status = 1;
     	goto label_cleanup;
     } 
     
     if (  (fread((void*)S, 1, 8, ran)) != 8){
 		printf("[ERR] Couldn't read 8 bytes from urandom during REG.\n");
+		status = 1;
 		goto label_cleanup;
 	}
       
@@ -207,6 +217,7 @@ void create_save(const char* pass_txt, uint16_t pass_len){
 				"[ERROR] Couldn't read %u bytes from urandom during REG.\n"
 			   ,nonce_len*4
 		);
+		status = 1;
 		goto label_cleanup;
 	}
 
@@ -224,25 +235,44 @@ void create_save(const char* pass_txt, uint16_t pass_len){
     }
     printf("\n");
     
-    /* Save the encrypted private key to file. */
+
+    /* Nonce + encrypted private key + public key + string S */
+    /* Total size: 16 + 40 + 384 + 8 = 448 bytes */
+
+    /* Save them to file. */
     
-	FILE* encrypted_privkey = fopen("encrypted_privkey.dat","w");
+	FILE* savefile = fopen("saved.dat","w");
 	
-	if(!encrypted_privkey){
-		printf("[ERR] Couldn't open encrypted_privkey.dat during REG.\n");
+	if(!savefile){
+		printf("[ERR] clutil couldn't open saved.dat during REG.\n");
+		status = 1;
 		goto label_cleanup;
 	}
 	
-	bytes_wr = fwrite(cyphertext, 1, msg_len, encrypted_privkey);
+	if( (bytes_wr = fwrite(nonce, 1, nonce_len*4, savefile)) != nonce_len*4){
+		printf("[ERR] clutil didnt write %u bytes to saved.dat\n", nonce_len*4);
+		status = 1;
+		goto label_cleanup;
+	}
 	
-	if(bytes_wr != msg_len){
-		printf("[ERR] - client_util.h couldnt write %u bytes to "
-			   "encrypted_privkey.dat\n", msg_len);
+	if( (bytes_wr = fwrite(cyphertext, 1, msg_len, savefile)) != msg_len){
+		printf("[ERR] clutil couldnt write %u bytes to saved.dat\n", msg_len);
+		status = 1;
+		goto label_cleanup;
+	}
+	if( (bytes_wr = fwrite(pubkey_bigint->bits, 1, 384, savefile)) != 384){
+		printf("[ERR] clutil couldnt write 384 bytes to saved.dat\n");
+		status = 1;
+		goto label_cleanup;
+	}
+	if( (bytes_wr = fwrite(S, 1, 8, savefile)) != 8){
+		printf("[ERR] clutil couldnt write 8 bytes to saved.dat\n");
+		status = 1;
 		goto label_cleanup;
 	}
 
-	printf("[OK] Successfully wrote %u bytes to encrypted_privkey.dat\n"
-		   ,msg_len
+	printf("[OK] Successfully wrote %u bytes to saved.dat\n"
+		   ,( (nonce_len*4) + msg_len + 384 + 8)
 	);
 
 label_cleanup:
@@ -254,7 +284,7 @@ label_cleanup:
 	if(ran)			           	{fclose(ran);}
     if(client_pubkey_dat)      	{fclose(client_pubkey_dat);}
     if(client_pubkeymont_dat)	{fclose(client_pubkeymont_dat);}
-    if(encrypted_privkey)		{fclose(encrypted_privkey);}	  	
+    if(savefile)				{fclose(savefile);}	  	
 	if(privkey_buf)			   	{free(privkey_buf);}
 	if(pubkey_montform)		   	{free(pubkey_montform);}
 	if(P)				       	{free(P);}
@@ -264,9 +294,14 @@ label_cleanup:
 	if(nonce)				   	{free(nonce);}
 	if(cyphertext)			   	{free(cyphertext);}
 	
-    return;
+	if(status){
+		printf("\n\n\n******* WARNING *******\n\n Registration error!\n");
+		printf("Look back in the log to locate the exact error [ERR] line.\n");
+	}
+	
+    return status;
 }
 
-void login(const char* pass_txt, uint16_t pass_len){
+uint8_t login(const char* pass_txt, uint16_t pass_len){
 	/* Can reuse a large part of create_save(). */
 }
