@@ -68,10 +68,7 @@ struct bigint* gen_pub_key(uint32_t privkey_len_bytes, char* privkey_filename
 			privkey_bigint->size_bits - privkey_bigint->used_bits;
 			
 			
-	struct bigint *pubkey_bigint = malloc(sizeof(struct bigint))
-			     ,*M
-			     ,*Q
-			     ,*G
+	struct bigint *M
 			     ,*Gm
 			     ,*R = malloc(sizeof(struct bigint))
 			     ;
@@ -84,17 +81,6 @@ struct bigint* gen_pub_key(uint32_t privkey_len_bytes, char* privkey_filename
     				    	,12800
     				   	   );
     
-    Q = get_BIGINT_from_DAT( 320
-    				    	,"../saved_nums/Q_raw_bytes.dat\0"
-    				    	,320
-    				    	,12800
-    				       );
-    G = get_BIGINT_from_DAT( 3072
-						    ,"../saved_nums/G_raw_bytes.dat\0"
-						    ,3071
-						    ,12800
-						   );
-
     Gm = get_BIGINT_from_DAT( 3072
 						    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
 						    ,3071

@@ -322,8 +322,7 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
 	 uint8_t status = 0;
 	 
 	uint32_t 
-	  bytes_read				  /* How many bytes we did read from savefile.*/
-	 ,req_save_siz_bytes = 448    /* Mandatory size of a correct savefile.    */
+	  req_save_siz_bytes = 448    /* Mandatory size of a correct savefile.    */
 	 ,nonce_siz 		 = 16	 
 	 ,encr_privkey_siz   = 40     
 	 ,pubkey_siz		 = 384
@@ -511,10 +510,6 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
 	}
 
 	/* If all bytes are the same, login successful, status = 0. */
-	
-	
-	
-	
 	
 	/* Different things will need to be cleaned up depending on whether we
 	 * arrived here due to an error or by natural code flow. Hence the checking.

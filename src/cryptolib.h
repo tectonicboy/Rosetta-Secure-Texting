@@ -1388,12 +1388,12 @@ label_start_pass:
     }
     
     /* Finished all 4 slices of a pass. Increment pass number.*/
-    //++r;
+    ++r;
     
     /* If Argon2 is to perform more than the zeroth pass, do them. */
-   // if (r < parms->t){
-   //     goto label_start_pass;    
-   // }
+    if (r < parms->t){
+        goto label_start_pass;    
+    }
     
     
       
@@ -1697,15 +1697,11 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     		,len_key_PH = prehash_len + key_len_bytes
     		,R_used_bytes = R.used_bits
             ,len_Rused_PH
-            ,bits_to_take = 0;
+            ;
             
     char* prehash = malloc(prehash_len);   
     memset(prehash, 0x00, prehash_len);
-    
-    uint8_t flag_found = 0;
-    
-    uint32_t byte_rounder = 0;
-    
+         
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
     
     printf("\n\n[SIG_GEN] BLAKE2b produced 64-byte PREHASH:\n\n");
@@ -1887,12 +1883,11 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     uint64_t prehash_len = 64
     		,R_used_bytes
             ,len_Rused_PH
-            ,bits_to_take = 0;
+            ;
             
     char* prehash = malloc(prehash_len);   
     memset(prehash, 0x00, prehash_len);
     
-    uint8_t flag_found = 0;
     
     struct bigint R, R_aux1, R_aux2, R_aux3, div_res, val_e;
     

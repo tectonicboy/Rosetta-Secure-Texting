@@ -131,7 +131,8 @@ static void func_register(GtkWidget *widget, gpointer data){
 	g_signal_connect(btn_go_reg,   "clicked", G_CALLBACK(func_go_reg),   NULL);
 	g_signal_connect(btn_back_reg, "clicked", G_CALLBACK(func_back_reg), NULL);
 	
-	label_reg = gtk_label_new("Pick a new password\n6 to 16 symbols.");
+	label_reg = gtk_label_new(
+				"Pick a new password\n6 to 16 symbols.\nTakes a few seconds.");
 	
 	entry_reg = gtk_entry_new();
 	gtk_entry_set_visibility(GTK_ENTRY(entry_reg), FALSE);
@@ -169,7 +170,7 @@ static void func_login(GtkWidget *widget, gpointer data){
 	g_signal_connect(btn_back_log, "clicked", G_CALLBACK(func_back_log), NULL);
 	g_signal_connect(btn_go_log,   "clicked", G_CALLBACK(func_go_log),   NULL);	
 	
-	label_log = gtk_label_new("Enter your password.\n6 to 16 symbols.");
+	label_log = gtk_label_new("Enter your password.\nTakes a few seconds.");
 	
 	entry_log = gtk_entry_new();
 	gtk_entry_set_visibility(GTK_ENTRY(entry_log), FALSE);
