@@ -8,8 +8,8 @@ static void func_login    (GtkWidget *widget, gpointer data);
 static void func_register (GtkWidget *widget, gpointer data);			 	
 static void func_back_log (GtkWidget *widget, gpointer data);	
 static void func_back_reg (GtkWidget *widget, gpointer data);
-static void func_go_reg	  (GtkWidget *widget, gpointer data);
 static void func_go_log	  (GtkWidget *widget, gpointer data);
+static void func_go_reg	  (GtkWidget *widget, gpointer data);
 
 GtkWidget *window
 		 ,*grid_main
@@ -87,6 +87,7 @@ static void func_go_log(GtkWidget *widget, gpointer data){
 	if ( ! (entered_passlen < 6 || entered_passlen > 16)) {
 		passbuf  = gtk_entry_get_buffer(GTK_ENTRY(entry_log));
 		pass_txt = gtk_entry_buffer_get_text(GTK_ENTRY_BUFFER(passbuf));
+		
 		login_status = login(pass_txt, (uint16_t)entered_passlen);
 		
 		gtk_grid_remove(GTK_GRID(grid_main), label_log);
