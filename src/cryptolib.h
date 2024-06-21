@@ -46,10 +46,10 @@ struct Argon2_parms{
     uint64_t v;  /* Version number.                        It is always 0x13 */
     uint64_t y;  /* Type of Argon2 algorithm.              0x02 for Argon2id */ 
     
-    char* P;  /* Password plaintext to hash. */
-    char* S;  /* Salt.                       */
-    char* K;  /* OPTIONAL secret value.      */
-    char* X;  /* OPTIONAL associated data.   */
+    uint8_t* P;  /* Password plaintext to hash. */
+    uint8_t* S;  /* Salt.                       */
+    uint8_t* K;  /* OPTIONAL secret value.      */
+    uint8_t* X;  /* OPTIONAL associated data.   */
     
     uint64_t len_P; /* Length of password plaintext in bytes. <= (2^32) - 1  */
     uint64_t len_S; /* Length of Salt in bytes.               <= (2^32) - 1  */                    
@@ -244,10 +244,10 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     return;
 }
 
-void CHACHA20(char* plaintext, uint32_t txt_len
+void CHACHA20(uint8_t* plaintext, uint32_t txt_len
              ,uint32_t* nonce, uint8_t nonce_len
              ,uint32_t* key,   uint8_t key_len 
-             ,char* cyphertext
+             ,uint8_t* cyphertext
              )
 {
     /* This sum can be either 16 or 15. 16 means no space for Counter,
@@ -268,7 +268,7 @@ void CHACHA20(char* plaintext, uint32_t txt_len
     uint32_t** outputs = malloc(num_matrices * sizeof(uint32_t*));
     
     for(i = 0; i < num_matrices; ++i){
-        outputs[i] = malloc(64 * sizeof(char));   
+        outputs[i] = malloc(64 * sizeof(uint8_t));   
     }
 
     uint32_t* counter = NULL;
@@ -403,7 +403,7 @@ void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
  * Input 4 - Hash bytes (how much output we want). Must be in [1, 64].
  */
 void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk, 
-             uint64_t  dd, uint64_t nn, char* ret_bytes
+             uint64_t  dd, uint64_t nn, uint8_t* ret_bytes
             )
 {
     uint64_t h[8];
@@ -454,7 +454,7 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
  * nn - How many bytes of output we want from BLAKE2B.
  * rr - result buffer for BLAKE2B's output. Must have been already allocated.
  */      
-void BLAKE2B_INIT(char* m, uint64_t ll, uint64_t kk, uint64_t nn, char* rr){
+void BLAKE2B_INIT(uint8_t* m, uint64_t ll, uint64_t kk, uint64_t nn, uint8_t* rr){
 
     /* Hardcoded to 0 for now, as no current use of BLAKE2B is keyed. */
     kk = 0;
@@ -546,7 +546,7 @@ void Argon2_GB(uint64_t a, uint64_t b, uint64_t c, uint64_t d){
  *       the immediate memory address. We can use this in our implementation
  *       by utilizing careful pointer programming. 
  */
-void Argon2_P(char* input_128){
+void Argon2_P(uint8_t* input_128){
  
     /* To make the calls to GB() more elegant, prepare
      * the matrix of 4x4 uint64_t's in advance.
@@ -664,6 +664,8 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
                   )
 {  
 
+	memset(output, 0x00, out_len);
+	
     uint8_t*   H_input;
     uint32_t   r;
     block64_t* V;
@@ -674,6 +676,19 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     memcpy(H_input + 4, input,    in_len); 
     
     if(out_len <= 64){ 
+    
+    	printf("Input parms to Tag-producing BLAKE2B call:\n");
+    	printf("H_input:\n");
+		for(uint32_t i = 0; i < (4 + in_len); ++i){
+		    if(i % 16 == 0 && i > 0){printf("\n");}
+		    printf("%02x ", (uint8_t)H_input[i]);
+		}
+		printf("\n\n");
+    	printf("(4 + in_len): %lu\n", (4 + in_len));
+    	printf("0:0\n");
+    	printf("out_len: %u\n", out_len);
+    	printf("output: emptied now.\n\n");
+    
         BLAKE2B_INIT(H_input, (4 + in_len), 0, out_len, output);
         return;
     }
@@ -759,7 +774,7 @@ void argon2_initJ1J2_blockpool_for2i
         Argon2_G(zero1024, G_inner_input_2, G_inner_output);
         
         /* Now the outer G() that generates this actual 1024-byte block. */
-        Argon2_G(zero1024, G_inner_output, (char*)(&(blocks[i])));  
+        Argon2_G(zero1024, G_inner_output, (uint8_t*)(&(blocks[i])));  
     }
       
     /*Cleanup*/
@@ -894,12 +909,12 @@ void* argon2_transform_segment(void* thread_input){
              
     
     uint64_t J_1 = 0, J_2 = 0, z_ix, n, j, j_start, j_end
-            ,cur_lane = *((uint64_t*)( ((char*)thread_input) + OFFSET_l ))
-            ,q  = *((uint64_t*)( ((char*)thread_input) + OFFSET_q  ))
-            ,sl = *((uint64_t*)( ((char*)thread_input) + OFFSET_sl ))
-            ,r  = *((uint64_t*)( ((char*)thread_input) + OFFSET_r  ))
-            ,p  = *((uint64_t*)( ((char*)thread_input) + OFFSET_p  ))
-            ,md = *((uint64_t*)( ((char*)thread_input) + OFFSET_md ))
+            ,cur_lane = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_l ))
+            ,q  = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_q  ))
+            ,sl = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_sl ))
+            ,r  = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_r  ))
+            ,p  = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_p  ))
+            ,md = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_md ))
             ,computed_blocks = 0;
 
 	uint64_t num_blocks = q / (128 * 4);
@@ -908,7 +923,7 @@ void* argon2_transform_segment(void* thread_input){
 
     uint8_t* Z_buf = malloc(6 * sizeof(uint64_t));
     
-    memcpy(Z_buf, ((char*)thread_input) + OFFSET_r, (6 * sizeof(uint64_t)));
+    memcpy(Z_buf, ((uint8_t*)thread_input) + OFFSET_r, (6 * sizeof(uint64_t)));
     
     old_block = malloc(sizeof(block_t));
     
@@ -1111,7 +1126,7 @@ label_finish_segment:
 }
    
     
-void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
+void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     
     /* Length of input to the generator of 64-byte H0, BLAKE2B() in this case.*/
     uint64_t H0_input_len =   10 * sizeof(uint32_t)
@@ -1120,8 +1135,8 @@ void Argon2_MAIN(struct Argon2_parms* parms, char* output_tag){
                            ;
                            
     /* Input to the generator of H0. */
-    char *H0_input      = malloc(H0_input_len),
-         *final_block_C = malloc(sizeof(block_t));
+    uint8_t *H0_input      = malloc(H0_input_len),
+            *final_block_C = malloc(sizeof(block_t));
          
      
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
@@ -1297,46 +1312,46 @@ label_start_pass:
             /* Populate this thread's input buffer before starting it. */
             
             /* First is a pointer to the start of the memory matrix B[][]. */
-            *((block_t***)(((char*)(thread_inputs[i])) + 0)) = B;
+            *((block_t***)(((uint8_t*)(thread_inputs[i])) + 0)) = B;
             
             /* Offset in bytes into the thread's input buffer. */
             thread_in_offset = sizeof(block_t*);
            
             
             /* Second is r, the current pass number. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = r;   
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) = r;   
             thread_in_offset += sizeof(uint64_t);
             
             /* Third is l, the current lane number. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = i;
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) = i;
             thread_in_offset += sizeof(uint64_t);
             
             /* Fourth is sl, the current slice number. */ 
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = sl;
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) = sl;
             thread_in_offset += sizeof(uint64_t);
             
             /* Now m', the total number of 1024-byte blocks in the matrix. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) 
             = m_dash;   
             thread_in_offset += sizeof(uint64_t);
             
             /* Sixth is t, the total number of passes. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) 
             = parms->t;
             thread_in_offset += sizeof(uint64_t);
             
             /* Seventh is y, the Argon2 type. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) 
             = parms->y;
             thread_in_offset += sizeof(uint64_t);
             
             /* Eighth is p, the total number of threads Argon2 should use. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) 
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) 
             = parms->p;
             thread_in_offset += sizeof(uint64_t);
             
             /* Ninth is q, the total number of 1024-byte blocks in 1 row. */
-            *((uint64_t*)(((char*)(thread_inputs[i])) + thread_in_offset)) = q;
+            *((uint64_t*)(((uint8_t*)(thread_inputs[i])) + thread_in_offset)) = q;
             thread_in_offset += sizeof(uint64_t);
             
             /* Now that the input buffer for this thread is ready, start it. */
@@ -1398,10 +1413,36 @@ label_start_pass:
     
       
     /* Done with all required passes. */
-    /* Compute final 1024-byte block C by XORing the last block of every lane.*/    
-    memcpy(final_block_C, &(B[0][q-1]), sizeof(block_t));
+    /* Compute final 1024-byte block C by XORing the last block of every lane.*/ 
+ 
+    memcpy(final_block_C, &(B[0][q-1]), 1024);
     
+    printf("last column blocks of B[][] at end of 1st pass:\n");
+	for(size_t ln = 0; ln < parms->p; ++ln){
+			printf("LAST 1024-byte BLOCK IN COLUMN %lu:\n", ln);
+           	for(uint32_t i = 0; i < 1024; ++i){
+				if(i % 16 == 0 && i > 0){printf("\n");}
+				printf("%02x ", ( ((uint8_t*)(&(B[ln][q-1])))[i] )) ;
+			}
+    		printf("\n\n");  
+     
+    }
+    
+    	
     for(size_t ln = 1; ln < parms->p; ++ln){
+    
+    
+		printf("\n\n***** final block before XORing with last block of ln"
+			   " = %lu *****\n\n"
+			  ,ln);
+		
+		for(uint32_t i = 0; i < 1024; ++i){
+		    if(i % 16 == 0 && i > 0){printf("\n");}
+		    printf("%02x ", (uint8_t)final_block_C[i]);
+		}
+    	printf("\n\n");  
+    	
+    	   
         for(size_t xr = 0; xr < 128; ++xr){
            ((uint64_t*)(final_block_C))[xr] ^= ((uint64_t*)(&(B[ln][q-1])))[xr];  
         }        
@@ -1409,7 +1450,15 @@ label_start_pass:
        
     /* Finally, feed final block C to H' producing Tag-length bytes of output:
      * Result = H'{T}(C)
-     */     
+     */
+    printf("\n\n***** input 1024-byte block to H_dash calling B2B: *****\n\n");
+    
+    for(uint32_t i = 0; i < 1024; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02x ", (uint8_t)final_block_C[i]);
+    }
+    printf("\n\n");     
+    
     Argon2_H_dash(final_block_C, output_tag, parms->T, 1024);
  
     /* Cleanup. */    
@@ -1418,8 +1467,8 @@ label_start_pass:
     }    
     free(thread_inputs);
     free(B_init_buf);
-    free(working_memory);
     free(B);
+    free(working_memory);
     free(H0);
     free(H0_input);
     free(final_block_C);
@@ -1450,7 +1499,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 				   )
 {
 	
-	unsigned char C, D;
+	uint8_t C, D;
 	unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
 	struct bigint R_aux;
 	bigint_create(&R_aux, R->size_bits, 0);
@@ -1470,7 +1519,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						,&Uh
 					  );
 					  
-	    C = _addcarryx_u64((unsigned char)0, Ul, *((uint64_t*)R->bits), &Ul);
+	    C = _addcarryx_u64((uint8_t)0, Ul, *((uint64_t*)R->bits), &Ul);
 	    
 	    Uh += (uint64_t)C;
 
@@ -1484,7 +1533,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 		/* 3.5:  T += q*n0. */
 		Vl = _mulx_u64(q, *((uint64_t*)(N->bits + (0*MONT_LIMB_SIZ))), &Vh);
 		
-		C = _addcarryx_u64( (unsigned char)0, *(T + 0), Vl, (T + 0) );
+		C = _addcarryx_u64( (uint8_t)0, *(T + 0), Vl, (T + 0) );
 		
 		D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
 	
@@ -1504,7 +1553,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						   ,&Vh
 						  );
 						  
-			C = _addcarryx_u64((unsigned char)0
+			C = _addcarryx_u64((uint8_t)0
 							  ,Ul
 							  ,*((uint64_t*)(R->bits+(j * MONT_LIMB_SIZ)))
 							  ,&Ul
@@ -1512,9 +1561,9 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 						  
 			Uh += (uint64_t)C;			  
 						  
-			D = _addcarryx_u64((unsigned char)0, Vl, *(T + 1), &Vl);
+			D = _addcarryx_u64((uint8_t)0, Vl, *(T + 1), &Vl);
 			
-			C = _addcarryx_u64((unsigned char)0, Ul, Vl, (T + 0));
+			C = _addcarryx_u64((uint8_t)0, Ul, Vl, (T + 0));
 			
 			D = _addcarryx_u64(D, Uh, Vh, &W);
 			
@@ -1528,7 +1577,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 
 		/* 5. */	
 		
-		C = _addcarryx_u64( (unsigned char)0
+		C = _addcarryx_u64( (uint8_t)0
 				   ,*(T + 1)
 				   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
 				   , (T + 0)
@@ -1670,7 +1719,7 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
  */ 
 void Signature_GENERATE(struct bigint* M, struct bigint* Q,
                         struct bigint *G, struct bigint* Gmont, 
-                        char*  data, uint64_t data_len,   char*  signature,
+                        uint8_t*  data, uint64_t data_len,   uint8_t*  signature,
                         struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
@@ -1699,7 +1748,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
             ,len_Rused_PH
             ;
             
-    char* prehash = malloc(prehash_len);   
+    uint8_t* prehash = malloc(prehash_len);   
     memset(prehash, 0x00, prehash_len);
          
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
@@ -1712,7 +1761,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     }
     printf("\n\n");
     
-    char *second_btb_outbuf = malloc(64)
+    uint8_t *second_btb_outbuf = malloc(64)
         ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
         
     memcpy(second_btb_inbuf, private_key->bits, key_len_bytes);
@@ -1761,7 +1810,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     R_used_bytes /= 8;
     
     /* Now compute e. */
-    char *R_with_prehash = malloc(R_used_bytes + prehash_len),
+    uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len),
          *e_buf = malloc(40), /* e has bitwidth of Q. */
          *third_btb_outbuf = malloc(64);
          
@@ -1783,8 +1832,6 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
     printf("parm 3 - 0\n\n");
     printf("parm 4 - 64\n\n");
     printf("parm 5 - out_buf\n\n");
-    
-    
     
     BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
     
@@ -1873,7 +1920,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q,
 uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
 						   struct bigint* M,     struct bigint* Q, 
 						   struct bigint* s, 	 struct bigint* e,
-						   char* data, uint32_t data_len)
+						   uint8_t* data, uint32_t data_len)
 {
 	if(bigint_compare2(s, Q) != 3){
 		printf("[INFO] Cryptolib: sig_validate: passed s =/= passed Q.\n");
@@ -1885,7 +1932,7 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
             ,len_Rused_PH
             ;
             
-    char* prehash = malloc(prehash_len);   
+    uint8_t* prehash = malloc(prehash_len);   
     memset(prehash, 0x00, prehash_len);
     
     
@@ -1948,7 +1995,7 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
  	/* Check that this is equal to e. If it is, validation passed. 			*/
  	
  	/* Now compute val_e. */
-    char *R_with_prehash = malloc(R_used_bytes + prehash_len),
+    uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len),
          /* *e_buf = malloc(40), */ /* e has bitwidth of Q. */
          *third_btb_outbuf = malloc(64); /* Not rlly 3rd here. Change it. */
          

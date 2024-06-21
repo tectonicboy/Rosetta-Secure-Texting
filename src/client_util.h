@@ -1,5 +1,5 @@
 uint8_t create_save(const char* pass_txt, uint16_t pass_len){
-	
+	printf("REG passed pass: %s\n", pass_txt);
 	uint8_t status = 0;
 	
  	/* Step 1 - generate the user's private key. */
@@ -153,7 +153,7 @@ uint8_t create_save(const char* pass_txt, uint16_t pass_len){
     prms.v = 19;  
     prms.y = 2;  
     
-    char *P = malloc(pass_len) 	/* initialize from passed pass_txt, pass_len */
+    uint8_t *P = malloc(pass_len) 	/* initialize from passed pass_txt, pass_len */
     							/* Generate a random 8-byte string S.        */
         ,*S = malloc(8+64)     	/* Salt= S||BLAKE2B{64}(user's public key);  */
          ;				      
@@ -189,8 +189,9 @@ uint8_t create_save(const char* pass_txt, uint16_t pass_len){
     prms.len_K = 0 ;   /* unused here. */
     prms.len_X = 0;    /* unused here. */
     
-    char* argon2_output_tag = malloc(prms.T);
-
+    uint8_t* argon2_output_tag = malloc(prms.T);
+	memset(argon2_output_tag, 0x00, prms.T);
+	
     Argon2_MAIN(&prms, argon2_output_tag);
  
 
@@ -207,7 +208,7 @@ uint8_t create_save(const char* pass_txt, uint16_t pass_len){
     /*			encrypt the private key and save only the encrypted one. */
     
     
-    char* plaintext = (char*)privkey_buf;
+    uint8_t* plaintext = (uint8_t*)privkey_buf;
                       
     uint32_t msg_len = req_key_len_bytes; /* 40 bytes right now */
                       
@@ -229,8 +230,8 @@ uint8_t create_save(const char* pass_txt, uint16_t pass_len){
 		goto label_cleanup_reg;
 	}
 
-    char* cyphertext = malloc(msg_len * sizeof(char));
-    memset(cyphertext, 0x00, msg_len * sizeof(char));
+    uint8_t* cyphertext = malloc(msg_len * sizeof(uint8_t));
+    memset(cyphertext, 0x00, msg_len * sizeof(uint8_t));
     
     CHACHA20(plaintext, msg_len, nonce, nonce_len, key, key_len, cyphertext);
     
@@ -319,6 +320,7 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
 	/* Make sure the save file contains the exact number of required bytes,
 	 * no less, no more. If not, force a new registration. 
 	 */
+	 printf("Passed the password of len %u: %s\n", pass_len, pass_txt);
 	 uint8_t status = 0;
 	 
 	uint32_t 
@@ -329,7 +331,7 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
 	 ,S_siz				 = 8
 	 ;
 	 
-	 char
+	 uint8_t
 	  *savefile_buf = malloc(512) /* Memory space for savefile contents.	  */
 	 ,*nonce 		  			  /* Pointer to saved nonce of ChaCha20 usage.*/	
 	 ,*encr_privkey   			  /* Pointer to saved Encrypted private key.  */
@@ -375,18 +377,19 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
     prms.v = 19;  
     prms.y = 2;  
     
-    char *P = malloc(pass_len)   /* initialize from passed pass_txt, pass_len */
+    uint8_t *P = malloc(pass_len)   /* initialize from passed pass_txt, pass_len */
         ,*Salt = malloc(8+64)    /* Salt= S||BLAKE2B{64}(user's public key);  */
          ;				      
          
     /* Salt= S||BLAKE2B{64}(user's public key);  */   
     memcpy(Salt, S, S_siz);
-    BLAKE2B_INIT((char*)pubkey, pubkey_siz, 0, 64, (Salt + 8) );
+    BLAKE2B_INIT((uint8_t*)pubkey, pubkey_siz, 0, 64, (Salt + 8) );
          					 
     /* Copy the passed password buffer into Argon2 password parameter. */
     memcpy(P, pass_txt, pass_len);
     
     prms.P = P;
+    printf("prms.P is %s\n", prms.P);
     prms.S = Salt;
 
     prms.len_P = pass_len;
@@ -394,8 +397,9 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
     prms.len_K = 0 ;   /* unused here. */
     prms.len_X = 0;    /* unused here. */
     
-    char* argon2_output_tag = malloc(prms.T);
-
+    uint8_t* argon2_output_tag = malloc(prms.T);
+	memset(argon2_output_tag, 0x00, prms.T);
+	
     Argon2_MAIN(&prms, argon2_output_tag);
  
 
@@ -410,7 +414,7 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
     
     
     /* This is the saved encrypted private key now. */
-    char* plaintext = (char*)encr_privkey;
+    uint8_t* plaintext = (uint8_t*)encr_privkey;
                       
     uint32_t msg_len = encr_privkey_siz; /* 40 bytes right now */
     
@@ -423,8 +427,8 @@ uint8_t login(const char* pass_txt, uint16_t pass_len){
 
     uint8_t nonce_len = 4;
     
-    char* cyphertext = malloc(msg_len * sizeof(char));
-    memset(cyphertext, 0x00, msg_len * sizeof(char));
+    uint8_t* cyphertext = malloc(msg_len * sizeof(uint8_t));
+    memset(cyphertext, 0x00, msg_len * sizeof(uint8_t));
     
     CHACHA20(plaintext, msg_len, (uint32_t*)nonce, nonce_len, key, key_len, cyphertext);
     

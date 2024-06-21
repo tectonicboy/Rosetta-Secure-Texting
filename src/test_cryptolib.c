@@ -150,9 +150,9 @@ int main(){
     struct Argon2_parms prms;
     
     prms.p = 4;   
-    prms.T = 32;  
+    prms.T = 64;  
     prms.m = 32;
-    prms.t = 3;  
+    prms.t = 1;  
     prms.v = 19;  
     prms.y = 2;  
     
@@ -182,7 +182,7 @@ int main(){
     
     printf("\n\n***** ARGON2id produced %lu-byte Tag: ******\n\n", prms.T);
     
-    for(uint32_t i = 0; i < 32; ++i){
+    for(uint32_t i = 0; i < prms.T; ++i){
         if(i % 16 == 0 && i > 0){printf("\n");}
         printf("%02x ", (uint8_t)argon2_output_tag[i]);
     }

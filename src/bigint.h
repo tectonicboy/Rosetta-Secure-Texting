@@ -295,7 +295,7 @@ struct bigint* get_BIGINT_from_DAT(uint32_t file_bits, char* fn,
     }
     file_bytes /= 8;
     
-    char* bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
+    uint8_t* bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
     
     if(!fread(bigint_buf, 1, file_bytes, dat_file)){
     	printf("[WARN] Cryptolib: No bytes read from bigint file %s\n", fn);

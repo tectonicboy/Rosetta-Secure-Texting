@@ -89,16 +89,16 @@ static void func_go_log(GtkWidget *widget, gpointer data){
 		pass_txt = gtk_entry_buffer_get_text(GTK_ENTRY_BUFFER(passbuf));
 		
 		login_status = login(pass_txt, (uint16_t)entered_passlen);
-		
+
 		gtk_grid_remove(GTK_GRID(grid_main), label_log);
-		
+				
 		if(login_status != 0){
 			label_log = gtk_label_new("Login error. Try again.\n"
 									  "Or register anew."
 									 );	
 		}
 		else{
-			label_log = gtk_label_new("Login successful!\n");
+			label_log = gtk_label_new("Login successful!");
 		}
 		
 		gtk_grid_attach(GTK_GRID(grid_main), label_log, 9, 3, 1, 1);
