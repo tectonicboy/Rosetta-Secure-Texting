@@ -150,7 +150,7 @@ int main(){
     struct Argon2_parms prms;
     
     prms.p = 4;   
-    prms.T = 64;  
+    prms.T = 32;  
     prms.m = 32;
     prms.t = 1;  
     prms.v = 19;  

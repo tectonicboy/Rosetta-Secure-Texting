@@ -12,6 +12,9 @@
 #include <time.h> /* for performance testing only. */
 double cpu_time_used1, cpu_time_used2, cpu_time_used_total;
 
+/* mutex for testing only so we can see prints in argon2's G() properly */
+pthread_mutex_t lock;
+
 /* Rotation constants for BLAKE2b */
 #define R1 32
 #define R2 24
@@ -264,7 +267,7 @@ void CHACHA20(uint8_t* plaintext, uint32_t txt_len
              , i, j, counter_len = 16 - (key_len + nonce_len + 4)
             ,last_txt_block_len = (txt_len % 64)
             ;
-            
+            pthread_mutex_unlock(&lock); 
     uint32_t** outputs = malloc(num_matrices * sizeof(uint32_t*));
     
     for(i = 0; i < num_matrices; ++i){
@@ -582,6 +585,25 @@ __attribute__ ((always_inline))
 inline
 void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
 
+	pthread_mutex_lock(&lock); 
+	
+	printf("TWO INPUT BLOCKS IN G():\n\n");
+	printf("X:\n\n");
+   	for(uint32_t i = 0; i < 1024; ++i){
+		if(i % 16 == 0 && i > 0){printf("\n");}
+		printf("%02x ", ( (X)[i] )) ;
+	}
+	printf("\n\n"); 
+	printf("Y:\n\n");
+   	for(uint32_t i = 0; i < 1024; ++i){
+		if(i % 16 == 0 && i > 0){printf("\n");}
+		printf("%02x ", ( (Y)[i] )) ;
+	}
+	printf("\n\n"); 
+	
+	pthread_mutex_unlock(&lock); 
+
+
     uint8_t* matrix_R = malloc(1024);
     
     size_t i, j;
@@ -720,6 +742,12 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
             memcpy(output + (32*i), V[i].block_data, 32);
         }      
         memcpy(output + (32*r), V[r].block_data, 64);
+        printf("1024-byte output of H_dash init-ing B[i][0] and B[i][1]:\n");
+		for(uint32_t i = 0; i < (out_len); ++i){
+		    if(i % 16 == 0 && i > 0){printf("\n");}
+		    printf("%02x ", (uint8_t)output[i]);
+		}
+		printf("\n\n");
     }
 
     /*Cleanup*/
@@ -917,7 +945,10 @@ void* argon2_transform_segment(void* thread_input){
             ,md = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_md ))
             ,computed_blocks = 0;
 
-	uint64_t num_blocks = q / (128 * 4);
+	uint64_t num_blocks = ceil((double)q / (double)(128 * 4));
+	//printf("Computed num_blocks = q/(128*4) which is: %lu\n", num_blocks);
+	
+	
     block_t* J1J2blockpool = malloc(num_blocks * (1024));
 
 
@@ -938,7 +969,7 @@ void* argon2_transform_segment(void* thread_input){
 
     /* Let n be the number of 1024-byte blocks in one segment = (m' / p)/4. */
     n = (md / p) / 4;
-
+	//printf("Computed n (blocks in 1 segment) as: n = %lu\n", n);
     /* First block transformed relative to lane start will be (n * (sl + 0))  */
     /* Last  block transformed relative to lane start will be (n * (sl + 1))-1*/  
     j_start = n *  sl;
@@ -973,7 +1004,9 @@ void* argon2_transform_segment(void* thread_input){
             
             /* Extract J_1 and J_2. */
 			J_1 = *((uint32_t*)(&(J1J2blockpool[0])));
-			J_2 = *((uint32_t*)(J1J2blockpool + (num_blocks / 2)));
+			
+			/* Offset is in terms of BYTES now! */
+			J_2 = *((uint32_t*)(((uint8_t*)J1J2blockpool) + (num_blocks * 512)));
            // end_2 = clock();
      		//cpu_time_used2 = ((double) (end_2 - start_2)) / CLOCKS_PER_SEC; 
      		
@@ -1007,6 +1040,9 @@ void* argon2_transform_segment(void* thread_input){
          */ 
         G_input_one = (B[0] + (cur_lane*q)) + (j-1);
         G_output    = (B[0] + (cur_lane*q)) + (j);
+        
+        printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
+        printf("B[0] has address: %p\n", B[0]);
         /* On the other hand, z is the index of the block we feed as second
          * input to G() RELATIVE TO THE START OF B[][] ITSELF!! Not relative
          * to the start of lane l_ix. l_ix was already taken into account
@@ -1127,6 +1163,9 @@ label_finish_segment:
    
     
 void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
+	
+	/* MUTEX FOR TESTING ONLY SO WE CAN SEE PRINTS IN G() properly. */
+    pthread_mutex_init(&lock, NULL);
     
     /* Length of input to the generator of 64-byte H0, BLAKE2B() in this case.*/
     uint64_t H0_input_len =   10 * sizeof(uint32_t)
@@ -1245,6 +1284,8 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     memcpy(B_init_buf + 0 , H0, 64); 
     memcpy(B_init_buf + 64, &zero, 4);
     
+    printf("\n\n======== NOW INITIALIZING B[all][0] and B[all][1] =======\n\n");
+    
     for(uint32_t i = 0; i < parms->p; ++i){
         memcpy(B_init_buf + 64 + 4, &i, 4);   
         Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][0]), 1024, (64+4+4));
@@ -1256,6 +1297,8 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
         memcpy(B_init_buf + 64 + 4, &i, 4); 
         Argon2_H_dash(B_init_buf, (uint8_t*)&(B[i][1]), 1024, (64+4+4));
     }
+    
+    printf("\n\n======= DONE INITIALIZING B[all][0] and B[all][1] =======\n\n");
     
     /* Counter that keeps track of which Argon2 pass we are currently on. */
     uint64_t r = 0;
@@ -1419,7 +1462,7 @@ label_start_pass:
     
     printf("last column blocks of B[][] at end of 1st pass:\n");
 	for(size_t ln = 0; ln < parms->p; ++ln){
-			printf("LAST 1024-byte BLOCK IN COLUMN %lu:\n", ln);
+			printf("LAST 1024-byte BLOCK IN LANE %lu:\n", ln);
            	for(uint32_t i = 0; i < 1024; ++i){
 				if(i % 16 == 0 && i > 0){printf("\n");}
 				printf("%02x ", ( ((uint8_t*)(&(B[ln][q-1])))[i] )) ;
