@@ -152,7 +152,7 @@ int main(){
     prms.p = 4;   
     prms.T = 32;  
     prms.m = 32;
-    prms.t = 1;  
+    prms.t = 3;  
     prms.v = 19;  
     prms.y = 2;  
     

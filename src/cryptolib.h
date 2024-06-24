@@ -508,34 +508,35 @@ void BLAKE2B_INIT(uint8_t* m, uint64_t ll, uint64_t kk, uint64_t nn, uint8_t* rr
  */
 __attribute__ ((always_inline)) 
 inline 
-void Argon2_GB(uint64_t a, uint64_t b, uint64_t c, uint64_t d){
-    a = a + b 
+void Argon2_GB(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d){
+    *a = *a + *b 
           +    /* Take only the 32 least significant bits of a and b. */ 
-          ((uint64_t)2 * ((uint64_t)((uint32_t)a)) * ((uint64_t)((uint32_t)b)));
+          ((uint64_t)2 * ((uint64_t)((uint32_t)*a)) * ((uint64_t)((uint32_t)*b)));
            
-    d = d ^ a;
-    uint64_roll_right(&d, 32);
+    *d = *d ^ *a;
     
-    c = c + d 
+    uint64_roll_right(d, 32);
+    
+    *c = *c + *d 
           + 
-          ((uint64_t)2 * ((uint64_t)((uint32_t)c)) * ((uint64_t)((uint32_t)d)));
+          ((uint64_t)2 * ((uint64_t)((uint32_t)*c)) * ((uint64_t)((uint32_t)*d)));
            
-    b = b ^ c;
-    uint64_roll_right(&b, 24);
+    *b = *b ^ *c;
+    uint64_roll_right(b, 24);
     
-    a = a + b 
+    *a = *a + *b 
           + 
-          ((uint64_t)2 * ((uint64_t)((uint32_t)a)) * ((uint64_t)((uint32_t)b)));   
+          ((uint64_t)2 * ((uint64_t)((uint32_t)*a)) * ((uint64_t)((uint32_t)*b)));   
              
-    d = d ^ a;
-    uint64_roll_right(&d, 16);
+    *d = *d ^ *a;
+    uint64_roll_right(d, 16);
     
-    c = c + d
+    *c = *c + *d
           +   
-          ((uint64_t)2 * ((uint64_t)((uint32_t)c)) * ((uint64_t)((uint32_t)d)));   
+          ((uint64_t)2 * ((uint64_t)((uint32_t)*c)) * ((uint64_t)((uint32_t)*d)));   
            
-    b = b ^ c;
-    uint64_roll_right(&b, 63);
+    *b = *b ^ *c;
+    uint64_roll_right(b, 63);
     return;
 }
     
@@ -559,14 +560,14 @@ void Argon2_P(uint8_t* input_128){
     for(size_t i = 0; i < 16; ++i){
         matrix[i] = (uint64_t*)(input_128 + (i*8));
     }
-    Argon2_GB(*(matrix[0]), *(matrix[4]), *(matrix[8]),  *(matrix[12]));
-    Argon2_GB(*(matrix[1]), *(matrix[5]), *(matrix[9]),  *(matrix[13]));
-    Argon2_GB(*(matrix[2]), *(matrix[6]), *(matrix[10]), *(matrix[14]));
-    Argon2_GB(*(matrix[3]), *(matrix[7]), *(matrix[11]), *(matrix[15]));
-    Argon2_GB(*(matrix[0]), *(matrix[5]), *(matrix[10]), *(matrix[15]));
-    Argon2_GB(*(matrix[1]), *(matrix[6]), *(matrix[11]), *(matrix[12]));
-    Argon2_GB(*(matrix[2]), *(matrix[7]), *(matrix[8]),  *(matrix[13]));
-    Argon2_GB(*(matrix[3]), *(matrix[4]), *(matrix[9]),  *(matrix[14]));
+    Argon2_GB((matrix[0]), (matrix[4]), (matrix[8]),  (matrix[12]));
+    Argon2_GB((matrix[1]), (matrix[5]), (matrix[9]),  (matrix[13]));
+    Argon2_GB((matrix[2]), (matrix[6]), (matrix[10]), (matrix[14]));
+    Argon2_GB((matrix[3]), (matrix[7]), (matrix[11]), (matrix[15]));
+    Argon2_GB((matrix[0]), (matrix[5]), (matrix[10]), (matrix[15]));
+    Argon2_GB((matrix[1]), (matrix[6]), (matrix[11]), (matrix[12]));
+    Argon2_GB((matrix[2]), (matrix[7]), (matrix[8]),  (matrix[13]));
+    Argon2_GB((matrix[3]), (matrix[4]), (matrix[9]),  (matrix[14]));
 
     free(matrix);
     return;
@@ -585,6 +586,7 @@ __attribute__ ((always_inline))
 inline
 void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
 
+	/*
 	pthread_mutex_lock(&lock); 
 	
 	printf("TWO INPUT BLOCKS IN G():\n\n");
@@ -602,7 +604,7 @@ void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
 	printf("\n\n"); 
 	
 	pthread_mutex_unlock(&lock); 
-
+	*/
 
     uint8_t* matrix_R = malloc(1024);
     
@@ -698,7 +700,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     memcpy(H_input + 4, input,    in_len); 
     
     if(out_len <= 64){ 
-    
+    	/*
     	printf("Input parms to Tag-producing BLAKE2B call:\n");
     	printf("H_input:\n");
 		for(uint32_t i = 0; i < (4 + in_len); ++i){
@@ -710,7 +712,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     	printf("0:0\n");
     	printf("out_len: %u\n", out_len);
     	printf("output: emptied now.\n\n");
-    
+    	*/
         BLAKE2B_INIT(H_input, (4 + in_len), 0, out_len, output);
         return;
     }
@@ -742,12 +744,8 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
             memcpy(output + (32*i), V[i].block_data, 32);
         }      
         memcpy(output + (32*r), V[r].block_data, 64);
-        printf("1024-byte output of H_dash init-ing B[i][0] and B[i][1]:\n");
-		for(uint32_t i = 0; i < (out_len); ++i){
-		    if(i % 16 == 0 && i > 0){printf("\n");}
-		    printf("%02x ", (uint8_t)output[i]);
-		}
-		printf("\n\n");
+
+		
     }
 
     /*Cleanup*/
@@ -815,7 +813,7 @@ void argon2_initJ1J2_blockpool_for2i
 } 
 
 uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p, 
-                     uint64_t J_1, uint64_t J_2, uint64_t n, uint64_t q, 
+                     uint32_t J_1, uint32_t J_2, uint64_t n, uint64_t q, 
                      uint64_t computed_blocks)
 {
     uint64_t W_siz, *W, W_ix, x, y, zz, l_ix, z_ix;
@@ -1013,8 +1011,8 @@ void* argon2_transform_segment(void* thread_input){
         }   
         /* Otherwise: get J_1, J_2 for Argon2d. */
         else{
-            J_1 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][j-1]))) + 0);
-            J_2 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][j-1]))) + 1);
+            J_1 = *(((uint32_t*)(&(B[cur_lane][j-1]))) + 0);
+            J_2 = *(((uint32_t*)(&(B[cur_lane][j-1]))) + 1);
         }
         
         //start_1 = clock();
@@ -1041,17 +1039,51 @@ void* argon2_transform_segment(void* thread_input){
         G_input_one = (B[0] + (cur_lane*q)) + (j-1);
         G_output    = (B[0] + (cur_lane*q)) + (j);
         
-        printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
-        printf("B[0] has address: %p\n", B[0]);
         /* On the other hand, z is the index of the block we feed as second
          * input to G() RELATIVE TO THE START OF B[][] ITSELF!! Not relative
          * to the start of lane l_ix. l_ix was already taken into account
          * when computing index z. It's relative to start of B[][].
          */
+     
+        
         G_input_two = B[0] + z_ix;
-
+        
+        /*
+        pthread_mutex_lock(&lock); 
+        
+        printf("ON PASS: %lu\n\n", r);
+		printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
+        printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
+        printf("B[0] has address: %p\n", B[0]);
+        
+        printf("INPUT BLOCK 1 to G():\n\n");
+	   	for(uint32_t i = 0; i < 1024; ++i){
+			if(i % 16 == 0 && i > 0){printf("\n");}
+			printf("%02x ", ( ((uint8_t*)(G_input_one))[i] )) ;
+		}
+		printf("\n\n"); 
+		
+		printf("INPUT BLOCK 2 to G():\n\n");
+	   	for(uint32_t i = 0; i < 1024; ++i){
+			if(i % 16 == 0 && i > 0){printf("\n");}
+			printf("%02x ", ( ((uint8_t*)(G_input_two))[i] )) ;
+		}
+		printf("\n\n"); 
+    	*/
+        
         Argon2_G((uint8_t*)G_input_one, (uint8_t*)G_input_two, (uint8_t*)G_output); 
-
+        
+		/*
+		printf("TRANSFORMED BLOCK BY G():\n\n");
+	   	for(uint32_t i = 0; i < 1024; ++i){
+			if(i % 16 == 0 && i > 0){printf("\n");}
+			printf("%02x ", ( ((uint8_t*)(G_output))[i] )) ;
+		}
+		printf("\n\n"); 
+		
+		pthread_mutex_unlock(&lock); 
+        */
+        
         ++computed_blocks;       
         
        // end_3 = clock();
@@ -1141,6 +1173,19 @@ label_further_passes:
          * contents is the NEW NEW block that will ultimately reside there.
          */
         memcpy(old_block, G_output, sizeof(block_t));
+        
+        
+        /*
+        pthread_mutex_lock(&lock); 
+        
+        printf("ON PASS: %lu\n\n", r);
+		printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
+        printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
+        printf("B[0] has address: %p\n", B[0]);
+        
+        pthread_mutex_unlock(&lock); 
+        */
+        
         
         Argon2_G((uint8_t*)G_input_one, (uint8_t*)G_input_two, (uint8_t*)G_output); 
         
@@ -1415,36 +1460,22 @@ label_start_pass:
             pthread_join(argon2_thread_ids[i], NULL);    
         } 
 
-        printf("Argon2: Slice %lu finished.\n", sl);
     } /* End of one slice. */
-    
-    
-    
-    /* This if statement is for testing only. */
-    if(r == 0){
-        printf("Finished 1st pass. Didnt increment pass number yet.\n");
-        printf("r = %lu\n", r);
-        printf("After this pass, first 4 batches of 8 bytes of Block 0:\n");
-        
-        for(uint32_t eeee = 0; eeee < 8; ++eeee){
-            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-        }
-        printf("\n");
-        for(uint32_t eeee = 8; eeee < 16; ++eeee){
-            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-        }
-        printf("\n");
-        for(uint32_t eeee = 16; eeee < 24; ++eeee){
-            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-        }
-        printf("\n");
-        for(uint32_t eeee = 24; eeee < 32; ++eeee){
-            printf("%02x ", *(((uint8_t*)&(B[0][0])) + eeee));
-        }
-        printf("\n");
-        printf("\n");
-    }
-    
+
+
+	printf("END OF PASS [%lu] BLOCK 0:\n\n", r);
+   	for(uint32_t i = 0; i < 1024; ++i){
+		if(i % 16 == 0 && i > 0){printf("\n");}
+		printf("%02x ", ( ((uint8_t*)(&(B[0][0])))[i] )) ;
+	}
+	printf("\n\n"); 
+	printf("END OF PASS [%lu] BLOCK 31:\n\n", r);
+   	for(uint32_t i = 0; i < 1024; ++i){
+		if(i % 16 == 0 && i > 0){printf("\n");}
+		printf("%02x ", ( ((uint8_t*)(&(B[3][7])))[i] )) ;
+	}
+	printf("\n\n"); 
+
     /* Finished all 4 slices of a pass. Increment pass number.*/
     ++r;
     
@@ -1460,6 +1491,7 @@ label_start_pass:
  
     memcpy(final_block_C, &(B[0][q-1]), 1024);
     
+    /*
     printf("last column blocks of B[][] at end of 1st pass:\n");
 	for(size_t ln = 0; ln < parms->p; ++ln){
 			printf("LAST 1024-byte BLOCK IN LANE %lu:\n", ln);
@@ -1470,11 +1502,11 @@ label_start_pass:
     		printf("\n\n");  
      
     }
-    
+	*/    
     	
     for(size_t ln = 1; ln < parms->p; ++ln){
     
-    
+    /*
 		printf("\n\n***** final block before XORing with last block of ln"
 			   " = %lu *****\n\n"
 			  ,ln);
@@ -1484,7 +1516,7 @@ label_start_pass:
 		    printf("%02x ", (uint8_t)final_block_C[i]);
 		}
     	printf("\n\n");  
-    	
+    	*/
     	   
         for(size_t xr = 0; xr < 128; ++xr){
            ((uint64_t*)(final_block_C))[xr] ^= ((uint64_t*)(&(B[ln][q-1])))[xr];  
