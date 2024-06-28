@@ -155,10 +155,7 @@ THE SECURE MESSAGE EXCHANGE PROTOCOL:
 
 1. Uses ChaCha20 algorithm to encrypt K. Here, we call ChaCha once for every 
    person Alice will be sending a message to (everyone else in this chatroom).
-   
-   K gets XORed with the first 64 bytes of the output 
-   of the chacha core to form KB, KC, KF:
-   
+      
    For Alice sending to Bob, Carol and Fred, K gets XORed with 
    the first 64 bytes of the output of the chacha core to form KB, KC, KF:
    
