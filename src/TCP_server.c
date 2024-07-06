@@ -15,19 +15,22 @@
 #define MAX_CHATROOMS  64
 #define MAX_MSG_LEN    1024
 #define MAX_SOCK_QUEUE 1024
+#define MAX_BIGINT_SIZ 12800
 
 #define MAGIC_0 0xAD0084FF0CC25B0E
-
+#define MAGIC_1 0xE7D09F1FEFEA708B
 
 /* Cryptography, users and chatroom related globals. */
 
-/* A bitmask telling the server which client slots are currently free. */
+/* A bitmask telling the server which client slots are currently free.   */
 uint64_t clients_status_bitmask = 0;
 
 uint32_t next_free_user_ix = 0;
-uint32_t next_free_room_ix = 0;
+uint32_t next_free_room_ix = 1;
 
 uint8_t server_privkey[PRIVKEY_BYTES];
+
+uint32_t signature_siz = (2 * sizeof(struct bigint)) + (2 * PRIVKEY_BYTES);
 
 struct connected_client{
 	uint32_t room_ix;
@@ -40,6 +43,7 @@ struct connected_client{
 struct chatroom{
 	uint32_t num_people;
 	uint32_t owner_ix;
+	char*    room_name;
 }
 
 struct connected_client clients[MAX_CLIENTS];
@@ -53,16 +57,16 @@ int	port = SERVER_PORT
    ,optval1 = 1
    ,optval2 = 2
    ,client_socket_fd;
-   
-	   
+      
 socklen_t clientLen = sizeof(struct sockaddr_in);
 
+struct bigint      *M, *Q, *G, *Gm, server_privkey_bigint;
 struct sockaddr_in client_address;
 struct sockaddr_in server_address;
 
 /* First thing done when we start the server - initialize it. */
 uint32_t self_init(){
-	   
+
     server_address = {  .sin_family = AF_INET
 	                   ,.sin_port = htons(port)
 	                   ,.sin_addr.s_addr = INADDR_ANY
@@ -121,17 +125,69 @@ uint32_t self_init(){
 		printf("[OK] Server: Successfully loaded private key.\n");
 	}
 	
+	/* Initialize the BigInt that stores the server's private key. */
+	bigint_create(&server_privkey_bigint, MAX_BIGINT_SIZ, 0);
+	
+	memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_BYTES); 
+	
+	server_privkey_bigint.used_bits = 
+							get_used_bits(server_privkey, PRIVKEY_BYTES);
+							
+	server_privkey_bigint.free_bits = 
+							MAX_BIGINT_SIZ - server_privkey_bigint.used_bits;
+			
+	/* Load in other BigInts needed for the cryptography to work. */
+	
+	/* Diffie-Hellman modulus M, 3071-bit prime number */						
+	M = get_BIGINT_from_DAT
+		(3072, "../saved_nums/M_raw_bytes.dat\0", 3071, RESBITS);
+    
+    /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
+    Q = get_BIGINT_from_DAT
+    	(320,  "../saved_nums/Q_raw_bytes.dat\0", 320,  RESBITS);
+    
+    /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
+    G = get_BIGINT_from_DAT
+    	(3072, "../saved_nums/G_raw_bytes.dat\0", 3071, RESBITS);
+
+	/* Montgomery Form of G, since we use Montgomery Multiplication. */
+    Gm = get_BIGINT_from_DAT
+    	(3072, "../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0", 3071, RESBITS);
+    
 	fclose(privkey_dat);
+	
+	return 0;
+}
+
+uint8_t check_pubkey_exists(uint8_t* pubkey_buf, uint64_t pubkey_siz){
+
+	if(pubkey_siz < 300){
+		printf("\n[WARN] Server: Passed a small PubKey Size: %u\n", pubkey_siz);
+		return 2;
+	}
+
+	/* client slot has to be taken, size has to match, then pubkey can match. */
+	for(uint64_t i = 0; i < MAX_CLIENTS; ++i){
+		if(   (clients_status_bitmask & (1ULL << (63ULL - i)))
+		   && (clients[i].pubkey_siz_bytes == pubkey_siz)
+		   && (memcmp(pubkey_buf, clients[i].client_pubkey, pubkey_siz) == 0)
+		  )
+		{
+			printf("\n[WARN] Server: PubKey already exists.\n\n");
+			return 1;
+		}
+	}
 	
 	return 0;
 }
 
 uint32_t process_new_message(){
 
-	uint8_t* client_message_buf = malloc(MAX_MSG_LEN);
+	uint8_t* client_message_buf = calloc(1, MAX_MSG_LEN);
 	int64_t  bytes_read; 
 	uint64_t transmission_type;
 	uint64_t expected_siz;
+	uint8_t* reply_buf;
 	
 	/* Capture the message the Rosetta TCP client sent to us. */
 	bytes_read = recv(client_socket, client_message_buf, MAX_MSG_LEN, 0);
@@ -164,6 +220,8 @@ uint32_t process_new_message(){
 	transmission_type = *((uint64_t*)client_message_buf);
 	
 	switch(transmission_type){
+	
+	/* A client tried to log in Rosetta, initialize the connection. */
 	case(MAGIC_0){
 	
 		/* Size must be in bytes: 8 + 8 + pubkeysiz, which is bytes[8-15] */
@@ -173,7 +231,7 @@ uint32_t process_new_message(){
 			printf("[WARN] Server: MSG Type was 0 but of wrong size.\n");
 			printf("               Size was: %ld\n", bytes_read);
 			printf("               Expected: %lu\n", expected_siz);
-			printf("\n[OK] Discarding the transmission.\n\n ");
+			printf("\n[OK] Discarding transmission.\n\n ");
 			return 1;
 		}
 		
@@ -189,17 +247,30 @@ uint32_t process_new_message(){
 			/* Let the user know that Rosetta is full right now, try later. */
 			if(send(client_socket, "Rosetta is full, try later", 26, 0) == -1){
 	            printf("[ERR] Server: Couldn't send full-rosetta message.\n");
-	            return 1;
 	        }
-	        
-	        printf("[OK] Server: Told the client Rosetta is full, try later\n");
-	        return 0;
+	        else{
+	        	printf("[OK] Server: Told client Rosetta is full, try later\n");
+	        }
+	        return 1;
 		}
+		
+		if(  check_pubkey_exists(
+			   (client_message_buf + 16), *((uint64_t*)(client_message_buf + 8))
+		     ) > 0
+		  )
+		{
+			printf("[WARN] Server: Failed PubKey existence check.\n");
+			printf("\n[OK] Discarding transmission.\n");
+			return 1;
+		}
+		
+		reply_buf = calloc(1, 4 + signature_siz);
+		
+		memcpy(reply_buf, &next_free_user_ix, 4); 
 		
 		clients[next_free_user_ix].room_ix = 0;
 		clients[next_free_user_ix].num_pending_msgs = 0;
-
-			
+	
 		for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
 			clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
 		}
@@ -218,7 +289,7 @@ uint32_t process_new_message(){
 		 	  );
 		
 		/* Reflect the new taken user slot in the global user status bitmask. */
-		clients_status_bitmask |= (1ULL << (64ULL - next_free_user_ix));
+		clients_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
 		
 		/* Increment it one space to the right, since we're guaranteeing by
 		 * logic in the user erause algorithm that we're always filling in
@@ -238,21 +309,40 @@ uint32_t process_new_message(){
 		++next_free_user_ix;
 		
 		while(next_free_user_ix < MAX_CLIENTS){
-			if(!(clients_status_bitmask & (1ULL<<(64ULL - next_free_user_ix))))
+			if(!(clients_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
 			{
 				break;
 			}
 			++next_free_user_ix;
 		}
 		
-		printf("\n[OK] Successfully permitted a new user in Rosetta!\n\n");
+		printf("\n\nServer: Calling Signature_GENERATE() NOW!!!\n\n");
+		
+		Signature_GENERATE(  M, Q, Gm, reply_buf, 4, (reply_buf + 4),
+							 server_privkey_bigint, PRIVKEY_BYTES
+					      );
+		              
+		printf("Server: FINISHED SIGNATURE!!\n");
+		printf("Server: Resulting signature itself is (s,e) both BigInts.\n");
+		printf("Server: It was placed in reply_buf[4+].\n");
+		
+		if(send(client_socket, reply_buf, (4 + signature_siz), 0) == -1){
+            printf("[ERR] Server: Couldn't send init-OK message.\n");
+            return 1;
+        }
+        else{
+        	printf("[OK] Server: Told client initialization went OK.\n");
+        }
+		
+		printf("\n\n[OK] Successfully permitted a new user in Rosetta!!\n\n");
 		
 		return 0;
 
 	}
 	
+	/* Join Room */
 	case(MAGIC_1){
-	
+					
 	}
 	
 	} /* end switch */
@@ -293,4 +383,5 @@ int main(){
 	 
 	free(client_message);
 	
+	return 0;
 }

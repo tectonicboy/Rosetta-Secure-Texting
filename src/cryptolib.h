@@ -1792,10 +1792,9 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
  *
  * The signature itself is (s,e).
  */ 
-void Signature_GENERATE(struct bigint* M, struct bigint* Q,
-                        struct bigint *G, struct bigint* Gmont, 
-                        uint8_t*  data, uint64_t data_len,   uint8_t*  signature,
-                        struct bigint* private_key, uint64_t key_len_bytes
+void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont 
+                       ,uint8_t* data, uint64_t data_len, uint8_t* signature
+                       ,struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
 
