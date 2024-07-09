@@ -17,8 +17,10 @@
 #define MAX_SOCK_QUEUE 1024
 #define MAX_BIGINT_SIZ 12800
 
-#define MAGIC_0 0xAD0084FF0CC25B0E
-#define MAGIC_1 0xE7D09F1FEFEA708B
+#define MAGIC_0_RECV 	 0xAD0084FF0CC25B0E
+#define MAGIC_0_SEND_NO  0x7
+#define MAGIC_0_SEND_OK  
+#define MAGIC_1 	     0xE7D09F1FEFEA708B
 
 /* Cryptography, users and chatroom related globals. */
 
@@ -188,6 +190,8 @@ uint32_t process_new_message(){
 	uint64_t transmission_type;
 	uint64_t expected_siz;
 	uint8_t* reply_buf;
+	uint8_t* reply_text;
+	size_t 	 reply_len;
 	
 	/* Capture the message the Rosetta TCP client sent to us. */
 	bytes_read = recv(client_socket, client_message_buf, MAX_MSG_LEN, 0);
@@ -245,7 +249,15 @@ uint32_t process_new_message(){
 			printf("         Letting the user know and to try later.  \n");
 			
 			/* Let the user know that Rosetta is full right now, try later. */
-			if(send(client_socket, "Rosetta is full, try later", 26, 0) == -1){
+			reply_text = "Rosetta is full, try later";
+			reply_len  = strlen(strcat(reply_text, "\0")) + signature_siz;
+			reply_buf  = calloc(1, reply_len);
+		
+		    /**********  KEEP CHANGING HERE ***************/
+		    /* BUT LOOK AT NEW INITIAL HANDSHAKE SCHEME WITH KAB */
+			memcpy(reply_buf, &next_free_user_ix, 4); 
+			
+			if(send(client_socket, reply_buf, reply_len, 0) == -1){
 	            printf("[ERR] Server: Couldn't send full-rosetta message.\n");
 	        }
 	        else{
@@ -259,7 +271,7 @@ uint32_t process_new_message(){
 		     ) > 0
 		  )
 		{
-			printf("[WARN] Server: Failed PubKey existence check.\n");
+			printf("[WARN] Server: Obtained public key was BAD for MSG 0.\n");
 			printf("\n[OK] Discarding transmission.\n");
 			return 1;
 		}
