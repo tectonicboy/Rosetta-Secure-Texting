@@ -196,9 +196,9 @@ int main(){
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
 
-	/*
+	
 
-    struct bigint *M, *Q, *G, *Gm, *A, *Am, *a, *s, *e,
+    struct bigint *M, *Q, *G, *Gm, *Am, *a, *s, *e,
     			  *A_computed = malloc(sizeof(struct bigint));
     
     printf("SIZEOF(STRUCT BIGINT) = %lu\n", sizeof(struct bigint));
@@ -209,13 +209,13 @@ int main(){
  
     char *msg = malloc(data_len);
     
-    */
+    
     
         /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
     	/* Cuz the signature itself is (s,e) both of which are BigInts whose */
     	/* bitwidth is up to the bitwidth of Q and no more.                  */
     
-    /*
+    
     	
     char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
 
@@ -249,13 +249,7 @@ int main(){
     							  );
     							  
     							  
-    A = get_BIGINT_from_DAT
-					   (
-						3072
-					   ,"../saved_nums/PRACTICAL_testpubkey_raw_bytes.dat\0" 
-				       ,3070
-				       ,RESBITS
-				       );
+    
 
     Am = get_BIGINT_from_DAT
 						   (
@@ -270,7 +264,7 @@ int main(){
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
-    Signature_GENERATE(  M, Q, G, Gm, msg, data_len
+    Signature_GENERATE(  M, Q, Gm, msg, data_len
     			        ,result_signature, a, 39
     			      );
                   
@@ -299,7 +293,7 @@ int main(){
     bigint_print_info(e);
     bigint_print_bits(e);
 
-    */
+    
 
 	/* Compute a public key from the generated private key. 				  */
 	/* This key is used in validating a signature generated from private key. */
@@ -310,7 +304,7 @@ int main(){
     /* We already have Gmont above. */
 
     
-    /*
+    
     
 	printf("Ready to call SIGNATURE VALIDATE now!\n");
 	
@@ -328,7 +322,7 @@ int main(){
     	printf("Valid Signature: YES\n");
     }
     
-    */
+    
     
     
     return 0;
