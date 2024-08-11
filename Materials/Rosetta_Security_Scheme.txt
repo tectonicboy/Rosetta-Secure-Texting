@@ -129,7 +129,7 @@ On registration, Client enters a password. Then:
 
             - (0 < A_s < M)
         
-            - (A_s^(M/Q) mod M = 1) 
+            - (A_s^(M/Q) mod M == 1) 
         
     4.3.  If checks are OK, server generates its own short-term DH keys and a 
           shared secret X:
@@ -153,8 +153,13 @@ On registration, Client enters a password. Then:
     4.6.  Server sends in the clear (B_s, SB) to the client.
     
     4.7.  Client also generates the same shared secret now using the server's
-          short-term public key it received and its short-term private key:
-         
+          short-term public key it received and its short-term private key, but
+          not before verifying the server's short-term public key's validity:
+          
+            - (0 < A_s < M)
+        
+            - (A_s^(M/Q) mod M == 1) 
+            
             X = B_s^a_s mod M
          
     4.8.  Client extracts the same two keys and two values from X as the server.
@@ -167,23 +172,22 @@ On registration, Client enters a password. Then:
           
     4.11. Client computes an authentication code on A_x using HMAC:
     
-            H = Unkeyed BLAKE2B
-            B = input  block size of BLAKE2B = 64  bytes
-            L = output block size of BLAKE2B = 128 bytes
-            K = KAB_s
-         text = A_x
+            H    = Unkeyed BLAKE2B
+            B    = input  block size of BLAKE2B = 64  bytes
+            L    = output block size of BLAKE2B = 128 bytes
+            K    = KAB_s
+            text = A_x
          
     4.12. Client takes the 8 leftmost bytes of HMAC's output. Call that H_x.
           Client sends (A_x,H_x) to the server.
+          Client destroys the short-term DH keys and shared secret.
           
     4.13. Server uses KAB_s to compute the same HMAC on A_x. Takes the output's 
           least significant 8 bytes. If they match H_x, authentication passes.
           
     4.14. Server uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
           decrypt A_x, revealing the client's long-term DH public key A.
-          Sends an OK message to the client.
-          
-    4.15. Server and client destroy the short-term DH keys and shared secret.
+          Server also destroys the short-term DH keys and shared secret.
                    
 ================================================================================
 
