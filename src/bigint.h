@@ -10,6 +10,7 @@
 #define u16 uint16_t
 #define u32 uint32_t
 #define u64 uint64_t
+#define s64 int64_t
 
 #define MAX_BITS 4290000000
 
