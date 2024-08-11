@@ -1,7 +1,5 @@
 #include "cryptolib.h"
 
-
-
 /* Generate a new pseudorandom private key. */
 void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
     
@@ -101,3 +99,49 @@ struct bigint* gen_pub_key(uint32_t privkey_len_bytes, char* privkey_filename
     
     return R;    
 }
+
+/* Check that a public key is of the correct form given our DH parameters. 
+ *
+ * The check is: 
+ *
+ *      pub_key^(M/Q) mod M == 1 
+ *
+ *  Return 1 for valid and 0 for invalid public key.
+ */
+ 
+bool check_pubkey_form( const bigint* const Km
+                       ,const bigint* const M
+                       ,const bigint* const Q)
+{
+    bigint M_over_Q
+          ,one
+          ,div_rem
+          ,mod_pow_res;
+          
+    bool ret = 1;
+    
+    bigint_create(&M_over_Q,    12800, 0);
+    bigint_create(&one,         12800, 1);
+    bigint_create(&div_rem,     12800, 0);
+    bigint_create(&mod_pow_res, 12800, 0); 
+       
+    bigint_div2(M, Q, &M_over_Q, &div_rem);
+    
+    MONT_POW_modM(Km, &M_over_Q, M, &mod_pow_res);
+    
+    if(bigint_compare2(&mod_pow_res, &one) != 2){
+        printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
+        ret = 0;
+    }
+    
+    free(M_over_Q->bits);
+    free(one->bits);
+    free(div_rem->bits);
+    free(mod_pow_res->bits);
+    
+    return ret;
+}
+
+
+
+

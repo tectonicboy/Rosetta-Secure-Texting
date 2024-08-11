@@ -6,45 +6,66 @@
 #include <arpa/inet.h>
 
 #include "cryptolib.h"
-#include "bigint.h"
+#include "coreutil.h"
 
 #define SERVER_PORT    54746
 #define PRIVKEY_BYTES  40   
+#define PUBKEY_BYTES   384
 #define MAX_CLIENTS    64
 #define MAX_PEND_MSGS  1024
 #define MAX_CHATROOMS  64
 #define MAX_MSG_LEN    1024
 #define MAX_SOCK_QUEUE 1024
 #define MAX_BIGINT_SIZ 12800
+#define MAGIC_LEN      8 
 
-#define MAGIC_0_RECV      0xAD0084FF0CC25B0E
-#define MAGIC_0_SEND_NO  0x7
-#define MAGIC_0_SEND_OK  
-#define MAGIC_1          0xE7D09F1FEFEA708B
+#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_BYTES))
+#define TEMP_BUF_SIZ   ((4 * sizeof(bigint)) + (3 * 32) + 12)
 
-/* Cryptography, users and chatroom related globals. */
+#define MAGIC_00 0xAD0084FF0CC25B0E
+#define MAGIC_01 0xE7D09F1FEFEA708B
+
+
+/* A bitmask for various control-related purposes.
+ * 
+ * Currently used bits:
+ *
+ *  [0] - Whether the temporary login handshake memory region is locked or not.
+ *        This memory region holds very short-term public/private keys used
+ *        to transport the client's long-term public key to us securely.
+ *        It can't be local, because the handshake spans several transmissions,
+ *        (thus is interruptable) yet needs the keys for its entire duration.
+ *        Every login procedure needs it. If a second client attempts to login
+ *        while another client is already logging in, without checking this bit,
+ *        the other client's login procedure's short-term keys could be erased.
+ *        Thus, use this bit to disallow more than 1 login handshake at a time.
+ *
+ */ 
+u32 server_control_bitmask = 0;
+
 
 /* A bitmask telling the server which client slots are currently free.   */
-uint64_t clients_status_bitmask = 0;
+u64 clients_status_bitmask = 0;
 
-uint32_t next_free_user_ix = 0;
-uint32_t next_free_room_ix = 1;
 
-uint8_t server_privkey[PRIVKEY_BYTES];
+u32 next_free_user_ix = 0;
+u32 next_free_room_ix = 1;
 
-uint32_t signature_siz = (2 * sizeof(struct bigint)) + (2 * PRIVKEY_BYTES);
+u8 server_privkey[PRIVKEY_BYTES];
+
+
 
 struct connected_client{
-    uint32_t room_ix;
-    uint32_t num_pending_msgs;
-    uint8_t* pending_msgs[MAX_PEND_MSGS];
-    uint8_t* client_pubkey;
-    uint64_t pubkey_siz_bytes;
+    u32 room_ix;
+    u32 num_pending_msgs;
+    u8* pending_msgs[MAX_PEND_MSGS];
+    u8* client_pubkey;
+    u64 pubkey_siz_bytes;
 };
 
 struct chatroom{
-    uint32_t num_people;
-    uint32_t owner_ix;
+    u32 num_people;
+    u32 owner_ix;
     char*    room_name;
 }
 
@@ -52,9 +73,12 @@ struct connected_client clients[MAX_CLIENTS];
 struct chatroom rooms[MAX_CHATROOMS];
 
 
+/* Memory region holding the temporary keys for the login handshake. */
+u8* temp_handshake_buf;
+
 /* Linux Sockets API related globals. */
 
-int    port = SERVER_PORT
+int port = SERVER_PORT
    ,listening_socket
    ,optval1 = 1
    ,optval2 = 2
@@ -62,12 +86,15 @@ int    port = SERVER_PORT
       
 socklen_t clientLen = sizeof(struct sockaddr_in);
 
-struct bigint      *M, *Q, *G, *Gm, server_privkey_bigint;
+struct bigint *M, *Q, *G, *Gm, server_privkey_bigint;
 struct sockaddr_in client_address;
 struct sockaddr_in server_address;
 
 /* First thing done when we start the server - initialize it. */
-uint32_t self_init(){
+u32 self_init(){
+
+    /* Allocate memory for the global login handshake memory region. */
+    temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
 
     server_address = {  .sin_family = AF_INET
                        ,.sin_port = htons(port)
@@ -161,7 +188,7 @@ uint32_t self_init(){
     return 0;
 }
 
-uint8_t check_pubkey_exists(uint8_t* pubkey_buf, uint64_t pubkey_siz){
+u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
 
     if(pubkey_siz < 300){
         printf("\n[WARN] Server: Passed a small PubKey Size: %u\n", pubkey_siz);
@@ -169,7 +196,7 @@ uint8_t check_pubkey_exists(uint8_t* pubkey_buf, uint64_t pubkey_siz){
     }
 
     /* client slot has to be taken, size has to match, then pubkey can match. */
-    for(uint64_t i = 0; i < MAX_CLIENTS; ++i){
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if(   (clients_status_bitmask & (1ULL << (63ULL - i)))
            && (clients[i].pubkey_siz_bytes == pubkey_siz)
            && (memcmp(pubkey_buf, clients[i].client_pubkey, pubkey_siz) == 0)
@@ -183,18 +210,203 @@ uint8_t check_pubkey_exists(uint8_t* pubkey_buf, uint64_t pubkey_siz){
     return 0;
 }
 
-uint32_t process_new_message(){
 
-    uint8_t* client_message_buf = calloc(1, MAX_MSG_LEN);
-    int64_t  bytes_read; 
-    uint64_t transmission_type;
-    uint64_t expected_siz;
-    uint8_t* reply_buf;
-    uint8_t* reply_text;
-    size_t      reply_len;
+__attribute__ ((always_inline)) 
+inline
+void process_msg_01(u8* msg_buf){
+
+    bigint *A_s
+          ,zero
+          ,Am
+          ,*b_s
+          ,*B_s
+          ,*X_s;
+            
+    u32  *KAB_s
+        ,*KBA_s
+        ,*Y_s
+        ,*N_s
+        ,tempbuf_byte_offset = 0;
+        
+    u8 *signature_buf = calloc(1, SIGNATURE_LEN);
+            
+    u8* reply_buf;
+    u64 reply_len;
+
+    /* Construct a bigint out of the client's short-term public key.          */
+    /* Here's where a constructor from a memory buffer and its length is good */
+    /* Find time to implement one as part of the BigInt library.              */
+    
+    /* Allocate any short-term keys and other cryptographic artifacts needed for
+     * the initial login handshake protocol in the designated memory region and
+     * lock it, disallowing another parallel login attempt to corrupt them.
+     */
+    server_control_bitmask |= (1ULL << 63ULL);
+    
+    A_s = temp_handshake_buf;
+    A_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    memcpy(A_s->bits, msg_buf + 16, *(msg_buf + 8));
+    A_s->bits_size = MAX_BIGINT_SIZ;
+    A_s->used_bits = get_used_bits(msg_buf + 16, (u32)*(msg_buf + 8));
+    A_s->free_bits = A_s->bits_size - A_s->used_bits;
+    
+    /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
+    
+    /* A "check non zero" function in the BigInt library would also be useful */
+    
+    bigint_create(&zero, MAX_BIGINT_SIZ, 0);
+    
+    Get_Mont_Form(A_s, &Am, M);
+    
+    if(   ((bigint_compare2(&zero, A_s)) != 3) 
+        || 
+          ((bigint_compare2(M, A_s)) != 1)
+        ||
+          (check_pubkey_form(Am, M, Q) == 0) 
+      )
+    {
+        printf("[ERR] Server: Client's short-term public key is invalid.\n");
+        printf("\n\nIts info and ALL bits:\n\n");
+        bigint_print_info(A_s);
+        bigint_print_all_bits(A_s);
+        goto label_cleanup;
+    } 
+    
+    /*  Server generates its own short-term DH keys and a shared secret X:
+     *    
+     *       b_s = random in the range [1, Q)
+     * 
+     *       B_s = G^b_s mod M     <--- Montgomery Form of G used.
+     *   
+     *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s used.
+     *
+     *  Server extracts two keys and two values Y, N from byte regions in X:
+     *
+     *       KAB_s = X_s[0  .. 31 ]
+     *       KBA_s = X_s[32 .. 63 ]
+     *       Y_s   = X_s[64 .. 95 ]
+     *       N_s   = X_s[96 .. 107] <-- 12-byte Nonce for ChaCha20.
+     *
+     *  These 7 things are all stored in the designated locked memory region.
+     */
+
+    gen_priv_key(PRIVKEY_BYTES, (temp_handshake_buf + sizeof(bigint)));
+    
+    b_s = *(temp_handshake_buf + sizeof(bigint));
+    
+    /* Interface generating a pub_key still needs priv_key in a file. Change. */
+    save_BIGINT_to_DAT("temp_privkey_DAT\0", b_s);
+  
+    B_s = gen_pub_key(PRIVKEY_BYTES, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+    
+    /* Place the server short-term pub_key also in the locked memory region. */
+    memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
+    
+    /* X_s = A_s^b_s mod M */
+    X_s = temp_handshake_buf + (3 * sizeof(bigint));
+    
+    bigint_create(X_s, MAX_BIGINT_SIZ, 0);
+    
+    MONT_POW_modM(Am, b_s, M, X_s);
+    
+    /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
+    tempbuf_byte_offset = 4 * sizeof(bigint);
+    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits +  0, 32);
+    KAB_s = (u32*)(temp_handshake_buf + tempbuf_byte_offset);
+    
+    tempbuf_byte_offset += 32;
+    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 32, 32);
+    KBA_s = (u32*)(temp_handshake_buf + tempbuf_byte_offset);
+    
+    tempbuf_byte_offset += 32;
+    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 64, 32);
+    Y_s = temp_handshake_buf + tempbuf_byte_offset;
+        
+    tempbuf_byte_offset += 32;
+    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 96, 12);
+    N_s = temp_handshake_buf + tempbuf_byte_offset;
+    
+    /*  Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
+    Signature_GENERATE
+      (M, Q, Gm, Y_s, 32, signature_buf, &server_privkey_bigint, PRIVKEY_BYTES);
+                  
+    /* Server sends in the clear (B_s, SB) to the client. */
+    
+    /* Find time to change the signature generation to only place the actual
+     * bits of s and e, excluding their bigint structs, because we reconstruct
+     * their bigint structs easily with get_used_bits().
+     */
+    
+    /* Construct the reply buffer. */
+    reply_len = MAGIC_LEN + SIGNATURE_LEN + PUBKEY_BYTES;
+    reply_buf = calloc(1, reply_len);
+    
+    *((u64*)(reply_buf + 0)) = MAGIC_00;
+    
+    memcpy(reply_buf + MAGIC_LEN, B_s->bits, PUBKEY_BYTES);
+    memcpy(reply_buf + MAGIC_LEN + PUBKEY_BYTES, signature_buf, SIGNATURE_LEN);
+    
+    /* Send the reply back to the client. */
+    if(send(client_socket, reply_buf, reply_len, 0) == -1){
+        printf("[ERR] Server: Couldn't reply with MAGIC_00 msg type.\n");
+    }
+    else{
+        printf("[OK] Server: Replied to client with MAGIC_00 msg type.\n");
+    }
+    
+    return;
+  
+label_cleanup: 
+  
+    free(zero.bits);
+    free(Am.bits);
+    free(signature_buf);
+    free(reply_buf);
+    /* Do NOT free A_s's bits yet, they'll be needed in the processor of the 
+     * other transmission that's part of the login handshake protocol. 
+     */
+    return;
+}
+
+
+
+
+/*  To make the server design more elegant, this top-level message processor 
+ *  only checks whether the message is legit or not, and which of the predefined
+ *  accepted types it is.
+ *
+ *  The message is then sent to its own individual processor function to be
+ *  further analyzed and reacted to as defined by the Security Scheme.
+ *
+ *  This logical split of functionality eases the server implementation.
+ *
+ *  Here is a complete list of possible legitimate transmissions to the server:
+ *
+ *      - A client decides to log in Rosetta:
+ *
+ *          - [TYPE_00]: Client sent its short-term pub_key in the clear.
+ *          - [TYPE_01]: Client sent encrypted long-term pub_key + 8-byte HMAC
+ *
+ *      - A client decides to join a chat room.
+ *      - A client decides to make a new chat room.
+ *      - A client decides to send a new message to the chatroom.
+ *      - A client decides to poll the server about unreceived messages.
+ *      - A client decides to exit the chat room they're in.
+ *      - A client decides to log off Rosetta.
+ */
+
+u32 process_new_message(){
+
+    u8* client_msg_buf = calloc(1, MAX_MSG_LEN);
+    s64 bytes_read; 
+    u64 transmission_type;
+    u64 expected_siz;
+    u8* reply_buf;
+    u8* reply_text;
+    u64 reply_len;
     
     /* Capture the message the Rosetta TCP client sent to us. */
-    bytes_read = recv(client_socket, client_message_buf, MAX_MSG_LEN, 0);
+    bytes_read = recv(client_socket, client_msg_buf, MAX_MSG_LEN, 0);
     
     if(bytes_read == -1 || bytes_read < 8){
         printf("[ERR] Server: Couldn't read message on socket or too short.\n");
@@ -207,29 +419,17 @@ uint32_t process_new_message(){
     }
     
     /* Examine the message and react to it accordingly. */
-    
-    /* A clear definition of possible TCP messages is needed. Examples:
-     *
-     * - a user sent a text message in their chatroom
-     * - a user's client polled us for any pending messages for them.
-     * - a user wants to create their own new chatroom
-     * - a user wants to enter an existing chatroom
-     * - a user wants to leave a chatroom they're NOT the owner of. 
-     * - a user wants to leave a chatroom which they're the owner of. 
-     * - a user simply initialized connection with the TCP server.
-     *
-     */
-     
-    /* Read the first 8 bytes to see what type of transmission it is. */
-    transmission_type = *((uint64_t*)client_message_buf);
+       
+    /* Read the first 8 bytes to see what type of init transmission it is. */
+    transmission_type = *((u64*)client_msg_buf);
     
     switch(transmission_type){
     
     /* A client tried to log in Rosetta, initialize the connection. */
-    case(MAGIC_0){
+    case(MAGIC_00){
     
         /* Size must be in bytes: 8 + 8 + pubkeysiz, which is bytes[8-15] */
-        expected_siz = (16 + (*((uint64_t*)(client_message_buf + 8))));
+        expected_siz = (16 + (*((u64*)(client_msg_buf + 8))));
         
         if(bytes_read != expected_siz){
             printf("[WARN] Server: MSG Type was 0 but of wrong size.\n");
@@ -238,6 +438,13 @@ uint32_t process_new_message(){
             printf("\n[OK] Discarding transmission.\n\n ");
             return 1;
         }
+        
+        
+       process_msg_01(client_msg_buf);
+       
+        
+        /* NONE OF THIS IS EVEN A REACTION TO MSG_00 ANYMORE!!! */
+        /* MOVE IT TO THE REACTION FUNCTION TO MSG_01 ASAP!!!   */
         
         /* Create the new user structure instance with the public key. */
         
@@ -250,7 +457,7 @@ uint32_t process_new_message(){
             
             /* Let the user know that Rosetta is full right now, try later. */
             reply_text = "Rosetta is full, try later";
-            reply_len  = strlen(strcat(reply_text, "\0")) + signature_siz;
+            reply_len  = strlen(strcat(reply_text, "\0")) + SIGNATURE_LEN;
             reply_buf  = calloc(1, reply_len);
         
             /**********  KEEP CHANGING HERE ***************/
@@ -267,7 +474,7 @@ uint32_t process_new_message(){
         }
         
         if(  check_pubkey_exists(
-               (client_message_buf + 16), *((uint64_t*)(client_message_buf + 8))
+               (client_msg_buf + 16), *((u64*)(client_msg_buf + 8))
              ) > 0
           )
         {
@@ -276,7 +483,7 @@ uint32_t process_new_message(){
             return 1;
         }
         
-        reply_buf = calloc(1, 4 + signature_siz);
+        reply_buf = calloc(1, 4 + SIGNATURE_LEN);
         
         memcpy(reply_buf, &next_free_user_ix, 4); 
         
@@ -288,7 +495,7 @@ uint32_t process_new_message(){
         }
         
         clients[next_free_user_ix].pubkey_siz_bytes 
-         = (*((uint64_t*)(client_message_buf + 8)));
+         = (*((u64*)(client_msg_buf + 8)));
     
     
         clients[next_free_user_ix].client_pubkey 
@@ -296,7 +503,7 @@ uint32_t process_new_message(){
          calloc(1, clients[next_free_user_ix].pubkey_siz_bytes);
          
         memcpy(  clients[next_free_user_ix].client_pubkey 
-                 ,(client_message_buf + 16)
+                 ,(client_msg_buf + 16)
                  ,clients[next_free_user_ix].pubkey_siz_bytes
                );
         
@@ -338,7 +545,7 @@ uint32_t process_new_message(){
         printf("Server: Resulting signature itself is (s,e) both BigInts.\n");
         printf("Server: It was placed in reply_buf[4+].\n");
         
-        if(send(client_socket, reply_buf, (4 + signature_siz), 0) == -1){
+        if(send(client_socket, reply_buf, (4 + SIGNATURE_LEN), 0) == -1){
             printf("[ERR] Server: Couldn't send init-OK message.\n");
             return 1;
         }
@@ -358,14 +565,17 @@ uint32_t process_new_message(){
     }
     
     } /* end switch */
-
-
+    
+    
+    /* FREE EVERYTHING THIS FUNCTION ALLOCATED */
+    free();
+}
 int main(){
     
     /* Initialize Sockets API, load own private key. */ 
     self_init();
 
-    uint32_t status;
+    u32 status;
     
     while(1){
     
