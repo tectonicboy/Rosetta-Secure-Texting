@@ -132,7 +132,7 @@ void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
 __attribute__ ((always_inline)) 
 inline
 void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
-	*n = *n>>roll_amount | *n<<(64-roll_amount);
+    *n = *n>>roll_amount | *n<<(64-roll_amount);
 }
 
 /*****************************************************************************/
@@ -586,25 +586,25 @@ __attribute__ ((always_inline))
 inline
 void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
 
-	/*
-	pthread_mutex_lock(&lock); 
-	
-	printf("TWO INPUT BLOCKS IN G():\n\n");
-	printf("X:\n\n");
-   	for(uint32_t i = 0; i < 1024; ++i){
-		if(i % 16 == 0 && i > 0){printf("\n");}
-		printf("%02x ", ( (X)[i] )) ;
-	}
-	printf("\n\n"); 
-	printf("Y:\n\n");
-   	for(uint32_t i = 0; i < 1024; ++i){
-		if(i % 16 == 0 && i > 0){printf("\n");}
-		printf("%02x ", ( (Y)[i] )) ;
-	}
-	printf("\n\n"); 
-	
-	pthread_mutex_unlock(&lock); 
-	*/
+    /*
+    pthread_mutex_lock(&lock); 
+    
+    printf("TWO INPUT BLOCKS IN G():\n\n");
+    printf("X:\n\n");
+       for(uint32_t i = 0; i < 1024; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02x ", ( (X)[i] )) ;
+    }
+    printf("\n\n"); 
+    printf("Y:\n\n");
+       for(uint32_t i = 0; i < 1024; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02x ", ( (Y)[i] )) ;
+    }
+    printf("\n\n"); 
+    
+    pthread_mutex_unlock(&lock); 
+    */
 
     uint8_t* matrix_R = malloc(1024);
     
@@ -688,8 +688,8 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
                   )
 {  
 
-	memset(output, 0x00, out_len);
-	
+    memset(output, 0x00, out_len);
+    
     uint8_t*   H_input;
     uint32_t   r;
     block64_t* V;
@@ -700,19 +700,19 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     memcpy(H_input + 4, input,    in_len); 
     
     if(out_len <= 64){ 
-    	/*
-    	printf("Input parms to Tag-producing BLAKE2B call:\n");
-    	printf("H_input:\n");
-		for(uint32_t i = 0; i < (4 + in_len); ++i){
-		    if(i % 16 == 0 && i > 0){printf("\n");}
-		    printf("%02x ", (uint8_t)H_input[i]);
-		}
-		printf("\n\n");
-    	printf("(4 + in_len): %lu\n", (4 + in_len));
-    	printf("0:0\n");
-    	printf("out_len: %u\n", out_len);
-    	printf("output: emptied now.\n\n");
-    	*/
+        /*
+        printf("Input parms to Tag-producing BLAKE2B call:\n");
+        printf("H_input:\n");
+        for(uint32_t i = 0; i < (4 + in_len); ++i){
+            if(i % 16 == 0 && i > 0){printf("\n");}
+            printf("%02x ", (uint8_t)H_input[i]);
+        }
+        printf("\n\n");
+        printf("(4 + in_len): %lu\n", (4 + in_len));
+        printf("0:0\n");
+        printf("out_len: %u\n", out_len);
+        printf("output: emptied now.\n\n");
+        */
         BLAKE2B_INIT(H_input, (4 + in_len), 0, out_len, output);
         return;
     }
@@ -745,7 +745,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
         }      
         memcpy(output + (32*r), V[r].block_data, 64);
 
-		
+        
     }
 
     /*Cleanup*/
@@ -757,7 +757,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
 
 
 void argon2_initJ1J2_blockpool_for2i
-				(uint8_t* Z, block_t* blocks, uint64_t num_blocks)
+                (uint8_t* Z, block_t* blocks, uint64_t num_blocks)
 {
     /* We are about to compute ( q / (128*SL) ) 1024-byte blocks. SL=4 slices.*/
     /* Allocate memory for them after working out exactly how many to compute */
@@ -914,7 +914,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
 void* argon2_transform_segment(void* thread_input){
 
     /* TESTING ONLY DECLARATIONS BEGIN */
-    // clock_t start_1, start_2, start_3, end_1, end_2, end_3;
+     clock_t start_1, start_2, start_3, end_1, end_2, end_3;
      
      
      
@@ -943,10 +943,10 @@ void* argon2_transform_segment(void* thread_input){
             ,md = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_md ))
             ,computed_blocks = 0;
 
-	uint64_t num_blocks = ceil((double)q / (double)(128 * 4));
-	//printf("Computed num_blocks = q/(128*4) which is: %lu\n", num_blocks);
-	
-	
+    uint64_t num_blocks = ceil((double)q / (double)(128 * 4));
+    //printf("Computed num_blocks = q/(128*4) which is: %lu\n", num_blocks);
+    
+    
     block_t* J1J2blockpool = malloc(num_blocks * (1024));
 
 
@@ -967,7 +967,7 @@ void* argon2_transform_segment(void* thread_input){
 
     /* Let n be the number of 1024-byte blocks in one segment = (m' / p)/4. */
     n = (md / p) / 4;
-	//printf("Computed n (blocks in 1 segment) as: n = %lu\n", n);
+    //printf("Computed n (blocks in 1 segment) as: n = %lu\n", n);
     /* First block transformed relative to lane start will be (n * (sl + 0))  */
     /* Last  block transformed relative to lane start will be (n * (sl + 1))-1*/  
     j_start = n *  sl;
@@ -987,27 +987,28 @@ void* argon2_transform_segment(void* thread_input){
     argon2_initJ1J2_blockpool_for2i(Z_buf, J1J2blockpool, num_blocks); 
     
     for(j = j_start; j < j_end; ++j){
-    	//start_3 = clock();
-    	//printf(
-    	//		"Argon2 segment loop: j = %lu to %lu; at slice: %lu\n"
-    	//	   , j, j_end, sl
-    	//	);
-    	
+        start_3 = clock();
+        /*
+        printf(
+                "Argon2 segment loop: j = %lu to %lu; at slice: %lu\n"
+             , j, j_end, sl
+            );
+        */
         /* If pass number r=0 and slice number sl=0,1:  */
         /* compute 32-bit values J_1, J_2 for Argon2i.  */
         if( r == 0 && sl < 2 ){
         
-        	//start_2 = clock();
+            start_2 = clock();
  
             
             /* Extract J_1 and J_2. */
-			J_1 = *((uint32_t*)(&(J1J2blockpool[0])));
-			
-			/* Offset is in terms of BYTES now! */
-			J_2 = *((uint32_t*)(((uint8_t*)J1J2blockpool) + (num_blocks * 512)));
-           // end_2 = clock();
-     		//cpu_time_used2 = ((double) (end_2 - start_2)) / CLOCKS_PER_SEC; 
-     		
+            J_1 = *((uint32_t*)(&(J1J2blockpool[0])));
+            
+            /* Offset is in terms of BYTES now! */
+            J_2 = *((uint32_t*)(((uint8_t*)J1J2blockpool) + (num_blocks * 512)));
+            end_2 = clock();
+             cpu_time_used2 = ((double) (end_2 - start_2)) / CLOCKS_PER_SEC; 
+             
         }   
         /* Otherwise: get J_1, J_2 for Argon2d. */
         else{
@@ -1015,13 +1016,13 @@ void* argon2_transform_segment(void* thread_input){
             J_2 = *(((uint32_t*)(&(B[cur_lane][j-1]))) + 1);
         }
         
-        //start_1 = clock();
+        start_1 = clock();
 
 
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
 
-       // end_1 = clock();
-       // cpu_time_used1 = ((double) (end_1 - start_1)) / CLOCKS_PER_SEC;  
+        end_1 = clock();
+        cpu_time_used1 = ((double) (end_1 - start_1)) / CLOCKS_PER_SEC;  
      
      
         /* Now we're ready for this loop cycle's call to G(). */
@@ -1052,55 +1053,56 @@ void* argon2_transform_segment(void* thread_input){
         pthread_mutex_lock(&lock); 
         
         printf("ON PASS: %lu\n\n", r);
-		printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
+        printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
         printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
         printf("B[0] has address: %p\n", B[0]);
         
         printf("INPUT BLOCK 1 to G():\n\n");
-	   	for(uint32_t i = 0; i < 1024; ++i){
-			if(i % 16 == 0 && i > 0){printf("\n");}
-			printf("%02x ", ( ((uint8_t*)(G_input_one))[i] )) ;
-		}
-		printf("\n\n"); 
-		
-		printf("INPUT BLOCK 2 to G():\n\n");
-	   	for(uint32_t i = 0; i < 1024; ++i){
-			if(i % 16 == 0 && i > 0){printf("\n");}
-			printf("%02x ", ( ((uint8_t*)(G_input_two))[i] )) ;
-		}
-		printf("\n\n"); 
-    	*/
+           for(uint32_t i = 0; i < 1024; ++i){
+            if(i % 16 == 0 && i > 0){printf("\n");}
+            printf("%02x ", ( ((uint8_t*)(G_input_one))[i] )) ;
+        }
+        printf("\n\n"); 
+        
+        printf("INPUT BLOCK 2 to G():\n\n");
+           for(uint32_t i = 0; i < 1024; ++i){
+            if(i % 16 == 0 && i > 0){printf("\n");}
+            printf("%02x ", ( ((uint8_t*)(G_input_two))[i] )) ;
+        }
+        printf("\n\n"); 
+        */
         
         Argon2_G((uint8_t*)G_input_one, (uint8_t*)G_input_two, (uint8_t*)G_output); 
         
-		/*
-		printf("TRANSFORMED BLOCK BY G():\n\n");
-	   	for(uint32_t i = 0; i < 1024; ++i){
-			if(i % 16 == 0 && i > 0){printf("\n");}
-			printf("%02x ", ( ((uint8_t*)(G_output))[i] )) ;
-		}
-		printf("\n\n"); 
-		
-		pthread_mutex_unlock(&lock); 
+        /*
+        printf("TRANSFORMED BLOCK BY G():\n\n");
+           for(uint32_t i = 0; i < 1024; ++i){
+            if(i % 16 == 0 && i > 0){printf("\n");}
+            printf("%02x ", ( ((uint8_t*)(G_output))[i] )) ;
+        }
+        printf("\n\n"); 
+        
+        pthread_mutex_unlock(&lock); 
         */
         
         ++computed_blocks;       
         
-       // end_3 = clock();
-       // cpu_time_used_total = ((double) (end_3 - start_3)) / CLOCKS_PER_SEC; 
+        end_3 = clock();
+        cpu_time_used_total = ((double) (end_3 - start_3)) / CLOCKS_PER_SEC; 
         
         /* What % of total time for 1 loop run took getLZ and getJ1J2_for2i. */
-        //printf(
-        //		"\n\nget_LZ\t\t percentage of 1 loop cycle: %lf\n"
-        //	   , ( (cpu_time_used1*100)/ cpu_time_used_total )
-        //	   );
-        //	   
-        //	   
-       // printf(
-        //		"get_J1J2_for2i\t percentage of 1 loop cycle: %lf\n"
-        //	   , ( (cpu_time_used2*100)/ cpu_time_used_total )
-        //	   );
-            
+        /*
+        printf(
+                "\n\nget_LZ\t\t percentage of 1 loop cycle: %lf\n"
+               , ( (cpu_time_used1*100)/ cpu_time_used_total )
+               );
+               
+               
+        printf(
+                "get_J1J2_for2i\t percentage of 1 loop cycle: %lf\n"
+               , ( (cpu_time_used2*100)/ cpu_time_used_total )
+               );
+          */  
     }
     goto label_finish_segment;
     
@@ -1179,7 +1181,7 @@ label_further_passes:
         pthread_mutex_lock(&lock); 
         
         printf("ON PASS: %lu\n\n", r);
-		printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
+        printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
         printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
         printf("B[0] has address: %p\n", B[0]);
         
@@ -1208,8 +1210,8 @@ label_finish_segment:
    
     
 void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
-	
-	/* MUTEX FOR TESTING ONLY SO WE CAN SEE PRINTS IN G() properly. */
+    
+    /* MUTEX FOR TESTING ONLY SO WE CAN SEE PRINTS IN G() properly. */
     pthread_mutex_init(&lock, NULL);
     
     /* Length of input to the generator of 64-byte H0, BLAKE2B() in this case.*/
@@ -1459,22 +1461,22 @@ label_start_pass:
         for(uint64_t i = 0; i < parms->p; ++i){
             pthread_join(argon2_thread_ids[i], NULL);    
         } 
-
+        printf("ARGON2: Slice %lu finished.\n", sl);
     } /* End of one slice. */
 
 
-	printf("END OF PASS [%lu] BLOCK 0:\n\n", r);
-   	for(uint32_t i = 0; i < 1024; ++i){
-		if(i % 16 == 0 && i > 0){printf("\n");}
-		printf("%02x ", ( ((uint8_t*)(&(B[0][0])))[i] )) ;
-	}
-	printf("\n\n"); 
-	printf("END OF PASS [%lu] BLOCK 31:\n\n", r);
-   	for(uint32_t i = 0; i < 1024; ++i){
-		if(i % 16 == 0 && i > 0){printf("\n");}
-		printf("%02x ", ( ((uint8_t*)(&(B[3][7])))[i] )) ;
-	}
-	printf("\n\n"); 
+    printf("END OF PASS [%lu] BLOCK 0:\n\n", r);
+       for(uint32_t i = 0; i < 1024; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02x ", ( ((uint8_t*)(&(B[0][0])))[i] )) ;
+    }
+    printf("\n\n"); 
+    printf("END OF PASS [%lu] BLOCK 31:\n\n", r);
+       for(uint32_t i = 0; i < 1024; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02x ", ( ((uint8_t*)(&(B[3][7])))[i] )) ;
+    }
+    printf("\n\n"); 
 
     /* Finished all 4 slices of a pass. Increment pass number.*/
     ++r;
@@ -1493,31 +1495,31 @@ label_start_pass:
     
     /*
     printf("last column blocks of B[][] at end of 1st pass:\n");
-	for(size_t ln = 0; ln < parms->p; ++ln){
-			printf("LAST 1024-byte BLOCK IN LANE %lu:\n", ln);
-           	for(uint32_t i = 0; i < 1024; ++i){
-				if(i % 16 == 0 && i > 0){printf("\n");}
-				printf("%02x ", ( ((uint8_t*)(&(B[ln][q-1])))[i] )) ;
-			}
-    		printf("\n\n");  
+    for(size_t ln = 0; ln < parms->p; ++ln){
+            printf("LAST 1024-byte BLOCK IN LANE %lu:\n", ln);
+               for(uint32_t i = 0; i < 1024; ++i){
+                if(i % 16 == 0 && i > 0){printf("\n");}
+                printf("%02x ", ( ((uint8_t*)(&(B[ln][q-1])))[i] )) ;
+            }
+            printf("\n\n");  
      
     }
-	*/    
-    	
+    */    
+        
     for(size_t ln = 1; ln < parms->p; ++ln){
     
     /*
-		printf("\n\n***** final block before XORing with last block of ln"
-			   " = %lu *****\n\n"
-			  ,ln);
-		
-		for(uint32_t i = 0; i < 1024; ++i){
-		    if(i % 16 == 0 && i > 0){printf("\n");}
-		    printf("%02x ", (uint8_t)final_block_C[i]);
-		}
-    	printf("\n\n");  
-    	*/
-    	   
+        printf("\n\n***** final block before XORing with last block of ln"
+               " = %lu *****\n\n"
+              ,ln);
+        
+        for(uint32_t i = 0; i < 1024; ++i){
+            if(i % 16 == 0 && i > 0){printf("\n");}
+            printf("%02x ", (uint8_t)final_block_C[i]);
+        }
+        printf("\n\n");  
+        */
+           
         for(size_t xr = 0; xr < 128; ++xr){
            ((uint64_t*)(final_block_C))[xr] ^= ((uint64_t*)(&(B[ln][q-1])))[xr];  
         }        
@@ -1570,143 +1572,143 @@ label_start_pass:
  *       pass it here.
  */
 void Montgomery_MUL(struct bigint* X, struct bigint* Y, 
-					struct bigint* N, struct bigint* R
-				   )
+                    struct bigint* N, struct bigint* R
+                   )
 {
-	
-	uint8_t C, D;
-	unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
-	struct bigint R_aux;
-	bigint_create(&R_aux, R->size_bits, 0);
-	
-	/* Set R = 0, all of its (L+1) limbs. */
-	bigint_nullify(R);
-	
-	/* T - 3-limb variable, q - 1-limb variable. */
-	/* Keep T temporarily as part of R->bits in limbs [l+1] to [l+3]. */
+    
+    uint8_t C, D;
+    unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
+    struct bigint R_aux;
+    bigint_create(&R_aux, R->size_bits, 0);
+    
+    /* Set R = 0, all of its (L+1) limbs. */
+    bigint_nullify(R);
+    
+    /* T - 3-limb variable, q - 1-limb variable. */
+    /* Keep T temporarily as part of R->bits in limbs [l+1] to [l+3]. */
     T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ)); 
-	memset(T, 0x00, (3 * MONT_LIMB_SIZ));
-	
-	for(uint64_t i = 0; i < MONT_L; ++i){
-		/* 2. */
-		Ul = _mulx_u64(  *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
-						,*((uint64_t*)(X->bits))
-						,&Uh
-					  );
-					  
-	    C = _addcarryx_u64((uint8_t)0, Ul, *((uint64_t*)R->bits), &Ul);
-	    
-	    Uh += (uint64_t)C;
+    memset(T, 0x00, (3 * MONT_LIMB_SIZ));
+    
+    for(uint64_t i = 0; i < MONT_L; ++i){
+        /* 2. */
+        Ul = _mulx_u64(  *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
+                        ,*((uint64_t*)(X->bits))
+                        ,&Uh
+                      );
+                      
+        C = _addcarryx_u64((uint8_t)0, Ul, *((uint64_t*)R->bits), &Ul);
+        
+        Uh += (uint64_t)C;
 
-	    *(T + 0) = Ul;
-	    *(T + 1) = Uh;
-	    *(T + 2) = 0;	
-	    
-		/* 3. */
-		q = _mulx_u64((uint64_t)MONT_MU, *(T + 0), &Uh);
-		
-		/* 3.5:  T += q*n0. */
-		Vl = _mulx_u64(q, *((uint64_t*)(N->bits + (0*MONT_LIMB_SIZ))), &Vh);
-		
-		C = _addcarryx_u64( (uint8_t)0, *(T + 0), Vl, (T + 0) );
-		
-		D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
-	
-		*(T + 2) += (uint64_t)D;
-		
-		/**(T + 2) = 0;*/
-		
-		
-		/* 4. */
-		for(uint64_t j = 1; j < MONT_L; ++j){
-			/* Compute T. */
-			Ul = _mulx_u64(q, *((uint64_t*)(N->bits + (j*MONT_LIMB_SIZ))), &Uh);
-			
-			
-			Vl = _mulx_u64( *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
-						   ,*((uint64_t*)(X->bits + (j * MONT_LIMB_SIZ)))
-						   ,&Vh
-						  );
-						  
-			C = _addcarryx_u64((uint8_t)0
-							  ,Ul
-							  ,*((uint64_t*)(R->bits+(j * MONT_LIMB_SIZ)))
-							  ,&Ul
-							  );			  
-						  
-			Uh += (uint64_t)C;			  
-						  
-			D = _addcarryx_u64((uint8_t)0, Vl, *(T + 1), &Vl);
-			
-			C = _addcarryx_u64((uint8_t)0, Ul, Vl, (T + 0));
-			
-			D = _addcarryx_u64(D, Uh, Vh, &W);
-			
-			C = _addcarryx_u64(C, W, *(T + 2), (T + 1));
-			
-			*(T + 2) = (uint64_t)C + (uint64_t)D;
-					  
-			/* Set r_(j-1) = t_0  */
-			*((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
-		}
+        *(T + 0) = Ul;
+        *(T + 1) = Uh;
+        *(T + 2) = 0;    
+        
+        /* 3. */
+        q = _mulx_u64((uint64_t)MONT_MU, *(T + 0), &Uh);
+        
+        /* 3.5:  T += q*n0. */
+        Vl = _mulx_u64(q, *((uint64_t*)(N->bits + (0*MONT_LIMB_SIZ))), &Vh);
+        
+        C = _addcarryx_u64( (uint8_t)0, *(T + 0), Vl, (T + 0) );
+        
+        D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
+    
+        *(T + 2) += (uint64_t)D;
+        
+        /**(T + 2) = 0;*/
+        
+        
+        /* 4. */
+        for(uint64_t j = 1; j < MONT_L; ++j){
+            /* Compute T. */
+            Ul = _mulx_u64(q, *((uint64_t*)(N->bits + (j*MONT_LIMB_SIZ))), &Uh);
+            
+            
+            Vl = _mulx_u64( *((uint64_t*)(Y->bits + (i * MONT_LIMB_SIZ)))
+                           ,*((uint64_t*)(X->bits + (j * MONT_LIMB_SIZ)))
+                           ,&Vh
+                          );
+                          
+            C = _addcarryx_u64((uint8_t)0
+                              ,Ul
+                              ,*((uint64_t*)(R->bits+(j * MONT_LIMB_SIZ)))
+                              ,&Ul
+                              );              
+                          
+            Uh += (uint64_t)C;              
+                          
+            D = _addcarryx_u64((uint8_t)0, Vl, *(T + 1), &Vl);
+            
+            C = _addcarryx_u64((uint8_t)0, Ul, Vl, (T + 0));
+            
+            D = _addcarryx_u64(D, Uh, Vh, &W);
+            
+            C = _addcarryx_u64(C, W, *(T + 2), (T + 1));
+            
+            *(T + 2) = (uint64_t)C + (uint64_t)D;
+                      
+            /* Set r_(j-1) = t_0  */
+            *((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
+        }
 
-		/* 5. */	
-		
-		C = _addcarryx_u64( (uint8_t)0
-				   ,*(T + 1)
-				   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
-				   , (T + 0)
-				  );
-		
-		
-		/*D = _addcarryx_u64(C, *(T+1), 0, (T+1));*/
-		
-		*(T + 1) = (uint64_t)C + *(T + 2); 
-		*(T + 2) = 0;
-		/* 6. */ 
-		*((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
-		*((uint64_t*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);	
-	}
+        /* 5. */    
+        
+        C = _addcarryx_u64( (uint8_t)0
+                   ,*(T + 1)
+                   ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
+                   , (T + 0)
+                  );
+        
+        
+        /*D = _addcarryx_u64(C, *(T+1), 0, (T+1));*/
+        
+        *(T + 1) = (uint64_t)C + *(T + 2); 
+        *(T + 2) = 0;
+        /* 6. */ 
+        *((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
+        *((uint64_t*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);    
+    }
 
-	memset((uint8_t*)T, 0x00, 3 * MONT_LIMB_SIZ);
+    memset((uint8_t*)T, 0x00, 3 * MONT_LIMB_SIZ);
 
-	/* 7. */
-	R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
-	R->free_bits = R->size_bits - R->used_bits;
-	
-	 if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
-	/*if ( (bigint_compare2(R, N)) != 3 ){*/
-		printf("---->> We hit the R_L != 0 case at end of Mont_MUL!\n");
-		/* Standard BigInt subtraction.  */
-		bigint_equate2(&R_aux, R);		
-		bigint_sub2(&R_aux, N, R);
-	}
-	
-	free(R_aux.bits);
-	return;
-	
+    /* 7. */
+    R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
+    R->free_bits = R->size_bits - R->used_bits;
+    
+     if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
+    /*if ( (bigint_compare2(R, N)) != 3 ){*/
+        printf("---->> We hit the R_L != 0 case at end of Mont_MUL!\n");
+        /* Standard BigInt subtraction.  */
+        bigint_equate2(&R_aux, R);        
+        bigint_sub2(&R_aux, N, R);
+    }
+    
+    free(R_aux.bits);
+    return;
+    
 }
 
 /*  PRACTICAL METHOD TO OBTAIN A MONTGOMERY REPRESENTATIVE
  *  
- *	To find the Montgomery representative (mod M) of A, do the following:
+ *    To find the Montgomery representative (mod M) of A, do the following:
  *
  *  Call Montgomery MUL mod M with input one set to (beta^(2*L) mod M), the 
- *	other input set to A itself (in normal PSN notation). The output of this
+ *    other input set to A itself (in normal PSN notation). The output of this
  *  will in fact be a valid Montgomery representative of A.
  */
 void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
 
-	struct bigint two, sixtyfour, beta, two_L, aux;
-	
-	bigint_create(&two, 	  M->size_bits, 2 );					
-	bigint_create(&sixtyfour, M->size_bits, 64);
-	bigint_create(&beta,	  M->size_bits, 0 );
-	bigint_create(&aux,       M->size_bits, 0 );
-	bigint_create(&two_L,	  M->size_bits, 2 * MONT_L );
-  	
-  	bigint_nullify(target);
-  	
+    struct bigint two, sixtyfour, beta, two_L, aux;
+    
+    bigint_create(&two,       M->size_bits, 2 );                    
+    bigint_create(&sixtyfour, M->size_bits, 64);
+    bigint_create(&beta,      M->size_bits, 0 );
+    bigint_create(&aux,       M->size_bits, 0 );
+    bigint_create(&two_L,      M->size_bits, 2 * MONT_L );
+      
+      bigint_nullify(target);
+      
     /* beta = 2^64 for 64-bit Montgomery limbs. */
     bigint_pow(&two, &sixtyfour, &beta);
     
@@ -1718,7 +1720,7 @@ void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
     
     target->used_bits = get_used_bits(target->bits, (uint32_t)(M->size_bits/8));
     target->free_bits = target->size_bits - target->used_bits;
- 					 
+                      
     printf("[OK] Cryptolib: Montgomery Form computed successfully.\n");
     return;
 }
@@ -1729,52 +1731,52 @@ void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
  * is the actual result in regular positional notation.
  *
  * Note: This function is somewhat general, but not fully general - it computes
- *	 	 any modular powering mod M using Montgomery Multiplication, and the
+ *          any modular powering mod M using Montgomery Multiplication, and the
  *       parameters that depend on the modulus M (MU and L) are defined at
- *		 the top of this file. However, it won't work for modular powering mod
+ *         the top of this file. However, it won't work for modular powering mod
  *       some other number, other than M, which for the purposes of the secure
  *       chat system this library was originally written for is global static.
- *		 If a function for modular POW mod M using Montgomery Multiplication
- *		 for a different modulus is needed, you have to change the Montgomery
+ *         If a function for modular POW mod M using Montgomery Multiplication
+ *         for a different modulus is needed, you have to change the Montgomery
  *       parameters MU and L - they are different for each Montgomery modulus.
  */
 void MONT_POW_modM(struct bigint* B, struct bigint* P,
-				   struct bigint* M, struct bigint* R)
+                   struct bigint* M, struct bigint* R)
 {
-	uint32_t bit = 0;
-	struct bigint X, Y, R_1, one, div_res;
-    bigint_create(&X,  		M->size_bits, 0);
-    bigint_create(&Y,  		M->size_bits, 0);
-    bigint_create(&R_1, 	M->size_bits, 0);
-    bigint_create(&one, 	M->size_bits, 1);
+    uint32_t bit = 0;
+    struct bigint X, Y, R_1, one, div_res;
+    bigint_create(&X,          M->size_bits, 0);
+    bigint_create(&Y,          M->size_bits, 0);
+    bigint_create(&R_1,     M->size_bits, 0);
+    bigint_create(&one,     M->size_bits, 1);
     bigint_create(&div_res, M->size_bits, 0);
   
     /* X and Y both become equal to the passed base B */
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
 
-    for(uint32_t i = P->used_bits - 2; i >= 0; --i){ 	
+    for(uint32_t i = P->used_bits - 2; i >= 0; --i){     
 
-   		
-    	Montgomery_MUL(&Y, &Y, M, R);   	
-	    bigint_equate2(&Y, R);
-		
+           
+        Montgomery_MUL(&Y, &Y, M, R);       
+        bigint_equate2(&Y, R);
+        
 
-		
-    	if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
-			Montgomery_MUL(&Y, &X, M, R);		
-			bigint_equate2(&Y, R);		
-    	}
+        
+        if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
+            Montgomery_MUL(&Y, &X, M, R);        
+            bigint_equate2(&Y, R);        
+        }
 
-    	if(i==0){break;}
+        if(i==0){break;}
     }
-	
-	Montgomery_MUL(&one, R, M, &R_1);
-	bigint_div2(&R_1, M, &div_res, R);	
-	
-	free(X.bits); free(Y.bits); free(R_1.bits);
-	free(one.bits); free(div_res.bits);
-	return;
+    
+    Montgomery_MUL(&one, R, M, &R_1);
+    bigint_div2(&R_1, M, &div_res, R);    
+    
+    free(X.bits); free(Y.bits); free(R_1.bits);
+    free(one.bits); free(div_res.bits);
+    return;
 }
 
 /* Generate a cryptographic signature of a sender's message
@@ -1817,8 +1819,8 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     /* Compute the signature generation prehash. */
     uint64_t prehash_len = 64
-    		,len_key_PH = prehash_len + key_len_bytes
-    		,R_used_bytes = R.used_bits
+            ,len_key_PH = prehash_len + key_len_bytes
+            ,R_used_bytes = R.used_bits
             ,len_Rused_PH
             ;
             
@@ -1843,7 +1845,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     BLAKE2B_INIT(second_btb_inbuf, len_key_PH, 0, 64, second_btb_outbuf);
     
-	
+    
     
     /* Now compute k. */  
     memcpy(second_btb_outnum.bits, second_btb_outbuf, 64);
@@ -1851,8 +1853,8 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     second_btb_outnum.used_bits = get_used_bits(second_btb_outnum.bits, 64);
     
     second_btb_outnum.free_bits = second_btb_outnum.size_bits 
-    							  - 
-    							  second_btb_outnum.used_bits;
+                                  - 
+                                  second_btb_outnum.used_bits;
     
     bigint_sub2(Q, &one, &Q_minus_one);    
     bigint_div2(&second_btb_outnum, &Q_minus_one, &div_res, &reduced_btb_res);  
@@ -1866,17 +1868,17 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     bigint_print_bits_bigend(&k);
     /* Now compute R. */
 
-	MONT_POW_modM(Gmont, &k, M, &R); 
+    MONT_POW_modM(Gmont, &k, M, &R); 
  
-	printf("Montgomery R = G^k mod M FINISHED!!!  R:\n\n");
-	bigint_print_info(&R);
-	bigint_print_bits(&R);
-	
-	printf("R in big-endian:\n");
-	bigint_print_bits_bigend(&R);
-	
-	R_used_bytes = R.used_bits;
-	
+    printf("Montgomery R = G^k mod M FINISHED!!!  R:\n\n");
+    bigint_print_info(&R);
+    bigint_print_bits(&R);
+    
+    printf("R in big-endian:\n");
+    bigint_print_bits_bigend(&R);
+    
+    R_used_bytes = R.used_bits;
+    
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }
@@ -1978,31 +1980,31 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
 /*
  *  To verify against public key A and whatever was signed, the receiver:
  *
- *	0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
+ *    0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
  *
- *	1. Computes the prehash PH as in step 0. above.
+ *    1. Computes the prehash PH as in step 0. above.
  *
- *	2. Computes R = (G^s * A^e) mod M.
+ *    2. Computes R = (G^s * A^e) mod M.
  *
- *	3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
- *	   Check that this is equal to e. If it is, validation passed. 
- * 	   In any other circumstance, the validation fails.
+ *    3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
+ *       Check that this is equal to e. If it is, validation passed. 
+ *        In any other circumstance, the validation fails.
  *
- *	RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
+ *    RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
  *
  */
 uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
-						   struct bigint* M,     struct bigint* Q, 
-						   struct bigint* s, 	 struct bigint* e,
-						   uint8_t* data, uint32_t data_len)
+                           struct bigint* M,     struct bigint* Q, 
+                           struct bigint* s,      struct bigint* e,
+                           uint8_t* data, uint32_t data_len)
 {
-	if(bigint_compare2(s, Q) != 3){
-		printf("[INFO] Cryptolib: sig_validate: passed s =/= passed Q.\n");
-		return 0;		
-	}
+    if(bigint_compare2(s, Q) != 3){
+        printf("[INFO] Cryptolib: sig_validate: passed s =/= passed Q.\n");
+        return 0;        
+    }
 
     uint64_t prehash_len = 64
-    		,R_used_bytes
+            ,R_used_bytes
             ,len_Rused_PH
             ;
             
@@ -2012,18 +2014,18 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     
     struct bigint R, R_aux1, R_aux2, R_aux3, div_res, val_e;
     
-    bigint_create(&R, 	   	M->size_bits, 0);
-    bigint_create(&R_aux1, 	M->size_bits, 0);
-    bigint_create(&R_aux2,	M->size_bits, 0);
-    bigint_create(&R_aux3, 	M->size_bits, 0);
+    bigint_create(&R,            M->size_bits, 0);
+    bigint_create(&R_aux1,     M->size_bits, 0);
+    bigint_create(&R_aux2,    M->size_bits, 0);
+    bigint_create(&R_aux3,     M->size_bits, 0);
     bigint_create(&div_res, M->size_bits, 0); 
-    bigint_create(&val_e,	M->size_bits, 0);
+    bigint_create(&val_e,    M->size_bits, 0);
     
     /* Compute the signature validation prehash. Same as during generation. */ 
       
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
 
-	printf("\n\n[SIG_VAL] BLAKE2b produced 64-byte PREHASH:\n\n");
+    printf("\n\n[SIG_VAL] BLAKE2b produced 64-byte PREHASH:\n\n");
     
     for(uint32_t i = 0; i < 64; ++i){
         if(i % 16 == 0 && i > 0){printf("\n");}
@@ -2032,43 +2034,43 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     printf("\n\n");
 
 
-    /* Compute  R =  (G^s * A^e) mod M. 			  */
+    /* Compute  R =  (G^s * A^e) mod M.               */
     /* This is: R = ((G^s mod M) * (A^e mod M)) mod M */
 
-	printf("[SIG_VAL] s in big-endian:\n");
-	bigint_print_bits_bigend(s);
-	
-	printf("[SIG_VAL] e in big-endian:\n");
-	bigint_print_bits_bigend(e);
+    printf("[SIG_VAL] s in big-endian:\n");
+    bigint_print_bits_bigend(s);
+    
+    printf("[SIG_VAL] e in big-endian:\n");
+    bigint_print_bits_bigend(e);
 
-	MONT_POW_modM(Gmont, s, M, &R_aux1); 
-	MONT_POW_modM(Amont, e, M, &R_aux2);
-	
-	bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
-	
-	bigint_div2(&R_aux3, M, &div_res, &R);
-	
-	printf("[SIG_VAL] R_val = (G^s * A^e) mod M   FINISHED!!!  R_val:\n\n");
-	bigint_print_info(&R);
-	bigint_print_bits(&R);
-	
-	printf("[SIG_VAL] R_val in big-endian:\n");
-	bigint_print_bits_bigend(&R);
-	
-	
-	R_used_bytes = R.used_bits;
-	  
+    MONT_POW_modM(Gmont, s, M, &R_aux1); 
+    MONT_POW_modM(Amont, e, M, &R_aux2);
+    
+    bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
+    
+    bigint_div2(&R_aux3, M, &div_res, &R);
+    
+    printf("[SIG_VAL] R_val = (G^s * A^e) mod M   FINISHED!!!  R_val:\n\n");
+    bigint_print_info(&R);
+    bigint_print_bits(&R);
+    
+    printf("[SIG_VAL] R_val in big-endian:\n");
+    bigint_print_bits_bigend(&R);
+    
+    
+    R_used_bytes = R.used_bits;
+      
     while(R_used_bytes % 8 != 0){
         ++R_used_bytes;
     }
     
     R_used_bytes /= 8;
     
-    /* Last step: 															*/
-    /* Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 	*/
- 	/* Check that this is equal to e. If it is, validation passed. 			*/
- 	
- 	/* Now compute val_e. */
+    /* Last step:                                                             */
+    /* Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.     */
+     /* Check that this is equal to e. If it is, validation passed.             */
+     
+     /* Now compute val_e. */
     uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len),
          /* *e_buf = malloc(40), */ /* e has bitwidth of Q. */
          *third_btb_outbuf = malloc(64); /* Not rlly 3rd here. Change it. */
@@ -2114,17 +2116,17 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     
     
     if( bigint_compare2(e, &val_e) != 2 ){
-    	printf("[INFO] Cryptolib: SIG_VAL: val_e =/= passed e. Ret 0.\n");
-    	
-    	printf("Passed e:\n");
-    	bigint_print_info(e);
-    	bigint_print_bits(e);
-    	
-    	printf("Computed val_e:\n");
-    	bigint_print_info(&val_e);
-    	bigint_print_bits(&val_e);
-    	
-    	return 0;
+        printf("[INFO] Cryptolib: SIG_VAL: val_e =/= passed e. Ret 0.\n");
+        
+        printf("Passed e:\n");
+        bigint_print_info(e);
+        bigint_print_bits(e);
+        
+        printf("Computed val_e:\n");
+        bigint_print_info(&val_e);
+        bigint_print_bits(&val_e);
+        
+        return 0;
     }
 
     free(prehash);   
@@ -2139,7 +2141,7 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     free(third_btb_outbuf); /* Not rlly 3rd here. Change it. */
     
     return 1;
-	
+    
 }
     
 

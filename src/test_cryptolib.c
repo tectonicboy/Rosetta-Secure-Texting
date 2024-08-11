@@ -47,9 +47,9 @@ int main(){
     uint32_roll_left(&T1, roll_amount);
     
     printf("T1 after left roll : %u\nThe left-rolled bits by %u are:\n"
-    	   ,T1, roll_amount
-    	  );
-    	  
+       ,T1, roll_amount
+      );
+      
     uint32_print_bits(T1);
     */
     
@@ -61,7 +61,7 @@ int main(){
     
     /*
     char* plaintext = "Ladies and Gentlemen of the class of '99: "
-    				  "If I could offer you "
+      "If I could offer you "
                       "only one tip for the future, sunscreen would be it.\0"
                       ;
                       
@@ -142,17 +142,28 @@ int main(){
     
     
 
-	/********** NOW TESTING ARGON2id ****************/
+/********** NOW TESTING ARGON2id ****************/
     
     
     
       
     struct Argon2_parms prms;
     
+    /* small fast */
+    /*
     prms.p = 4;   
     prms.T = 32;  
     prms.m = 32;
     prms.t = 3;  
+    prms.v = 19;  
+    prms.y = 2;  
+    */
+    
+    /* big slow */
+    prms.p = 8;   
+    prms.T = 64;  
+    prms.m = 2097000;  
+    prms.t = 1;  
     prms.v = 19;  
     prms.y = 2;  
     
@@ -196,10 +207,10 @@ int main(){
     /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
     /**************************************************************************/
 
-	
+
 
     struct bigint *M, *Q, *G, *Gm, *Am, *a, *s, *e,
-    			  *A_computed = malloc(sizeof(struct bigint));
+      *A_computed = malloc(sizeof(struct bigint));
     
     printf("SIZEOF(STRUCT BIGINT) = %lu\n", sizeof(struct bigint));
     
@@ -212,61 +223,61 @@ int main(){
     
     
         /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
-    	/* Cuz the signature itself is (s,e) both of which are BigInts whose */
-    	/* bitwidth is up to the bitwidth of Q and no more.                  */
+    /* Cuz the signature itself is (s,e) both of which are BigInts whose */
+    /* bitwidth is up to the bitwidth of Q and no more.                  */
     
     
-    	
+    
     char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
 
-	M = get_BIGINT_from_DAT( 3072
-    				    	,"../saved_nums/M_raw_bytes.dat\0"
-    				    	,3071
-    				    	,RESBITS
-    				   	   );
+M = get_BIGINT_from_DAT( 3072
+        ,"../saved_nums/M_raw_bytes.dat\0"
+        ,3071
+        ,RESBITS
+          );
     
     Q = get_BIGINT_from_DAT( 320
-    				    	,"../saved_nums/Q_raw_bytes.dat\0"
-    				    	,320
-    				    	,RESBITS
-    				       );
+        ,"../saved_nums/Q_raw_bytes.dat\0"
+        ,320
+        ,RESBITS
+           );
     G = get_BIGINT_from_DAT( 3072
-						    ,"../saved_nums/G_raw_bytes.dat\0"
-						    ,3071
-						    ,RESBITS
-						   );
+    ,"../saved_nums/G_raw_bytes.dat\0"
+    ,3071
+    ,RESBITS
+   );
 
     Gm = get_BIGINT_from_DAT( 3072
-						    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
-						    ,3071
-						    ,RESBITS
-						   );
+    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
+    ,3071
+    ,RESBITS
+   );
     
     a = get_BIGINT_from_DAT(312
-    							   ,"../saved_nums/testprivkey_raw_bytes.dat\0"
-    							   ,312
-    							   ,RESBITS
-    							  );
-    							  
-    							  
+       ,"../saved_nums/testprivkey_raw_bytes.dat\0"
+       ,312
+       ,RESBITS
+      );
+      
+      
     
 
     Am = get_BIGINT_from_DAT
-						   (
-							3072
-						   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
-				           ,3072
-				           ,RESBITS
-				           );			
-				           				  
+   (
+3072
+   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
+           ,3072
+           ,RESBITS
+           );
+             
 
-	printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
+printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
     Signature_GENERATE(  M, Q, Gm, msg, data_len
-    			        ,result_signature, a, 39
-    			      );
+            ,result_signature, a, 39
+          );
                   
     printf("FINISHED SIGNATURE!!\n");
     printf("The resulting signature itself is (s,e) both BigInts.\n");
@@ -295,10 +306,10 @@ int main(){
 
     
 
-	/* Compute a public key from the generated private key. 				  */
-	/* This key is used in validating a signature generated from private key. */
-	
-	/* A = G^a mod M */
+/* Compute a public key from the generated private key.   */
+/* This key is used in validating a signature generated from private key. */
+
+/* A = G^a mod M */
     
     /* We can use montgomery modular MUL mod M function here. */
     /* We already have Gmont above. */
@@ -306,20 +317,20 @@ int main(){
     
     
     
-	printf("Ready to call SIGNATURE VALIDATE now!\n");
-	
-	uint8_t isValid = 
-			Signature_VALIDATE(  Gm,Am 
-								,M, Q, s, e, msg, data_len
-							  );
+printf("Ready to call SIGNATURE VALIDATE now!\n");
+
+uint8_t isValid = 
+Signature_VALIDATE(  Gm,Am 
+,M, Q, s, e, msg, data_len
+  );
     
     printf("FINISHED VALIDATING THE SIGNATURE!\n");
     
     if(!isValid){
-    	printf("Valid Signature: NO\n");
+    printf("Valid Signature: NO\n");
     }
     else{
-    	printf("Valid Signature: YES\n");
+    printf("Valid Signature: YES\n");
     }
     
     
