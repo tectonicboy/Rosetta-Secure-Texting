@@ -60,12 +60,14 @@ On registration, Client enters a password. Then:
     2.2. Let V be the most significant 32 bytes of T.
     
     2.3. the password hash produced by Argon2id from the client's password
-          become the KEY for ChaCha20, which we use with a randomly-generated
-          Nonce to hash the client's private key and store that in the client's
-         filesystem. The client must store the Nonce used for ChaCha20 as well
-         as its encrypted private key a':
+         become the KEY for ChaCha20, which we use with a randomly-generated
+         16-byte Nonce (no Counter) to hash the client's private key and store 
+         that in the client's filesystem. 
+         
+         The client must store the Nonce used for ChaCha20 as well as its
+         encrypted private key a':
     
-        a' = ChaCha20(a, Nonce = random, key = V)
+        a' = ChaCha20(a, Nonce = random 16 bytes, key = V)
     
     2.4. Store in Alice's own filesystem (Nonce,a',A,S).
     
@@ -91,7 +93,7 @@ On registration, Client enters a password. Then:
         
     3.2. Let V be the most significant 32 bytes of T.
 
-    3.3. a = ChaCha20(a', stored_Nonce, key = just_obtained_V)
+    3.3. a = ChaCha20(a', stored 16-byte Nonce, key = just_obtained_V)
 
     3.4. Compute A' = G^a mod M
     
@@ -143,7 +145,7 @@ On registration, Client enters a password. Then:
             KAB_s = X[0  .. 31 ]
             KBA_s = X[32 .. 63 ]
             Y_s   = X[64 .. 95 ]
-            N_s   = X[96 .. 111]
+            N_s   = X[96 .. 107] <-- 12-byte Nonce since a Counter is needed.
             
     4.5.  Server computes a Schnorr Signature of Y_s using its
           LONG-TERM private key b, yielding SB.
@@ -177,8 +179,8 @@ On registration, Client enters a password. Then:
     4.13. Server uses KAB_s to compute the same HMAC on A_x. Takes the output's 
           least significant 8 bytes. If they match H_x, authentication passes.
           
-    4.14. Server uses KAB_s as key and N_s as Nonce in ChaCha20 to decrypt
-          A_x, revealing the client's long-term DH public key A.
+    4.14. Server uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
+          decrypt A_x, revealing the client's long-term DH public key A.
           Sends an OK message to the client.
           
     4.15. Server and client destroy the short-term DH keys and shared secret.
@@ -336,8 +338,7 @@ THE SECURE MESSAGE EXCHANGE PROTOCOL:
     7.3. Thus, Carol gets her KC key from Associated Data as well.
     
     7.4. Decyphers KC with ChaCha, using session-length key KAC as ChaCha Key, 
-         Alice's Nonce (which Alice included in Associated Data), the full 
-         16 bytes of the Nonce. 
+         Alice's 16-byte Nonce (Alice included it in Associated Data).
          
          As with encyphering the message by Alice, Carol uses no ChaCha Counter.
          
