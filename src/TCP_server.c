@@ -10,7 +10,7 @@
 
 #define SERVER_PORT    54746
 #define PRIVKEY_BYTES  40   
-#define PUBKEY_BYTES   384
+#define PUBKEY_LEN     384
 #define MAX_CLIENTS    64
 #define MAX_PEND_MSGS  1024
 #define MAX_CHATROOMS  64
@@ -18,13 +18,13 @@
 #define MAX_SOCK_QUEUE 1024
 #define MAX_BIGINT_SIZ 12800
 #define MAGIC_LEN      8 
+#define TEMP_BUF_SIZ   16384
 
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_BYTES))
-#define TEMP_BUF_SIZ   ((4 * sizeof(bigint)) + (3 * 32) + 12)
 
 #define MAGIC_00 0xAD0084FF0CC25B0E
 #define MAGIC_01 0xE7D09F1FEFEA708B
-
+#define MAGIC_02 0x146AAE4D100DAEEA
 
 /* A bitmask for various control-related purposes.
  * 
@@ -39,21 +39,16 @@
  *        while another client is already logging in, without checking this bit,
  *        the other client's login procedure's short-term keys could be erased.
  *        Thus, use this bit to disallow more than 1 login handshake at a time.
- *
  */ 
 u32 server_control_bitmask = 0;
 
-
 /* A bitmask telling the server which client slots are currently free.   */
 u64 clients_status_bitmask = 0;
-
 
 u32 next_free_user_ix = 0;
 u32 next_free_room_ix = 1;
 
 u8 server_privkey[PRIVKEY_BYTES];
-
-
 
 struct connected_client{
     u32 room_ix;
@@ -67,17 +62,15 @@ struct chatroom{
     u32 num_people;
     u32 owner_ix;
     char*    room_name;
-}
+};
 
 struct connected_client clients[MAX_CLIENTS];
 struct chatroom rooms[MAX_CHATROOMS];
-
 
 /* Memory region holding the temporary keys for the login handshake. */
 u8* temp_handshake_buf;
 
 /* Linux Sockets API related globals. */
-
 int port = SERVER_PORT
    ,listening_socket
    ,optval1 = 1
@@ -93,7 +86,7 @@ struct sockaddr_in server_address;
 /* First thing done when we start the server - initialize it. */
 u32 self_init(){
 
-    /* Allocate memory for the global login handshake memory region. */
+    /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
 
     server_address = {  .sin_family = AF_INET
@@ -108,32 +101,32 @@ u32 self_init(){
     
     setsockopt(
           listening_socket, SOL_SOCKET, SO_REUSEPORT, &optval1, sizeof(optval1)
-    );    
+    );  
+      
     setsockopt(
           listening_socket, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
     );
                       
     if( 
-       (
-        bind(
+        (
+         bind(
             listening_socket
            ,(struct sockaddr*)&server_address
            ,sizeof(server_address)
         )
-       ) == -1
-      )
-      {
+      ) == -1
+    )
+    {
         if(errno != 13){
             printf("[ERR] Server: bind() failed. Errno != 13. Aborting.\n");
             return 1;
         }
-      }
+    }
        
     if( (listen(listening_socket, MAX_SOCK_QUEUE)) == -1){
         printf("[ERR] Server: couldn't begin listening. Aborting.\n");
         return 1;
     }
-    
     
     /*  Server will use its private key to compute Schnorr signatures of 
      *  everything it transmits, so all users can verify it with the server's
@@ -151,7 +144,7 @@ u32 self_init(){
         return 1;
     }
     else{
-        printf("[OK] Server: Successfully loaded private key.\n");
+        printf("[OK]  Server: Successfully loaded private key.\n");
     }
     
     /* Initialize the BigInt that stores the server's private key. */
@@ -191,7 +184,7 @@ u32 self_init(){
 u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
 
     if(pubkey_siz < 300){
-        printf("\n[WARN] Server: Passed a small PubKey Size: %u\n", pubkey_siz);
+        printf("\n[ERR] Server: Passed a small PubKey Size: %u\n", pubkey_siz);
         return 2;
     }
 
@@ -202,7 +195,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
            && (memcmp(pubkey_buf, clients[i].client_pubkey, pubkey_siz) == 0)
           )
         {
-            printf("\n[WARN] Server: PubKey already exists.\n\n");
+            printf("\n[ERR] Server: PubKey already exists.\n\n");
             return 1;
         }
     }
@@ -213,7 +206,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
 
 __attribute__ ((always_inline)) 
 inline
-void process_msg_01(u8* msg_buf){
+void process_msg_00(u8* msg_buf){
 
     bigint *A_s
           ,zero
@@ -226,12 +219,17 @@ void process_msg_01(u8* msg_buf){
         ,*KBA_s
         ,*Y_s
         ,*N_s
-        ,tempbuf_byte_offset = 0;
+        ,tempbuf_byte_offset = 0
+        ,replybuf_byte_offset = 0;
         
     u8 *signature_buf = calloc(1, SIGNATURE_LEN);
             
     u8* reply_buf;
     u64 reply_len;
+
+    reply_len = (3 * MAGIC_LEN) + SIGNATURE_LEN + PUBKEY_LEN;
+    
+    reply_buf = calloc(1, reply_len);
 
     /* Construct a bigint out of the client's short-term public key.          */
     /* Here's where a constructor from a memory buffer and its length is good */
@@ -255,6 +253,7 @@ void process_msg_01(u8* msg_buf){
     /* A "check non zero" function in the BigInt library would also be useful */
     
     bigint_create(&zero, MAX_BIGINT_SIZ, 0);
+    bigint_create(&Am,   MAX_BIGINT_SIZ, 0);
     
     Get_Mont_Form(A_s, &Am, M);
     
@@ -337,39 +336,287 @@ void process_msg_01(u8* msg_buf){
      * their bigint structs easily with get_used_bits().
      */
     
-    /* Construct the reply buffer. */
-    reply_len = MAGIC_LEN + SIGNATURE_LEN + PUBKEY_BYTES;
-    reply_buf = calloc(1, reply_len);
+    /* Construct the reply buffer. */   
+     replybuf_byte_offset = 0;
+    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)MAGIC_00;
     
-    *((u64*)(reply_buf + 0)) = MAGIC_00;
+    replybuf_byte_offset += MAGIC_LEN;
+    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)PUBKEY_LEN; 
     
-    memcpy(reply_buf + MAGIC_LEN, B_s->bits, PUBKEY_BYTES);
-    memcpy(reply_buf + MAGIC_LEN + PUBKEY_BYTES, signature_buf, SIGNATURE_LEN);
+    replybuf_byte_offset += MAGIC_LEN;
+    memcpy(reply_buf + replybuf_byte_offset, B_s->bits, PUBKEY_LEN);
+    
+    replybuf_byte_offset += PUBKEY_LEN;
+    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)SIGNATURE_LEN; 
+    
+    replybuf_byte_offset += MAGIC_LEN;
+    memcpy(reply_buf + replybuf_byte_offset, signature_buf, SIGNATURE_LEN);
     
     /* Send the reply back to the client. */
     if(send(client_socket, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't reply with MAGIC_00 msg type.\n");
     }
     else{
-        printf("[OK] Server: Replied to client with MAGIC_00 msg type.\n");
+        printf("[OK]  Server: Replied to client with MAGIC_00 msg type.\n");
     }
-    
-    return;
-  
+      
 label_cleanup: 
-  
+
+    /* Free temporaries on the heap. */
     free(zero.bits);
     free(Am.bits);
     free(signature_buf);
     free(reply_buf);
-    /* Do NOT free A_s's bits yet, they'll be needed in the processor of the 
-     * other transmission that's part of the login handshake protocol. 
-     */
+  
     return;
 }
 
+__attribute__ ((always_inline)) 
+inline
+void process_msg_01(u8* msg_buf){
+
+    const u64 B = 64;
+    const u64 L = 128;
+    const u64 magic02 = MAGIC_02;
+    const u64 maigc01 = MAGIC_01;
+    
+    u8* K0_buf = calloc(1, B);
+    u8* ipad   = calloc(1, B);
+    u8* opad   = calloc(1, B);
+    u8* K0_XOR_ipad_TEXT = calloc(1, (B + PUBKEY_LEN));
+    u8* BLAKE2B_output = calloc(1, L);   
+    u8* last_BLAKE2B_input = calloc(1, (B + L));
+    u8* K0_XOR_ipad = calloc(1, B);
+    u8* K0_XOR_opad = calloc(1, B);
+    u8* HMAC_output = calloc(1, 8);
+    u8* client_pubkey_buf = calloc(1, PUBKEY_LEN);
+    
+    u8* reply_buf;  
+    
+    memset(opad, 0x5c, B);
+    memset(ipad, 0x36, B);
+    
+    /*  Use what's already in the locked memory region to compute HMAC and 
+     *  to decrypt the user's long-term public key
+     *  Server uses KAB_s to compute the same HMAC on A_x
+     *
+     *  Server uses KAB_s to compute the same HMAC on A_x as the client did. 
+     *
+     *  HMAC parameters here:
+     *
+     *  B    = input block size in bytes of BLAKE2B = 64
+     *  H    = hash function to be used - unkeyed BLAKE2B
+     *  ipad = buffer of the 0x36 byte repeated B=64 times
+     *  K    = key KAB_s
+     *  K_0  = K after pre-processing to form a B=64-byte key.
+     *  L    = output block size in bytes of BLAKE2B = 128
+     *  opad = buffer of the 0x5c byte repeated B=64 times
+     *  text = A_x
+     */ 
+     
+    /* Step 3 of HMAC construction */
+    /* Length of K is less than B so append 0s to it until it's long enough. */
+    memset(K0 + 32, temp_handshake_buf + (4 * sizeof(bigint)), 32);
+
+    /* Step 4 of HMAC construction */
+    for(u64 i = 0; i < B; ++i){
+        K0_XOR_ipad[i] = (K0[i] ^ ipad[i]);
+    }
+    
+    /* step 5 of HMAC construction */
+    
+    memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
+    memcpy(K0_XOR_ipad_TEXT + B, msg_buf + (2 * MAGIC_LEN), PUBKEY_LEN);
+    
+    /* step 6 of HMAC construction */
+
+    /* Call BLAKE2B on K0_XOR_ipad_TEXT */
+  
+    BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
+    
+    /* Step 7 of HMAC construction */
+    for(u64 i = 0; i < B; ++i){
+        K0_XOR_opad[i] = (K0[i] ^ opad[i]);
+    }
+    
+    /* Step 8 of HMAC construction */
+    
+    /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
+    /* B + L bytes total length */
+
+    memcpy(last_BLAKE2B_input, K0_XOR_opad, B);
+    memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
+    
+    /* Step 9 of HMAC construction */
+    
+    /* Call BLAKE2B on the combined buffer in step 8. */
+    BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
+    
+    /* Take the 8 leftmost bytes to form the HMAC output. */
+    memcpy(HMAC_output, BLAKE2B_output, 8);
+    
+    /* Now compare calculated HMAC with the HMAC the client sent us */
+    for(u64 i = 0; i < 8; ++i){
+        if(HMAC_output[i] != msg_buf[PUBKEY_LEN + (2*MAGIC_LEN) + i]){
+            printf("[ERR] Server: HMAC authentication codes don't match!\n\n");
+            printf("[OK]  Server: Discarding transmission.\n");
+            goto label_cleanup;
+        }
+    }
+    
+    /*
+     *  Server uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
+     *  decrypt A_x, revealing the client's long-term DH public key A.
+     *
+     *  Server then destroys all cryptographic artifacts for handshake. 
+     */
+     CHACHA20(msg_buf + (2*MAGIC_LEN)
+             ,PUBKEY_LEN
+             ,temp_handshake_buf + ((4*sizeof(bigint)) + (3*32))
+             ,3
+             ,temp_handshake_buf + (4 * sizeof(bigint))
+             ,8
+             ,client_pubkey_buf
+             );
+             
+    /* Now we have the decrypted client's long-term public key! */
+     
+ 
+    /* if a message arrived to permit a newly arrived user to use Rosetta, but
+     * currently the maximum number of clients are using it -> Try later.
+     */
+    if(next_free_user_ix == MAX_CLIENTS){
+        printf("[ERR] Server: Not enough client slots to let a user in.\n");
+        printf("              Letting the user know and to try later.  \n");
+        
+        /* Construct the ROSETTA FULL reply msg buffer */
+        reply_len = (2*8) + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+    
+        *((u64*)(reply_buf + 0)) = MAGIC_02;
+        *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
+        
+        Signature_GENERATE
+        (M,Q,Gm,&magic02,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
+        
+        if(send(client_socket, reply_buf, reply_len, 0) == -1){
+            printf("[ERR] Server: Couldn't send full-rosetta message.\n");
+        }
+        else{
+            printf("[OK]  Server: Told client Rosetta is full, try later\n");
+        }
+        goto label_cleanup;
+    }
+    
+    if( (check_pubkey_exists(client_pubkey_buf, PUBKEY_LEN)) > 0 ){
+        printf("[ERR] Server: Obtained login public key already exists.\n");
+        printf("\n[OK]  Server: Discarding transmission.\n");
+        goto label_cleanup;
+    }
+    
+    /* Construct the login OK reply msg buffer. */
+    /* It will contain the user ID */
+    /* Encrypt the ID with chacha20 and KBA key and N_s nonce! */
+    
+    /* Try using a chacha counter even with less than 64 bytes of input. */
+    
+    reply_len  = (3*8) + SIGNATURE_LEN;
+    reply_buf  = calloc(1, reply_len);
+    
+    CHACHA20(&next_free_user_ix
+             ,8
+             ,temp_handshake_buf + ((4*sizeof(bigint)) + (3*32))
+             ,3
+             ,temp_handshake_buf + ((4*sizeof(bigint)) + (1*32))
+             ,8
+             ,(reply_buf + 8)
+             );
+             
+    *((u64*)(reply_buf +  0)) = MAGIC_01;
+    *((u64*)(reply_buf + 16)) = SIGNATURE_LEN;
+    
+    Signature_GENERATE
+        (M,Q,Gm,&magic01,8,(reply_buf+24),&server_privkey_bigint,PRIVKEY_BYTES);
+    
+    /* Server bookkeeping - populate this user's slot, find next free slot. */
+  
+    clients[next_free_user_ix].room_ix = 0;
+    clients[next_free_user_ix].num_pending_msgs = 0;
+
+    for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
+        clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
+    }
+    
+    clients[next_free_user_ix].pubkey_siz_bytes = PUBKEY_LEN;
 
 
+    clients[next_free_user_ix].client_pubkey 
+     = 
+     calloc(1, clients[next_free_user_ix].pubkey_siz_bytes);
+     
+    memcpy(  clients[next_free_user_ix].client_pubkey 
+             ,client_pubkey_buf
+             ,clients[next_free_user_ix].pubkey_siz_bytes
+           );
+    
+    /* Reflect the new taken user slot in the global user status bitmask. */
+    clients_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
+    
+    /* Increment it one space to the right, since we're guaranteeing by
+     * logic in the user erause algorithm that we're always filling in
+     * a new user in the LEFTMOST possible empty slot.
+     *
+     * If you're less than (max_users), look at this slot and to the right
+     * in the bitmask for the next leftmost empty user slot index. If you're
+     * equal to (max_users) then the maximum number of users are currently
+     * using Rosetta. Can't let any more people in until one leaves.
+     *
+     * Here you either reach MAX_CLIENTS, which on the next attempt to 
+     * let a user in and fill out a user struct for them, will indicate
+     * that the maximum number of people are currently using Rosetta, or
+     * you reach a bit at an index less than MAX_CLIENTS that is 0 in the
+     * global user slots status bitmask.
+     */
+    ++next_free_user_ix;
+    
+    while(next_free_user_ix < MAX_CLIENTS){
+        if(!(clients_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
+        {
+            break;
+        }
+        ++next_free_user_ix;
+    }
+                
+    if(send(client_socket, reply_buf, reply_len, 0) == -1){
+        printf("[ERR] Server: Couldn't send Login-OK message.\n");
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Server: Told client Login went OK, sent their index.\n");
+    }
+    
+    printf("\n\n[OK]  Server: SUCCESS - Permitted a user in Rosetta!!\n\n");
+
+label_cleanup:
+
+    /* Now it's time to clear and unlock the temporary login memory region. */
+    memset(temp_handshake_buf, 0x00, TEMP_BUF_SIZ);
+    server_control_bitmask &= ~(1ULL << 63ULL);
+    
+    /* Free temporaries on the heap. */
+    free(K0_buf);
+    free(ipad);
+    free(opad);
+    free(K0_XOR_ipad_TEXT);
+    free(BLAKE2B_output);   
+    free(last_BLAKE2B_input);
+    free(K0_XOR_ipad);
+    free(K0_XOR_opad);
+    free(HMAC_output);
+    free(client_pubkey_buf);
+
+    return ;
+}
 
 /*  To make the server design more elegant, this top-level message processor 
  *  only checks whether the message is legit or not, and which of the predefined
@@ -401,189 +648,95 @@ u32 process_new_message(){
     s64 bytes_read; 
     u64 transmission_type;
     u64 expected_siz;
-    u8* reply_buf;
-    u8* reply_text;
-    u64 reply_len;
+    char msg_type_str = calloc(1, 3);
+    msg_type_str[2] = '\0';
+    
     
     /* Capture the message the Rosetta TCP client sent to us. */
     bytes_read = recv(client_socket, client_msg_buf, MAX_MSG_LEN, 0);
     
     if(bytes_read == -1 || bytes_read < 8){
         printf("[ERR] Server: Couldn't read message on socket or too short.\n");
-        return 1;
+        goto label_cleanup;
     }
     else{
-        printf( "[OK] Server: Just read %u bytes from a received message!\n\n"
-               ,bytes_read
-        );
+        printf("[OK]  Server: Read %u bytes from a request!\n\n", bytes_read);
     }
-    
-    /* Examine the message and react to it accordingly. */
-       
+           
     /* Read the first 8 bytes to see what type of init transmission it is. */
     transmission_type = *((u64*)client_msg_buf);
     
     switch(transmission_type){
     
-    /* A client tried to log in Rosetta, initialize the connection. */
+    /* A client tried to log in Rosetta */
     case(MAGIC_00){
-    
+        
         /* Size must be in bytes: 8 + 8 + pubkeysiz, which is bytes[8-15] */
         expected_siz = (16 + (*((u64*)(client_msg_buf + 8))));
+        strncpy(msg_type_str, "00", 2);
         
         if(bytes_read != expected_siz){
-            printf("[WARN] Server: MSG Type was 0 but of wrong size.\n");
-            printf("               Size was: %ld\n", bytes_read);
-            printf("               Expected: %lu\n", expected_siz);
-            printf("\n[OK] Discarding transmission.\n\n ");
-            return 1;
+            goto label_error;
         }
         
-        
-       process_msg_01(client_msg_buf);
-       
-        
-        /* NONE OF THIS IS EVEN A REACTION TO MSG_00 ANYMORE!!! */
-        /* MOVE IT TO THE REACTION FUNCTION TO MSG_01 ASAP!!!   */
-        
-        /* Create the new user structure instance with the public key. */
-        
-        /* A message arrived to permit a newly arrived user to use Rosetta, but
-         * currently the maximum number of clients are using it. Try later.
-         */
-        if(next_free_user_ix == MAX_CLIENTS){
-            printf("[WARN] - Not enough client slots to let a user in.\n");
-            printf("         Letting the user know and to try later.  \n");
-            
-            /* Let the user know that Rosetta is full right now, try later. */
-            reply_text = "Rosetta is full, try later";
-            reply_len  = strlen(strcat(reply_text, "\0")) + SIGNATURE_LEN;
-            reply_buf  = calloc(1, reply_len);
-        
-            /**********  KEEP CHANGING HERE ***************/
-            /* BUT LOOK AT NEW INITIAL HANDSHAKE SCHEME WITH KAB */
-            memcpy(reply_buf, &next_free_user_ix, 4); 
-            
-            if(send(client_socket, reply_buf, reply_len, 0) == -1){
-                printf("[ERR] Server: Couldn't send full-rosetta message.\n");
-            }
-            else{
-                printf("[OK] Server: Told client Rosetta is full, try later\n");
-            }
-            return 1;
-        }
-        
-        if(  check_pubkey_exists(
-               (client_msg_buf + 16), *((u64*)(client_msg_buf + 8))
-             ) > 0
-          )
-        {
-            printf("[WARN] Server: Obtained public key was BAD for MSG 0.\n");
-            printf("\n[OK] Discarding transmission.\n");
-            return 1;
-        }
-        
-        reply_buf = calloc(1, 4 + SIGNATURE_LEN);
-        
-        memcpy(reply_buf, &next_free_user_ix, 4); 
-        
-        clients[next_free_user_ix].room_ix = 0;
-        clients[next_free_user_ix].num_pending_msgs = 0;
+        process_msg_00(client_msg_buf);
+    }
     
-        for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
-            clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
-        }
-        
-        clients[next_free_user_ix].pubkey_siz_bytes 
-         = (*((u64*)(client_msg_buf + 8)));
-    
-    
-        clients[next_free_user_ix].client_pubkey 
-         = 
-         calloc(1, clients[next_free_user_ix].pubkey_siz_bytes);
-         
-        memcpy(  clients[next_free_user_ix].client_pubkey 
-                 ,(client_msg_buf + 16)
-                 ,clients[next_free_user_ix].pubkey_siz_bytes
-               );
-        
-        /* Reflect the new taken user slot in the global user status bitmask. */
-        clients_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
-        
-        /* Increment it one space to the right, since we're guaranteeing by
-         * logic in the user erause algorithm that we're always filling in
-         * a new user in the leftmost possible empty slot.
-         *
-         * If you're less than (max_users), look at this slot and to the right
-         * in the bitmask for the next leftmost empty user slot index. If you're
-         * equal to (max_users) then the maximum number of users are currently
-         * using Rosetta. Can't let any more people in until one leaves.
-         *
-         * Here you either reach MAX_CLIENTS, which on the next attempt to 
-         * let a user in and fill out a user struct for them, will indicate
-         * that the maximum number of people are currently using Rosetta, or
-         * you reach a bit at an index less than MAX_CLIENTS that is 0 in the
-         * global user slots status bitmask.
-         */
-        ++next_free_user_ix;
-        
-        while(next_free_user_ix < MAX_CLIENTS){
-            if(!(clients_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
-            {
-                break;
-            }
-            ++next_free_user_ix;
-        }
-        
-        printf("\n\nServer: Calling Signature_GENERATE() NOW!!!\n\n");
-        
-        Signature_GENERATE(  M, Q, Gm, reply_buf, 4, (reply_buf + 4),
-                             server_privkey_bigint, PRIVKEY_BYTES
-                          );
-                      
-        printf("Server: FINISHED SIGNATURE!!\n");
-        printf("Server: Resulting signature itself is (s,e) both BigInts.\n");
-        printf("Server: It was placed in reply_buf[4+].\n");
-        
-        if(send(client_socket, reply_buf, (4 + SIGNATURE_LEN), 0) == -1){
-            printf("[ERR] Server: Couldn't send init-OK message.\n");
-            return 1;
-        }
-        else{
-            printf("[OK] Server: Told client initialization went OK.\n");
-        }
-        
-        printf("\n\n[OK] Successfully permitted a new user in Rosetta!!\n\n");
-        
-        return 0;
+    /* Login part 2 - client sent their encrypted long-term public key. */
+    case(MAGIC_01){  
 
-    }
+        /* Size must be in bytes: 8 + 8 + 8 + pubkey size at msg[8-15] */
+        expected_siz = (16 + (*((u64*)(client_msg_buf + 8))) + 8);
+        strncpy(msg_type_str, "01", 2); 
+        
+        if(bytes_read != expected_siz){           
+            goto label_error;
+        }
     
-    /* Join Room */
-    case(MAGIC_1){
-                    
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_01(client_msg_buf);            
     }
-    
+       
     } /* end switch */
     
-    
+label_error:
+
+    printf("[ERR] Server: MSG Type was %s but of wrong size.\n"
+           ,msg_type_str
+          );
+          
+    printf("               Size was: %ld\n", bytes_read);
+    printf("               Expected: %lu\n", expected_siz);
+    printf("\n[OK]  Server: Discarding transmission.\n\n ");
+        
+        
+label_cleanup: 
+
     /* FREE EVERYTHING THIS FUNCTION ALLOCATED */
-    free();
+    free(client_msg_buf);
+    free(msg_type_str);
 }
 int main(){
-    
-    /* Initialize Sockets API, load own private key. */ 
-    self_init();
 
     u32 status;
     
-    while(1){
+    /* Initialize Linux Sockets API, load cryptographic keys and artifacts. */ 
+    status = self_init();
     
+    if(status){
+        printf("[ERR] Server: Could not initialize. Terminating.\n");
+        return 1;
+    }
+    
+    printf("\n\n[OK]  Server: SUCCESS - Finished initializing!\n\n");
+    
+    while(1){
+
         /* Block on this accept() call until someone sends us a message. */
         client_socket_fd = accept(  server_socket
-                                      ,(struct sockaddr*)(&client_address)
-                                      ,&clientLen
-                                   );
+                                   ,(struct sockaddr*)(&client_address)
+                                   ,&clientLen
+                                 );
                                    
         /* 0 on success, greater than 0 otherwise. */                         
         status = process_new_message();
@@ -593,17 +746,8 @@ int main(){
                    "Error while processing a received "
                    "transmission, look at log to find it.\n"
                   );    
-        }
-                              
+        }                      
     }
-                
-
-    /* Does it really matter to free() it? Not like the heap space is gonna
-     * be used for anything else at this point, as the server is about to
-     * be shut down. Do it anyway for completeness.
-     */
-     
-    free(client_message);
-    
+                 
     return 0;
 }
