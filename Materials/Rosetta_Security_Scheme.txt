@@ -188,6 +188,18 @@ On registration, Client enters a password. Then:
     4.14. Server uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
           decrypt A_x, revealing the client's long-term DH public key A.
           Server also destroys the short-term DH keys and shared secret.
+          
+    4.15. Server sends a last login reply to client either telling it that
+          Rosetta is currently full and to try again later, or telling it
+          that LOGIN went OK, sending along their user index by which they 
+          can identify themselves to the server for this session, encrypted
+          by chacha20 with key KBA and Nonce N_s. 
+          
+          In both cases, a Schnorr Signature is computed on the magic 
+          packet-identification constant (which is the first 8 bytes of all 
+          client-server transmissions) and the signature is embedded at the 
+          end of the server's reply. Right before the signature is an 8-byte
+          region telling the client how many bytes the signature's length is.
                    
 ================================================================================
 
