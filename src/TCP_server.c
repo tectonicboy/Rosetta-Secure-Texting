@@ -203,7 +203,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
     return 0;
 }
 
-
+/* A client requested to be logged in Rosetta */
 __attribute__ ((always_inline)) 
 inline
 void process_msg_00(u8* msg_buf){
@@ -371,6 +371,7 @@ label_cleanup:
     return;
 }
 
+/* Second part of the initial login handshake */
 __attribute__ ((always_inline)) 
 inline
 void process_msg_01(u8* msg_buf){
@@ -380,9 +381,9 @@ void process_msg_01(u8* msg_buf){
     const u64 magic02 = MAGIC_02;
     const u64 maigc01 = MAGIC_01;
     
-    u8* K0_buf = calloc(1, B);
-    u8* ipad   = calloc(1, B);
-    u8* opad   = calloc(1, B);
+    u8* K0   = calloc(1, B);
+    u8* ipad = calloc(1, B);
+    u8* opad = calloc(1, B);
     u8* K0_XOR_ipad_TEXT = calloc(1, (B + PUBKEY_LEN));
     u8* BLAKE2B_output = calloc(1, L);   
     u8* last_BLAKE2B_input = calloc(1, (B + L));
@@ -416,7 +417,7 @@ void process_msg_01(u8* msg_buf){
      
     /* Step 3 of HMAC construction */
     /* Length of K is less than B so append 0s to it until it's long enough. */
-    memset(K0 + 32, temp_handshake_buf + (4 * sizeof(bigint)), 32);
+    memcpy(K0 + 32, temp_handshake_buf + (4 * sizeof(bigint)), 32);
 
     /* Step 4 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
@@ -600,7 +601,18 @@ void process_msg_01(u8* msg_buf){
 label_cleanup:
 
     /* Now it's time to clear and unlock the temporary login memory region. */
-    memset(temp_handshake_buf, 0x00, TEMP_BUF_SIZ);
+    
+    /* memset(temp_handshake_buf, 0x00, TEMP_BUF_SIZ); */
+    
+    /* This version of bzero() prevents the compiler from eliminating and 
+     * optimizing away the call that clears the buffer if it determines it
+     * to be "unnecessary". For security reasons, since this buffer contains
+     * keys and other cryptographic artifacts that are meant to be extremely
+     * short-lived, use this explicit version to prevent the compiler from 
+     * optimizing the call away.
+     */
+    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
+    
     server_control_bitmask &= ~(1ULL << 63ULL);
     
     /* Free temporaries on the heap. */
@@ -616,6 +628,15 @@ label_cleanup:
     free(client_pubkey_buf);
 
     return ;
+}
+
+/* Client requested to create a new chatroom. */
+__attribute__ ((always_inline)) 
+inline
+void process_msg_10(u8* msg_buf){
+        
+
+
 }
 
 /*  To make the server design more elegant, this top-level message processor 
@@ -634,8 +655,12 @@ label_cleanup:
  *          - [TYPE_00]: Client sent its short-term pub_key in the clear.
  *          - [TYPE_01]: Client sent encrypted long-term pub_key + 8-byte HMAC
  *
+ *      - A client decides to make a new chat room:
+ *
+ *          - [TYPE_10]: Client sent a request to create a new chatroom. 
+ *
+ *
  *      - A client decides to join a chat room.
- *      - A client decides to make a new chat room.
  *      - A client decides to send a new message to the chatroom.
  *      - A client decides to poll the server about unreceived messages.
  *      - A client decides to exit the chat room they're in.
