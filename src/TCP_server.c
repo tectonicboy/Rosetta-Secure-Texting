@@ -51,11 +51,18 @@ u32 next_free_room_ix = 1;
 u8 server_privkey[PRIVKEY_BYTES];
 
 struct connected_client{
+
     u32 room_ix;
     u32 num_pending_msgs;
     u8* pending_msgs[MAX_PEND_MSGS];
-    u8* client_pubkey;
-    u64 pubkey_siz_bytes;
+    u64 pubkey_len;
+    u64 pubkey_mont_len;
+    u64 shared_secret_len;
+    
+    bigint client_pubkey;
+    bigint client_pubkey_mont;
+    bigint shared_secret;  
+     
 };
 
 struct chatroom{
@@ -191,8 +198,8 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
     /* client slot has to be taken, size has to match, then pubkey can match. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if(   (clients_status_bitmask & (1ULL << (63ULL - i)))
-           && (clients[i].pubkey_siz_bytes == pubkey_siz)
-           && (memcmp(pubkey_buf, clients[i].client_pubkey, pubkey_siz) == 0)
+           && (clients[i].pubkey_len == pubkey_siz)
+           && (memcmp(pubkey_buf,(clients[i].client_pubkey).bits,pubkey_siz)==0)
           )
         {
             printf("\n[ERR] Server: PubKey already exists.\n\n");
@@ -521,7 +528,7 @@ void process_msg_01(u8* msg_buf){
     
     /* Try using a chacha counter even with less than 64 bytes of input. */
     
-    reply_len  = (3*8) + SIGNATURE_LEN;
+    reply_len  = 24 + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
     
     CHACHA20(&next_free_user_ix
@@ -548,17 +555,80 @@ void process_msg_01(u8* msg_buf){
         clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
     }
     
-    clients[next_free_user_ix].pubkey_siz_bytes = PUBKEY_LEN;
-
-
-    clients[next_free_user_ix].client_pubkey 
-     = 
-     calloc(1, clients[next_free_user_ix].pubkey_siz_bytes);
+    clients[next_free_user_ix].pubkey_len = PUBKEY_LEN;
+    
+    /* Transport the client's long-term public key into their slot. */
+    bigint_create( &(clients[next_free_user_ix].client_pubkey)
+                  ,MAX_BIGINT_SIZ
+                  ,0
+                 ); 
+    
+    memcpy(  (clients[next_free_user_ix].client_pubkey).bits
+            ,client_pubkey_buf
+            ,clients[next_free_user_ix].pubkey_len
+          );
+    
+    (clients[next_free_user_ix].client_pubkey).used_bits 
+     = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
      
-    memcpy(  clients[next_free_user_ix].client_pubkey 
-             ,client_pubkey_buf
-             ,clients[next_free_user_ix].pubkey_siz_bytes
-           );
+    (clients[next_free_user_ix].client_pubkey).free_bits
+    = MAX_BIGINT_SIZ - (clients[next_free_user_ix].client_pubkey).used_bits;
+    
+    /* Calculate the Montgomery Form of the client's long-term public key. */ 
+    bigint_create( &(clients[next_free_user_ix].client_pubkey_mont)
+                  ,MAX_BIGINT_SIZ
+                  ,0
+                 );      
+          
+    Get_Mont_Form( &(clients[next_free_user_ix].client_pubkey)
+                  ,&(clients[next_free_user_ix].client_pubkey_mont)
+                  ,M
+                 );      
+               
+    clients[next_free_user_ix].pubkey_mont_len
+     = (clients[next_free_user_ix].client_pubkey_mont).used_bits;
+    
+    while(clients[next_free_user_ix].pubkey_mont_len % 8 != 0){
+        ++clients[next_free_user_ix].pubkey_mont_len;
+    }
+
+    /* Get the Montgomery Form's length in bytes. */
+    clients[next_free_user_ix].pubkey_mont_len /= 8;
+     
+    /* Compute a client-to-server encryption shared secret which will be used
+     * to encrypt transmissions that occur before the client has started to
+     * actually talk to other clients, so before the client-to-client encryption
+     * shared secret comes into play.
+     *
+     * For client-to-client encryption, the server will have to transmit to all
+     * clients the long-term public keys of all clients they need to talk to.
+     * This is another usage of the client-to-server shared secret.
+     *
+     * The server will maintain its own shared secret with a client by placing
+     * it in that client's structure entry, just like it keeps the client's
+     * public key there too.
+     */
+
+
+    /* shared_secret = A^b mod M  <---- Montgomery Form of A */
+    
+    bigint_create(&(clients[next_free_user_ix].shared_secret),MAX_BIGINT_SIZ,0);
+    
+    MONT_POW_modM( &(clients[next_free_user_ix].client_pubkey_mont)
+                  ,&server_privkey_bigint
+                  ,M
+                  ,&(clients[next_free_user_ix].shared_secret)
+                 );
+    
+    clients[next_free_user_ix].shared_secret_len = 
+    (clients[next_free_user_ix].shared_secret).used_bits;
+    
+    while(clients[next_free_user_ix].shared_secret_len % 8 != 0){
+        ++clients[next_free_user_ix].shared_secret_len;
+    }
+    
+    /* Get the shared secret's length in bytes. */
+    clients[next_free_user_ix].shared_secret_len /= 8;
     
     /* Reflect the new taken user slot in the global user status bitmask. */
     clients_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
@@ -587,7 +657,8 @@ void process_msg_01(u8* msg_buf){
         }
         ++next_free_user_ix;
     }
-                
+    
+             
     if(send(client_socket, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't send Login-OK message.\n");
         goto label_cleanup;
@@ -597,6 +668,8 @@ void process_msg_01(u8* msg_buf){
     }
     
     printf("\n\n[OK]  Server: SUCCESS - Permitted a user in Rosetta!!\n\n");
+
+
 
 label_cleanup:
 
@@ -658,7 +731,6 @@ void process_msg_10(u8* msg_buf){
  *      - A client decides to make a new chat room:
  *
  *          - [TYPE_10]: Client sent a request to create a new chatroom. 
- *
  *
  *      - A client decides to join a chat room.
  *      - A client decides to send a new message to the chatroom.
@@ -737,10 +809,11 @@ label_error:
         
 label_cleanup: 
 
-    /* FREE EVERYTHING THIS FUNCTION ALLOCATED */
     free(client_msg_buf);
     free(msg_type_str);
 }
+
+
 int main(){
 
     u32 status;
@@ -776,3 +849,23 @@ int main(){
                  
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
