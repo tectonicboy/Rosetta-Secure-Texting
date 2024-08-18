@@ -8,17 +8,18 @@
 #include "cryptolib.h"
 #include "coreutil.h"
 
-#define SERVER_PORT    54746
-#define PRIVKEY_BYTES  40   
-#define PUBKEY_LEN     384
-#define MAX_CLIENTS    64
-#define MAX_PEND_MSGS  1024
-#define MAX_CHATROOMS  64
-#define MAX_MSG_LEN    1024
-#define MAX_SOCK_QUEUE 1024
-#define MAX_BIGINT_SIZ 12800
-#define MAGIC_LEN      8 
-#define TEMP_BUF_SIZ   16384
+#define SERVER_PORT     54746
+#define PRIVKEY_BYTES   40   
+#define PUBKEY_LEN      384
+#define MAX_CLIENTS     64
+#define MAX_PEND_MSGS   1024
+#define MAX_CHATROOMS   64
+#define MAX_MSG_LEN     1024
+#define MAX_SOCK_QUEUE  1024
+#define MAX_BIGINT_SIZ  12800
+#define MAGIC_LEN       8 
+#define TEMP_BUF_SIZ    16384
+#define SESSION_KEY_LEN 32
 
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_BYTES))
 
@@ -58,10 +59,12 @@ struct connected_client{
     u64 pubkey_len;
     u64 pubkey_mont_len;
     u64 shared_secret_len;
+    u64 nonce_counter;
     
     bigint client_pubkey;
     bigint client_pubkey_mont;
-    bigint shared_secret;  
+    bigint shared_secret; 
+
      
 };
 
@@ -86,7 +89,7 @@ int port = SERVER_PORT
       
 socklen_t clientLen = sizeof(struct sockaddr_in);
 
-struct bigint *M, *Q, *G, *Gm, server_privkey_bigint;
+struct bigint *M, *Q, *G, *Gm, server_privkey_bigint, server_pubkey_bigint;
 struct sockaddr_in client_address;
 struct sockaddr_in server_address;
 
@@ -182,6 +185,9 @@ u32 self_init(){
     /* Montgomery Form of G, since we use Montgomery Multiplication. */
     Gm = get_BIGINT_from_DAT
         (3072, "../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0", 3071, RESBITS);
+    
+    server_pubkey_bigint = get_BIGINT_from_DAT
+        (3072, "../saved_nums/server_pubkey.dat\0", 3071, RESBITS);
     
     fclose(privkey_dat);
     
@@ -550,6 +556,7 @@ void process_msg_01(u8* msg_buf){
   
     clients[next_free_user_ix].room_ix = 0;
     clients[next_free_user_ix].num_pending_msgs = 0;
+    clients[next_free_user_ix].nonce_counter = 0;
 
     for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
         clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
@@ -708,9 +715,127 @@ __attribute__ ((always_inline))
 inline
 void process_msg_10(u8* msg_buf){
         
+    u8* nonce  = calloc(1, 16);
+    u8* KAB    = calloc(1, SESSION_KEY_LEN);
+    u8* KBA    = calloc(1, SESSION_KEY_LEN);
+    u8* recv_K = calloc(1, 32);
+    u8* send_K = calloc(1, 32);
+    
+    u8 auth_result;
+    
+    u64 room_id;
+    u64 user_ix;
 
+    bigint *recv_s, 
+           *recv_e;
+           
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + ((3*8)+(2*64))));
+    
+    recv_e = 
+     (bigint*)((msg_buf + ((3*8) + (2*64))) + sizeof(bigint) + PRIVKEY_BYTES);    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,(msg_buf + ((3*8) + (2*64))) + (sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,(msg_buf + ((3*8) + (2*64))) + (2*sizeof(bigint)) + PRIVKEY_BYTES
+           ,PRIVKEY_BYTES
+    );
+    
+    printf("[OK]  Server: Reconstructed s and e from client's signature.\n");
+    
+    /* Authenticate the client by verifying their cryptographic signature.  */
+    /* If signature is invalid, report an error and drop the transmission.  */
+    user_ix = *((u64*)(msg_buf + 8));
+    
+    auth_result = Signature_VALIDATE
+      (Gm,&(clients[user_ix].client_pubkey_mont),M,Q,recv_s,recv_e,msg_buf,144);
+                          
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
 
-}
+    /*  On server's side: 
+     *       - KBA = least significant 32 bytes of shared secret
+     *       - KAB = next 32 bytes of shared secret
+     *       - swap KBA with KAB if A > B.
+     *
+     *  Here the server needs KAB to decrypt KB into one-time-use key K, behind
+     *  which is hidden the desired room index of the room they want to create.
+     */
+    
+    if(
+       bigint_compare2(&(clients[user_ix].client_pubkey_), server_pubkey_bigint) 
+        == 3
+      )
+    {
+        memcpy( KBA
+               ,(clients[user_ix].shared_secret).bits
+               ,SESSION_KEY_LEN
+        );
+        memcpy( KAB
+               ,(clients[user_ix].shared_secret).bits + SESSION_KEY_LEN
+               ,SESSION_KEY_LEN
+        );
+    }
+    else{
+      /* KAB is the FIRST 32 bytes of shared secret in this case, not next. */
+      /* KBA is next 32 bytes. */   
+        memcpy( KAB
+               ,(clients[user_ix].shared_secret).bits
+               ,SESSION_KEY_LEN
+        );
+        memcpy( KBA
+               ,(clients[user_ix].shared_secret).bits + SESSION_KEY_LEN
+               ,SESSION_KEY_LEN
+        ); 
+    }
+    
+    /* TO DO: 
+     * 
+     * - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
+     * - Turn it into a temporary BigInt
+     * - Add 1 to it as many times as this user_ix's nonce_counter says
+     * - Turn that incremented nonce back into a buffer pointed to by a u32*
+     * - Use that nonce in the call to ChaCha20 that gets us the one-use key K
+     * - Implement the rest of the response:
+     *      - Use K in another ChaCha20 call with nonce+1 to get room_ID
+     *      - If enough space for a new room, create it.
+     *      - Do any required server bookkeeping for global arrays and indices.
+     *      - Send a reply either saying OK, or not enough space for new rooms.
+     */
+    
+    /* For now just an example call. First 2 args are done. Edit the others. */
+    CHACHA20(msg_buf + (2*8)
+             ,64
+             ,nonce
+             ,4
+             ,temp_handshake_buf + (4 * sizeof(bigint))
+             ,8
+             ,client_pubkey_buf
+             );
+    
+    
+    
+label_cleanup:
+
+    free(recv_s->bits);
+    free(recv_e->bits);
+    free(nonce);
+    free(KAB);
+    free(KBA);
+    free(recv_K);
+    free(send_K);
+
+    return;
+} 
 
 /*  To make the server design more elegant, this top-level message processor 
  *  only checks whether the message is legit or not, and which of the predefined
@@ -744,7 +869,7 @@ u32 process_new_message(){
     u8* client_msg_buf = calloc(1, MAX_MSG_LEN);
     s64 bytes_read; 
     u64 transmission_type;
-    u64 expected_siz;
+    s64 expected_siz;
     char msg_type_str = calloc(1, 3);
     msg_type_str[2] = '\0';
     
@@ -768,7 +893,7 @@ u32 process_new_message(){
     /* A client tried to log in Rosetta */
     case(MAGIC_00){
         
-        /* Size must be in bytes: 8 + 8 + pubkeysiz, which is bytes[8-15] */
+        /* Size must be in bytes: 8 + 8 + pubkey size, which is bytes[8-15] */
         expected_siz = (16 + (*((u64*)(client_msg_buf + 8))));
         strncpy(msg_type_str, "00", 2);
         
@@ -776,14 +901,17 @@ u32 process_new_message(){
             goto label_error;
         }
         
+        /* If transmission is of a valid type and size, process it. */
         process_msg_00(client_msg_buf);
+        
+        break;
     }
     
     /* Login part 2 - client sent their encrypted long-term public key. */
     case(MAGIC_01){  
 
         /* Size must be in bytes: 8 + 8 + 8 + pubkey size at msg[8-15] */
-        expected_siz = (16 + (*((u64*)(client_msg_buf + 8))) + 8);
+        expected_siz = ((3*8) + (*((u64*)(client_msg_buf + 8))));
         strncpy(msg_type_str, "01", 2); 
         
         if(bytes_read != expected_siz){           
@@ -791,9 +919,28 @@ u32 process_new_message(){
         }
     
         /* If transmission is of a valid type and size, process it. */
-        process_msg_01(client_msg_buf);            
+        process_msg_01(client_msg_buf); 
+        
+        break;           
     }
-       
+    
+    /* A client wants to create a new chatroom of their own. */
+    case(MAGIC_10){
+        
+        /* Size must be in bytes: 8 + 8 + 64 + 64 + 8 + SIGNATURE_LEN */
+        expected_siz = ((3*8) + (2*64) + (SIGNATURE_LEN));
+        strncpy(msg_type_str, "10", 2);
+        
+        if(bytes_read != expected_siz){
+            goto label_error;
+        }
+        
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_10(client_msg_buf);
+        
+        break;
+    } 
+    
     } /* end switch */
     
 label_error:
@@ -802,8 +949,8 @@ label_error:
            ,msg_type_str
           );
           
-    printf("               Size was: %ld\n", bytes_read);
-    printf("               Expected: %lu\n", expected_siz);
+    printf("              Size was: %lld\n", bytes_read);
+    printf("              Expected: %lld\n", expected_siz);
     printf("\n[OK]  Server: Discarding transmission.\n\n ");
         
         
@@ -849,22 +996,6 @@ int main(){
                  
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
