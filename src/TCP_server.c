@@ -570,7 +570,7 @@ void process_msg_01(u8* msg_buf){
                   ,0
                  ); 
     
-    memcpy(  (clients[next_free_user_ix].client_pubkey).bits
+    memcpy( (clients[next_free_user_ix].client_pubkey).bits
             ,client_pubkey_buf
             ,clients[next_free_user_ix].pubkey_len
           );
@@ -716,18 +716,22 @@ inline
 void process_msg_10(u8* msg_buf){
         
     u8* nonce  = calloc(1, 16);
+    
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
     u8* KBA    = calloc(1, SESSION_KEY_LEN);
-    u8* recv_K = calloc(1, 32);
-    u8* send_K = calloc(1, 32);
+    u8* recv_K = calloc(1, 64);
+    u8* send_K = calloc(1, 64);
     
     u8 auth_result;
     
     u64 room_id;
     u64 user_ix;
 
-    bigint *recv_s, 
-           *recv_e;
+    bigint  *recv_s 
+           ,*recv_e
+           ,nonce_bigint
+           ,one
+           ,aux1;
            
     /* Reconstruct the BigInts s and e from client's cryptographic signature. */
     recv_s = (bigint*)((msg_buf + ((3*8)+(2*64))));
@@ -812,16 +816,37 @@ void process_msg_10(u8* msg_buf){
      *      - Send a reply either saying OK, or not enough space for new rooms.
      */
     
-    /* For now just an example call. First 2 args are done. Edit the others. */
-    CHACHA20(msg_buf + (2*8)
-             ,64
-             ,nonce
-             ,4
-             ,temp_handshake_buf + (4 * sizeof(bigint))
-             ,8
-             ,client_pubkey_buf
-             );
+    /* Another instance of a BigInt constructor from mem. Find time for it. */
+    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    memcpy(nonce_bigint.bits, clients[user_ix].shared_secret.bits[64], 16); 
+    nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, 16);
+    nonce_bigint_size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint_free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
     
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    
+    /* Increment nonce as many times as needed. */
+    for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
+        bigint_add_fast(&nonce_bigint, &one, &aux1);
+        bigint_equate2(&nonce_bigint, &aux1);     
+    }
+    
+    
+    
+    /* For now just an example call. First 2 args are done. Edit the others. */
+    CHACHA20( msg_buf + (2*8)   /* text - key KB            */
+             ,64                /* text_len in bytes        */
+             ,nonce_bigint.bits /* nonce                    */
+             ,4                 /* nonce_len in uint32_t's  */
+             ,KAB               /* chacha Key               */
+             ,8                 /* Key_len in uint32_t's    */
+             ,recv_K            /* output target buffer     */
+             );
+   
+   /* Use K in another ChaCha call to decypher the desired room number. */
+   /* BUT!! The chacha call above decrypted KB to get us K, but K is 32 bytes
+    * and chacha output is 64 bytes? what part of the 64 byte output is K? */ 
     
     
 label_cleanup:
