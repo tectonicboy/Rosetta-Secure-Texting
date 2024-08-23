@@ -844,6 +844,17 @@ void process_msg_10(u8* msg_buf){
              ,recv_K            /* output target buffer     */
              );
    
+   bigint_add_fast(&nonce_bigint, &one, &aux1);
+   bigint_equate2(&nonce_bigint, &aux1);
+   
+   /* use the incremented nonce in the other call to chacha */
+   
+   CHACHA20( recv_K
+            ,32
+            ,
+    
+   
+   
    /* Use K in another ChaCha call to decypher the desired room number. */
    /* BUT!! The chacha call above decrypted KB to get us K, but K is 32 bytes
     * and chacha output is 64 bytes? what part of the 64 byte output is K? */ 
