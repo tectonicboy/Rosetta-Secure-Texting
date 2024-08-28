@@ -11,7 +11,7 @@
 #define SERVER_PORT     54746
 #define PRIVKEY_BYTES   40   
 #define PUBKEY_LEN      384
-#define MAX_CLIENTS     64
+#define MAX_CLIENTS     128
 #define MAX_PEND_MSGS   1024
 #define MAX_CHATROOMS   64
 #define MAX_MSG_LEN     1024
@@ -26,6 +26,8 @@
 #define MAGIC_00 0xAD0084FF0CC25B0E
 #define MAGIC_01 0xE7D09F1FEFEA708B
 #define MAGIC_02 0x146AAE4D100DAEEA
+#define MAGIC_10 0x13C4A44F70842AC1
+#define MAGIC_11 0xAEFB70A4A8E610DF
 
 /* A bitmask for various control-related purposes.
  * 
@@ -43,11 +45,12 @@
  */ 
 u32 server_control_bitmask = 0;
 
-/* A bitmask telling the server which client slots are currently free.   */
-u64 clients_status_bitmask = 0;
+/* Bitmasks telling the server which client and room slots are currently free */
+u64 users_status_bitmask = 0;
+u64 rooms_status_bitmask = 0;
 
 u32 next_free_user_ix = 0;
-u32 next_free_room_ix = 1;
+u32 next_free_room_ix = 0;
 
 u8 server_privkey[PRIVKEY_BYTES];
 
@@ -64,14 +67,13 @@ struct connected_client{
     bigint client_pubkey;
     bigint client_pubkey_mont;
     bigint shared_secret; 
-
-     
+  
 };
 
 struct chatroom{
     u32 num_people;
-    u32 owner_ix;
-    char*    room_name;
+    u64 owner_ix;
+    u64 room_id;
 };
 
 struct connected_client clients[MAX_CLIENTS];
@@ -201,9 +203,9 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
         return 2;
     }
 
-    /* client slot has to be taken, size has to match, then pubkey can match. */
+    /* client slot has to be taken,clients size has to match, then pubkey can match. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
-        if(   (clients_status_bitmask & (1ULL << (63ULL - i)))
+        if(   (users_status_bitmask & (1ULL << (63ULL - i)))
            && (clients[i].pubkey_len == pubkey_siz)
            && (memcmp(pubkey_buf,(clients[i].client_pubkey).bits,pubkey_siz)==0)
           )
@@ -405,7 +407,8 @@ void process_msg_01(u8* msg_buf){
     u8* HMAC_output = calloc(1, 8);
     u8* client_pubkey_buf = calloc(1, PUBKEY_LEN);
     
-    u8* reply_buf;  
+    u8* reply_buf = NULL;
+    u64 reply_len;
     
     memset(opad, 0x5c, B);
     memset(ipad, 0x36, B);
@@ -638,7 +641,7 @@ void process_msg_01(u8* msg_buf){
     clients[next_free_user_ix].shared_secret_len /= 8;
     
     /* Reflect the new taken user slot in the global user status bitmask. */
-    clients_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
+    users_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
     
     /* Increment it one space to the right, since we're guaranteeing by
      * logic in the user erause algorithm that we're always filling in
@@ -658,7 +661,7 @@ void process_msg_01(u8* msg_buf){
     ++next_free_user_ix;
     
     while(next_free_user_ix < MAX_CLIENTS){
-        if(!(clients_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
+        if(!(users_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
         {
             break;
         }
@@ -689,7 +692,7 @@ label_cleanup:
      * to be "unnecessary". For security reasons, since this buffer contains
      * keys and other cryptographic artifacts that are meant to be extremely
      * short-lived, use this explicit version to prevent the compiler from 
-     * optimizing the call away.
+     * optimizing the memory clearing call away.
      */
     explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
     
@@ -706,7 +709,8 @@ label_cleanup:
     free(K0_XOR_opad);
     free(HMAC_output);
     free(client_pubkey_buf);
-
+    if(reply_buf){free(reply_buf);}
+    
     return ;
 }
 
@@ -716,16 +720,20 @@ inline
 void process_msg_10(u8* msg_buf){
         
     u8* nonce  = calloc(1, 16);
-    
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
     u8* KBA    = calloc(1, SESSION_KEY_LEN);
-    u8* recv_K = calloc(1, 64);
-    u8* send_K = calloc(1, 64);
+    u8* recv_K = calloc(1, 32);
+    u8* send_K = calloc(1, 32);
+    
+    u8* reply_buf = NULL;
+    u64 reply_len;
     
     u8 auth_result;
     
     u64 room_id;
     u64 user_ix;
+    u64 magic_11 = MAGIC_11;
+    u64 magic_10 = MAGIC_10;
 
     bigint  *recv_s 
            ,*recv_e
@@ -734,21 +742,21 @@ void process_msg_10(u8* msg_buf){
            ,aux1;
            
     /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + ((3*8)+(2*64))));
+    recv_s = (bigint*)((msg_buf + ((4*8)+(32))));
     
     recv_e = 
-     (bigint*)((msg_buf + ((3*8) + (2*64))) + sizeof(bigint) + PRIVKEY_BYTES);    
+     (bigint*)((msg_buf + ((4*8) + (32))) + sizeof(bigint) + PRIVKEY_BYTES);    
     
     recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
     recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
  
     memcpy( recv_s->bits
-           ,(msg_buf + ((3*8) + (2*64))) + (sizeof(bigint))
+           ,(msg_buf + ((4*8) + (32))) + (sizeof(bigint))
            ,PRIVKEY_BYTES
     );
     
     memcpy( recv_e->bits
-           ,(msg_buf + ((3*8) + (2*64))) + (2*sizeof(bigint)) + PRIVKEY_BYTES
+           ,(msg_buf + ((4*8) + (32))) + (2*sizeof(bigint)) + PRIVKEY_BYTES
            ,PRIVKEY_BYTES
     );
     
@@ -832,11 +840,8 @@ void process_msg_10(u8* msg_buf){
         bigint_equate2(&nonce_bigint, &aux1);     
     }
     
-    
-    
-    /* For now just an example call. First 2 args are done. Edit the others. */
     CHACHA20( msg_buf + (2*8)   /* text - key KB            */
-             ,64                /* text_len in bytes        */
+             ,32                /* text_len in bytes        */
              ,nonce_bigint.bits /* nonce                    */
              ,4                 /* nonce_len in uint32_t's  */
              ,KAB               /* chacha Key               */
@@ -844,22 +849,96 @@ void process_msg_10(u8* msg_buf){
              ,recv_K            /* output target buffer     */
              );
    
-   bigint_add_fast(&nonce_bigint, &one, &aux1);
-   bigint_equate2(&nonce_bigint, &aux1);
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);
+    ++(clients[user_ix].nonce_counter)
    
-   /* use the incremented nonce in the other call to chacha */
+    /* Use the incremented nonce in the other call to chacha to get room_ix */
    
-   CHACHA20( recv_K
-            ,32
-            ,
+    CHACHA20( msg_buf + (8 + 8 + 32)
+            ,8
+            ,nonce_bigint.bits
+            ,4
+            ,recv_K
+            ,8
+            ,&room_id
+           );
+  
+    /* Increment nonce counter again to prepare the nonce for its next use. */
+    ++(clients[user_ix].nonce_counter) 
+
+    /* Now that we have the desired room_ID, create a new room if space allows*/
     
-   
-   
-   /* Use K in another ChaCha call to decypher the desired room number. */
-   /* BUT!! The chacha call above decrypted KB to get us K, but K is 32 bytes
-    * and chacha output is 64 bytes? what part of the 64 byte output is K? */ 
+    /* If not enough space for new chatrooms currently, tell the client. */
+    if(next_free_room_ix == MAX_CHATROOMS){
+        printf("[ERR] Server: Not enough room slots to make a new chatroom.\n");
+        printf("              Letting the user know and to try later.  \n");
+        
+        /* Construct the NO ROOM SPACE AVAILABLE reply msg buffer */
+        reply_len = (2*8) + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+
+        *((u64*)(reply_buf + 0)) = MAGIC_11;
+        *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
+        
+        Signature_GENERATE
+        (M,Q,Gm,&magic11,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
+        
+        if(send(client_socket, reply_buf, reply_len, 0) == -1){
+            printf("[ERR] Server: Couldn't send No Room Space message.\n");
+        }
+        else{
+            printf("[OK]  Server: Told client No Room Space, try later.\n");
+        }
+        goto label_cleanup;  
+    }
     
     
+    /* Construct the ROOM CREATION OK reply msg buffer. */
+    
+    reply_len  = 8 + 8 + SIGNATURE_LEN;
+    reply_buf  = calloc(1, reply_len);
+           
+    *((u64*)(reply_buf + 0)) = MAGIC_10;
+    *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
+    
+    Signature_GENERATE
+        (M,Q,Gm,&magic10,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
+    
+    /* Server bookkeeping - populate this room's slot, find next free slot. */
+  
+    rooms[next_free_room_ix].num_people = 1;
+    rooms[next_free_room_ix].owner_ix = user_ix;
+    rooms[next_free_room_ix].room_id = room_id;
+
+    /* Reflect the new taken user slot in the global user status bitmask. */
+    rooms_status_bitmask |= (1ULL << (63ULL - next_free_room_ix));
+    
+    /* Similar indexing logic to the one described by the large comment for
+     * the user slot creation code.
+     */
+    ++next_free_room_ix;
+    
+    while(next_free_room_ix < MAX_CHATROOMS){
+        if(!(rooms_status_bitmask & (1ULL<<(63ULL - next_free_room_ix))))
+        {
+            break;
+        }
+        ++next_free_room_ix;
+    }
+    
+    /* Transmit the server's ROOM CREATION OK reply back to the client. */    
+    if(send(client_socket, reply_buf, reply_len, 0) == -1){
+        printf("[ERR] Server: Couldn't send Login-OK message.\n");
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Server: Told client Login went OK, sent their index.\n");
+    }
+    
+    printf("\n\n[OK]  Server: SUCCESS - Permitted a user in Rosetta!!\n\n");
+
+
 label_cleanup:
 
     free(recv_s->bits);
@@ -869,7 +948,7 @@ label_cleanup:
     free(KBA);
     free(recv_K);
     free(send_K);
-
+    if(reply_buf){free(reply_buf);}
     return;
 } 
 
@@ -963,8 +1042,8 @@ u32 process_new_message(){
     /* A client wants to create a new chatroom of their own. */
     case(MAGIC_10){
         
-        /* Size must be in bytes: 8 + 8 + 64 + 64 + 8 + SIGNATURE_LEN */
-        expected_siz = ((3*8) + (2*64) + (SIGNATURE_LEN));
+        /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
+        expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
         strncpy(msg_type_str, "10", 2);
         
         if(bytes_read != expected_siz){
