@@ -11,25 +11,25 @@
 
 ================================================================================
 
-PART O - Server generates its own (public/private) key pair. Its public key
-          is automatically distributed to whoever installs the client app.
-          Server will use these to compute Schorr Signatures that will be 
-          checked by the receivers of its transmissions, just like senders of
-          messages sign their messages which are checked by message receivers.
+PART O: Server generates its own (public/private) key pair. Its public key
+        is automatically distributed to whoever installs the client software.
+        Server will use these to compute cryptographic signatures that will be 
+        checked by the receivers of its transmissions, just like senders of
+        messages sign their messages which are checked by message receivers.
  
-         Server's long-term public key, Diffie-Hellman security constants 
-         (M, Q, G), as well as the Montgomery Forms of G and the server's 
-         long-term public key are all embedded in the client at install time:
+        Server's long-term public key, Diffie-Hellman security constants 
+        (M, Q, G), as well as the Montgomery Forms of G and the server's 
+        long-term public key are all embedded in the client at install time:
  
-         M : 3071-bit prime number, the DH modulus
-         Q : 320-bit  prime number which evenly divides (M-1)
-         G : 3071-bit DH generator: G = 2^( (M-1) / Q) mod M
-         Gm: Montgomery Form of G
-         Bm: Montgomery Form of the server's long-term public key
-         B : The server's long-term public key.
+        M : 3071-bit prime number, the DH modulus
+        Q : 320-bit  prime number which evenly divides (M-1)
+        G : 3071-bit DH generator: G = 2^( (M-1) / Q) mod M
+        Gm: Montgomery Form of G
+        Bm: Montgomery Form of the server's long-term public key
+        B : The server's long-term public key.
  
-         Montgomery Forms are used in a special algorithm for efficient modular
-         multiplication of large numbers - Montgomery Modular Multiplication.
+        Montgomery Forms are used in a special algorithm for efficient modular
+        multiplication of large numbers - Montgomery Modular Multiplication.
 
 ================================================================================
 
@@ -51,7 +51,7 @@ On registration, Client enters a password. Then:
     
     2.1. Use Argon2id algorithm with the following INPUT:
     
-        - Salt        : S || BLAKE2B{64}(A);
+        - Salt     : S || BLAKE2B{64}(A);
         - Password : Client's chosen registration password.
         - Parms    : t = 1, p = 1, m = 2^21 (2 GiB RAM)
 
@@ -115,7 +115,15 @@ On registration, Client enters a password. Then:
 
 --------------------------------------------------------------------------------
          
- 4. THE INITIAL LOGIN HANDSHAKE PROTOCOL:
+ 4. Login Handshake
+ 
+ 
+********************************************************************************
+*                                                                              *
+*                     THE SECURE LOGIN HANDSHAKE PROTOCOL                      *       
+*                                                                              *
+********************************************************************************
+ 
  
     4.0.  Client generates a different, short-term DH key pair:
 
@@ -227,12 +235,19 @@ their long-term private/public key pairs and are only valid for the duration of
 that new texting session. As soon as the room is deleted by the owner, or Alice
 or Bob exits the room, the session keys are destroyed for security reasons.
 
-THE SECURE COMMUNICATION ALLOWANCE PROTOCOL:
+
+********************************************************************************
+*                                                                              *
+*              THE SECURE COMMUNICATION ALLOWANCE PROTOCOL                     *
+*                                                                              *
+********************************************************************************
+
 
 Let (a,A) be Alice's long-term key pair and similarly (b,B) for Bob's.
 
 0. Both long-term public keys must have already been sent to the other party.
-   This is accomplished by the Initial Login Handshake.
+   For client to server, this is accomplished by the Initial Login Handshake.
+   For a client joining a chatroom, it's done by the server's packet processor.
 
 1. Alice's machine computes a session-length shared secret: X = B^a mod M
    Bob's   machine computes the same session shared secret: X = A^b mod M
@@ -275,15 +290,21 @@ Suppose Alice already knows how to talk to Bob, Carol and Fred and she's in a
 chatroom with the three of them. To send them a message, Alice's client must
 perform another SPECIAL PROTOCOL with each message sent:
 
-THE SECURE MESSAGE EXCHANGE PROTOCOL:
+
+********************************************************************************
+*                                                                              *
+*                   THE SECURE MESSAGE EXCHANGE PROTOCOL                       *
+*                                                                              *
+********************************************************************************
+
 
 0. Alice draws a random 32-byte one-use key K. New K drawn with each message.
 
 1. Uses ChaCha20 algorithm to encrypt K. Here, we call ChaCha once for every 
    person Alice will be sending a message to (everyone else in this chatroom).
       
-   For Alice sending to Bob, Carol and Fred, K gets XORed with 
-   the first 64 bytes of the output of ChaCha20 to form KB, KC, KF:
+   For Alice sending to Bob, Carol and Fred, K gets XORed with the first 64 
+   of the output of ChaCha20 (input text being K itself) to form KB, KC, KF:
    
    - One ChaCha call with session-length key KAB. Produces a new key KB.
    - One ChaCha call with session-length key KAC. Produces a new key KC.
@@ -317,11 +338,15 @@ THE SECURE MESSAGE EXCHANGE PROTOCOL:
    
 3. Alice's client invokes a new, different usage of ChaCha20:
 
-   This time, ChaCha encyphers Alice's message plaintext itself. INPUT:
+   This time, ChaCha enciphers Alice's text message itself. 
+   
+   INPUT:
    
    ChaCha Key    : K
    ChaCha Nonce  : Least significant 12 bytes of Alice's current 16-byte Nonce
    ChaCha Counter: Starts at 1, incremented for each chacha matrix required.
+   
+   (remember, it's one chacha matrix per 64 bytes of plaintext)
    
 4. Compute Alice's Schnorr Signature of (encrypted message and its AD).
 
@@ -377,6 +402,14 @@ THE SECURE MESSAGE EXCHANGE PROTOCOL:
 ================================================================================
 
 PART IV - How to compute a Schnorr Signature and check against it.    
+
+
+********************************************************************************
+*                                                                              *
+*        CRYPTOGRAPHIC SIGNATURE GENERATION AND VERIFICATION PROTOCOL          *
+*                                                                              *
+********************************************************************************
+
 
 Let:
 

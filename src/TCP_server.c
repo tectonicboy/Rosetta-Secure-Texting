@@ -28,6 +28,7 @@
 #define MAGIC_02 0x146AAE4D100DAEEA
 #define MAGIC_10 0x13C4A44F70842AC1
 #define MAGIC_11 0xAEFB70A4A8E610DF
+#define MAGIC_20 0x9FF4D1E0EAE100A5
 
 /* A bitmask for various control-related purposes.
  * 
@@ -42,6 +43,11 @@
  *        while another client is already logging in, without checking this bit,
  *        the other client's login procedure's short-term keys could be erased.
  *        Thus, use this bit to disallow more than 1 login handshake at a time.
+ *
+ *
+ *
+ *
+ *
  */ 
 u32 server_control_bitmask = 0;
 
@@ -810,15 +816,15 @@ void process_msg_10(u8* msg_buf){
         ); 
     }
     
-    /* TO DO: 
-     * 
-     * - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
+    /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
      * - Turn it into a temporary BigInt
      * - Add 1 to it as many times as this user_ix's nonce_counter says
      * - Turn that incremented nonce back into a buffer pointed to by a u32*
      * - Use that nonce in the call to ChaCha20 that gets us the one-use key K
+     * - Increment the nonce
      * - Implement the rest of the response:
      *      - Use K in another ChaCha20 call with nonce+1 to get room_ID
+     *      - Increment the nonce again, save it.
      *      - If enough space for a new room, create it.
      *      - Do any required server bookkeeping for global arrays and indices.
      *      - Send a reply either saying OK, or not enough space for new rooms.
@@ -853,7 +859,7 @@ void process_msg_10(u8* msg_buf){
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter)
    
-    /* Use the incremented nonce in the other call to chacha to get room_ix */
+    /* Use the incremented nonce in the other call to chacha to get room_id */
    
     CHACHA20( msg_buf + (8 + 8 + 32)
             ,8
@@ -952,6 +958,194 @@ label_cleanup:
     return;
 } 
 
+/* Client requested to join an existing chatroom. */
+__attribute__ ((always_inline)) 
+inline
+void process_msg_20(u8* msg_buf){
+
+    
+    u8* nonce  = calloc(1, 16);
+    u8* KAB    = calloc(1, SESSION_KEY_LEN);
+    u8* KBA    = calloc(1, SESSION_KEY_LEN);
+    u8* recv_K = calloc(1, 32);
+    u8* send_K = calloc(1, 32);
+    
+    u8* reply_buf = NULL;
+    u64 reply_len;
+    
+    u8 auth_result;
+    u8 room_found;
+    
+    u64 room_id;
+    u64 user_ix;
+    u64 magic_11 = MAGIC_11;
+    u64 magic_10 = MAGIC_10;
+
+    bigint  *recv_s 
+           ,*recv_e
+           ,nonce_bigint
+           ,one
+           ,aux1;
+     
+    /* Decrypt and reveal the room name that the user wants to join. */
+           
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + ((4*8)+(32))));
+    
+    recv_e = 
+     (bigint*)((msg_buf + ((4*8) + (32))) + sizeof(bigint) + PRIVKEY_BYTES);    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,(msg_buf + ((4*8) + (32))) + (sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,(msg_buf + ((4*8) + (32))) + (2*sizeof(bigint)) + PRIVKEY_BYTES
+           ,PRIVKEY_BYTES
+    );
+    
+    printf("[OK]  Server: Reconstructed s and e from client's signature.\n");
+    
+    /* Authenticate the client by verifying their cryptographic signature.  */
+    /* If signature is invalid, report an error and drop the transmission.  */
+    user_ix = *((u64*)(msg_buf + 8));
+    
+    auth_result = Signature_VALIDATE
+      (Gm,&(clients[user_ix].client_pubkey_mont),M,Q,recv_s,recv_e,msg_buf,144);
+                          
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
+
+    /*  On server's side: 
+     *       - KBA = least significant 32 bytes of shared secret
+     *       - KAB = next 32 bytes of shared secret
+     *       - swap KBA with KAB if A > B.
+     *
+     *  Here the server needs KAB to decrypt KB into one-time-use key K, behind
+     *  which is hidden the desired room index of the room they want to create.
+     */
+    
+    if(
+       bigint_compare2(&(clients[user_ix].client_pubkey_), server_pubkey_bigint) 
+        == 3
+      )
+    {
+        memcpy( KBA
+               ,(clients[user_ix].shared_secret).bits
+               ,SESSION_KEY_LEN
+        );
+        memcpy( KAB
+               ,(clients[user_ix].shared_secret).bits + SESSION_KEY_LEN
+               ,SESSION_KEY_LEN
+        );
+    }
+    else{
+      /* KAB is the FIRST 32 bytes of shared secret in this case, not next. */
+      /* KBA is next 32 bytes. */   
+        memcpy( KAB
+               ,(clients[user_ix].shared_secret).bits
+               ,SESSION_KEY_LEN
+        );
+        memcpy( KBA
+               ,(clients[user_ix].shared_secret).bits + SESSION_KEY_LEN
+               ,SESSION_KEY_LEN
+        ); 
+    }
+    
+    /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
+     * - Turn it into a temporary BigInt
+     * - Add 1 to it as many times as this user_ix's nonce_counter says
+     * - Turn that incremented nonce back into a buffer pointed to by a u32*
+     * - Use that nonce in the call to ChaCha20 that gets us the one-use key K
+     * - Increment the nonce
+     * - Implement the rest of the response:
+     *      - Use K in another ChaCha20 call with nonce+1 to get room_ID
+     *      - Increment the nonce again, save it.
+     *      - If enough space for a new room, create it.
+     *      - Do any required server bookkeeping for global arrays and indices.
+     *      - Send a reply either saying OK, or not enough space for new rooms.
+     */
+    
+    /* Another instance of a BigInt constructor from mem. Find time for it. */
+    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    memcpy(nonce_bigint.bits, clients[user_ix].shared_secret.bits[64], 16); 
+    nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, 16);
+    nonce_bigint_size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint_free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+    
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    
+    /* Increment nonce as many times as needed. */
+    for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
+        bigint_add_fast(&nonce_bigint, &one, &aux1);
+        bigint_equate2(&nonce_bigint, &aux1);     
+    }
+    
+    CHACHA20( msg_buf + (2*8)   /* text - key KB            */
+             ,32                /* text_len in bytes        */
+             ,nonce_bigint.bits /* nonce                    */
+             ,4                 /* nonce_len in uint32_t's  */
+             ,KAB               /* chacha Key               */
+             ,8                 /* Key_len in uint32_t's    */
+             ,recv_K            /* output target buffer     */
+             );
+   
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);
+    ++(clients[user_ix].nonce_counter)
+   
+    /* Use the incremented nonce in the other call to chacha to get room_id */
+   
+    CHACHA20( msg_buf + (8 + 8 + 32)
+            ,8
+            ,nonce_bigint.bits
+            ,4
+            ,recv_K
+            ,8
+            ,&room_id
+           );
+  
+    /* Increment nonce counter again to prepare the nonce for its next use. */
+    ++(clients[user_ix].nonce_counter) 
+
+
+    /* Now that we have room_id, check that it really exists. */
+    room_found = 0;
+    
+    for(u64 i = 0; i < MAX_CHATROOMS; ++i){
+        if(rooms[i].room_id == room_id){
+            room_found = 1;
+            break;
+        } 
+    }
+    
+    /* If no room was found with this ROOM_ID, let the client know. */
+    if(!room_found){
+        
+        /* Construct the room-not-found packet. */
+        /* Must be encrypted and signed.        */    
+        
+    }
+
+    /* Send (encrypted and signed) the public keys of all users currently in the
+     * chatroom to the user who is now wanting to join it.
+     */
+
+label_cleanup:
+
+
+    return;
+
+}
+
+
 /*  To make the server design more elegant, this top-level message processor 
  *  only checks whether the message is legit or not, and which of the predefined
  *  accepted types it is.
@@ -973,13 +1167,16 @@ label_cleanup:
  *          - [TYPE_10]: Client sent a request to create a new chatroom. 
  *
  *      - A client decides to join a chat room.
+ *
+ *          - [TYPE_20]: Client sent a request to join a room by ID string.
+ *
  *      - A client decides to send a new message to the chatroom.
  *      - A client decides to poll the server about unreceived messages.
  *      - A client decides to exit the chat room they're in.
  *      - A client decides to log off Rosetta.
  */
 
-u32 process_new_message(){
+u32 identify_new_transmission(){
 
     u8* client_msg_buf = calloc(1, MAX_MSG_LEN);
     s64 bytes_read; 
@@ -1056,6 +1253,24 @@ u32 process_new_message(){
         break;
     } 
     
+    /* A client wants to join an existing chatroom. */
+    case(MAGIC_20){
+        
+        /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
+        expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
+        strncpy(msg_type_str, "20", 2);
+        
+        if(bytes_read != expected_siz){
+            goto label_error;
+        }
+        
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_20(client_msg_buf);
+        
+        break;
+    }
+    
+    
     } /* end switch */
     
 label_error:
@@ -1099,7 +1314,7 @@ int main(){
                                  );
                                    
         /* 0 on success, greater than 0 otherwise. */                         
-        status = process_new_message();
+        status = identify_new_transmission();
         
         if(status){
             printf("\n\n****** WARNING ******\n\n"
