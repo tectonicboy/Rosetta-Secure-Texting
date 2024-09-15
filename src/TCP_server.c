@@ -964,6 +964,7 @@ __attribute__ ((always_inline))
 inline
 void process_msg_20(u8* msg_buf){
 
+    FILE* ran_file = NULL;
     
     u8* nonce  = calloc(1, 16);
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
@@ -977,16 +978,20 @@ void process_msg_20(u8* msg_buf){
     u8* reply_buf = NULL;
     u64 reply_len;
     
+    u8* buf_ixs_pubkeys;
+    u64 buf_ixs_pybkeys_len;
+    
+    size_t ret_status;
+    
     u8 auth_result;
     u8 room_found;
     
     u64 room_id;
     u64 user_ix;
     u64 room_ix;
-    u64 magic_11 = MAGIC_11;
-    u64 magic_10 = MAGIC_10;
     u64 num_users_in_room = 0;
     u64 next_free_room_users_ix = 0;
+    u64 write_offset = 0;
         
     bigint  *recv_s 
            ,*recv_e
@@ -1106,7 +1111,7 @@ void process_msg_20(u8* msg_buf){
    
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
-    ++(clients[user_ix].nonce_counter)
+    ++(clients[user_ix].nonce_counter);
    
     /* Use the incremented nonce in the other call to chacha to get room_id */
    
@@ -1120,8 +1125,9 @@ void process_msg_20(u8* msg_buf){
            );
   
     /* Increment nonce counter again to prepare the nonce for its next use. */
-    ++(clients[user_ix].nonce_counter) 
-
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);
+    ++(clients[user_ix].nonce_counter); 
 
     /* Now that we have room_id, check that it really exists. */
     room_found = 0;
@@ -1140,11 +1146,10 @@ void process_msg_20(u8* msg_buf){
         /* Don't tell the client that the room wasn't found.         */
         /* Could be someone hacking. Silently drop the transmission. */
         printf("[WARN] Server: A client requested to join an unknown room.\n");
-        printf("               Dropping transmission silently.\n");
-        return;
+        printf("               Dropping transmission silently.\n\n");
+        goto label_cleanup;
     }
 
-    
     /* Send (encrypted and signed) the public keys of all users currently in the
      * chatroom, to the user who is now wanting to join it, as well as the new 
      * client's public key to all people who are currently in the chatroom so 
@@ -1163,23 +1168,126 @@ void process_msg_20(u8* msg_buf){
         }
     }  
       
-    /* Iterate over all users in this chatroom, to grab their public keys. */
-    for(u64 i = 0; i < num_users_in_room; ++i){
-        
-    }
-    
     /* Construct the message buffer. */
-    reply_len  = (4*8) + 32 + SIGNATURE_LEN + (num_keys;
+    buf_ixs_pubkeys_len = (num_users_in_room*(8+PUBKEY_LEN));
+    
+    reply_len  = (3*8) + 32 + SIGNATURE_LEN + buf_ixs_pubkeys_len;
     reply_buf  = calloc(1, reply_len);
            
-    *((u64*)(reply_buf + 0)) = MAGIC_10;
-    *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
+    *((u64*)(reply_buf + 0)) = MAGIC_20;
     
+    /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
+     * KBA as chacha key and the server-client-maintained incremented Nonce from
+     * the two's DH shared secret. Increment the Nonce. 
+     *
+     * Concatenate the encrypted one-time use key K, now KA, to MAGIC_2O.
+     *
+     * Fetch the user_id and public_key of all users currently in this chatroom.
+     *
+     * Use un-encrypted key K as ChaCha key to encrypt the actual protected part
+     * of the transmission to the client, in this case:
+     *
+     * [num_keys_N + ( (user_ix1,public_key1)...(user_ixN,public_keyN) )]
+     *
+     * whose length in bytes is exactly:
+     *
+     * (8 + num_keys*(8 + PUB_KEY_LEN)) 
+     */
+    
+    ran_file = fopen("/dev/urandom", "r");
+    
+    if(!ran_file){
+        printf("[ERR] Server: Couldn't open urandom. Dropping transmission.\n");
+        goto label_cleanup;
+    }
+    
+    ret_status = fread(send_K, 1, 32, ran_file);
+    
+    if(ret_status != 32){
+        printf("[ERR] Server: Couldn't read urandom. Dropping transmission.\n");
+        goto label_cleanup;
+    }
+    
+    /* This function has already fetched and incremented the Nonce enough. */
+    
+    CHACHA20( send_K            /* text - one-time use key K    */
+             ,32                /* text_len in bytes            */
+             ,nonce_bigint.bits /* nonce, already incremented   */
+             ,4                 /* nonce_len in uint32_t's      */
+             ,KBA               /* chacha Key                   */
+             ,8                 /* Key_len in uint32_t's        */
+             ,reply_buf + 8     /* output target buffer         */
+             );
+    
+    /* Increment nonce counter again to prepare the nonce for its next use. */
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);
+    ++(clients[user_ix].nonce_counter); 
+    
+    *((u64*)(reply_buf + (2*8))) = num_users_in_room; 
+    
+    buf_ixs_pubkeys = calloc(1, buf_ixs_pubkeys_len);
+    
+    /* Iterate over all users in this chatroom, to grab their public keys. */
+    for(u64 i = 0; i < num_users_in_room; ++i){
+    
+        memcpy( buf_ixs_pubkeys + (i * (8 + PUBKEY_LEN))
+               ,&(clients[user_ixs_in_room[i]].user_ix)
+               ,8
+              );
+              
+        memcpy( buf_ixs_pubkeys + (i * (8 + PUBKEY_LEN)) + 8
+               ,clients[user_ixs_in_room[i]].client_pubkey.bits
+               ,PUBKEY_LEN
+              );            
+    }
+    
+    /* We need a counter for this ChaCha use, to encrypt big public keys. */
+    
+    CHACHA20( buf_ixs_pubkeys       /* text - buffer with room people info  */
+             ,buf_ixs_pubkeys_len   /* text_len in bytes                    */
+             ,nonce_bigint.bits     /* nonce, already incremented           */
+             ,3                     /* nonce_len in uint32_t's              */
+             ,send_K                /* chacha Key                           */
+             ,8                     /* Key_len in uint32_t's                */
+             ,reply_buf +(2*8) +32  /* output target buffer                 */
+             );
+    
+    /* Increment nonce counter again to prepare the nonce for its next use. */
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);
+    ++(clients[user_ix].nonce_counter); 
+    
+    *((u64*)(reply_buf + (2*8) +32 + buf_ixs_pubkeys_len)) = (u64)SIGNATURE_LEN;
+    
+    /* UGLY!! Rewrite when I find time. */
     Signature_GENERATE
-        (M,Q,Gm,&magic10,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
-     
+        (M,Q,Gm,reply_buf,(2*8) +32 + buf_ixs_pubkeys_len
+        ,(reply_buf+((2*8) +32 + buf_ixs_pubkeys_len)) + 8
+        ,&server_privkey_bigint,PRIVKEY_BYTES);
     
-     
+    /* The reply buffer is ready. Transmit it to the chatroom's new client. */  
+   
+    if(send(client_socket, reply_buf, reply_len, 0) == -1){
+        printf("[ERR] Server: Couldn't send Room-Join-OK message.\n");
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Server: Told client they were permitted in the room.\n");
+    }
+    
+    printf("\n\n[OK]  Server: SUCCESS - Permitted a user in a chatroom!!\n\n");
+    printf("Now to transmit the new user's public key to all room people!!\n");
+    
+    /* TO DO: 
+     *
+     * Send the new room user's user_ix and public_key to everyone currently in
+     * the chatroom. This requires knowing their IP addresses, just like the TCP
+     * client will need to know the IP address of the server to spontaneously
+     * send requests to it, without first having been contacted by it.
+     *
+     * Also, perform any necessary server bookkeeping as usual.
+     */
 
 label_cleanup:
 
