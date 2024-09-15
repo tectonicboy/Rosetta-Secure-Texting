@@ -543,8 +543,10 @@ void process_msg_01(u8* msg_buf){
     
     /* Try using a chacha counter even with less than 64 bytes of input. */
     
-    reply_len  = 24 + SIGNATURE_LEN;
+    reply_len  = (3*8) + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
+    
+    *((u64*)(reply_buf + 0)) = MAGIC_01;
     
     CHACHA20(&next_free_user_ix
              ,8
@@ -555,7 +557,6 @@ void process_msg_01(u8* msg_buf){
              ,(reply_buf + 8)
              );
              
-    *((u64*)(reply_buf +  0)) = MAGIC_01;
     *((u64*)(reply_buf + 16)) = SIGNATURE_LEN;
     
     Signature_GENERATE
@@ -970,6 +971,9 @@ void process_msg_20(u8* msg_buf){
     u8* recv_K = calloc(1, 32);
     u8* send_K = calloc(1, 32);
     
+    u64 user_ixs_in_room[MAX_CLIENTS];
+    memset(user_ixs_in_room, 0x00, MAX_CLIENTS * sizeof(u32));
+    
     u8* reply_buf = NULL;
     u64 reply_len;
     
@@ -978,9 +982,12 @@ void process_msg_20(u8* msg_buf){
     
     u64 room_id;
     u64 user_ix;
+    u64 room_ix;
     u64 magic_11 = MAGIC_11;
     u64 magic_10 = MAGIC_10;
-
+    u64 num_users_in_room = 0;
+    u64 next_free_room_users_ix = 0;
+        
     bigint  *recv_s 
            ,*recv_e
            ,nonce_bigint
@@ -1032,7 +1039,7 @@ void process_msg_20(u8* msg_buf){
      */
     
     if(
-       bigint_compare2(&(clients[user_ix].client_pubkey_), server_pubkey_bigint) 
+       bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint) 
         == 3
       )
     {
@@ -1122,21 +1129,57 @@ void process_msg_20(u8* msg_buf){
     for(u64 i = 0; i < MAX_CHATROOMS; ++i){
         if(rooms[i].room_id == room_id){
             room_found = 1;
+            room_ix = i;
             break;
         } 
     }
     
-    /* If no room was found with this ROOM_ID, let the client know. */
+    /* If no room was found with this ID, silently drop communication. */
     if(!room_found){
         
-        /* Construct the room-not-found packet. */
-        /* Must be encrypted and signed.        */    
-        
+        /* Don't tell the client that the room wasn't found.         */
+        /* Could be someone hacking. Silently drop the transmission. */
+        printf("[WARN] Server: A client requested to join an unknown room.\n");
+        printf("               Dropping transmission silently.\n");
+        return;
     }
 
+    
     /* Send (encrypted and signed) the public keys of all users currently in the
-     * chatroom to the user who is now wanting to join it.
+     * chatroom, to the user who is now wanting to join it, as well as the new 
+     * client's public key to all people who are currently in the chatroom so 
+     * they can derive shared secrets and pairs of bidirectional symmetric keys 
+     * and other cryptographic artifacts like ChaCha encryption nonces.
      */
+     
+    /* First do the public keys of everyone in the room to new client part. */
+     
+    /* Iterate over all user indices, for the number of people in the room. */
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
+        if(clients[i].room_ix == room_ix){
+            ++num_users_in_room;
+            user_ixs_in_room[next_free_room_users_ix] = i;
+            ++next_free_room_users_ix;
+        }
+    }  
+      
+    /* Iterate over all users in this chatroom, to grab their public keys. */
+    for(u64 i = 0; i < num_users_in_room; ++i){
+        
+    }
+    
+    /* Construct the message buffer. */
+    reply_len  = (4*8) + 32 + SIGNATURE_LEN + (num_keys;
+    reply_buf  = calloc(1, reply_len);
+           
+    *((u64*)(reply_buf + 0)) = MAGIC_10;
+    *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
+    
+    Signature_GENERATE
+        (M,Q,Gm,&magic10,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
+     
+    
+     
 
 label_cleanup:
 
