@@ -14,10 +14,11 @@
 #define MAX_CLIENTS     128
 #define MAX_PEND_MSGS   1024
 #define MAX_CHATROOMS   64
-#define MAX_MSG_LEN     1024
+#define MAX_MSG_LEN     4096
 #define MAX_SOCK_QUEUE  1024
 #define MAX_BIGINT_SIZ  12800
 #define MAGIC_LEN       8 
+#define MAX_USERID_LEN  8
 #define TEMP_BUF_SIZ    16384
 #define SESSION_KEY_LEN 32
 
@@ -43,11 +44,6 @@
  *        while another client is already logging in, without checking this bit,
  *        the other client's login procedure's short-term keys could be erased.
  *        Thus, use this bit to disallow more than 1 login handshake at a time.
- *
- *
- *
- *
- *
  */ 
 u32 server_control_bitmask = 0;
 
@@ -61,19 +57,18 @@ u32 next_free_room_ix = 0;
 u8 server_privkey[PRIVKEY_BYTES];
 
 struct connected_client{
-
-    u32 room_ix;
-    u32 num_pending_msgs;
-    u8* pending_msgs[MAX_PEND_MSGS];
-    u64 pubkey_len;
-    u64 pubkey_mont_len;
-    u64 shared_secret_len;
-    u64 nonce_counter;
+    char user_id[MAX_USERID_LEN];
+    u32  room_ix;
+    u32  num_pending_msgs;
+    u8*  pending_msgs[MAX_PEND_MSGS];
+    u64  pubkey_len;
+    u64  pubkey_mont_len;
+    u64  shared_secret_len;
+    u64  nonce_counter;
     
     bigint client_pubkey;
     bigint client_pubkey_mont;
     bigint shared_secret; 
-  
 };
 
 struct chatroom{
@@ -224,9 +219,36 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
     return 0;
 }
 
+void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
+
+    /* Make sure the user has space in their list of pending messages. */
+    if(clients[user_ix].num_pending_msgs == MAX_PEND_MSGS){
+        printf("[ERR] Server: No space for pend_msgs of userix[%lu]\n",user_ix);
+        return;
+    }
+    
+    /* Make sure the message is within the maximum permitted message length. */
+    if(data_len >= MAX_MSG_LEN){
+        printf("[ERR] Server: Pend_msg of userix[%lu] is too long!\n", user_ix);
+        printf("              The MSG length is: %lu bytes\n\n", data_len);
+        return;
+    }
+    
+    /* Warn the server operator the user has just reached the pend_msgs limit */
+    /* While not dangerous right now, this is still considered an error.      */
+    if(clients[user_ix].num_pending_msgs == (MAX_PEND_MSGS - 1)){
+        printf("[ERR] Server: userix[%lu] reached pend_msgs limit!\n", user_ix);
+    }
+    
+    /* Proceed to add the pending message to the user's list of them. */
+    memcpy(clients[user_ix].pending_msgs[num_pending_msgs], data, data_len);
+
+    return;    
+}
+
 /* A client requested to be logged in Rosetta */
-__attribute__ ((always_inline)) 
-inline
+//__attribute__ ((always_inline)) 
+//inline
 void process_msg_00(u8* msg_buf){
 
     bigint *A_s
@@ -393,8 +415,8 @@ label_cleanup:
 }
 
 /* Second part of the initial login handshake */
-__attribute__ ((always_inline)) 
-inline
+//__attribute__ ((always_inline)) 
+//inline
 void process_msg_01(u8* msg_buf){
 
     const u64 B = 64;
@@ -722,8 +744,8 @@ label_cleanup:
 }
 
 /* Client requested to create a new chatroom. */
-__attribute__ ((always_inline)) 
-inline
+//__attribute__ ((always_inline)) 
+//inline
 void process_msg_10(u8* msg_buf){
         
     u8* nonce  = calloc(1, 16);
@@ -960,8 +982,8 @@ label_cleanup:
 } 
 
 /* Client requested to join an existing chatroom. */
-__attribute__ ((always_inline)) 
-inline
+//__attribute__ ((always_inline)) 
+//inline
 void process_msg_20(u8* msg_buf){
 
     FILE* ran_file = NULL;
@@ -978,11 +1000,14 @@ void process_msg_20(u8* msg_buf){
     u8* reply_buf = NULL;
     u64 reply_len;
     
+    /* dynamic, unknown at compile time. */
     u8* buf_ixs_pubkeys;
     u64 buf_ixs_pybkeys_len;
     
-    size_t ret_status;
-    
+    /* static, known at compile time. */
+    const u64 buf_type_21_len = (2*8) + 32 + SIGNATURE_LEN + (1*(8+PUBKEY_LEN));
+          u8* buf_type_21     = calloc(1, buf_type_21_len);
+      
     u8 auth_result;
     u8 room_found;
     
@@ -992,7 +1017,9 @@ void process_msg_20(u8* msg_buf){
     u64 num_users_in_room = 0;
     u64 next_free_room_users_ix = 0;
     u64 write_offset = 0;
-        
+    
+    size_t ret_val;
+       
     bigint  *recv_s 
            ,*recv_e
            ,nonce_bigint
@@ -1201,9 +1228,9 @@ void process_msg_20(u8* msg_buf){
         goto label_cleanup;
     }
     
-    ret_status = fread(send_K, 1, 32, ran_file);
+    ret_val = fread(send_K, 1, 32, ran_file);
     
-    if(ret_status != 32){
+    if(ret_val != 32){
         printf("[ERR] Server: Couldn't read urandom. Dropping transmission.\n");
         goto label_cleanup;
     }
@@ -1282,12 +1309,72 @@ void process_msg_20(u8* msg_buf){
     /* TO DO: 
      *
      * Send the new room user's user_ix and public_key to everyone currently in
-     * the chatroom. This requires knowing their IP addresses, just like the TCP
-     * client will need to know the IP address of the server to spontaneously
-     * send requests to it, without first having been contacted by it.
+     * the chatroom.
      *
-     * Also, perform any necessary server bookkeeping as usual.
+     * This will be done by adding these transmissions to each client's pending
+     * messages list. Then on the next poll sent by each client, the server will
+     * know that there's some stuff to send them, namely packet MAGIC_21 with 
+     * the new chatroom client's user_id and public_key.
+     *
+     * Also, perform any necessary server bookkeeping and cleanup as usual.
      */
+
+    /* Add the new room guest's id and pubkey as a pending MSG to each user. */
+
+    /* Construct the buffer before populating it into the users' structures. */
+    
+    *((u64*)(buf_type_21_len)) = MAGIC_21;
+    
+    /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
+     * KBA as chacha key and the server-client-maintained incremented Nonce from
+     * the two's DH shared secret. Increment the Nonce. 
+     *
+     * Concatenate the encrypted one-time use key K, now KA, to MAGIC_2O.
+     * Use un-encrypted key K as ChaCha key to encrypt the actual protected part
+     * of the transmission to the clients, in this case:
+     *
+     *  (new_guest_userid, new_guest_public_key)
+     *
+     * whose length in bytes is exactly:
+     *
+     * (8 + PUB_KEY_LEN) 
+     */
+    
+    /* ^^^ This is so common that it needs to be factored out in a function. */
+        
+    for(u64 i = 0; i < num_users_in_room; ++i){
+    
+        ret_val = fread(send_K, 1, 32, ran_file);
+    
+        if(ret_val != 32){
+            printf("[ERR] Server: Couldn't read urandom. Dropping message.\n");
+            goto label_cleanup;
+        }
+
+        /* IMPORTANT!! CHANGE THIS CHACHACALL AND NONCE INCREMENT BECAUSE THEY
+         * STILL USE THE NEW ROOM GUEST'S SHARED SECRET AND THUS KBA AND NONCE,
+         * NOT THE OTHER USERS' WHO WERE ALREADY IN THE ROOM.
+         */
+
+        CHACHA20( send_K            /* text - one-time use key K    */
+                 ,32                /* text_len in bytes            */
+                 ,nonce_bigint.bits /* nonce, already incremented   */
+                 ,4                 /* nonce_len in uint32_t's      */
+                 ,KBA               /* chacha Key                   */
+                 ,8                 /* Key_len in uint32_t's        */
+                 ,reply_buf + 8     /* output target buffer         */
+                 );
+        
+        /* Increment nonce counter again to prepare it for its next use. */
+        bigint_add_fast(&nonce_bigint, &one, &aux1);
+        bigint_equate2(&nonce_bigint, &aux1);
+        ++(clients[user_ix].nonce_counter); 
+        
+        
+        
+        add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
+    }
+
 
 label_cleanup:
 
