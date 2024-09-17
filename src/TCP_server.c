@@ -813,7 +813,7 @@ void process_msg_10(u8* msg_buf){
      */
     
     if(
-       bigint_compare2(&(clients[user_ix].client_pubkey_), server_pubkey_bigint) 
+       bigint_compare2(&(clients[user_ix].client_pubkey_), &server_pubkey_bigint) 
         == 3
       )
     {
@@ -855,10 +855,10 @@ void process_msg_10(u8* msg_buf){
     
     /* Another instance of a BigInt constructor from mem. Find time for it. */
     nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
-    memcpy(nonce_bigint.bits, clients[user_ix].shared_secret.bits[64], 16); 
+    memcpy(nonce_bigint.bits, clients[user_ix].shared_secret.bits+64, 16); 
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, 16);
-    nonce_bigint_size_bits = MAX_BIGINT_SIZ;
-    nonce_bigint_free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
     
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
@@ -988,11 +988,12 @@ void process_msg_20(u8* msg_buf){
 
     FILE* ran_file = NULL;
     
-    u8* nonce  = calloc(1, 16);
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
     u8* KBA    = calloc(1, SESSION_KEY_LEN);
     u8* recv_K = calloc(1, 32);
     u8* send_K = calloc(1, 32);
+    
+    u8* type21_encrypted_part = calloc(1, (8+PUBKEY_LEN));
     
     u64 user_ixs_in_room[MAX_CLIENTS];
     memset(user_ixs_in_room, 0x00, MAX_CLIENTS * sizeof(u32));
@@ -1025,6 +1026,10 @@ void process_msg_20(u8* msg_buf){
            ,nonce_bigint
            ,one
            ,aux1;
+    
+    nonce_bigint.bits = NULL;
+    one.bits = NULL;
+    aux1.bits = NULL;
      
     /* Decrypt and reveal the room name that the user wants to join. */
            
@@ -1071,7 +1076,7 @@ void process_msg_20(u8* msg_buf){
      */
     
     if(
-       bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint) 
+       bigint_compare2(&(clients[user_ix].client_pubkey), &server_pubkey_bigint) 
         == 3
       )
     {
@@ -1085,8 +1090,8 @@ void process_msg_20(u8* msg_buf){
         );
     }
     else{
-      /* KAB is the FIRST 32 bytes of shared secret in this case, not next. */
-      /* KBA is next 32 bytes. */   
+        /* KAB is the FIRST 32 bytes of shared secret in this case, not next. */
+        /* KBA is next 32 bytes. */   
         memcpy( KAB
                ,(clients[user_ix].shared_secret).bits
                ,SESSION_KEY_LEN
@@ -1113,11 +1118,11 @@ void process_msg_20(u8* msg_buf){
     
     /* Another instance of a BigInt constructor from mem. Find time for it. */
     nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
-    memcpy(nonce_bigint.bits, clients[user_ix].shared_secret.bits[64], 16); 
+    memcpy(nonce_bigint.bits, clients[user_ix].shared_secret.bits+64, 16); 
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, 16);
-    nonce_bigint_size_bits = MAX_BIGINT_SIZ;
-    nonce_bigint_free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
-    
+    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+   
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
     
@@ -1306,24 +1311,10 @@ void process_msg_20(u8* msg_buf){
     printf("\n\n[OK]  Server: SUCCESS - Permitted a user in a chatroom!!\n\n");
     printf("Now to transmit the new user's public key to all room people!!\n");
     
-    /* TO DO: 
-     *
-     * Send the new room user's user_ix and public_key to everyone currently in
-     * the chatroom.
-     *
-     * This will be done by adding these transmissions to each client's pending
-     * messages list. Then on the next poll sent by each client, the server will
-     * know that there's some stuff to send them, namely packet MAGIC_21 with 
-     * the new chatroom client's user_id and public_key.
-     *
-     * Also, perform any necessary server bookkeeping and cleanup as usual.
-     */
-
+    
     /* Add the new room guest's id and pubkey as a pending MSG to each user. */
 
     /* Construct the buffer before populating it into the users' structures. */
-    
-    *((u64*)(buf_type_21_len)) = MAGIC_21;
     
     /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
      * KBA as chacha key and the server-client-maintained incremented Nonce from
@@ -1344,17 +1335,61 @@ void process_msg_20(u8* msg_buf){
         
     for(u64 i = 0; i < num_users_in_room; ++i){
     
+        /* Clear the reply buf to prepare it for next response by the server. */
+        memset(buf_type_21, 0, buf_type_21_len);
+       
+        /* Place the network packet identifier magic constant. */
+        *((u64*)(buf_type_21)) = MAGIC_21;
+        
+        /* Draw the random one-time use 32-byte key K. */
         ret_val = fread(send_K, 1, 32, ran_file);
     
         if(ret_val != 32){
             printf("[ERR] Server: Couldn't read urandom. Dropping message.\n");
             goto label_cleanup;
         }
+        
+        /* Get session the keys KBA, KAB of this already-present room guest. */
+        if(
+           bigint_compare2( &(clients[user_ixs_in_room[i]].client_pubkey)
+                           ,&server_pubkey_bigint
+           ) == 3
+          )
+        {
+            memcpy( KBA
+                   ,(clients[user_ixs_in_room[i]].shared_secret).bits
+                   ,SESSION_KEY_LEN
+            );
+            memcpy( KAB
+                   ,(clients[user_ixs_in_room[i]].shared_secret).bits + SESSION_KEY_LEN
+                   ,SESSION_KEY_LEN
+            );
+        }
+        else{
+            /* KAB is FIRST 32 bytes of shared secret in this case, not next. */
+            /* KBA is next 32 bytes. */   
+            memcpy( KAB
+                   ,(clients[user_ixs_in_room[i]].shared_secret).bits
+                   ,SESSION_KEY_LEN
+            );
+            memcpy( KBA
+                   ,(clients[user_ixs_in_room[i]].shared_secret).bits + SESSION_KEY_LEN
+                   ,SESSION_KEY_LEN
+            ); 
+        }
 
-        /* IMPORTANT!! CHANGE THIS CHACHACALL AND NONCE INCREMENT BECAUSE THEY
-         * STILL USE THE NEW ROOM GUEST'S SHARED SECRET AND THUS KBA AND NONCE,
-         * NOT THE OTHER USERS' WHO WERE ALREADY IN THE ROOM.
-         */
+        /* Another instance of BigInt constructor from mem. Find time for it. */
+        memset(nonce_bigint.bits,0,((size_t)((double)MAX_BIGINT_SIZ/(double)8));
+        memcpy(nonce_bigint.bits, clients[user_ixs_in_room[i]].shared_secret.bits+64,16); 
+        nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, 16);
+        nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+        nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+       
+        /* Increment nonce as many times as needed. */
+        for(u64 i = 0; i < clients[user_ixs_in_room[i]].nonce_counter; ++i){
+            bigint_add_fast(&nonce_bigint, &one, &aux1);
+            bigint_equate2(&nonce_bigint, &aux1);     
+        }
 
         CHACHA20( send_K            /* text - one-time use key K    */
                  ,32                /* text_len in bytes            */
@@ -1362,25 +1397,76 @@ void process_msg_20(u8* msg_buf){
                  ,4                 /* nonce_len in uint32_t's      */
                  ,KBA               /* chacha Key                   */
                  ,8                 /* Key_len in uint32_t's        */
-                 ,reply_buf + 8     /* output target buffer         */
-                 );
+                 ,buf_type_21 + 8   /* output target buffer         */
+                );
         
         /* Increment nonce counter again to prepare it for its next use. */
         bigint_add_fast(&nonce_bigint, &one, &aux1);
         bigint_equate2(&nonce_bigint, &aux1);
-        ++(clients[user_ix].nonce_counter); 
+        ++(clients[user_ixs_in_room[i]].nonce_counter); 
         
-        
-        
-        add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
-    }
+        /* Place the part that has to be encrypted in a buffer. */
 
+        memcpy( type21_encrypted_part
+               ,clients[user_ix].user_id
+               ,MAX_USERID_LEN
+        );
+        
+        memcpy( type21_encrypted_part + MAX_USERID_LEN
+               ,clients[user_ix].client_pubkey.bits
+               ,PUBKEY_LEN
+        );
+
+        /* Encrypt it with chacha20, place the result ciphertext in response. */
+        CHACHA20( type21_encrypted_part     /* text - user_ix + pubkey        */
+                 ,(8 + PUBKEY_LEN)          /* text_len in bytes              */
+                 ,nonce_bigint.bits         /* nonce, already incremented     */
+                 ,3                         /* nonce_len in uint32_t's        */
+                 ,send_K                    /* chacha Key                     */
+                 ,8                         /* Key_len in uint32_t's          */
+                 ,buf_type_21 + (8+32)      /* output target buffer           */
+                );
+        
+        /* Increment nonce counter again to prepare it for its next use. */
+        ++(clients[user_ixs_in_room[i]].nonce_counter); 
+        
+        /* Final part of TYPE_21 replies - sig_len and signature itself. */
+        *((u64*)(buf_type_21 + (8 + 32 + 8 + PUBKEY_LEN))) = SIGNATURE_LEN;
+        
+        /* Compute the signature itself of everything so far except sig_len. */
+        
+        /* UGLY!! Rewrite when I find time. */
+        Signature_GENERATE
+                        (M,Q,Gm,buf_type_21, buf_type_21_len - (8+SIGNATURE_LEN)
+                        ,(buf_type_21 + buf_type_21_len - (8+SIGNATURE_LEN)) + 8
+                        ,&server_privkey_bigint,PRIVKEY_BYTES
+        );
+        
+        add_pending_msg(clients[user_ixs_in_room[i]], buf_type_21_len, buf_type_21);
+    }
 
 label_cleanup:
 
+    if(ran_file){ fclose(ran_file); }
+    
+    free(KAB);
+    free(KBA);
+    free(recv_K);
+    free(send_K); 
+    free(type21_encrypted_part);
 
+    if(reply_buf)      { free(reply_buf);       }
+    if(buf_ixs_pubkeys){ free(buf_ixs_pubkeys); }
+
+    free(buf_type_21);
+     
+    if(recv_s.bits != NULL)       { free(recv_s.bits);       } 
+    if(recv_e.bits != NULL)       { free(recv_e.bits);       } 
+    if(nonce_bigint.bits != NULL) { free(nonce_bigint.bits); }
+    if(one.bits != NULL)          { free(one.bits);          }
+    if(aux1.bits != NULL)         { free(aux1.bits);         }
+    
     return;
-
 }
 
 
