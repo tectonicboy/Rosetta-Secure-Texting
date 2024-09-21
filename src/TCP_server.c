@@ -8,29 +8,6 @@
 #include "cryptolib.h"
 #include "coreutil.h"
 
-#define SERVER_PORT     54746
-#define PRIVKEY_BYTES   40   
-#define PUBKEY_LEN      384
-#define MAX_CLIENTS     128
-#define MAX_PEND_MSGS   1024
-#define MAX_CHATROOMS   64
-#define MAX_MSG_LEN     4096
-#define MAX_SOCK_QUEUE  1024
-#define MAX_BIGINT_SIZ  12800
-#define MAGIC_LEN       8 
-#define MAX_USERID_LEN  8
-#define TEMP_BUF_SIZ    16384
-#define SESSION_KEY_LEN 32
-
-#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_BYTES))
-
-#define MAGIC_00 0xAD0084FF0CC25B0E
-#define MAGIC_01 0xE7D09F1FEFEA708B
-#define MAGIC_02 0x146AAE4D100DAEEA
-#define MAGIC_10 0x13C4A44F70842AC1
-#define MAGIC_11 0xAEFB70A4A8E610DF
-#define MAGIC_20 0x9FF4D1E0EAE100A5
-
 /* A bitmask for various control-related purposes.
  * 
  * Currently used bits:
@@ -60,6 +37,7 @@ struct connected_client{
     char user_id[MAX_USERID_LEN];
     u32  room_ix;
     u32  num_pending_msgs;
+    u64  pending_msg_sizes[MAX_PEND_MSGS];
     u8*  pending_msgs[MAX_PEND_MSGS];
     u64  pubkey_len;
     u64  pubkey_mont_len;
@@ -76,6 +54,38 @@ struct chatroom{
     u64 owner_ix;
     u64 room_id;
 };
+
+struct pending_msg{
+    u64 pend_msg_len;
+    u8* pend_msg;
+}
+
+#define SERVER_PORT     54746
+#define PRIVKEY_BYTES   40   
+#define PUBKEY_LEN      384
+#define MAX_CLIENTS     64
+#define MAX_PEND_MSGS   64
+#define MAX_CHATROOMS   64
+#define MAX_MSG_LEN     8192
+#define MAX_TXT_LEN     1024
+#define MAX_SOCK_QUEUE  1024
+#define MAX_BIGINT_SIZ  12800
+#define MAGIC_LEN       8 
+#define MAX_USERID_LEN  8
+#define TEMP_BUF_SIZ    16384
+#define SESSION_KEY_LEN 32
+
+#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_BYTES))
+
+#define MAGIC_00 0xAD0084FF0CC25B0E
+#define MAGIC_01 0xE7D09F1FEFEA708B
+#define MAGIC_02 0x146AAE4D100DAEEA
+#define MAGIC_10 0x13C4A44F70842AC1
+#define MAGIC_11 0xAEFB70A4A8E610DF
+#define MAGIC_20 0x9FF4D1E0EAE100A5
+#define MAGIC_30 0x9FFA7475DDC8B11C
+#define MAGIC_40 0xCAFB1C01456DF7F0
+#define MAGIC_41 0xDC4F771C0B22FDAB
 
 struct connected_client clients[MAX_CLIENTS];
 struct chatroom rooms[MAX_CHATROOMS];
@@ -241,8 +251,14 @@ void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
     }
     
     /* Proceed to add the pending message to the user's list of them. */
-    memcpy(clients[user_ix].pending_msgs[num_pending_msgs], data, data_len);
-
+    memcpy( clients[user_ix].pending_msgs[clients[user_ix].num_pending_msgs]
+           ,data
+           ,data_len
+    );
+    
+    clients[user_ix].pending_msg_sizes[clients[user_ix].num_pending_msgs] 
+     = data_len;
+     
     return;    
 }
 
@@ -595,7 +611,8 @@ void process_msg_01(u8* msg_buf){
     }
     
     clients[next_free_user_ix].pubkey_len = PUBKEY_LEN;
-    
+    memset(clients[next_free_user_ix].pending_msg_sizes, 0, (MAX_PEND_MSGS*8));
+
     /* Transport the client's long-term public key into their slot. */
     bigint_create( &(clients[next_free_user_ix].client_pubkey)
                   ,MAX_BIGINT_SIZ
@@ -1037,18 +1054,18 @@ void process_msg_20(u8* msg_buf){
     recv_s = (bigint*)((msg_buf + ((4*8)+(32))));
     
     recv_e = 
-     (bigint*)((msg_buf + ((4*8) + (32))) + sizeof(bigint) + PRIVKEY_BYTES);    
+     (bigint*)(msg_buf + ((4*8) + 32 + sizeof(bigint) + PRIVKEY_BYTES));    
     
     recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
     recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
  
     memcpy( recv_s->bits
-           ,(msg_buf + ((4*8) + (32))) + (sizeof(bigint))
+           ,msg_buf + ((4*8) + 32 + (sizeof(bigint)))
            ,PRIVKEY_BYTES
     );
     
     memcpy( recv_e->bits
-           ,(msg_buf + ((4*8) + (32))) + (2*sizeof(bigint)) + PRIVKEY_BYTES
+           ,msg_buf + ((4*8) + 32 + (2*sizeof(bigint)) + PRIVKEY_BYTES)
            ,PRIVKEY_BYTES
     );
     
@@ -1148,13 +1165,13 @@ void process_msg_20(u8* msg_buf){
     /* Use the incremented nonce in the other call to chacha to get room_id */
    
     CHACHA20( msg_buf + (8 + 8 + 32)
-            ,8
-            ,nonce_bigint.bits
-            ,4
-            ,recv_K
-            ,8
-            ,&room_id
-           );
+             ,8
+             ,nonce_bigint.bits
+             ,4
+             ,recv_K
+             ,8
+             ,&room_id
+            );
   
     /* Increment nonce counter again to prepare the nonce for its next use. */
     bigint_add_fast(&nonce_bigint, &one, &aux1);
@@ -1469,6 +1486,233 @@ label_cleanup:
     return;
 }
 
+/* Client requested to send a text message to everyone in the chatroom. */
+//__attribute__ ((always_inline)) 
+//inline
+void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
+{
+    u64 next_free_receivers_ix = 0;
+
+    u8 auth_result;
+    u8 *reply_buf;
+    u64 reply_len;
+    
+    u64 receiver_ixs;
+
+    bigint  *recv_e
+           ,*recv_s;
+           
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + sign_offset));
+    
+    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,msg_buf + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
+           ,PRIVKEY_BYTES
+    );
+    
+    /* Verify the sender's cryptographic signature. */
+    auth_result = Signature_VALIDATE(
+                     Gm, &(clients[sender_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, msg_buf, (packet_siz - SIGNATURE_LEN)
+    );
+
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
+    
+    receiver_ixs = calloc(1, (rooms[clients[user_ix].room_ix].num_people - 1));
+    
+    /* Iterate over all user indices to find the other chatroom participants. */
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
+        if(
+              (clients[i].room_ix == clients[sender_ix].room_ix) 
+            && 
+              (clients[i].user_ix != sender_ix)
+          )
+        {
+            receiver_ixs[next_free_room_users_ix] = i;
+            ++next_free_receivers_ix;
+        }
+    }  
+      
+    reply_len  = packet_siz + SIGNATURE_LEN;
+    reply_buf  = calloc(1, reply_len);
+  
+    /* Place the already received packet into the upgraded type_30 packet */
+    memcpy(reply_buf, msg_buf, packet_siz);
+        
+    /* Compute the server's cryptographic signature of the entire received  
+     * packet, including the sender's cryptographic signature!
+     */
+    
+    /* UGLY!! Rewrite when I find time. */
+    Signature_GENERATE
+                    (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
+                    ,&server_privkey_bigint, PRIVKEY_BYTES
+    );
+        
+    /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
+    for(u64 i = 0; i < rooms[clients[user_ix].room_ix].num_people - 1; ++i){
+        add_pending_msg(clients[receiver_ixs[i]], reply_len, reply_buf);
+    }
+    
+label_cleanup:
+    
+    free(recv_s->bits);
+    free(recv_e->bits);
+    if(reply_buf){free(reply_buf);}
+    
+    return;
+}
+
+/* Client polled the server for any pending unreceived messages. */
+//__attribute__ ((always_inline)) 
+//inline
+void process_msg_40(u8* msg_buf){
+
+    /* Check the cryptographic signature to authenticate the sender. */
+
+    u8 auth_result;
+    u8 *reply_buf;
+    u64 reply_len;
+    u64 reply_write_offset = 0;
+    u32 sign_offset = 16;
+    
+    u64 poller_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    
+    bigint  *recv_e
+           ,*recv_s;
+           
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + sign_offset));
+    
+    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,msg_buf + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
+           ,PRIVKEY_BYTES
+    );
+    
+    /* Verify the sender's cryptographic signature. */
+    auth_result = Signature_VALIDATE(
+                     Gm, &(clients[poller_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
+    );
+
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
+    
+    /* If no pending messages, simply send the NO_PENDING packet type_40. */
+    if(clients[sender_ix].num_pending_msgs == 0){
+    
+        reply_len = MAGIC_LEN + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+        
+        *((u64*)(reply_buf)) = MAGIC_40;
+        
+        /* Compute a cryptographic signature so the client can authenticate us*/
+        Signature_GENERATE
+                         ( M, Q, Gm, reply_buf, MAGIC_LEN, reply_buf + MAGIC_LEN
+                          ,&server_privkey_bigint, PRIVKEY_BYTES
+        );
+        
+        /* Send the reply back to the client. */
+        if(send(client_socket, reply_buf, reply_len, 0) == -1){
+            printf("[ERR] Server: Couldn't reply with MAGIC_40 msg type.\n");
+        }
+        else{
+            printf("[OK]  Server: Replied to client with MAGIC_40 msg type.\n");
+        }
+        
+        goto label_cleanup;
+    }
+    /* If there are pending messages, construct a buffer containing them all. */
+    else{
+    
+        /* We need to allocate enough memory for the reply buffer. This can only
+         * happen if we preemptively iterate over the sender's array of lengths
+         * of pending messages, even if we will need to do it again later to 
+         * actually fetch their pending messages.
+         */
+        reply_len = 8 + MAGIC_LEN + SIGNATURE_LEN;
+        reply_write_offset = 8 + MAGIC_LEN;
+        
+        for(u64 i = 0; i < clients[sender_ix].num_pending_msgs; ++i){
+            reply_len += clients[sender_ix].pending_msg_sizes[i] + 8;    
+        } 
+         
+        reply_buf = calloc(1, reply_len);
+                
+        *((u64*)(reply_buf + 0        )) = MAGIC_41;
+        *((u64*)(reply_buf + MAGIC_LEN)) = clients[sender_ix].num_pending_msgs;
+        
+        /* Iterate over this client's array of pending transmissions, as well */
+        /* as their array of lengths to transport them to the reply buffer.   */
+        for(u64 i = 0; i < clients[sender_ix].num_pending_msgs; ++i){
+            
+            *((u64*)(reply_buf + reply_write_offset)) 
+             = clients[sender_ix].pending_msg_sizes[i];
+                 
+            reply_buf_offset += 8;
+                   
+            memcpy( reply_buf + reply_write_offset
+                   ,clients[sender_ix].pending_msgs[i] 
+                   ,clients[sender_ix].pending_msg_sizes[i] 
+                  );
+                  
+            reply_buf_offset += clients[sender_ix].pending_msg_sizes[i];
+        }
+        
+        /* Compute a cryptographic signature so the client can authenticate us*/
+        Signature_GENERATE
+                         ( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN, 
+                           reply_buf + (reply_len - SIGNATURE_LEN)
+                          ,&server_privkey_bigint, PRIVKEY_BYTES
+        );
+        
+        /* Send the reply back to the client. */
+        if(send(client_socket, reply_buf, reply_len, 0) == -1){
+            printf("[ERR] Server: Couldn't reply with MAGIC_41 msg type.\n");
+        }
+        else{
+            printf("[OK]  Server: Replied to client with MAGIC_41 msg type.\n");
+        }
+        
+        goto label_cleanup;
+    }
+    
+
+    
+    
+label_cleanup:
+    
+    free(recv_e->bits);
+    free(recv_s->bits);
+    if(reply_buf){free(reply_buf);}
+    
+    return;
+}
 
 /*  To make the server design more elegant, this top-level message processor 
  *  only checks whether the message is legit or not, and which of the predefined
@@ -1495,6 +1739,9 @@ label_cleanup:
  *          - [TYPE_20]: Client sent a request to join a room by ID string.
  *
  *      - A client decides to send a new message to the chatroom.
+ *
+ *          - [TYPE_30]: Client sent a request to send a text message in a room.
+ *
  *      - A client decides to poll the server about unreceived messages.
  *      - A client decides to exit the chat room they're in.
  *      - A client decides to log off Rosetta.
@@ -1502,13 +1749,15 @@ label_cleanup:
 
 u32 identify_new_transmission(){
 
-    u8* client_msg_buf = calloc(1, MAX_MSG_LEN);
-    s64 bytes_read; 
-    u64 transmission_type;
-    s64 expected_siz;
+    u8*  client_msg_buf = calloc(1, MAX_MSG_LEN);
+    s64  bytes_read; 
+    u64  transmission_type;
+    s64  expected_siz;
+    u8   user_found = 0;
+    u64  found_user_ix;
     char msg_type_str = calloc(1, 3);
-    msg_type_str[2] = '\0';
     
+    msg_type_str[2] = '\0';
     
     /* Capture the message the Rosetta TCP client sent to us. */
     bytes_read = recv(client_socket, client_msg_buf, MAX_MSG_LEN, 0);
@@ -1593,13 +1842,72 @@ u32 identify_new_transmission(){
         
         break;
     }
+    /* A client wants to send a text message to everyone else in the chatroom */
+    case(MAGIC_30){
+    
+        strncpy(msg_type_str, "30", 2);
+        
+        /* Size must be in bytes: 8 + 8 + 8 + M + AD_LEN + SIGNATURE_LEN      */
+        /* AD_LEN = N * (8+32)   ---> where N = number of people in room - 1  */
+        /* Must find username's user_ix before being able to compute AD_LEN   */
+        
+        /* Find this username's user_ix. */
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            if(    (users_status_bitmask & (1ULL << (63ULL - i)))
+                && (strncmp(clients[i].user_id, client_msg_buf + 8, 8) == 0 )
+              )
+            {
+                user_found = 1;
+                found_user_ix = i;    
+            }   
+        }
+        
+        if(!user_found){
+            printf("[ERR] Server: No user found with sender's id!!\n");
+            printf("              Discarding transmission quietly.\n\n");
+            goto label_error;
+        }
+        
+        expected_siz =   
+               (3*8) + SIGNATURE_LEN + (*((u64*)(client_msg_buf + 16)))  
+             + ((rooms[clients[found_user_ix].room_ix].num_people - 1) * (8+32))
+             ;
+                       
+        if(bytes_read != expected_siz){
+            goto label_error;
+        }
+        
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_30(client_msg_buf, bytes_read, sign_offset, found_user_ix);
+        
+        break;
+    }
+    
+    /* A client polled the server asking for any pending unreceived messages. */
+    case(MAGIC_40){
+        strncpy(msg_type_str, "40", 2);    
+    
+        expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        
+        if(bytes_read != expected_siz){
+            goto label_error;
+        }
+        
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_40(client_msg_buf);
+        
+        break;
+    
+    }
     
     
     } /* end switch */
     
+    goto label_cleanup;
+    
 label_error:
 
-    printf("[ERR] Server: MSG Type was %s but of wrong size.\n"
+    printf("[ERR] Server: MSG Type was %s but of wrong size or contents.\n"
            ,msg_type_str
           );
           
