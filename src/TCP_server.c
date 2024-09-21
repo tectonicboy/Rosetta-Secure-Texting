@@ -1673,23 +1673,32 @@ void process_msg_40(u8* msg_buf){
             
             *((u64*)(reply_buf + reply_write_offset)) 
              = clients[sender_ix].pending_msg_sizes[i];
-                 
+                             
             reply_buf_offset += 8;
                    
             memcpy( reply_buf + reply_write_offset
                    ,clients[sender_ix].pending_msgs[i] 
                    ,clients[sender_ix].pending_msg_sizes[i] 
-                  );
-                  
+            );
+                 
             reply_buf_offset += clients[sender_ix].pending_msg_sizes[i];
+            
+            clients[sender_ix].pending_msg_sizes[i] = 0;
+            
+            memset( clients[sender_ix].pending_msgs[i]
+                   ,0
+                   ,clients[sender_ix].pending_msg_sizes[i] 
+            );
         }
-        
+
         /* Compute a cryptographic signature so the client can authenticate us*/
         Signature_GENERATE
                          ( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN, 
                            reply_buf + (reply_len - SIGNATURE_LEN)
                           ,&server_privkey_bigint, PRIVKEY_BYTES
         );
+        
+        clients[sender_ix].num_pending_msgs = 0;
         
         /* Send the reply back to the client. */
         if(send(client_socket, reply_buf, reply_len, 0) == -1){
