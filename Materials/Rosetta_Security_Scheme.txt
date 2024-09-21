@@ -13,7 +13,7 @@
 
 PART O: Server generates its own (public/private) key pair. Its public key
         is automatically distributed to whoever installs the client software.
-        Server will use these to compute cryptographic signatures that will be 
+        Server will use these to generate cryptographic artifacts and signatures
         checked by the receivers of its transmissions, just like senders of
         messages sign their messages which are checked by message receivers.
  
@@ -351,6 +351,14 @@ perform another SPECIAL PROTOCOL with each message sent:
 4. Compute Alice's Schnorr Signature of (encrypted message and its AD).
 
 5. Send these three things to the server: (Alice's signature, AD, encrypted MSG)
+
+
+    ----->>  ACTUAL NEW THINGS IN THE UPDATED PACKET DEFINITION:  <<-----
+    
+    
+    MAGIC_30, sender_id, MSG_LEN, AD, Signature1
+    
+    where Associated Data now only contains user_ids and session keys, no nonce.
 
 6. Server routes this message to everyone else in this chatroom's list of 
    "people currently in the chatroom".
