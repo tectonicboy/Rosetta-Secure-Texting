@@ -55,11 +55,6 @@ struct chatroom{
     u64 room_id;
 };
 
-struct pending_msg{
-    u64 pend_msg_len;
-    u8* pend_msg;
-}
-
 #define SERVER_PORT     54746
 #define PRIVKEY_BYTES   40   
 #define PUBKEY_LEN      384
@@ -957,7 +952,7 @@ void process_msg_10(u8* msg_buf){
     rooms[next_free_room_ix].owner_ix = user_ix;
     rooms[next_free_room_ix].room_id = room_id;
 
-    /* Reflect the new taken user slot in the global user status bitmask. */
+    /* Reflect the new taken room slot in the global room status bitmask. */
     rooms_status_bitmask |= (1ULL << (63ULL - next_free_room_ix));
     
     /* Similar indexing logic to the one described by the large comment for
@@ -1710,11 +1705,96 @@ void process_msg_40(u8* msg_buf){
         
         goto label_cleanup;
     }
-    
-
-    
-    
+  
 label_cleanup:
+    
+    free(recv_e->bits);
+    free(recv_s->bits);
+    if(reply_buf){free(reply_buf);}
+    
+    return;
+}
+
+/* Client polled the server for any pending unreceived messages. */
+//__attribute__ ((always_inline)) 
+//inline
+void process_msg_50(u8* msg_buf){
+
+    u8 auth_result;
+    
+    u8 *reply_buf;
+    u64 reply_len;
+
+    u32 sign_offset = 16;
+    
+    u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    
+    bigint  *recv_e
+           ,*recv_s;    
+
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + sign_offset));
+    
+    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,msg_buf + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
+           ,PRIVKEY_BYTES
+    );
+    
+    /* Verify the sender's cryptographic signature. */
+    auth_result = Signature_VALIDATE(
+                     Gm, &(clients[sender_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
+    );
+
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
+ 
+    /* Construct the message and send it to everyone else in the chatroom.    */
+    reply_len = MAGIC_LEN + 8 + SIGNATURE_LEN;
+    reply_buf = calloc(1, reply_len);
+    
+    *((u64*)(reply_buf)) = MAGIC_50;
+    
+    *((u64*)(reply_buf + MAGIC_LEN)) = clients[sender_ix].user_id;
+    
+    memcpy(reply_buf + MAGIC_LEN, clients[sender_ix].user_id, MAX_USERID_LEN);
+    
+    /* Compute a signature so the clients can authenticate the server. */
+    Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+                       ,reply_buf + (reply_len - SIGNATURE_LEN)
+                       ,&server_privkey_bigint, PRIVKEY_BYTES
+    );
+    
+    if(
+        /* Let other room guests know that a user has left. */
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            if(  
+                 (i != sender_ix) 
+               && 
+                 (clients[i].room_ix == clients[sender_ix].room_ix))
+            {
+                add_pending_msg(clients[i], reply_len, reply_buf);    
+            }
+        }
+    
+    /* Perform necessary server bookkeeping for rooms[] and clients[] */
+    
+    
+    
+    
+    label_cleanup:
     
     free(recv_e->bits);
     free(recv_s->bits);
@@ -1909,6 +1989,21 @@ u32 identify_new_transmission(){
     
     }
     
+    /* A client decided to exit the chatroom they're currently in. */
+    case(MAGIC_50){
+        strncpy(msg_type_str, "50", 2);    
+    
+        expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        
+        if(bytes_read != expected_siz){
+            goto label_error;
+        }
+        
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_50(client_msg_buf);
+        
+        break;        
+    }
     
     } /* end switch */
     
