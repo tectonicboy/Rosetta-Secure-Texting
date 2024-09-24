@@ -134,10 +134,10 @@ bool check_pubkey_form( const bigint* const Km
         ret = 0;
     }
     
-    free(M_over_Q->bits);
-    free(one->bits);
-    free(div_rem->bits);
-    free(mod_pow_res->bits);
+    free(M_over_Q.bits);
+    free(one.bits);
+    free(div_rem.bits);
+    free(mod_pow_res.bits);
     
     return ret;
 }
