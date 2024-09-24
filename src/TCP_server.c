@@ -4,34 +4,10 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #include "cryptolib.h"
 #include "coreutil.h"
-
-/* A bitmask for various control-related purposes.
- * 
- * Currently used bits:
- *
- *  [0] - Whether the temporary login handshake memory region is locked or not.
- *        This memory region holds very short-term public/private keys used
- *        to transport the client's long-term public key to us securely.
- *        It can't be local, because the handshake spans several transmissions,
- *        (thus is interruptable) yet needs the keys for its entire duration.
- *        Every login procedure needs it. If a second client attempts to login
- *        while another client is already logging in, without checking this bit,
- *        the other client's login procedure's short-term keys could be erased.
- *        Thus, use this bit to disallow more than 1 login handshake at a time.
- */ 
-u32 server_control_bitmask = 0;
-
-/* Bitmasks telling the server which client and room slots are currently free */
-u64 users_status_bitmask = 0;
-u64 rooms_status_bitmask = 0;
-
-u32 next_free_user_ix = 0;
-u32 next_free_room_ix = 0;
-
-u8 server_privkey[PRIVKEY_BYTES];
 
 struct connected_client{
     char user_id[MAX_USERID_LEN];
@@ -44,6 +20,8 @@ struct connected_client{
     u64  shared_secret_len;
     u64  nonce_counter;
     
+    time_t time_last_polled;
+    
     bigint client_pubkey;
     bigint client_pubkey_mont;
     bigint shared_secret; 
@@ -54,6 +32,43 @@ struct chatroom{
     u64 owner_ix;
     u64 room_id;
 };
+
+/* A global bitmask for various control-related purposes.
+ * 
+ * Currently used bits:
+ *
+ *  [0] - Whether the temporary login handshake memory region is locked or not.
+ *        This memory region holds very short-term public/private keys used
+ *        to transport the client's long-term public key to the server securely.
+ *        It can't be local, because the handshake spans several transmissions,
+ *        (thus is interruptable), yet needs the keys for its entire duration.
+ *        Every login procedure needs it. If a second client attempts to login
+ *        while another client is already logging in, without checking this bit,
+ *        the other client's login procedure's short-term keys could be erased.
+ *        Thus, use this bit to disallow more than 1 login handshake at a time,
+ *        regardless of how extremely unlikely this seems, it's still possible.
+ */ 
+u32 server_control_bitmask = 0;
+
+/* Avoid the ambiguity raised by questions like "which room is this user in?"
+ * about the notion of not being in any room at all, by letting global index [0]
+ * mean exactly that - for example, a room_ix of [0] in a client structure would
+ * mean that the client is not in any room right now. Thus, begin populating
+ * users and chatrooms at index 1 internally.
+ */
+
+/* Bitmasks telling the server which client and room slots are currently free */
+/* Set the leftmost bit of the leftmost byte to 1. Little-endian byte order.  */
+u64 users_status_bitmask = 64; 
+u64 rooms_status_bitmask = 64;
+
+u32 next_free_user_ix = 1;
+u32 next_free_room_ix = 1;
+
+u8 server_privkey[PRIVKEY_BYTES];
+
+pthread_mutex_t mutex;
+pthread_t conn_checker_threadID;
 
 #define SERVER_PORT     54746
 #define PRIVKEY_BYTES   40   
@@ -81,6 +96,8 @@ struct chatroom{
 #define MAGIC_30 0x9FFA7475DDC8B11C
 #define MAGIC_40 0xCAFB1C01456DF7F0
 #define MAGIC_41 0xDC4F771C0B22FDAB
+#define MAGIC_50 0x41C20F0BB4E34890
+#define MAGIC_51 0x2CC04FBEDA0B5E63
 
 struct connected_client clients[MAX_CLIENTS];
 struct chatroom rooms[MAX_CHATROOMS];
@@ -198,6 +215,14 @@ u32 self_init(){
         (3072, "../saved_nums/server_pubkey.dat\0", 3071, RESBITS);
     
     fclose(privkey_dat);
+    
+    /* Initialize the mutex that will be used to prevent the main thread and
+     * the connection checker thread from writing/reading data in parallel.
+     */
+    if (pthread_mutex_init(&mutex, NULL) != 0) { 
+        printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
+        return 1; 
+    } 
     
     return 0;
 }
@@ -329,9 +354,9 @@ void process_msg_00(u8* msg_buf){
      *    
      *       b_s = random in the range [1, Q)
      * 
-     *       B_s = G^b_s mod M     <--- Montgomery Form of G used.
+     *       B_s = G^b_s mod M     <--- Montgomery Form of G.
      *   
-     *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s used.
+     *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s.
      *
      *  Server extracts two keys and two values Y, N from byte regions in X:
      *
@@ -600,6 +625,7 @@ void process_msg_01(u8* msg_buf){
     clients[next_free_user_ix].room_ix = 0;
     clients[next_free_user_ix].num_pending_msgs = 0;
     clients[next_free_user_ix].nonce_counter = 0;
+    clients[next_free_user_ix].last_polled = time();
 
     for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
         clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
@@ -684,20 +710,20 @@ void process_msg_01(u8* msg_buf){
     /* Reflect the new taken user slot in the global user status bitmask. */
     users_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
     
-    /* Increment it one space to the right, since we're guaranteeing by
-     * logic in the user erause algorithm that we're always filling in
-     * a new user in the LEFTMOST possible empty slot.
+    /*  Increment it one space to the right, since we're guaranteeing by
+     *  logic in the user erause algorithm that we're always filling in
+     *  a new user in the LEFTMOST possible empty slot.
      *
-     * If you're less than (max_users), look at this slot and to the right
-     * in the bitmask for the next leftmost empty user slot index. If you're
-     * equal to (max_users) then the maximum number of users are currently
-     * using Rosetta. Can't let any more people in until one leaves.
+     *  If you're less than (max_users), look at this slot and to the right
+     *  in the bitmask for the next leftmost empty user slot index. If you're
+     *  equal to (max_users) then the maximum number of users are currently
+     *  using Rosetta. Can't let any more people in until one leaves.
      *
-     * Here you either reach MAX_CLIENTS, which on the next attempt to 
-     * let a user in and fill out a user struct for them, will indicate
-     * that the maximum number of people are currently using Rosetta, or
-     * you reach a bit at an index less than MAX_CLIENTS that is 0 in the
-     * global user slots status bitmask.
+     *  Here you either reach MAX_CLIENTS, which on the next attempt to 
+     *  let a user in and fill out a user struct for them, will indicate
+     *  that the maximum number of people are currently using Rosetta, or
+     *  you reach a bit at an index less than MAX_CLIENTS that is 0 in the
+     *  global user slots status bitmask.
      */
     ++next_free_user_ix;
     
@@ -947,7 +973,7 @@ void process_msg_10(u8* msg_buf){
         (M,Q,Gm,&magic10,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
     
     /* Server bookkeeping - populate this room's slot, find next free slot. */
-  
+    dd
     rooms[next_free_room_ix].num_people = 1;
     rooms[next_free_room_ix].owner_ix = user_ix;
     rooms[next_free_room_ix].room_id = room_id;
@@ -1492,7 +1518,7 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     u8 *reply_buf;
     u64 reply_len;
     
-    u64 receiver_ixs;
+    u64 *receiver_ixs;
 
     bigint  *recv_e
            ,*recv_s;
@@ -1566,7 +1592,8 @@ label_cleanup:
     
     free(recv_s->bits);
     free(recv_e->bits);
-    if(reply_buf){free(reply_buf);}
+    if(reply_buf)   { free(reply_buf);    }
+    if(receiver_ixs){ free(receiver_ixs); }
     
     return;
 }
@@ -1577,7 +1604,7 @@ label_cleanup:
 void process_msg_40(u8* msg_buf){
 
     /* Check the cryptographic signature to authenticate the sender. */
-
+        
     u8 auth_result;
     u8 *reply_buf;
     u64 reply_len;
@@ -1618,6 +1645,8 @@ void process_msg_40(u8* msg_buf){
         goto label_cleanup;    
     }
     
+    clients[sender_ix].last_polled = time();
+    
     /* If no pending messages, simply send the NO_PENDING packet type_40. */
     if(clients[sender_ix].num_pending_msgs == 0){
     
@@ -1651,7 +1680,7 @@ void process_msg_40(u8* msg_buf){
          * actually fetch their pending messages.
          */
         reply_len = 8 + MAGIC_LEN + SIGNATURE_LEN;
-        reply_write_offset = 8 + MAGIC_LEN;
+        reply_write_otime_last_polledffset = 8 + MAGIC_LEN;
         
         for(u64 i = 0; i < clients[sender_ix].num_pending_msgs; ++i){
             reply_len += clients[sender_ix].pending_msg_sizes[i] + 8;    
@@ -1715,7 +1744,7 @@ label_cleanup:
     return;
 }
 
-/* Client polled the server for any pending unreceived messages. */
+/* Client decided to leave the chatroom they're currently in. */
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_50(u8* msg_buf){
@@ -1761,44 +1790,158 @@ void process_msg_50(u8* msg_buf){
         goto label_cleanup;    
     }
  
-    /* Construct the message and send it to everyone else in the chatroom.    */
-    reply_len = MAGIC_LEN + 8 + SIGNATURE_LEN;
-    reply_buf = calloc(1, reply_len);
+    /* If it's not the owner, just tell the others that the person has left. */
+    if(sender_ix != rooms[clients[sender_ix].room_ix].owner_ix){
     
-    *((u64*)(reply_buf)) = MAGIC_50;
-    
-    *((u64*)(reply_buf + MAGIC_LEN)) = clients[sender_ix].user_id;
-    
-    memcpy(reply_buf + MAGIC_LEN, clients[sender_ix].user_id, MAX_USERID_LEN);
-    
-    /* Compute a signature so the clients can authenticate the server. */
-    Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
-                       ,reply_buf + (reply_len - SIGNATURE_LEN)
-                       ,&server_privkey_bigint, PRIVKEY_BYTES
-    );
-    
-    if(
-        /* Let other room guests know that a user has left. */
+        /* Construct the message and send it to everyone else in the chatroom.    */
+        reply_len = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+        
+        *((u64*)(reply_buf)) = MAGIC_50;
+                
+        memcpy(reply_buf+MAGIC_LEN, clients[sender_ix].user_id, MAX_USERID_LEN);
+        
+        /* Compute a signature so the clients can authenticate the server. */
+        Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+                           ,reply_buf + (reply_len - SIGNATURE_LEN)
+                           ,&server_privkey_bigint, PRIVKEY_BYTES
+        );
+        
+        /* Let the other room guests know that a user has left: TYPE_50 */
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
             if(  
                  (i != sender_ix) 
                && 
                  (clients[i].room_ix == clients[sender_ix].room_ix))
             {
-                add_pending_msg(clients[i], reply_len, reply_buf);    
+                add_pending_msg(clients[i], reply_len, reply_buf);
+                
+                printf("[OK]  Server: Added pending message to user[%lu] that\n"
+                       "              user[%lu] left the room.\n",i,sender_ix
+                      );   
             }
         }
+        
+        /* Server bookkeeping - a guest left the chatroom they were in. */
+        
+        clients[sender_ix].room_ix = 0;
+        clients[sender_ix].num_pending_msgs = 0;
+        
+        for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
+            memset(clients[sender_ix].pending_msgs[i], 0, MAX_MSG_LEN);
+            clients[sender_ix].pending_msg_sizes[i] = 0;
+        }
+        
+        /* In this case, simply decrement the number of guests in the room. */
+        rooms[clients[sender_ix].room_ix].num_people -= 1;
+    }
     
-    /* Perform necessary server bookkeeping for rooms[] and clients[] */
-    
-    
-    
-    
-    label_cleanup:
+    /* if it WAS the room owner, boot everyone else from the chatroom as well */
+    else{
+        reply_len = MAGIC_LEN + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+        
+        *((u64*)(reply_buf)) = MAGIC_51;
+        
+        /* Compute a signature so the clients can authenticate the server. */
+        Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+                           ,reply_buf + (reply_len - SIGNATURE_LEN)
+                           ,&server_privkey_bigint, PRIVKEY_BYTES
+        );
+        
+        /* Let the other room guests know that they've been booted: TYPE_51 */
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            if(  
+                 (i != sender_ix) 
+               && 
+                 (clients[i].room_ix == clients[sender_ix].room_ix))
+            {
+                add_pending_msg(clients[i], reply_len, reply_buf);
+                
+                printf("[OK]  Server: Added pending message to user[%lu] that\n"
+                       "              they've been booted from the room.\n", i
+                      );   
+            }
+        }
+        
+        /* Reflect in the global chatroom index array that the room is free. */
+        rooms_status_bitmask &= 
+                        ~(1ULL << (MAX_CHATROOMS - clients[sender_ix].room_ix));
+        
+        /* Bookkeeping - a room owner closed their chatroom. Boot everyone. */
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+        
+            if(clients[i].room_ix == clients[sender_ix].room_ix) {
+            
+                clients[i].room_ix = 0;
+                clients[i].num_pending_msgs = 0;
+                
+                for(size_t j = 0; j < MAX_PEND_MSGS; ++j){
+                    memset(clients[i].pending_msgs[j], 0, MAX_MSG_LEN);
+                    clients[i].pending_msg_sizes[j] = 0;
+                }  
+            }
+        }
+        
+        /* In this case, nullify the entire room's descriptor structure. */
+        rooms[clients[sender_ix].room_ix].num_people = 0;
+        rooms[clients[sender_ix].room_ix].owner_ix   = 0;
+        rooms[clients[sender_ix].room_ix].room_ix    = 0;
+    }
+
+label_cleanup:
     
     free(recv_e->bits);
     free(recv_s->bits);
     if(reply_buf){free(reply_buf);}
+    
+    return;
+}
+
+void process_msg_60(u8* msg_buf){
+
+    u8 auth_result;
+    
+    u32 sign_offset = 16;
+    
+    u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    
+    bigint  *recv_e
+           ,*recv_s;    
+
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + sign_offset));
+    
+    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,msg_buf + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
+           ,PRIVKEY_BYTES
+    );
+    
+    /* Verify the sender's cryptographic signature. */
+    auth_result = Signature_VALIDATE(
+                     Gm, &(clients[sender_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
+    );
+
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
+
+    /* Clear the user descriptor structure and alter the global index array. */
+    memset(clients[sender_ix], 0, sizeof(struct connected_client));
+    
+    clients_status_bitmask &= ~(1ULL << (((u64)(MAX_CLIENTS)) - sender_ix));
     
     return;
 }
@@ -1814,23 +1957,10 @@ void process_msg_50(u8* msg_buf){
  *
  *  Here is a complete list of possible legitimate transmissions to the server:
  *
- *      - A client decides to log in Rosetta:
- *
- *          - [TYPE_00]: Client sent its short-term pub_key in the clear.
- *          - [TYPE_01]: Client sent encrypted long-term pub_key + 8-byte HMAC
- *
- *      - A client decides to make a new chat room:
- *
- *          - [TYPE_10]: Client sent a request to create a new chatroom. 
- *
+ *      - A client decides to log in Rosetta
+ *      - A client decides to make a new chat room
  *      - A client decides to join a chat room.
- *
- *          - [TYPE_20]: Client sent a request to join a room by ID string.
- *
  *      - A client decides to send a new message to the chatroom.
- *
- *          - [TYPE_30]: Client sent a request to send a text message in a room.
- *
  *      - A client decides to poll the server about unreceived messages.
  *      - A client decides to exit the chat room they're in.
  *      - A client decides to log off Rosetta.
@@ -1974,6 +2104,7 @@ u32 identify_new_transmission(){
     
     /* A client polled the server asking for any pending unreceived messages. */
     case(MAGIC_40){
+    
         strncpy(msg_type_str, "40", 2);    
     
         expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
@@ -1991,6 +2122,7 @@ u32 identify_new_transmission(){
     
     /* A client decided to exit the chatroom they're currently in. */
     case(MAGIC_50){
+    
         strncpy(msg_type_str, "50", 2);    
     
         expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
@@ -2003,6 +2135,35 @@ u32 identify_new_transmission(){
         process_msg_50(client_msg_buf);
         
         break;        
+    }
+    
+    /* A client decided to log off Rosetta. */
+    case(MAGIC_60){
+        strncpy(msg_type_str, "60", 2);    
+    
+        expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        
+        if(bytes_read != expected_siz){
+            goto label_error;
+        }
+        
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_60(client_msg_buf);
+        
+        break;            
+    
+    }
+    /* Also do something in case it was a bad unrecognized transmission!    */
+    /* Just say FUCK YOU to whoever sent it and maybe tried hacking us.     */
+    default{
+        /* Send the reply back to the client. */
+        if(send(client_socket, "fuck you", 8, 0) == -1){
+            printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
+        }
+        else{
+            printf("[OK]  Server: Replied to a bad transmission.\n");
+        }    
+    
     }
     
     } /* end switch */
@@ -2026,6 +2187,47 @@ label_cleanup:
     free(msg_type_str);
 }
 
+void remove_inactive_user(){
+    
+
+
+}
+
+void* check_for_lost_connections(void* conn_checker_args){
+
+    time_t curr_time;
+
+    while(1){
+    
+        sleep(5);
+        
+        curr_time = time();
+        
+        printf("[OK]  Server: Lost Conn Checker started!\n");
+        
+        /* Go over all user slots, for every connected client, check the last 
+         * time they polled the server. If it's more than 3 seconds ago, assume 
+         * a list connection and boot the user's client machine from the server 
+         * and any chatrooms they were guests in or the owner of.
+         */ 
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            if( 
+                   (users_status_bitmask & (1ULL << (MAX_CLIENTS - i))) 
+                &&
+                   ((curr_time - clients[i].time_last_polled) > 3)
+              )
+            {
+                printf("[ERR] Server: Caught an inactive connected client!\n"
+                       "              Removing them from the server.\n\n"
+                      );
+                      
+                remove_inactive_user(i);
+            }
+        } 
+        
+        printf("[OK]  Server: Lost Conn Checker finished!\n\n\n"); 
+    }
+}
 
 int main(){
 
@@ -2035,11 +2237,30 @@ int main(){
     status = self_init();
     
     if(status){
-        printf("[ERR] Server: Could not initialize. Terminating.\n");
+        printf("[ERR] Server: Could not complete self initialization!\n"
+               "              Critical - Terminating the server.\n\n"
+              );
         return 1;
     }
     
-    printf("\n\n[OK]  Server: SUCCESS - Finished initializing!\n\n");
+    printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
+    
+    /* Begin the thread function that will, in parallel to the running server,
+     * check every 5 seconds for any lost connections, identified by connected
+     * clients that haven't polled us for pending messages in over 3 seconds.
+     * The normal polling is every 0.2 seconds.
+     */
+    if( (pthread_create( &conn_checker_threadID
+                        ,NULL
+                        ,&check_for_lost_connections
+                        ,NULL
+                       ) 
+        ) != 0)
+    {
+        printf("[ERR] Server: Could not begin the lost connection tracker!\n"
+               "              Critical - Terminating the server.\n\n");  
+        return 1;          
+    }
     
     while(1){
 
@@ -2051,6 +2272,8 @@ int main(){
                                    
         /* 0 on success, greater than 0 otherwise. */                         
         status = identify_new_transmission();
+        
+        close(client_socket_fd);
         
         if(status){
             printf("\n\n****** WARNING ******\n\n"
