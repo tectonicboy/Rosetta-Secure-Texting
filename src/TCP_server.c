@@ -4,7 +4,6 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <time.h>
 
 #include "cryptolib.h"
 #include "coreutil.h"
@@ -66,6 +65,8 @@ u32 next_free_user_ix = 1;
 u32 next_free_room_ix = 1;
 
 u8 server_privkey[PRIVKEY_BYTES];
+
+time_t time_curr_login_initiated;
 
 pthread_mutex_t mutex;
 pthread_t conn_checker_threadID;
@@ -287,6 +288,8 @@ void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
 //inline
 void process_msg_00(u8* msg_buf){
 
+    time_curr_login_initiated = time();
+    
     bigint *A_s
           ,zero
           ,Am
@@ -708,7 +711,8 @@ void process_msg_01(u8* msg_buf){
     clients[next_free_user_ix].shared_secret_len /= 8;
     
     /* Reflect the new taken user slot in the global user status bitmask. */
-    users_status_bitmask |= (1ULL << (63ULL - next_free_user_ix));
+    users_status_bitmask |= 
+                       (1ULL << (63ULL - next_free_user_ix));
     
     /*  Increment it one space to the right, since we're guaranteeing by
      *  logic in the user erause algorithm that we're always filling in
@@ -728,7 +732,7 @@ void process_msg_01(u8* msg_buf){
     ++next_free_user_ix;
     
     while(next_free_user_ix < MAX_CLIENTS){
-        if(!(users_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
+        if(!( users_status_bitmask & (1ULL << (63ULL - next_free_user_ix))))
         {
             break;
         }
@@ -973,7 +977,6 @@ void process_msg_10(u8* msg_buf){
         (M,Q,Gm,&magic10,8,(reply_buf+16),&server_privkey_bigint,PRIVKEY_BYTES);
     
     /* Server bookkeeping - populate this room's slot, find next free slot. */
-    dd
     rooms[next_free_room_ix].num_people = 1;
     rooms[next_free_room_ix].owner_ix = user_ix;
     rooms[next_free_room_ix].room_id = room_id;
@@ -1744,56 +1747,15 @@ label_cleanup:
     return;
 }
 
-/* Client decided to leave the chatroom they're currently in. */
-//__attribute__ ((always_inline)) 
-//inline
-void process_msg_50(u8* msg_buf){
+void remove_user_from_room(u64 sender_ix){
 
-    u8 auth_result;
-    
-    u8 *reply_buf;
+    u8* reply_buf;
     u64 reply_len;
 
-    u32 sign_offset = 16;
-    
-    u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
-    
-    bigint  *recv_e
-           ,*recv_s;    
-
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + sign_offset));
-    
-    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
- 
-    memcpy( recv_s->bits
-           ,msg_buf + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
-    );
-    
-    /* Verify the sender's cryptographic signature. */
-    auth_result = Signature_VALIDATE(
-                     Gm, &(clients[sender_ix].client_pubkey_mont)
-                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
-    );
-
-    if(!auth_result){
-        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
-    }
- 
     /* If it's not the owner, just tell the others that the person has left. */
     if(sender_ix != rooms[clients[sender_ix].room_ix].owner_ix){
     
-        /* Construct the message and send it to everyone else in the chatroom.    */
+        /* Construct the message and send it to everyone else in the chatroom.*/
         reply_len = MAGIC_LEN + 8 + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
@@ -1865,8 +1827,7 @@ void process_msg_50(u8* msg_buf){
         }
         
         /* Reflect in the global chatroom index array that the room is free. */
-        rooms_status_bitmask &= 
-                        ~(1ULL << (MAX_CHATROOMS - clients[sender_ix].room_ix));
+        rooms_status_bitmask &= ~(1ULL << (63ULL - clients[sender_ix].room_ix));
         
         /* Bookkeeping - a room owner closed their chatroom. Boot everyone. */
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
@@ -1888,16 +1849,67 @@ void process_msg_50(u8* msg_buf){
         rooms[clients[sender_ix].room_ix].owner_ix   = 0;
         rooms[clients[sender_ix].room_ix].room_ix    = 0;
     }
+    
+    free(reply_buf);
+    
+    return;
+}
+/* Client decided to leave the chatroom they're currently in. */
+//__attribute__ ((always_inline)) 
+//inline
+void process_msg_50(u8* msg_buf){
+
+    u8 auth_result;
+    
+    u32 sign_offset = 16;
+    
+    u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    
+    bigint  *recv_e
+           ,*recv_s;    
+
+    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
+    recv_s = (bigint*)((msg_buf + sign_offset));
+    
+    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,msg_buf + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
+           ,PRIVKEY_BYTES
+    );
+    
+    /* Verify the sender's cryptographic signature. */
+    auth_result = Signature_VALIDATE(
+                     Gm, &(clients[sender_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
+    );
+
+    if(!auth_result){
+        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
+        goto label_cleanup;    
+    }
+ 
+    remove_user_from_room(sender_ix);
 
 label_cleanup:
     
     free(recv_e->bits);
     free(recv_s->bits);
-    if(reply_buf){free(reply_buf);}
-    
+  
     return;
 }
 
+/* Client decided to log off Rosetta. */
+//__attribute__ ((always_inline)) 
+//inline
 void process_msg_60(u8* msg_buf){
 
     u8 auth_result;
@@ -1941,7 +1953,7 @@ void process_msg_60(u8* msg_buf){
     /* Clear the user descriptor structure and alter the global index array. */
     memset(clients[sender_ix], 0, sizeof(struct connected_client));
     
-    clients_status_bitmask &= ~(1ULL << (((u64)(MAX_CLIENTS)) - sender_ix));
+    clients_status_bitmask &= ~(1ULL << (63ULL - sender_ix));
     
     return;
 }
@@ -2187,10 +2199,20 @@ label_cleanup:
     free(msg_type_str);
 }
 
-void remove_inactive_user(){
+void remove_inactive_user(removing_user_ix){
     
-
-
+    /* Might have to remove them from a room (as a guest or as the owner)
+     * or simply from the server if they weren't in a room.
+     */
+    if(clients[removing_user_ix].room_ix != 0){
+        remove_user_from_room(removing_user_ix);
+    }
+    
+    /* Clear the user's descriptor, free their global user index slot. */
+    memset(clients[removing_user_ix], 0, sizeof(struct connected_client));
+    clients_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
+    
+    return;
 }
 
 void* check_for_lost_connections(void* conn_checker_args){
@@ -2199,22 +2221,25 @@ void* check_for_lost_connections(void* conn_checker_args){
 
     while(1){
     
-        sleep(5);
-        
+        sleep(10); /* Check for lost connections every 10 seconds. */
+
+        pthread_mutex_lock(&mutex);
+       
         curr_time = time();
         
-        printf("[OK]  Server: Lost Conn Checker started!\n");
+        printf("[OK]  Server: Checker for lost connections started!\n");
         
         /* Go over all user slots, for every connected client, check the last 
-         * time they polled the server. If it's more than 3 seconds ago, assume 
-         * a list connection and boot the user's client machine from the server 
+         * time they polled the server. If it's more than 5 seconds ago, assume 
+         * a lost connection and boot the user's client machine from the server 
          * and any chatrooms they were guests in or the owner of.
          */ 
+             
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
             if( 
-                   (users_status_bitmask & (1ULL << (MAX_CLIENTS - i))) 
+               (users_status_bitmask & (1ULL << (63ULL - i))) 
                 &&
-                   ((curr_time - clients[i].time_last_polled) > 3)
+               ((curr_time - clients[i].time_last_polled) > 5)
               )
             {
                 printf("[ERR] Server: Caught an inactive connected client!\n"
@@ -2225,7 +2250,37 @@ void* check_for_lost_connections(void* conn_checker_args){
             }
         } 
         
-        printf("[OK]  Server: Lost Conn Checker finished!\n\n\n"); 
+        /* Check for an interrupted connection in the middle of an attempted
+         * login. We keep the time at which the current (only one at a time is
+         * possible) login started. Under normal circumstances, it should finish
+         * right away, as it's just 2 transmissions. Although extremely unlikely
+         * it's still possible for a connection to be interrupted after the 1st
+         * login request was sent and before the second login packet could be
+         * sent by the client. In this case, the global memory region keeping 
+         * the very short-lived shared secret and key pair only used to securely
+         * transport the client's long-term public key to us will remain locked
+         * unless we notice the failed login attempt and unlock it from here.
+         *
+         * To defend against such a scenario (be it caused by a real loss of 
+         * network connection to the server, or a malicious person deliberately
+         * trying to do this to DoS or otherwise attack the server), check the
+         * time elapsed since the CURRENT login was started. If it's been over
+         * 5 seconds, assume a lost connection - drop the login attempt and
+         * unlock the global memory region for login cryptographic artifacts.
+         */
+        if( 
+              (server_control_bitmask & (1ULL << 63ULL))
+            &&
+              ( (curr_time - time_curr_login_initiated) > 5)       
+          )
+        {
+            explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
+            server_control_bitmask &= ~(1ULL << 63ULL);               
+        }
+        
+        printf("[OK]  Server: Checker for lost connections finished!\n\n\n"); 
+        
+        pthread_mutex_unlock();
     }
 }
 
@@ -2269,6 +2324,8 @@ int main(){
                                    ,(struct sockaddr*)(&client_address)
                                    ,&clientLen
                                  );
+        
+        pthread_mutex_lock(&mutex);
                                    
         /* 0 on success, greater than 0 otherwise. */                         
         status = identify_new_transmission();
@@ -2280,7 +2337,9 @@ int main(){
                    "Error while processing a received "
                    "transmission, look at log to find it.\n"
                   );    
-        }                      
+        }    
+        
+        pthread_mutex_unlock(&mutex);                  
     }
                  
     return 0;
