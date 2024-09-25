@@ -20,6 +20,7 @@ CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
 
+
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
 	TCP_server server_gen_priv_key server_gen_pub_key
 
