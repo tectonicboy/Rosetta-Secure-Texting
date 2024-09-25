@@ -341,7 +341,7 @@ void process_msg_00(u8* msg_buf){
         || 
           ((bigint_compare2(M, A_s)) != 1)
         ||
-          (check_pubkey_form(((const bigint* const)(&Am)), M, Q) == 0) 
+          (check_pubkey_form(&Am, M, Q) == 0) 
       )
     {
         printf("[ERR] Server: Client's short-term public key is invalid.\n");
@@ -457,10 +457,13 @@ label_cleanup:
 //inline
 void process_msg_01(u8* msg_buf){
 
-    const u64 B = 64;
-    const u64 L = 128;
-    const u64 magic02 = MAGIC_02;
-    const u64 magic01 = MAGIC_01;
+    u64 B = 64;
+    u64 L = 128;
+    u64 magic02 = MAGIC_02;
+    u64 magic01 = MAGIC_01; 
+    
+    u8* magic02_addr = (u8*)(&magic02);
+    u8* magic01_addr = (u8*)(&magic01);
     
     u8* K0   = calloc(1, B);
     u8* ipad = calloc(1, B);
@@ -579,7 +582,7 @@ void process_msg_01(u8* msg_buf){
         *((u64*)(reply_buf + 0)) = MAGIC_02;
         *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
         
-        Signature_GENERATE( M, Q, Gm, (u8*)(&magic02), 8, (reply_buf+16)
+        Signature_GENERATE( M, Q, Gm, magic02_addr, 8, (reply_buf+16)
                            ,&server_privkey_bigint, PRIVKEY_BYTES
                           );
         
@@ -620,7 +623,7 @@ void process_msg_01(u8* msg_buf){
              
     *((u64*)(reply_buf + 16)) = SIGNATURE_LEN;
     
-    Signature_GENERATE( M, Q, Gm, (u8*)(&magic01), 8, (reply_buf+24)
+    Signature_GENERATE( M, Q, Gm, magic01_addr, 8, (reply_buf+24)
                        ,&server_privkey_bigint, PRIVKEY_BYTES
                       );
     
@@ -1429,7 +1432,7 @@ void process_msg_20(u8* msg_buf){
         nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
        
         /* Increment nonce as many times as needed. */
-        for(u64 i = 0; i < clients[user_ixs_in_room[i]].nonce_counter; ++i){
+        for(u64 j = 0; j < clients[user_ixs_in_room[i]].nonce_counter; ++j){
             bigint_add_fast(&nonce_bigint, &one, &aux1);
             bigint_equate2(&nonce_bigint, &aux1);     
         }

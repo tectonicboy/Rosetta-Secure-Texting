@@ -25,13 +25,17 @@ int main(){
 
     /* Prepare message to be processed by BLAKE2b. */
     
-    char *b2b_raw_msg = "abc\0",
-         *b2b_out_buf = malloc(65 * sizeof(char));
+    const char *msg_str = "abc\0";
+    u8* b2b_raw_msg = calloc(1, 3);
+    
+    memcpy(b2b_raw_msg, msg_str, 3);
+    
+    char *b2b_out_buf = malloc(65 * sizeof(char));
          
     memset(b2b_out_buf, 0x00, 65*sizeof(char));
     
     
-    uint64_t b2b_ll = strlen(b2b_raw_msg)
+    uint64_t b2b_ll = 3
             ,b2b_kk = 0
             ,b2b_nn = 64
             ;
@@ -39,7 +43,7 @@ int main(){
       
     printf("**** PASSING ARGUMENTS TO BLAKE2B:\n");
     printf("ll = %lu\n", b2b_ll);
-    BLAKE2B_INIT((u8*)(b2b_raw_msg)
+    BLAKE2B_INIT(b2b_raw_msg
                 ,b2b_ll
                 ,b2b_kk
                 ,b2b_nn
@@ -55,7 +59,7 @@ int main(){
     printf("\n\n");
     
     free(b2b_out_buf);
-    
+    free(b2b_raw_msg);
     
     
     return 0;

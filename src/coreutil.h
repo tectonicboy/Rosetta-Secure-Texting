@@ -26,8 +26,9 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
 }
 
 /* Given a private key, generate its corresponding public key. */
-struct bigint* gen_pub_key(uint32_t privkey_len_bytes, char* privkey_filename
-                          ,uint32_t resbits
+struct bigint* gen_pub_key( uint32_t privkey_len_bytes
+                           ,const char* privkey_filename
+                           ,uint32_t resbits
 ){
     
     FILE* privkey_dat = fopen(privkey_filename, "r");
@@ -109,9 +110,9 @@ struct bigint* gen_pub_key(uint32_t privkey_len_bytes, char* privkey_filename
  *  Return 1 for valid and 0 for invalid public key.
  */
  
-bool check_pubkey_form( const bigint* const Km
-                       ,const bigint* const M
-                       ,const bigint* const Q)
+bool check_pubkey_form( bigint* Km
+                       ,bigint* M
+                       ,bigint* Q)
 {
     bigint M_over_Q
           ,one
@@ -127,7 +128,11 @@ bool check_pubkey_form( const bigint* const Km
        
     bigint_div2(M, Q, &M_over_Q, &div_rem);
     
-    MONT_POW_modM((bigint*)(Km), &M_over_Q, (bigint*)(M), &mod_pow_res);
+    MONT_POW_modM( Km
+                  ,&M_over_Q
+                  ,M
+                  ,&mod_pow_res
+                 );
     
     if(bigint_compare2(&mod_pow_res, &one) != 2){
         printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
