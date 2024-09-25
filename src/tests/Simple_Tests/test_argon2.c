@@ -34,7 +34,7 @@ int main(){
     prms.y = 2;  
     
     
-    char *P = malloc(32),
+    u8   *P = malloc(32),
          *S = malloc(16),
          *K = malloc(8),
          *X = malloc(12);
@@ -54,7 +54,7 @@ int main(){
     prms.len_K = 8 ;
     prms.len_X = 12;
     
-    char* argon2_output_tag = malloc(prms.T);
+    u8* argon2_output_tag = malloc(prms.T);
     
     start = clock();
     

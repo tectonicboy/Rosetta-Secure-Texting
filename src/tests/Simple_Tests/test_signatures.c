@@ -1,4 +1,4 @@
-#include "cryptolib.h"
+#include "../../cryptolib.h"
 
 #define RESBITS 12800
 
@@ -31,7 +31,7 @@ int main(){
     
     char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
 
-M = get_BIGINT_from_DAT( 3072
+    M = get_BIGINT_from_DAT( 3072
         ,"../saved_nums/M_raw_bytes.dat\0"
         ,3071
         ,RESBITS
@@ -65,19 +65,19 @@ M = get_BIGINT_from_DAT( 3072
 
     Am = get_BIGINT_from_DAT
    (
-3072
+    3072
    ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
            ,3072
            ,RESBITS
            );
              
 
-printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
+    printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
     printf("Calling Signature_GENERATE() NOW!!!\n");
     
-    Signature_GENERATE(  M, Q, Gm, msg, data_len
-            ,result_signature, a, 39
+    Signature_GENERATE(  M, Q, Gm, (u8*)(msg), data_len
+            ,(u8*)(result_signature), a, 39
           );
                   
     printf("FINISHED SIGNATURE!!\n");
@@ -107,10 +107,10 @@ printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
 
     
 
-/* Compute a public key from the generated private key.   */
-/* This key is used in validating a signature generated from private key. */
+    /* Compute a public key from the generated private key.   */
+    /* This key is used in validating a signature generated from private key. */
 
-/* A = G^a mod M */
+    /* A = G^a mod M */
     
     /* We can use montgomery modular MUL mod M function here. */
     /* We already have Gmont above. */
@@ -118,12 +118,10 @@ printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
     
     
     
-printf("Ready to call SIGNATURE VALIDATE now!\n");
+    printf("Ready to call SIGNATURE VALIDATE now!\n");
 
-uint8_t isValid = 
-Signature_VALIDATE(  Gm,Am 
-,M, Q, s, e, msg, data_len
-  );
+    uint8_t isValid = 
+    Signature_VALIDATE(Gm,Am ,M, Q, s, e, (u8*)(msg), data_len);
     
     printf("FINISHED VALIDATING THE SIGNATURE!\n");
     

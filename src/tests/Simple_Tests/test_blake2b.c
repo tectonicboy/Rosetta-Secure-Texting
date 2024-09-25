@@ -1,4 +1,4 @@
-#include "cryptolib.h"
+#include "../../cryptolib.h"
 
 #define RESBITS 12800
 
@@ -39,11 +39,11 @@ int main(){
       
     printf("**** PASSING ARGUMENTS TO BLAKE2B:\n");
     printf("ll = %lu\n", b2b_ll);
-    BLAKE2B_INIT(b2b_raw_msg
+    BLAKE2B_INIT((u8*)(b2b_raw_msg)
                 ,b2b_ll
                 ,b2b_kk
                 ,b2b_nn
-                ,b2b_out_buf
+                ,(u8*)(b2b_out_buf)
                 );
                 
     printf("BLAKE2b produced 64-byte hash:\n\n");

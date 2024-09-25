@@ -1,4 +1,4 @@
-#include "cryptolib.h"
+#include "../../cryptolib.h"
 
 #define RESBITS 12800
 
