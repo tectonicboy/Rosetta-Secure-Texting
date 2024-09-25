@@ -208,6 +208,18 @@ On registration, Client enters a password. Then:
           client-server transmissions) and the signature is embedded at the 
           end of the server's reply. Right before the signature is an 8-byte
           region telling the client how many bytes the signature's length is.
+          
+    4.16. Lastly, the server itself generates a session shared secret with the 
+          client that just logged in, using the client's long-term public key
+          it just transported with the short-term shared secret, and extracts 
+          bidirectional session keys KAB KBA and a ChaCha Nonce from it, similar 
+          to how 2 clients do that for each other when sending text messages, 
+          as described by THE SECURE COMMUNICATION ALLOWANCE PROTOCOL later.
+          
+          This is because the server needs to talk securely to the client when
+          the client requests to create or join a chatroom. We don't want an
+          attacker to be able to simply view the chatroom name that the user is 
+          creating or joining in plaintext!
                    
 ================================================================================
 
