@@ -127,7 +127,7 @@ bool check_pubkey_form( const bigint* const Km
        
     bigint_div2(M, Q, &M_over_Q, &div_rem);
     
-    MONT_POW_modM(Km, &M_over_Q, M, &mod_pow_res);
+    MONT_POW_modM((bigint*)(Km), &M_over_Q, (bigint*)(M), &mod_pow_res);
     
     if(bigint_compare2(&mod_pow_res, &one) != 2){
         printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");

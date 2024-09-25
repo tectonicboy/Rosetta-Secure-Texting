@@ -785,7 +785,17 @@ void bigint_mul_fast( const bigint* const n1
                      )
                      ;  
      
-            ((u32*)R->bits)[i+j] = *( ((u32*)(&temp_res)));
+            //((u32*)R->bits)[i+j] = *((u32*)(&temp_res));
+            
+            /* Go (i+j) 32-bit places into R->bits. Place there temp_res. 
+             * Replaces the commented line above to fix a GCC warning about
+             * type-punned pointers being disallowed from being dereferenced. 
+             */
+            memcpy(
+                    ((void*)(&(((u32*)R->bits)[i+j])))
+                   ,((void*)(&temp_res))
+                   ,sizeof(u32)
+                   );
             
             C = (u64)*( ((u32*)(&temp_res)) + 1);
         } 

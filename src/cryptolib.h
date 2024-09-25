@@ -873,9 +873,7 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
 void* argon2_transform_segment(void* thread_input){
 
     /* TESTING ONLY DECLARATIONS BEGIN */
-     clock_t start_1, start_2, start_3, end_1, end_2, end_3;
-     double cpu_time_used1, cpu_time_used2, cpu_time_used_total;
-     double LZ_time = 0, J1J2for2i_time = 0;
+
      
     /* TESTING ONLY DECLARATIONS END  */
     
@@ -945,13 +943,13 @@ void* argon2_transform_segment(void* thread_input){
     argon2_initJ1J2_blockpool_for2i(Z_buf, J1J2blockpool, num_blocks); 
     
     for(j = j_start; j < j_end; ++j){
-        start_3 = clock();
+
 
         /* If pass number r=0 and slice number sl=0,1:  */
         /* compute 32-bit values J_1, J_2 for Argon2i.  */
         if( r == 0 && sl < 2 ){
         
-            start_2 = clock();
+
  
             
             /* Extract J_1 and J_2. */
@@ -959,10 +957,8 @@ void* argon2_transform_segment(void* thread_input){
             
             /* Offset is in terms of BYTES now! */
             J_2 = *((uint32_t*)(((uint8_t*)J1J2blockpool) + (num_blocks * 512)));
-            end_2 = clock();
-            cpu_time_used2 = ((double) (end_2 - start_2)) / CLOCKS_PER_SEC; 
-            
-            J1J2for2i_time += cpu_time_used2;
+
+
              
         }   
         /* Otherwise: get J_1, J_2 for Argon2d. */
@@ -971,14 +967,11 @@ void* argon2_transform_segment(void* thread_input){
             J_2 = *(((uint32_t*)(&(B[cur_lane][j-1]))) + 1);
         }
         
-        start_1 = clock();
+
         
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
 
-        end_1 = clock();
-        cpu_time_used1 = ((double) (end_1 - start_1)) / CLOCKS_PER_SEC;  
-        
-        LZ_time += cpu_time_used1;
+
         
      
         /* Now we're ready for this loop cycle's call to G(). */
@@ -1013,22 +1006,8 @@ void* argon2_transform_segment(void* thread_input){
         
         ++computed_blocks;       
         
-        end_3 = clock();
-        cpu_time_used_total = ((double) (end_3 - start_3)) / CLOCKS_PER_SEC; 
-        
-        /* What % of total time for 1 loop run took getLZ and getJ1J2_for2i. */
-        /*
-        printf(
-                "\n\nget_LZ\t\t percentage of 1 loop cycle: %lf\n"
-               , ( (cpu_time_used1*100)/ cpu_time_used_total )
-               );
-               
-               
-        printf(
-                "get_J1J2_for2i\t percentage of 1 loop cycle: %lf\n"
-               , ( (cpu_time_used2*100)/ cpu_time_used_total )
-               );
-          */ 
+
+
     }
     goto label_finish_segment;
     
@@ -1131,8 +1110,7 @@ label_finish_segment:
 
     pthread_mutex_lock(&lock); 
     
-    printf("FINISHED SEGMENT, total times for this segment:\n");
-    printf("getLZ:     %lf s, J1J2for2i: %lf s\n", LZ_time, J1J2for2i_time);
+
 
     pthread_mutex_unlock(&lock); 
     
@@ -1159,17 +1137,16 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     uint8_t *H0_input      = malloc(H0_input_len),
             *final_block_C = malloc(sizeof(block_t));
          
-     
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
     /* The order has to be exactly as specified in the RFC.             */
-    *((uint32_t*)(H0_input + 0 )) = *( (uint32_t*)(&(parms->p)) );
-    *((uint32_t*)(H0_input + 4 )) = *( (uint32_t*)(&(parms->T)) );
-    *((uint32_t*)(H0_input + 8 )) = *( (uint32_t*)(&(parms->m)) );
-    *((uint32_t*)(H0_input + 12)) = *( (uint32_t*)(&(parms->t)) );
-    *((uint32_t*)(H0_input + 16)) = *( (uint32_t*)(&(parms->v)) );
-    *((uint32_t*)(H0_input + 20)) = *( (uint32_t*)(&(parms->y)) );
-    
-    *((uint32_t*)(H0_input + 24)) = *( (uint32_t*)(&(parms->len_P)) );
+
+    memcpy(H0_input +  0, &(parms->p),     4);
+    memcpy(H0_input +  4, &(parms->T),     4);
+    memcpy(H0_input +  8, &(parms->m),     4);
+    memcpy(H0_input + 12, &(parms->t),     4);
+    memcpy(H0_input + 16, &(parms->v),     4);
+    memcpy(H0_input + 20, &(parms->y),     4);
+    memcpy(H0_input + 24, &(parms->len_P), 4);
     
     size_t H0_in_offset = 28;
       
@@ -1177,7 +1154,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     
     H0_in_offset += parms->len_P;
     
-    *((uint32_t*)(H0_input + H0_in_offset)) = *( (uint32_t*)(&(parms->len_S)) );
+    memcpy(H0_input + H0_in_offset, &(parms->len_S), 4);
     
     H0_in_offset += 4;
     
@@ -1185,7 +1162,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     
     H0_in_offset += parms->len_S;
     
-    *((uint32_t*)(H0_input + H0_in_offset)) = *( (uint32_t*)(&(parms->len_K)) );
+    memcpy(H0_input + H0_in_offset, &(parms->len_K), 4);
     
     H0_in_offset += 4;
     
@@ -1194,7 +1171,8 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
         H0_in_offset += parms->len_K; 
     }
     
-    *((uint32_t*)(H0_input + H0_in_offset)) = *( (uint32_t*)(&(parms->len_X)) );
+    memcpy(H0_input + H0_in_offset, &(parms->len_X), 4);
+    
     H0_in_offset += 4;
     
     if(parms->len_X){
@@ -1691,7 +1669,7 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
 
-    for(uint32_t i = P->used_bits - 2; i >= 0; --i){     
+    for(int32_t i = (int32_t)(P->used_bits - 2); i >= 0; --i){     
 
            
         Montgomery_MUL(&Y, &Y, M, R);       

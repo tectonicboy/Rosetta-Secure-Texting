@@ -87,8 +87,6 @@ time_t time_curr_login_initiated;
 pthread_mutex_t mutex;
 pthread_t conn_checker_threadID;
 
-
-
 #define MAGIC_00 0xAD0084FF0CC25B0E
 #define MAGIC_01 0xE7D09F1FEFEA708B
 #define MAGIC_02 0x146AAE4D100DAEEA
@@ -300,10 +298,7 @@ void process_msg_00(u8* msg_buf){
           ,*B_s
           ,*X_s;
             
-    u32  *KAB_s
-        ,*KBA_s
-        ,*Y_s
-        ,*N_s
+    u32 *Y_s
         ,tempbuf_byte_offset = 0
         ,replybuf_byte_offset = 0;
         
@@ -625,8 +620,9 @@ void process_msg_01(u8* msg_buf){
              
     *((u64*)(reply_buf + 16)) = SIGNATURE_LEN;
     
-    Signature_GENERATE
-        (M,Q,Gm,&magic01,8,(reply_buf+24),&server_privkey_bigint,PRIVKEY_BYTES);
+    Signature_GENERATE( M, Q, Gm, (u8*)(&magic01), 8, (reply_buf+24)
+                       ,&server_privkey_bigint, PRIVKEY_BYTES
+                      );
     
     /* Server bookkeeping - populate this user's slot, find next free slot. */
   
@@ -933,11 +929,11 @@ void process_msg_10(u8* msg_buf){
    
     CHACHA20( msg_buf + (8 + 8 + 32)
             ,8
-            ,nonce_bigint.bits
+            ,(u32*)(nonce_bigint.bits)
             ,4
-            ,recv_K
+            ,(u32*)(recv_K)
             ,8
-            ,&room_id
+            ,(u8*)(&room_id)
            );
   
     /* Increment nonce counter again to prepare the nonce for its next use. */
@@ -1050,7 +1046,7 @@ void process_msg_20(u8* msg_buf){
     u64 reply_len;
     
     /* dynamic, unknown at compile time. */
-    u8* buf_ixs_pubkeys;
+    u8* buf_ixs_pubkeys = NULL;
     u64 buf_ixs_pubkeys_len;
     
     /* static, known at compile time. */
@@ -1065,7 +1061,6 @@ void process_msg_20(u8* msg_buf){
     u64 room_ix;
     u64 num_users_in_room = 0;
     u64 next_free_room_users_ix = 0;
-    u64 write_offset = 0;
     
     size_t ret_val;
        
@@ -1180,13 +1175,13 @@ void process_msg_20(u8* msg_buf){
         bigint_equate2(&nonce_bigint, &aux1);     
     }
     
-    CHACHA20( msg_buf + (2*8)   /* text - key KB            */
-             ,32                /* text_len in bytes        */
-             ,nonce_bigint.bits /* nonce                    */
-             ,4                 /* nonce_len in uint32_t's  */
-             ,KAB               /* chacha Key               */
-             ,8                 /* Key_len in uint32_t's    */
-             ,recv_K            /* output target buffer     */
+    CHACHA20( msg_buf + (2*8)           /* text - key KB            */
+             ,32                        /* text_len in bytes        */
+             ,(u32*)(nonce_bigint.bits) /* nonce                    */
+             ,4                         /* nonce_len in uint32_t's  */
+             ,(u32*)(KAB)               /* chacha Key               */
+             ,8                         /* Key_len in uint32_t's    */
+             ,recv_K                    /* output target buffer     */
              );
    
     bigint_add_fast(&nonce_bigint, &one, &aux1);
@@ -1197,11 +1192,11 @@ void process_msg_20(u8* msg_buf){
    
     CHACHA20( msg_buf + (8 + 8 + 32)
              ,8
-             ,nonce_bigint.bits
+             ,(u32*)(nonce_bigint.bits)
              ,4
-             ,recv_K
+             ,(u32*)(recv_K)
              ,8
-             ,&room_id
+             ,(u8*)(&room_id)
             );
   
     /* Increment nonce counter again to prepare the nonce for its next use. */
@@ -1290,13 +1285,13 @@ void process_msg_20(u8* msg_buf){
     
     /* This function has already fetched and incremented the Nonce enough. */
     
-    CHACHA20( send_K            /* text - one-time use key K    */
-             ,32                /* text_len in bytes            */
-             ,nonce_bigint.bits /* nonce, already incremented   */
-             ,4                 /* nonce_len in uint32_t's      */
-             ,KBA               /* chacha Key                   */
-             ,8                 /* Key_len in uint32_t's        */
-             ,reply_buf + 8     /* output target buffer         */
+    CHACHA20( send_K                    /* text - one-time use key K    */
+             ,32                        /* text_len in bytes            */
+             ,(u32*)(nonce_bigint.bits) /* nonce, already incremented   */
+             ,4                         /* nonce_len in uint32_t's      */
+             ,(u32*)(KBA)               /* chacha Key                   */
+             ,8                         /* Key_len in uint32_t's        */
+             ,reply_buf + 8             /* output target buffer         */
              );
     
     /* Increment nonce counter again to prepare the nonce for its next use. */
@@ -1324,13 +1319,13 @@ void process_msg_20(u8* msg_buf){
     
     /* We need a counter for this ChaCha use, to encrypt big public keys. */
     
-    CHACHA20( buf_ixs_pubkeys       /* text - buffer with room people info  */
-             ,buf_ixs_pubkeys_len   /* text_len in bytes                    */
-             ,nonce_bigint.bits     /* nonce, already incremented           */
-             ,3                     /* nonce_len in uint32_t's              */
-             ,send_K                /* chacha Key                           */
-             ,8                     /* Key_len in uint32_t's                */
-             ,reply_buf +(2*8) +32  /* output target buffer                 */
+    CHACHA20( buf_ixs_pubkeys               /* text - room people info      */
+             ,buf_ixs_pubkeys_len           /* text_len in bytes            */
+             ,(u32*)(nonce_bigint.bits)     /* nonce, already incremented   */
+             ,3                             /* nonce_len in uint32_t's      */
+             ,(u32*)(send_K)                /* chacha Key                   */
+             ,8                             /* Key_len in uint32_t's        */
+             ,reply_buf +((2*8) + 32)       /* output target buffer         */
              );
     
     /* Increment nonce counter again to prepare the nonce for its next use. */
@@ -1439,13 +1434,13 @@ void process_msg_20(u8* msg_buf){
             bigint_equate2(&nonce_bigint, &aux1);     
         }
 
-        CHACHA20( send_K            /* text - one-time use key K    */
-                 ,32                /* text_len in bytes            */
-                 ,nonce_bigint.bits /* nonce, already incremented   */
-                 ,4                 /* nonce_len in uint32_t's      */
-                 ,KBA               /* chacha Key                   */
-                 ,8                 /* Key_len in uint32_t's        */
-                 ,buf_type_21 + 8   /* output target buffer         */
+        CHACHA20( send_K                    /* text - one-time use key K    */
+                 ,32                        /* text_len in bytes            */
+                 ,(u32*)(nonce_bigint.bits) /* nonce, already incremented   */
+                 ,4                         /* nonce_len in uint32_t's      */
+                 ,(u32*)(KBA)               /* chacha Key                   */
+                 ,8                         /* Key_len in uint32_t's        */
+                 ,buf_type_21 + 8           /* output target buffer         */
                 );
         
         /* Increment nonce counter again to prepare it for its next use. */
@@ -1468,9 +1463,9 @@ void process_msg_20(u8* msg_buf){
         /* Encrypt it with chacha20, place the result ciphertext in response. */
         CHACHA20( type21_encrypted_part     /* text - user_ix + pubkey        */
                  ,(8 + PUBKEY_LEN)          /* text_len in bytes              */
-                 ,nonce_bigint.bits         /* nonce, already incremented     */
+                 ,(u32*)(nonce_bigint.bits) /* nonce, already incremented     */
                  ,3                         /* nonce_len in uint32_t's        */
-                 ,send_K                    /* chacha Key                     */
+                 ,(u32*)(send_K)            /* chacha Key                     */
                  ,8                         /* Key_len in uint32_t's          */
                  ,buf_type_21 + (8+32)      /* output target buffer           */
                 );
@@ -1525,10 +1520,10 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     u64 next_free_receivers_ix = 0;
 
     u8 auth_result;
-    u8 *reply_buf;
+    u8 *reply_buf = NULL;
     u64 reply_len;
     
-    u64 *receiver_ixs;
+    u64 *receiver_ixs = NULL;
 
     bigint  *recv_e
            ,*recv_s;
@@ -1616,7 +1611,7 @@ void process_msg_40(u8* msg_buf){
     /* Check the cryptographic signature to authenticate the sender. */
         
     u8 auth_result;
-    u8 *reply_buf;
+    u8 *reply_buf = NULL;
     u64 reply_len;
     u64 reply_write_offset = 0;
     u32 sign_offset = 16;
@@ -1998,19 +1993,19 @@ u32 identify_new_transmission(){
     s64  expected_siz;
     u8   user_found = 0;
     u64  found_user_ix;
+    u32  ret_val = 0;
     char *msg_type_str = calloc(1, 3);
-    
-    msg_type_str[2] = '\0';
-    
+        
     /* Capture the message the Rosetta TCP client sent to us. */
     bytes_read = recv(client_socket_fd, client_msg_buf, MAX_MSG_LEN, 0);
     
     if(bytes_read == -1 || bytes_read < 8){
         printf("[ERR] Server: Couldn't read message on socket or too short.\n");
+        ret_val = 1;
         goto label_cleanup;
     }
     else{
-        printf("[OK]  Server: Read %u bytes from a request!\n\n", bytes_read);
+        printf("[OK]  Server: Read %lu bytes from a request!\n\n", bytes_read);
     }
            
     /* Read the first 8 bytes to see what type of init transmission it is. */
@@ -2023,9 +2018,10 @@ u32 identify_new_transmission(){
         
         /* Size must be in bytes: 8 + 8 + pubkey size, which is bytes[8-15] */
         expected_siz = (16 + (*((u64*)(client_msg_buf + 8))));
-        strncpy(msg_type_str, "00", 2);
+        strncpy(msg_type_str, "00\0", 3);
         
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2040,9 +2036,10 @@ u32 identify_new_transmission(){
 
         /* Size must be in bytes: 8 + 8 + 8 + pubkey size at msg[8-15] */
         expected_siz = ((3*8) + (*((u64*)(client_msg_buf + 8))));
-        strncpy(msg_type_str, "01", 2); 
+        strncpy(msg_type_str, "01\0", 3); 
         
         if(bytes_read != expected_siz){           
+            ret_val = 1;
             goto label_error;
         }
     
@@ -2057,9 +2054,10 @@ u32 identify_new_transmission(){
         
         /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
         expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
-        strncpy(msg_type_str, "10", 2);
+        strncpy(msg_type_str, "10\0", 3);
         
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2074,9 +2072,10 @@ u32 identify_new_transmission(){
         
         /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
         expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
-        strncpy(msg_type_str, "20", 2);
+        strncpy(msg_type_str, "20\0", 3);
         
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2088,7 +2087,7 @@ u32 identify_new_transmission(){
     /* A client wants to send a text message to everyone else in the chatroom */
     case(MAGIC_30):{
     
-        strncpy(msg_type_str, "30", 2);
+        strncpy(msg_type_str, "30\0", 3);
         
         /* Size must be in bytes: 8 + 8 + 8 + M + AD_LEN + SIGNATURE_LEN      */
         /* AD_LEN = N * (8+32)   ---> where N = number of people in room - 1  */
@@ -2097,7 +2096,11 @@ u32 identify_new_transmission(){
         /* Find this username's user_ix. */
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
             if(    (users_status_bitmask & (1ULL << (63ULL - i)))
-                && (strncmp(clients[i].user_id, client_msg_buf + 8, 8) == 0 )
+                && (strncmp( clients[i].user_id
+                            ,(const char*)(client_msg_buf + 8)
+                            ,8
+                           ) == 0 
+                   )
               )
             {
                 user_found = 1;
@@ -2108,6 +2111,7 @@ u32 identify_new_transmission(){
         if(!user_found){
             printf("[ERR] Server: No user found with sender's id!!\n");
             printf("              Discarding transmission quietly.\n\n");
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2117,6 +2121,7 @@ u32 identify_new_transmission(){
              ;
                        
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2133,11 +2138,12 @@ u32 identify_new_transmission(){
     /* A client polled the server asking for any pending unreceived messages. */
     case(MAGIC_40):{
     
-        strncpy(msg_type_str, "40", 2);    
+        strncpy(msg_type_str, "40\0", 3);    
     
         expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2145,17 +2151,17 @@ u32 identify_new_transmission(){
         process_msg_40(client_msg_buf);
         
         break;
-    
     }
     
     /* A client decided to exit the chatroom they're currently in. */
     case(MAGIC_50):{
     
-        strncpy(msg_type_str, "50", 2);    
+        strncpy(msg_type_str, "50\0", 3);    
     
         expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2167,11 +2173,12 @@ u32 identify_new_transmission(){
     
     /* A client decided to log off Rosetta. */
     case(MAGIC_60):{
-        strncpy(msg_type_str, "60", 2);    
+        strncpy(msg_type_str, "60\0", 3);    
     
         expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
+            ret_val = 1;
             goto label_error;
         }
         
@@ -2181,17 +2188,19 @@ u32 identify_new_transmission(){
         break;            
     
     }
+    
     /* Also do something in case it was a bad unrecognized transmission!    */
     /* Just say FUCK YOU to whoever sent it and maybe tried hacking us.     */
     default:{
         /* Send the reply back to the client. */
         if(send(client_socket_fd, "fuck you", 8, 0) == -1){
             printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
+            ret_val = 1;
+            goto label_error;
         }
         else{
             printf("[OK]  Server: Replied to a bad transmission.\n");
         }    
-    
     }
     
     } /* end switch */
@@ -2200,22 +2209,24 @@ u32 identify_new_transmission(){
     
 label_error:
 
-    printf("[ERR] Server: MSG Type was %s but of wrong size or contents.\n"
+    printf("[ERR] Server: MSG Type was %s but of wrong size or contents\n"
+           "              or another error occurred, check log.\n\n"
            ,msg_type_str
           );
           
-    printf("              Size was: %lld\n", bytes_read);
-    printf("              Expected: %lld\n", expected_siz);
+    printf("              Size was: %ld\n", bytes_read);
+    printf("              Expected: %ld\n", expected_siz);
     printf("\n[OK]  Server: Discarding transmission.\n\n ");
-        
-        
+           
 label_cleanup: 
 
     free(client_msg_buf);
     free(msg_type_str);
+    
+    return ret_val;
 }
 
-void remove_inactive_user(removing_user_ix){
+void remove_inactive_user(u64 removing_user_ix){
     
     /* Might have to remove them from a room (as a guest or as the owner)
      * or simply from the server if they weren't in a room.
@@ -2231,7 +2242,7 @@ void remove_inactive_user(removing_user_ix){
     return;
 }
 
-void* check_for_lost_connections(void* conn_checker_args){
+void* check_for_lost_connections(){
 
     time_t curr_time;
 
@@ -2249,8 +2260,7 @@ void* check_for_lost_connections(void* conn_checker_args){
          * time they polled the server. If it's more than 5 seconds ago, assume 
          * a lost connection and boot the user's client machine from the server 
          * and any chatrooms they were guests in or the owner of.
-         */ 
-             
+         */      
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
             if( 
                (users_status_bitmask & (1ULL << (63ULL - i))) 
