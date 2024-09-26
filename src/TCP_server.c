@@ -530,9 +530,9 @@ label_cleanup:
  * term public key encrypted by the short-term shared secret with the server.
  
 ================================================================================
-| packet ID 01 | Client's encrypted long-term public key | HMAC authenticator  |
+| packet ID 01  | Client's encrypted long-term public key | HMAC authenticator |
 ================================================================================
-|   8 bytes    |             PUBKEY_LEN bytes            |  HMAC_TRUNC_BYTES   |
+| PACKET_ID_LEN |             PUBKEY_LEN                  |  HMAC_TRUNC_BYTES  |
 --------------------------------------------------------------------------------
 
 */
