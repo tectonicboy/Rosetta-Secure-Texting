@@ -284,6 +284,52 @@ void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
     return;    
 }
 
+/* Now that we've verified the sender's message is of the expected length, 
+ * authenticate them to make sure it's really coming from a legit registered
+ * user of Rosetta.
+ *
+ * Incoming cryptographic signatures are always contained in the same memory
+ * buffer as the signed data. Extract signatures with a simple offset from it.
+ */
+u8 authenticate_client( u64 client_ix,  u8* signed_ptr
+                       ,u64 signed_len, u64 sign_offset
+                      )
+{
+    bigint *recv_e;
+    bigint *recv_s;
+   
+    u8 ret;
+   
+    /* Reconstruct the sender's signature as the two BigInts that make it up. */
+    recv_s = (bigint*)((signed_ptr + sign_offset));
+    
+    recv_e =(bigint*)(signed_ptr + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,signed_ptr + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_BYTES
+    );
+    
+    memcpy( recv_e->bits
+           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
+           ,PRIVKEY_BYTES
+    );
+       
+    /* Verify the sender's cryptographic signature. */
+    ret = Signature_VALIDATE(
+                     Gm, &(clients[client_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, signed_ptr, signed_len
+    ); 
+
+    free(recv_s->bits);
+    free(recv_e->bits);
+
+    return ret;
+}
+
 /* A client requested to be logged in Rosetta */
 //__attribute__ ((always_inline)) 
 //inline
@@ -392,20 +438,17 @@ void process_msg_00(u8* msg_buf){
     tempbuf_byte_offset = 4 * sizeof(bigint);
     memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits +  0, 32);
 
-    
     tempbuf_byte_offset += 32;
     memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 32, 32);
-
-    
+ 
     tempbuf_byte_offset += 32;
     memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 64, 32);
     Y_s = (u32*)(temp_handshake_buf + tempbuf_byte_offset);
         
     tempbuf_byte_offset += 32;
     memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 96, 12);
-
-    
-    /*  Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
+   
+    /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
     Signature_GENERATE( M, Q, Gm, (u8*)(Y_s), 32, signature_buf
                        ,&server_privkey_bigint, PRIVKEY_BYTES
                       );
@@ -510,14 +553,11 @@ void process_msg_01(u8* msg_buf){
     }
     
     /* step 5 of HMAC construction */
-    
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
     memcpy(K0_XOR_ipad_TEXT + B, msg_buf + (2 * MAGIC_LEN), PUBKEY_LEN);
     
     /* step 6 of HMAC construction */
-
-    /* Call BLAKE2B on K0_XOR_ipad_TEXT */
-  
+    /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
     BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
     
     /* Step 7 of HMAC construction */
@@ -526,15 +566,12 @@ void process_msg_01(u8* msg_buf){
     }
     
     /* Step 8 of HMAC construction */
-    
     /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
     /* B + L bytes total length */
-
     memcpy(last_BLAKE2B_input, K0_XOR_opad, B);
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
     
-    /* Step 9 of HMAC construction */
-    
+    /* Step 9 of HMAC construction */ 
     /* Call BLAKE2B on the combined buffer in step 8. */
     BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
     
@@ -567,7 +604,6 @@ void process_msg_01(u8* msg_buf){
              
     /* Now we have the decrypted client's long-term public key! */
      
- 
     /* if a message arrived to permit a newly arrived user to use Rosetta, but
      * currently the maximum number of clients are using it -> Try later.
      */
@@ -606,7 +642,6 @@ void process_msg_01(u8* msg_buf){
     /* Encrypt the ID with chacha20 and KBA key and N_s nonce! */
     
     /* Try using a chacha counter even with less than 64 bytes of input. */
-    
     reply_len  = (3*8) + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
     
@@ -802,53 +837,30 @@ void process_msg_10(u8* msg_buf){
     
     u8* reply_buf = NULL;
     u64 reply_len;
-    
-    u8 auth_result;
-    
+        
     u64 room_id;
     u64 user_ix;
     u64 magic_11 = MAGIC_11;
     u64 magic_10 = MAGIC_10;
-
-    bigint  *recv_s 
-           ,*recv_e
-           ,nonce_bigint
+    u64 signed_len = 144;
+    
+    bigint  nonce_bigint
            ,one
            ,aux1;
-           
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + ((4*8)+(32))));
     
-    recv_e = 
-     (bigint*)((msg_buf + ((4*8) + (32))) + sizeof(bigint) + PRIVKEY_BYTES);    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
- 
-    memcpy( recv_s->bits
-           ,(msg_buf + ((4*8) + (32))) + (sizeof(bigint))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,(msg_buf + ((4*8) + (32))) + (2*sizeof(bigint)) + PRIVKEY_BYTES
-           ,PRIVKEY_BYTES
-    );
-    
-    printf("[OK]  Server: Reconstructed s and e from client's signature.\n");
-    
-    /* Authenticate the client by verifying their cryptographic signature.  */
-    /* If signature is invalid, report an error and drop the transmission.  */
-    user_ix = *((u64*)(msg_buf + 8));
-    
-    auth_result = Signature_VALIDATE
-      (Gm,&(clients[user_ix].client_pubkey_mont),M,Q,recv_s,recv_e,msg_buf,144);
-                          
-    if(!auth_result){
-        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
-    }
+    u64 sign_offset = ((4*8)+(32));
 
+    user_ix = *((u64*)(msg_buf + 8));
+
+    /* Verify the sender's cryptographic signature to make sure they're legit */
+    if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
+        printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Server: Client authenticated successfully!\n");
+    }
+    
     /*  On server's side: 
      *       - KBA = least significant 32 bytes of shared secret
      *       - KAB = next 32 bytes of shared secret
@@ -1017,14 +1029,13 @@ void process_msg_10(u8* msg_buf){
 
 label_cleanup:
 
-    free(recv_s->bits);
-    free(recv_e->bits);
     free(nonce);
     free(KAB);
     free(KBA);
     free(recv_K);
     free(send_K);
     if(reply_buf){free(reply_buf);}
+    
     return;
 } 
 
@@ -1056,7 +1067,6 @@ void process_msg_20(u8* msg_buf){
     const u64 buf_type_21_len = (2*8) + 32 + SIGNATURE_LEN + (1*(8+PUBKEY_LEN));
           u8* buf_type_21     = calloc(1, buf_type_21_len);
       
-    u8 auth_result;
     u8 room_found;
     
     u64 room_id;
@@ -1067,49 +1077,25 @@ void process_msg_20(u8* msg_buf){
     
     size_t ret_val;
        
-    bigint  *recv_s 
-           ,*recv_e
-           ,nonce_bigint
-           ,one
-           ,aux1;
+    bigint nonce_bigint
+          ,one
+          ,aux1;
     
     nonce_bigint.bits = NULL;
     one.bits = NULL;
     aux1.bits = NULL;
-     
-    /* Decrypt and reveal the room name that the user wants to join. */
-           
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + ((4*8)+(32))));
     
-    recv_e = 
-     (bigint*)(msg_buf + ((4*8) + 32 + sizeof(bigint) + PRIVKEY_BYTES));    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
- 
-    memcpy( recv_s->bits
-           ,msg_buf + ((4*8) + 32 + (sizeof(bigint)))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,msg_buf + ((4*8) + 32 + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
-    );
-    
-    printf("[OK]  Server: Reconstructed s and e from client's signature.\n");
-    
-    /* Authenticate the client by verifying their cryptographic signature.  */
-    /* If signature is invalid, report an error and drop the transmission.  */
+    u64 sign_offset = ((4*8)+(32));
+    u64 signed_len  = 144;
     user_ix = *((u64*)(msg_buf + 8));
     
-    auth_result = Signature_VALIDATE
-      (Gm,&(clients[user_ix].client_pubkey_mont),M,Q,recv_s,recv_e,msg_buf,144);
-                          
-    if(!auth_result){
-        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
+    /* Verify the sender's cryptographic signature to make sure they're legit */
+    if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
+        printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Server: Client authenticated successfully!\n");
     }
 
     /*  On server's side: 
@@ -1506,8 +1492,6 @@ label_cleanup:
 
     free(buf_type_21);
      
-    if(recv_s->bits != NULL)       { free(recv_s->bits);       } 
-    if(recv_e->bits != NULL)       { free(recv_e->bits);       } 
     if(nonce_bigint.bits != NULL) { free(nonce_bigint.bits); }
     if(one.bits != NULL)          { free(one.bits);          }
     if(aux1.bits != NULL)         { free(aux1.bits);         }
@@ -1522,43 +1506,19 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
 {
     u64 next_free_receivers_ix = 0;
 
-    u8 auth_result;
     u8 *reply_buf = NULL;
     u64 reply_len;
-    
+    u64 signed_len = (packet_siz - SIGNATURE_LEN);
     u64 *receiver_ixs = NULL;
-
-    bigint  *recv_e
-           ,*recv_s;
-           
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + sign_offset));
-    
-    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
  
-    memcpy( recv_s->bits
-           ,msg_buf + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
-    );
-    
     /* Verify the sender's cryptographic signature. */
-    auth_result = Signature_VALIDATE(
-                     Gm, &(clients[sender_ix].client_pubkey_mont)
-                    ,M, Q, recv_s, recv_e, msg_buf, (packet_siz - SIGNATURE_LEN)
-    );
-
-    if(!auth_result){
-        printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
+    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1){
+        printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
+        goto label_cleanup;
     }
+    else{
+        printf("[OK]  Server: Client authenticated successfully!\n");
+    }  
     
     receiver_ixs = calloc(1, (rooms[clients[sender_ix].room_ix].num_people - 1));
     
@@ -1598,8 +1558,6 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     
 label_cleanup:
     
-    free(recv_s->bits);
-    free(recv_e->bits);
     if(reply_buf)   { free(reply_buf);    }
     if(receiver_ixs){ free(receiver_ixs); }
     
@@ -1613,44 +1571,21 @@ void process_msg_40(u8* msg_buf){
 
     /* Check the cryptographic signature to authenticate the sender. */
         
-    u8 auth_result;
     u8 *reply_buf = NULL;
     u64 reply_len;
     u64 reply_write_offset = 0;
-    u32 sign_offset = 16;
+    u64 sign_offset = 16;
+    u64 signed_len = MAGIC_LEN + 8;
     
     u64 poller_ix = *((u64*)(msg_buf + MAGIC_LEN));
     
-    bigint  *recv_e
-           ,*recv_s;
-           
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + sign_offset));
-    
-    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
- 
-    memcpy( recv_s->bits
-           ,msg_buf + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
-    );
-    
-    /* Verify the sender's cryptographic signature. */
-    auth_result = Signature_VALIDATE(
-                     Gm, &(clients[poller_ix].client_pubkey_mont)
-                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
-    );
-
-    if(!auth_result){
+    /* Verify the sender's cryptographic signature to make sure they're legit */
+    if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) != 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
+        goto label_cleanup;       
+    }
+    else{
+        printf("[OK]  Server: Client authenticated successfully!\n");
     }
     
     clients[poller_ix].time_last_polled = clock();
@@ -1744,9 +1679,7 @@ void process_msg_40(u8* msg_buf){
     }
   
 label_cleanup:
-    
-    free(recv_e->bits);
-    free(recv_s->bits);
+
     if(reply_buf){free(reply_buf);}
     
     return;
@@ -1863,52 +1796,22 @@ void remove_user_from_room(u64 sender_ix){
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_50(u8* msg_buf){
-
-    u8 auth_result;
     
-    u32 sign_offset = 16;
-    
+    u64 sign_offset = 16;
+    u64 signed_len = (MAGIC_LEN + 8);
     u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
-    
-    bigint  *recv_e
-           ,*recv_s;    
 
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + sign_offset));
-    
-    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
- 
-    memcpy( recv_s->bits
-           ,msg_buf + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
-    );
-    
-    /* Verify the sender's cryptographic signature. */
-    auth_result = Signature_VALIDATE(
-                     Gm, &(clients[sender_ix].client_pubkey_mont)
-                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
-    );
-
-    if(!auth_result){
+    /* Verify the sender's cryptographic signature to make sure they're legit */
+    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
+        return;      
+    }
+    else{
+        printf("[OK]  Server: Client authenticated successfully!\n");
     }
  
     remove_user_from_room(sender_ix);
 
-label_cleanup:
-    
-    free(recv_e->bits);
-    free(recv_s->bits);
-  
     return;
 }
 
@@ -1916,43 +1819,18 @@ label_cleanup:
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_60(u8* msg_buf){
-
-    u8 auth_result;
-    
-    u32 sign_offset = 16;
-    
+  
+    u64 sign_offset = 16;
+    u64 signed_len = (MAGIC_LEN + 8);
     u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
     
-    bigint  *recv_e
-           ,*recv_s;    
-
-    /* Reconstruct the BigInts s and e from client's cryptographic signature. */
-    recv_s = (bigint*)((msg_buf + sign_offset));
-    
-    recv_e =(bigint*)(msg_buf + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
-    
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
- 
-    memcpy( recv_s->bits
-           ,msg_buf + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_BYTES
-    );
-    
-    memcpy( recv_e->bits
-           ,msg_buf + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
-    );
-    
-    /* Verify the sender's cryptographic signature. */
-    auth_result = Signature_VALIDATE(
-                     Gm, &(clients[sender_ix].client_pubkey_mont)
-                    ,M, Q, recv_s, recv_e, msg_buf, (MAGIC_LEN + 8)
-    );
-
-    if(!auth_result){
+    /* Verify the sender's cryptographic signature to make sure they're legit */
+    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;    
+        return;     
+    }
+    else{
+        printf("[OK]  Server: Client authenticated successfully!\n");
     }
 
     /* Clear the user descriptor structure and alter the global index array. */
@@ -1960,11 +1838,8 @@ void process_msg_60(u8* msg_buf){
     
     users_status_bitmask &= ~(1ULL << (63ULL - sender_ix));
 
-label_cleanup:
 
-    free(recv_s->bits);
-    free(recv_e->bits);
-    
+  
     return;
 }
 
