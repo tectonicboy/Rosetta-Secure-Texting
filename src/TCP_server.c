@@ -7,22 +7,27 @@
 
 #include "coreutil.h"
 
-#define SERVER_PORT     54746
-#define PRIVKEY_BYTES   40   
-#define PUBKEY_LEN      384
-#define MAX_CLIENTS     64
-#define MAX_PEND_MSGS   64
-#define MAX_CHATROOMS   64
-#define MAX_MSG_LEN     8192
-#define MAX_TXT_LEN     1024
-#define MAX_SOCK_QUEUE  1024
-#define MAX_BIGINT_SIZ  12800
-#define MAGIC_LEN       8 
-#define MAX_USERID_LEN  8
-#define TEMP_BUF_SIZ    16384
-#define SESSION_KEY_LEN 32
+#define SERVER_PORT      54746
+#define PRIVKEY_LEN      40   
+#define PUBKEY_LEN       384
+#define MAX_CLIENTS      64
+#define MAX_PEND_MSGS    64
+#define MAX_CHATROOMS    64
+#define MAX_MSG_LEN      8192
+#define MAX_TXT_LEN      1024
+#define MAX_SOCK_QUEUE   1024
+#define MAX_BIGINT_SIZ   12800
+#define PACKET_ID_LEN    8 
+#define MAX_USERID_LEN   8
+#define TEMP_BUF_SIZ     16384
+#define SESSION_KEY_LEN  32
+#define ONE_TIME_KEY_LEN 32
+#define INIT_AUTH_LEN    32
+#define SHORT_NONCE_LEN  12
+#define LONG_NONCE_LEN   16
+#define HMAC_TRUNC_BYTES 8
 
-#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_BYTES))
+#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
 struct connected_client{
     char user_id[MAX_USERID_LEN];
@@ -80,26 +85,26 @@ u64 rooms_status_bitmask = 64;
 u32 next_free_user_ix = 1;
 u32 next_free_room_ix = 1;
 
-u8 server_privkey[PRIVKEY_BYTES];
+u8 server_privkey[PRIVKEY_LEN];
 
 time_t time_curr_login_initiated;
 
 pthread_mutex_t mutex;
 pthread_t conn_checker_threadID;
 
-#define MAGIC_00 0xAD0084FF0CC25B0E
-#define MAGIC_01 0xE7D09F1FEFEA708B
-#define MAGIC_02 0x146AAE4D100DAEEA
-#define MAGIC_10 0x13C4A44F70842AC1
-#define MAGIC_11 0xAEFB70A4A8E610DF
-#define MAGIC_20 0x9FF4D1E0EAE100A5
-#define MAGIC_21 0x7C8124568ED45F1A
-#define MAGIC_30 0x9FFA7475DDC8B11C
-#define MAGIC_40 0xCAFB1C01456DF7F0
-#define MAGIC_41 0xDC4F771C0B22FDAB
-#define MAGIC_50 0x41C20F0BB4E34890
-#define MAGIC_51 0x2CC04FBEDA0B5E63
-#define MAGIC_60 0x0A7F4E5D330A14DD
+#define PACKET_ID_00 0xAD0084FF0CC25B0E
+#define PACKET_ID_01 0xE7D09F1FEFEA708B
+#define PACKET_ID_02 0x146AAE4D100DAEEA
+#define PACKET_ID_10 0x13C4A44F70842AC1
+#define PACKET_ID_11 0xAEFB70A4A8E610DF
+#define PACKET_ID_20 0x9FF4D1E0EAE100A5
+#define PACKET_ID_21 0x7C8124568ED45F1A
+#define PACKET_ID_30 0x9FFA7475DDC8B11C
+#define PACKET_ID_40 0xCAFB1C01456DF7F0
+#define PACKET_ID_41 0xDC4F771C0B22FDAB
+#define PACKET_ID_50 0x41C20F0BB4E34890
+#define PACKET_ID_51 0x2CC04FBEDA0B5E63
+#define PACKET_ID_60 0x0A7F4E5D330A14DD
 
 struct connected_client clients[MAX_CLIENTS];
 struct chatroom rooms[MAX_CHATROOMS];
@@ -176,7 +181,7 @@ u32 self_init(){
         return 1;
     }
     
-    if(fread(server_privkey, 1, PRIVKEY_BYTES, privkey_dat) != PRIVKEY_BYTES){
+    if(fread(server_privkey, 1, PRIVKEY_LEN, privkey_dat) != PRIVKEY_LEN){
         printf("[ERR] Server: couldn't get private key from file. Aborting.\n");
         return 1;
     }
@@ -187,10 +192,10 @@ u32 self_init(){
     /* Initialize the BigInt that stores the server's private key. */
     bigint_create(&server_privkey_bigint, MAX_BIGINT_SIZ, 0);
     
-    memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_BYTES); 
+    memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_LEN); 
     
     server_privkey_bigint.used_bits = 
-                            get_used_bits(server_privkey, PRIVKEY_BYTES);
+                            get_used_bits(server_privkey, PRIVKEY_LEN);
                             
     server_privkey_bigint.free_bits = 
                             MAX_BIGINT_SIZ - server_privkey_bigint.used_bits;
@@ -236,7 +241,9 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
         return 2;
     }
 
-    /* client slot has to be taken,clients size has to match, then pubkey can match. */
+    /* Client slot has to be taken, clients size has to match, 
+     * then pubkey can match. 
+     */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if(   (users_status_bitmask & (1ULL << (63ULL - i)))
            && (clients[i].pubkey_len == pubkey_siz)
@@ -299,23 +306,23 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     bigint *recv_s;
    
     u8 ret;
-   
+    
     /* Reconstruct the sender's signature as the two BigInts that make it up. */
     recv_s = (bigint*)((signed_ptr + sign_offset));
     
-    recv_e =(bigint*)(signed_ptr + (sign_offset + sizeof(bigint) + PRIVKEY_BYTES));    
+    recv_e = (bigint*)(signed_ptr+(sign_offset + sizeof(bigint) + PRIVKEY_LEN));    
     
     recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
     recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
  
     memcpy( recv_s->bits
            ,signed_ptr + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_BYTES
+           ,PRIVKEY_LEN
     );
     
     memcpy( recv_e->bits
-           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_BYTES)
-           ,PRIVKEY_BYTES
+           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
+           ,PRIVKEY_LEN
     );
        
     /* Verify the sender's cryptographic signature. */
@@ -330,7 +337,15 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     return ret;
 }
 
-/* A client requested to be logged in Rosetta */
+/* A user requested to be logged in Rosetta:
+
+================================================================================
+|    packet identificator 00  |    Client's short-term public key in clear     |
+================================================================================
+|          8 bytes            |               PUBKEY_LEN bytes                 |
+--------------------------------------------------------------------------------
+
+*/
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_00(u8* msg_buf){
@@ -353,7 +368,7 @@ void process_msg_00(u8* msg_buf){
     u8* reply_buf;
     u64 reply_len;
 
-    reply_len = (3 * MAGIC_LEN) + SIGNATURE_LEN + PUBKEY_LEN;
+    reply_len = (3 * PACKET_ID_LEN) + SIGNATURE_LEN + PUBKEY_LEN;
     
     reply_buf = calloc(1, reply_len);
 
@@ -415,14 +430,14 @@ void process_msg_00(u8* msg_buf){
      *  These 7 things are all stored in the designated locked memory region.
      */
 
-    gen_priv_key(PRIVKEY_BYTES, (temp_handshake_buf + sizeof(bigint)));
+    gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
     
     b_s = (bigint*)(temp_handshake_buf + sizeof(bigint));
     
     /* Interface generating a pub_key still needs priv_key in a file. Change. */
     save_BIGINT_to_DAT("temp_privkey_DAT\0", b_s);
   
-    B_s = gen_pub_key(PRIVKEY_BYTES, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+    B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
     
     /* Place the server short-term pub_key also in the locked memory region. */
     memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
@@ -436,21 +451,38 @@ void process_msg_00(u8* msg_buf){
     
     /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
     tempbuf_byte_offset = 4 * sizeof(bigint);
-    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits +  0, 32);
+    
+    memcpy( temp_handshake_buf + tempbuf_byte_offset
+           ,X_s->bits
+           ,SESSION_KEY_LEN
+    );
 
-    tempbuf_byte_offset += 32;
-    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 32, 32);
+    tempbuf_byte_offset += SESSION_KEY_LEN;
+    
+    memcpy( temp_handshake_buf + tempbuf_byte_offset
+           ,X_s->bits + SESSION_KEY_LEN
+           ,SESSION_KEY_LEN
+    );
  
-    tempbuf_byte_offset += 32;
-    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 64, 32);
+    tempbuf_byte_offset += SESSION_KEY_LEN;
+    
+    memcpy( temp_handshake_buf + tempbuf_byte_offset
+           ,X_s->bits + (2 * SESSION_KEY_LEN)
+           ,INIT_AUTH_LEN
+    );
+    
     Y_s = (u32*)(temp_handshake_buf + tempbuf_byte_offset);
         
-    tempbuf_byte_offset += 32;
-    memcpy(temp_handshake_buf + tempbuf_byte_offset, X_s->bits + 96, 12);
+    tempbuf_byte_offset += INIT_AUTH_LEN;
+    
+    memcpy( temp_handshake_buf + tempbuf_byte_offset
+           ,X_s->bits + ((2 * SESSION_KEY_LEN) + (INIT_AUTH_LEN))
+           ,SHORT_NONCE_LEN
+    );
    
     /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
-    Signature_GENERATE( M, Q, Gm, (u8*)(Y_s), 32, signature_buf
-                       ,&server_privkey_bigint, PRIVKEY_BYTES
+    Signature_GENERATE( M, Q, Gm, (u8*)(Y_s), INIT_AUTH_LEN, signature_buf
+                       ,&server_privkey_bigint, PRIVKEY_LEN
                       );
                   
     /* Server sends in the clear (B_s, SB) to the client. */
@@ -462,26 +494,26 @@ void process_msg_00(u8* msg_buf){
     
     /* Construct the reply buffer. */   
      replybuf_byte_offset = 0;
-    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)MAGIC_00;
+    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)PACKET_ID_00;
     
-    replybuf_byte_offset += MAGIC_LEN;
+    replybuf_byte_offset += PACKET_ID_LEN;
     *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)PUBKEY_LEN; 
     
-    replybuf_byte_offset += MAGIC_LEN;
+    replybuf_byte_offset += PACKET_ID_LEN;
     memcpy(reply_buf + replybuf_byte_offset, B_s->bits, PUBKEY_LEN);
     
     replybuf_byte_offset += PUBKEY_LEN;
     *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)SIGNATURE_LEN; 
     
-    replybuf_byte_offset += MAGIC_LEN;
+    replybuf_byte_offset += PACKET_ID_LEN;
     memcpy(reply_buf + replybuf_byte_offset, signature_buf, SIGNATURE_LEN);
     
     /* Send the reply back to the client. */
     if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't reply with MAGIC_00 msg type.\n");
+        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg type.\n");
     }
     else{
-        printf("[OK]  Server: Replied to client with MAGIC_00 msg type.\n");
+        printf("[OK]  Server: Replied to client with PACKET_ID_00 msg type.\n");
     }
       
 label_cleanup: 
@@ -494,7 +526,16 @@ label_cleanup:
   
     return;
 }
+/* A user who's logging in continued the login protocol, sending us their long
+ * term public key encrypted by the short-term shared secret with the server.
+ 
+================================================================================
+| packet ID 01 | Client's encrypted long-term public key | HMAC authenticator  |
+================================================================================
+|   8 bytes    |             PUBKEY_LEN bytes            |  HMAC_TRUNC_BYTES   |
+--------------------------------------------------------------------------------
 
+*/
 /* Second part of the initial login handshake */
 //__attribute__ ((always_inline)) 
 //inline
@@ -502,11 +543,12 @@ void process_msg_01(u8* msg_buf){
 
     u64 B = 64;
     u64 L = 128;
-    u64 magic02 = MAGIC_02;
-    u64 magic01 = MAGIC_01; 
+    u64 PACKET_ID02 = PACKET_ID_02;
+    u64 PACKET_ID01 = PACKET_ID_01; 
+    u64 recv_HMAC_offset = PACKET_ID_LEN + sizeof(u64) + PUBKEY_LEN;
     
-    u8* magic02_addr = (u8*)(&magic02);
-    u8* magic01_addr = (u8*)(&magic01);
+    u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
+    u8* PACKET_ID01_addr = (u8*)(&PACKET_ID01);
     
     u8* K0   = calloc(1, B);
     u8* ipad = calloc(1, B);
@@ -545,7 +587,11 @@ void process_msg_01(u8* msg_buf){
      
     /* Step 3 of HMAC construction */
     /* Length of K is less than B so append 0s to it until it's long enough. */
-    memcpy(K0 + 32, temp_handshake_buf + (4 * sizeof(bigint)), 32);
+    /* This was done during K's initialization. Now place the actual key.    */
+    memcpy( K0 + (B - SESSION_KEY_LEN)
+           ,temp_handshake_buf + (4 * sizeof(bigint))
+           ,SESSION_KEY_LEN
+          );
 
     /* Step 4 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
@@ -554,7 +600,7 @@ void process_msg_01(u8* msg_buf){
     
     /* step 5 of HMAC construction */
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
-    memcpy(K0_XOR_ipad_TEXT + B, msg_buf + (2 * MAGIC_LEN), PUBKEY_LEN);
+    memcpy(K0_XOR_ipad_TEXT + B, msg_buf + (2 * PACKET_ID_LEN), PUBKEY_LEN);
     
     /* step 6 of HMAC construction */
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
@@ -575,17 +621,19 @@ void process_msg_01(u8* msg_buf){
     /* Call BLAKE2B on the combined buffer in step 8. */
     BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
     
-    /* Take the 8 leftmost bytes to form the HMAC output. */
-    memcpy(HMAC_output, BLAKE2B_output, 8);
+    /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
+    memcpy(HMAC_output, BLAKE2B_output, HMAC_TRUNC_BYTES);
     
     /* Now compare calculated HMAC with the HMAC the client sent us */
-    for(u64 i = 0; i < 8; ++i){
-        if(HMAC_output[i] != msg_buf[PUBKEY_LEN + (2*MAGIC_LEN) + i]){
+    for(u64 i = 0; i < HMAC_TRUNC_BYTES; ++i){
+        if(HMAC_output[i] != msg_buf[recv_HMAC_offset + i]){
             printf("[ERR] Server: HMAC authentication codes don't match!\n\n");
             printf("[OK]  Server: Discarding transmission.\n");
             goto label_cleanup;
         }
     }
+    
+    printf("[OK]  Server: HMAC authentication for logging-in client passed!\n");
     
     /*
      *  Server uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
@@ -593,7 +641,7 @@ void process_msg_01(u8* msg_buf){
      *
      *  Server then destroys all cryptographic artifacts for handshake. 
      */
-     CHACHA20(msg_buf + (2*MAGIC_LEN)
+     CHACHA20(msg_buf + (2*PACKET_ID_LEN)
              ,PUBKEY_LEN
              ,(u32*)(temp_handshake_buf + ((4*sizeof(bigint)) + (3*32)))
              ,3
@@ -615,11 +663,11 @@ void process_msg_01(u8* msg_buf){
         reply_len = (2*8) + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
     
-        *((u64*)(reply_buf + 0)) = MAGIC_02;
+        *((u64*)(reply_buf + 0)) = PACKET_ID_02;
         *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
         
-        Signature_GENERATE( M, Q, Gm, magic02_addr, 8, (reply_buf+16)
-                           ,&server_privkey_bigint, PRIVKEY_BYTES
+        Signature_GENERATE( M, Q, Gm, PACKET_ID02_addr, 8, (reply_buf+16)
+                           ,&server_privkey_bigint, PRIVKEY_LEN
                           );
         
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
@@ -645,7 +693,7 @@ void process_msg_01(u8* msg_buf){
     reply_len  = (3*8) + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
     
-    *((u64*)(reply_buf + 0)) = MAGIC_01;
+    *((u64*)(reply_buf + 0)) = PACKET_ID_01;
     
     CHACHA20((u8*)(&next_free_user_ix)
              ,8
@@ -658,8 +706,8 @@ void process_msg_01(u8* msg_buf){
              
     *((u64*)(reply_buf + 16)) = SIGNATURE_LEN;
     
-    Signature_GENERATE( M, Q, Gm, magic01_addr, 8, (reply_buf+24)
-                       ,&server_privkey_bigint, PRIVKEY_BYTES
+    Signature_GENERATE( M, Q, Gm, PACKET_ID01_addr, 8, (reply_buf+24)
+                       ,&server_privkey_bigint, PRIVKEY_LEN
                       );
     
     /* Server bookkeeping - populate this user's slot, find next free slot. */
@@ -829,28 +877,28 @@ label_cleanup:
 //inline
 void process_msg_10(u8* msg_buf){
         
-    u8* nonce  = calloc(1, 16);
+    u8* nonce  = calloc(1, LONG_NONCE_LEN);
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
     u8* KBA    = calloc(1, SESSION_KEY_LEN);
-    u8* recv_K = calloc(1, 32);
-    u8* send_K = calloc(1, 32);
+    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
+    u8* send_K = calloc(1, ONE_TIME_KEY_LEN);
     
     u8* reply_buf = NULL;
     u64 reply_len;
         
     u64 room_id;
     u64 user_ix;
-    u64 magic_11 = MAGIC_11;
-    u64 magic_10 = MAGIC_10;
-    u64 signed_len = 144;
+    u64 PACKET_ID11 = PACKET_ID_11;
+    u64 PACKET_ID10 = PACKET_ID_10;
+    u64 signed_len = PACKET_ID_LEN + sizeof(u64) + ONE_TIME_KEY_LEN + sizeof(u64);
     
     bigint  nonce_bigint
            ,one
            ,aux1;
     
-    u64 sign_offset = ((4*8)+(32));
+    u64 sign_offset = signed_len;
 
-    user_ix = *((u64*)(msg_buf + 8));
+    user_ix = *((u64*)(msg_buf + PACKET_ID_LEN));
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
@@ -965,11 +1013,11 @@ void process_msg_10(u8* msg_buf){
         reply_len = (2*8) + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
 
-        *((u64*)(reply_buf + 0)) = MAGIC_11;
+        *((u64*)(reply_buf + 0)) = PACKET_ID11;
         *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
         
-        Signature_GENERATE( M,Q,Gm,(u8*)(&magic_11),8,(reply_buf+16)
-                           ,&server_privkey_bigint,PRIVKEY_BYTES
+        Signature_GENERATE( M,Q,Gm,(u8*)(&PACKET_ID11),8,(reply_buf+16)
+                           ,&server_privkey_bigint,PRIVKEY_LEN
                           );
         
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
@@ -987,11 +1035,11 @@ void process_msg_10(u8* msg_buf){
     reply_len  = 8 + 8 + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
            
-    *((u64*)(reply_buf + 0)) = MAGIC_10;
+    *((u64*)(reply_buf + 0)) = PACKET_ID10;
     *((u64*)(reply_buf + 8)) = SIGNATURE_LEN;
     
-    Signature_GENERATE( M,Q,Gm,(u8*)(&magic_10),8,(reply_buf+16)
-                       ,&server_privkey_bigint,PRIVKEY_BYTES
+    Signature_GENERATE( M,Q,Gm,(u8*)(&PACKET_ID10),8,(reply_buf+16)
+                       ,&server_privkey_bigint,PRIVKEY_LEN
                       );
     
     /* Server bookkeeping - populate this room's slot, find next free slot. */
@@ -1039,6 +1087,8 @@ label_cleanup:
     return;
 } 
 
+
+
 /* Client requested to join an existing chatroom. */
 //__attribute__ ((always_inline)) 
 //inline
@@ -1048,8 +1098,8 @@ void process_msg_20(u8* msg_buf){
     
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
     u8* KBA    = calloc(1, SESSION_KEY_LEN);
-    u8* recv_K = calloc(1, 32);
-    u8* send_K = calloc(1, 32);
+    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
+    u8* send_K = calloc(1, ONE_TIME_KEY_LEN);
     
     u8* type21_encrypted_part = calloc(1, (8+PUBKEY_LEN));
     
@@ -1064,7 +1114,7 @@ void process_msg_20(u8* msg_buf){
     u64 buf_ixs_pubkeys_len;
     
     /* static, known at compile time. */
-    const u64 buf_type_21_len = (2*8) + 32 + SIGNATURE_LEN + (1*(8+PUBKEY_LEN));
+    const u64 buf_type_21_len = (2*8) + ONE_TIME_KEY_LEN + SIGNATURE_LEN + (1*(8+PUBKEY_LEN));
           u8* buf_type_21     = calloc(1, buf_type_21_len);
       
     u8 room_found;
@@ -1238,13 +1288,13 @@ void process_msg_20(u8* msg_buf){
     reply_len  = (3*8) + 32 + SIGNATURE_LEN + buf_ixs_pubkeys_len;
     reply_buf  = calloc(1, reply_len);
            
-    *((u64*)(reply_buf + 0)) = MAGIC_20;
+    *((u64*)(reply_buf + 0)) = PACKET_ID_20;
     
     /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
      * KBA as chacha key and the server-client-maintained incremented Nonce from
      * the two's DH shared secret. Increment the Nonce. 
      *
-     * Concatenate the encrypted one-time use key K, now KA, to MAGIC_2O.
+     * Concatenate the encrypted one-time use key K, now KA, to PACKET_ID_2O.
      *
      * Fetch the user_id and public_key of all users currently in this chatroom.
      *
@@ -1328,7 +1378,7 @@ void process_msg_20(u8* msg_buf){
     Signature_GENERATE
         (M,Q,Gm,reply_buf,(2*8) +32 + buf_ixs_pubkeys_len
         ,(reply_buf+((2*8) +32 + buf_ixs_pubkeys_len)) + 8
-        ,&server_privkey_bigint,PRIVKEY_BYTES);
+        ,&server_privkey_bigint,PRIVKEY_LEN);
     
     /* The reply buffer is ready. Transmit it to the chatroom's new client. */  
    
@@ -1352,7 +1402,7 @@ void process_msg_20(u8* msg_buf){
      * KBA as chacha key and the server-client-maintained incremented Nonce from
      * the two's DH shared secret. Increment the Nonce. 
      *
-     * Concatenate the encrypted one-time use key K, now KA, to MAGIC_2O.
+     * Concatenate the encrypted one-time use key K, now KA, to PACKET_ID_2O.
      * Use un-encrypted key K as ChaCha key to encrypt the actual protected part
      * of the transmission to the clients, in this case:
      *
@@ -1370,8 +1420,8 @@ void process_msg_20(u8* msg_buf){
         /* Clear the reply buf to prepare it for next response by the server. */
         memset(buf_type_21, 0, buf_type_21_len);
        
-        /* Place the network packet identifier magic constant. */
-        *((u64*)(buf_type_21)) = MAGIC_21;
+        /* Place the network packet identifier PACKET_ID constant. */
+        *((u64*)(buf_type_21)) = PACKET_ID_21;
         
         /* Draw the random one-time use 32-byte key K. */
         ret_val = fread(send_K, 1, 32, ran_file);
@@ -1471,7 +1521,7 @@ void process_msg_20(u8* msg_buf){
         Signature_GENERATE
                         (M,Q,Gm,buf_type_21, buf_type_21_len - (8+SIGNATURE_LEN)
                         ,(buf_type_21 + buf_type_21_len - (8+SIGNATURE_LEN)) + 8
-                        ,&server_privkey_bigint,PRIVKEY_BYTES
+                        ,&server_privkey_bigint,PRIVKEY_LEN
         );
         
         add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
@@ -1548,7 +1598,7 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     /* UGLY!! Rewrite when I find time. */
     Signature_GENERATE
                     (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
-                    ,&server_privkey_bigint, PRIVKEY_BYTES
+                    ,&server_privkey_bigint, PRIVKEY_LEN
     );
         
     /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
@@ -1575,9 +1625,9 @@ void process_msg_40(u8* msg_buf){
     u64 reply_len;
     u64 reply_write_offset = 0;
     u64 sign_offset = 16;
-    u64 signed_len = MAGIC_LEN + 8;
+    u64 signed_len = PACKET_ID_LEN + 8;
     
-    u64 poller_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    u64 poller_ix = *((u64*)(msg_buf + PACKET_ID_LEN));
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) != 1 ){
@@ -1593,23 +1643,23 @@ void process_msg_40(u8* msg_buf){
     /* If no pending messages, simply send the NO_PENDING packet type_40. */
     if(clients[poller_ix].num_pending_msgs == 0){
     
-        reply_len = MAGIC_LEN + SIGNATURE_LEN;
+        reply_len = PACKET_ID_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
-        *((u64*)(reply_buf)) = MAGIC_40;
+        *((u64*)(reply_buf)) = PACKET_ID_40;
         
         /* Compute a cryptographic signature so the client can authenticate us*/
         Signature_GENERATE
-                         ( M, Q, Gm, reply_buf, MAGIC_LEN, reply_buf + MAGIC_LEN
-                          ,&server_privkey_bigint, PRIVKEY_BYTES
+                         ( M, Q, Gm, reply_buf, PACKET_ID_LEN, reply_buf + PACKET_ID_LEN
+                          ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
         /* Send the reply back to the client. */
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't reply with MAGIC_40 msg type.\n");
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 msg type.\n");
         }
         else{
-            printf("[OK]  Server: Replied to client with MAGIC_40 msg type.\n");
+            printf("[OK]  Server: Replied to client with PACKET_ID_40 msg type.\n");
         }
         
         goto label_cleanup;
@@ -1622,8 +1672,8 @@ void process_msg_40(u8* msg_buf){
          * of pending messages, even if we will need to do it again later to 
          * actually fetch their pending messages.
          */
-        reply_len = 8 + MAGIC_LEN + SIGNATURE_LEN;
-        reply_write_offset = 8 + MAGIC_LEN;
+        reply_len = 8 + PACKET_ID_LEN + SIGNATURE_LEN;
+        reply_write_offset = 8 + PACKET_ID_LEN;
         
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
             reply_len += clients[poller_ix].pending_msg_sizes[i] + 8;    
@@ -1631,8 +1681,8 @@ void process_msg_40(u8* msg_buf){
          
         reply_buf = calloc(1, reply_len);
                 
-        *((u64*)(reply_buf + 0        )) = MAGIC_41;
-        *((u64*)(reply_buf + MAGIC_LEN)) = clients[poller_ix].num_pending_msgs;
+        *((u64*)(reply_buf + 0        )) = PACKET_ID_41;
+        *((u64*)(reply_buf + PACKET_ID_LEN)) = clients[poller_ix].num_pending_msgs;
         
         /* Iterate over this client's array of pending transmissions, as well */
         /* as their array of lengths to transport them to the reply buffer.   */
@@ -1662,17 +1712,17 @@ void process_msg_40(u8* msg_buf){
         Signature_GENERATE
                          ( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN, 
                            reply_buf + (reply_len - SIGNATURE_LEN)
-                          ,&server_privkey_bigint, PRIVKEY_BYTES
+                          ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
         clients[poller_ix].num_pending_msgs = 0;
         
         /* Send the reply back to the client. */
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't reply with MAGIC_41 msg type.\n");
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg type.\n");
         }
         else{
-            printf("[OK]  Server: Replied to client with MAGIC_41 msg type.\n");
+            printf("[OK]  Server: Replied to client with PACKET_ID_41 msg type.\n");
         }
         
         goto label_cleanup;
@@ -1694,17 +1744,17 @@ void remove_user_from_room(u64 sender_ix){
     if(sender_ix != rooms[clients[sender_ix].room_ix].owner_ix){
     
         /* Construct the message and send it to everyone else in the chatroom.*/
-        reply_len = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        reply_len = PACKET_ID_LEN + 8 + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
-        *((u64*)(reply_buf)) = MAGIC_50;
+        *((u64*)(reply_buf)) = PACKET_ID_50;
                 
-        memcpy(reply_buf+MAGIC_LEN, clients[sender_ix].user_id, MAX_USERID_LEN);
+        memcpy(reply_buf+PACKET_ID_LEN, clients[sender_ix].user_id, MAX_USERID_LEN);
         
         /* Compute a signature so the clients can authenticate the server. */
         Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
                            ,reply_buf + (reply_len - SIGNATURE_LEN)
-                           ,&server_privkey_bigint, PRIVKEY_BYTES
+                           ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
         /* Let the other room guests know that a user has left: TYPE_50 */
@@ -1738,15 +1788,15 @@ void remove_user_from_room(u64 sender_ix){
     
     /* if it WAS the room owner, boot everyone else from the chatroom as well */
     else{
-        reply_len = MAGIC_LEN + SIGNATURE_LEN;
+        reply_len = PACKET_ID_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
-        *((u64*)(reply_buf)) = MAGIC_51;
+        *((u64*)(reply_buf)) = PACKET_ID_51;
         
         /* Compute a signature so the clients can authenticate the server. */
         Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
                            ,reply_buf + (reply_len - SIGNATURE_LEN)
-                           ,&server_privkey_bigint, PRIVKEY_BYTES
+                           ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
         /* Let the other room guests know that they've been booted: TYPE_51 */
@@ -1798,8 +1848,8 @@ void remove_user_from_room(u64 sender_ix){
 void process_msg_50(u8* msg_buf){
     
     u64 sign_offset = 16;
-    u64 signed_len = (MAGIC_LEN + 8);
-    u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    u64 signed_len = (PACKET_ID_LEN + 8);
+    u64 sender_ix = *((u64*)(msg_buf + PACKET_ID_LEN));
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
@@ -1821,8 +1871,8 @@ void process_msg_50(u8* msg_buf){
 void process_msg_60(u8* msg_buf){
   
     u64 sign_offset = 16;
-    u64 signed_len = (MAGIC_LEN + 8);
-    u64 sender_ix = *((u64*)(msg_buf + MAGIC_LEN));
+    u64 signed_len = (PACKET_ID_LEN + 8);
+    u64 sender_ix = *((u64*)(msg_buf + PACKET_ID_LEN));
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
@@ -1892,7 +1942,7 @@ u32 identify_new_transmission(){
     switch(transmission_type){
     
     /* A client tried to log in Rosetta */
-    case(MAGIC_00):{
+    case(PACKET_ID_00):{
         
         /* Size must be in bytes: 8 + 8 + pubkey size, which is bytes[8-15] */
         expected_siz = (16 + (*((u64*)(client_msg_buf + 8))));
@@ -1910,7 +1960,7 @@ u32 identify_new_transmission(){
     }
     
     /* Login part 2 - client sent their encrypted long-term public key. */
-    case(MAGIC_01):{  
+    case(PACKET_ID_01):{  
 
         /* Size must be in bytes: 8 + 8 + 8 + pubkey size at msg[8-15] */
         expected_siz = ((3*8) + (*((u64*)(client_msg_buf + 8))));
@@ -1928,7 +1978,7 @@ u32 identify_new_transmission(){
     }
     
     /* A client wants to create a new chatroom of their own. */
-    case(MAGIC_10):{
+    case(PACKET_ID_10):{
         
         /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
         expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
@@ -1946,7 +1996,7 @@ u32 identify_new_transmission(){
     } 
     
     /* A client wants to join an existing chatroom. */
-    case(MAGIC_20):{
+    case(PACKET_ID_20):{
         
         /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
         expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
@@ -1963,7 +2013,7 @@ u32 identify_new_transmission(){
         break;
     }
     /* A client wants to send a text message to everyone else in the chatroom */
-    case(MAGIC_30):{
+    case(PACKET_ID_30):{
     
         strncpy(msg_type_str, "30\0", 3);
         
@@ -2014,11 +2064,11 @@ u32 identify_new_transmission(){
     }
     
     /* A client polled the server asking for any pending unreceived messages. */
-    case(MAGIC_40):{
+    case(PACKET_ID_40):{
     
         strncpy(msg_type_str, "40\0", 3);    
     
-        expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        expected_siz = PACKET_ID_LEN + 8 + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
             ret_val = 1;
@@ -2032,11 +2082,11 @@ u32 identify_new_transmission(){
     }
     
     /* A client decided to exit the chatroom they're currently in. */
-    case(MAGIC_50):{
+    case(PACKET_ID_50):{
     
         strncpy(msg_type_str, "50\0", 3);    
     
-        expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        expected_siz = PACKET_ID_LEN + 8 + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
             ret_val = 1;
@@ -2050,10 +2100,10 @@ u32 identify_new_transmission(){
     }
     
     /* A client decided to log off Rosetta. */
-    case(MAGIC_60):{
+    case(PACKET_ID_60):{
         strncpy(msg_type_str, "60\0", 3);    
     
-        expected_siz = MAGIC_LEN + 8 + SIGNATURE_LEN;
+        expected_siz = PACKET_ID_LEN + 8 + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
             ret_val = 1;
