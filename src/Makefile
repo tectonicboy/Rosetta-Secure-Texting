@@ -1,3 +1,5 @@
+# -*- MakeFile -*-
+
 CFLAGS += -Wpedantic -pedantic-errors
 CFLAGS += -Wall
 CFLAGS += -Wextra
