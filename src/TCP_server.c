@@ -878,9 +878,9 @@ label_cleanup:
 /* A client requested to create a new chatroom.
  
 ================================================================================
-| packet ID 10  |    user_ix    | Encrypted Key | Encrypted Room_ID | Signature|
+| packet ID 10  | user_ix | Encrypted Key  | Encrypted Room_ID  |   Signature  |
 ================================================================================
-|SMALL_FIELD_LEN|SMALL_FIELD_LEN|SESSION_KEY_LEN|SMALL_FIELD_LEN| SIGNATURE_LEN|
+|  SMALL_LEN    |SMALL_LEN|ONE_TIME_KEY_LEN|    SNAKK_LEN       | SIGNATURE_LEN|
 --------------------------------------------------------------------------------
 
 */
