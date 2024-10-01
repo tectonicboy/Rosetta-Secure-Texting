@@ -492,10 +492,20 @@ void process_msg_00(u8* msg_buf){
     
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    memcpy(A_s->bits, msg_buf + 16, *(msg_buf + 8));
+    
+    memcpy( A_s->bits
+           ,msg_buf + (2 * SMALL_FIELD_LEN)
+           ,*(msg_buf + SMALL_FIELD_LEN)
+    );
+    
     A_s->size_bits = MAX_BIGINT_SIZ;
-    A_s->used_bits = get_used_bits(msg_buf + 16, (u32)*(msg_buf + 8));
+    
+    A_s->used_bits = get_used_bits( msg_buf + (2 * SMALL_FIELD_LEN)
+                                   ,(u32)*(msg_buf + SMALL_FIELD_LEN)
+                     );
+                     
     A_s->free_bits = A_s->size_bits - A_s->used_bits;
+    
     
     /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
     
@@ -618,10 +628,10 @@ void process_msg_00(u8* msg_buf){
     
     /* Send the reply back to the client. */
     if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg type.\n");
+        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");
     }
     else{
-        printf("[OK]  Server: Replied to client with PACKET_ID_00 msg type.\n");
+        printf("[OK]  Server: Replied to client with PACKET_ID_00 msg.\n");
     }
       
 label_cleanup: 
@@ -1718,9 +1728,11 @@ void process_msg_20(u8* msg_buf){
         
         /* UGLY!! Rewrite when I find time. */
         Signature_GENERATE
-             (M, Q, Gm, buf_type_21, buf_type_21_len - SIGNATURE_LEN
-            ,buf_type_21 + (buf_type_21_len - SIGNATURE_LEN)
-            ,&server_privkey_bigint, PRIVKEY_LEN
+             (M, Q, Gm, buf_type_21
+             ,buf_type_21_len - SIGNATURE_LEN
+             ,buf_type_21 + (buf_type_21_len - SIGNATURE_LEN)
+             ,&server_privkey_bigint
+             ,PRIVKEY_LEN
         );
         
         add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
@@ -1748,7 +1760,29 @@ label_cleanup:
     return;
 }
 
-/* Client requested to send a text message to everyone in the chatroom. */
+/* A client requested to send a text message to everyone in their chatroom.
+ 
+ Client ----> Server
+ 
+Main packet structure:
+ 
+================================================================================
+| packet ID 30 |  user_ix  | T = Num_MSGs |    AD   |         Signature1       | 
+|==============|===========|==============|=========|==========================|
+|  SMALL_LEN   | SMALL_LEN |   SMALL_LEN  | L bytes |          SIG_LEN         |
+--------------------------------------------------------------------------------
+
+AD - Associated Data, of length L bytes:
+
+================================================================================
+| receiver_ix1 |  encrypted_key1  |   ...   | receiver_ixT |  encrypted_keyT   |
+|==============|==================|=========|==============|===================|
+|  SMALL_LEN   | ONE_TIME_KEY_LEN |   ...   |  SMALL_LEN   | ONE_TIME_KEY_LEN  |
+--------------------------------------------------------------------------------
+
+L = (People in sender's chatroom - 1) * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN).
+
+*/
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
@@ -1769,7 +1803,7 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
         printf("[OK]  Server: Client authenticated successfully!\n");
     }  
     
-    receiver_ixs = calloc(1, (rooms[clients[sender_ix].room_ix].num_people - 1));
+    receiver_ixs = calloc(1, (rooms[clients[sender_ix].room_ix].num_people -1));
     
     /* Iterate over all user indices to find the other chatroom participants. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
@@ -1801,6 +1835,17 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     );
         
     /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
+    /*
+    
+    Server ---> Client
+    
+================================================================================
+| packet ID 30 |  user_ix  | T = Num_MSGs |    AD   | Signature1 | Signature2  | 
+|==============|===========|==============|=========|==========================|
+|  SMALL_LEN   | SMALL_LEN |   SMALL_LEN  | L bytes |  SIG_LEN   |   SIG_LEN   |
+--------------------------------------------------------------------------------    
+    
+    */
     for(u64 i = 0; i < rooms[clients[sender_ix].room_ix].num_people - 1; ++i){
         add_pending_msg(receiver_ixs[i], reply_len, reply_buf);
     }
@@ -1813,7 +1858,17 @@ label_cleanup:
     return;
 }
 
-/* Client polled the server for any pending unreceived messages. */
+/* A client polled the server for any pending unreceived messages.
+ 
+ Client ----> Server
+  
+================================================================================
+| packet ID 40 |  user_ix  |                    SIGNATURE                      | 
+|==============|===========|===================================================|
+|  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
+--------------------------------------------------------------------------------
+
+*/
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_40(u8* msg_buf){
@@ -1823,8 +1878,8 @@ void process_msg_40(u8* msg_buf){
     u8 *reply_buf = NULL;
     u64 reply_len;
     u64 reply_write_offset = 0;
-    u64 sign_offset = 16;
-    u64 signed_len = SMALL_FIELD_LEN + 8;
+    u64 sign_offset = 2 * SMALL_FIELD_LEN;
+    u64 signed_len = sign_offset;
     
     u64 poller_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
     
@@ -1849,16 +1904,29 @@ void process_msg_40(u8* msg_buf){
         
         /* Compute a cryptographic signature so the client can authenticate us*/
         Signature_GENERATE
-                         ( M, Q, Gm, reply_buf, SMALL_FIELD_LEN, reply_buf + SMALL_FIELD_LEN
-                          ,&server_privkey_bigint, PRIVKEY_LEN
+             ( M, Q, Gm, reply_buf, SMALL_FIELD_LEN, reply_buf + SMALL_FIELD_LEN
+              ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
+/*
+
+ No pending messages for the polling client were found.
+ 
+ Server ----> Client
+  
+================================================================================
+| packet ID 40 |                         SIGNATURE                             | 
+|==============|===============================================================|
+|  SMALL_LEN   |                          SIG_LEN                              |
+--------------------------------------------------------------------------------
+
+*/        
         /* Send the reply back to the client. */
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 msg type.\n");
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");
         }
         else{
-            printf("[OK]  Server: Replied to client with PACKET_ID_40 msg type.\n");
+            printf("[OK]  Server: Replied with PACKET_ID_40 message.\n");
         }
         
         goto label_cleanup;
@@ -1871,8 +1939,8 @@ void process_msg_40(u8* msg_buf){
          * of pending messages, even if we will need to do it again later to 
          * actually fetch their pending messages.
          */
-        reply_len = 8 + SMALL_FIELD_LEN + SIGNATURE_LEN;
-        reply_write_offset = 8 + SMALL_FIELD_LEN;
+        reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+        reply_write_offset = 2 * SMALL_FIELD_LEN;
         
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
             reply_len += clients[poller_ix].pending_msg_sizes[i] + 8;    
@@ -1880,8 +1948,9 @@ void process_msg_40(u8* msg_buf){
          
         reply_buf = calloc(1, reply_len);
                 
-        *((u64*)(reply_buf + 0        )) = PACKET_ID_41;
-        *((u64*)(reply_buf + SMALL_FIELD_LEN)) = clients[poller_ix].num_pending_msgs;
+        *((u64*)(reply_buf)) = PACKET_ID_41;
+        *((u64*)(reply_buf + SMALL_FIELD_LEN)) = 
+                                            clients[poller_ix].num_pending_msgs;
         
         /* Iterate over this client's array of pending transmissions, as well */
         /* as their array of lengths to transport them to the reply buffer.   */
@@ -1890,7 +1959,7 @@ void process_msg_40(u8* msg_buf){
             *((u64*)(reply_buf + reply_write_offset)) 
              = clients[poller_ix].pending_msg_sizes[i];
                              
-            reply_write_offset += 8;
+            reply_write_offset += SMALL_FIELD_LEN;
                    
             memcpy( reply_buf + reply_write_offset
                    ,clients[poller_ix].pending_msgs[i] 
@@ -1915,13 +1984,26 @@ void process_msg_40(u8* msg_buf){
         );
         
         clients[poller_ix].num_pending_msgs = 0;
-        
+/*
+
+ One or more pending messages were found for the polling client.
+ Send them all at once.
+ 
+ Server ----> Client
+  
+================================================================================
+| packetID 41 |     T     |    L_1    | MSG1 |...|    L_T    | MSG_T|  Signat  |
+|=============|===========|===========|======|===|===========|======|==========|
+|  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L_1  |...| SMALL_LEN |  L_T | SIG_LEN  |
+--------------------------------------------------------------------------------
+
+*/              
         /* Send the reply back to the client. */
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg type.\n");
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");
         }
         else{
-            printf("[OK]  Server: Replied to client with PACKET_ID_41 msg type.\n");
+            printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");
         }
         
         goto label_cleanup;
@@ -1934,14 +2016,13 @@ label_cleanup:
     return;
 }
 
-
 /* Client decided to leave the chatroom they're currently in. */
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_50(u8* msg_buf){
     
-    u64 sign_offset = 16;
-    u64 signed_len = (SMALL_FIELD_LEN + 8);
+    u64 sign_offset = 2 * SMALL_FIELD_LEN;
+    u64 signed_len = sign_offset;
     u64 sender_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
@@ -1963,9 +2044,9 @@ void process_msg_50(u8* msg_buf){
 //inline
 void process_msg_60(u8* msg_buf){
   
-    u64 sign_offset = 16;
-    u64 signed_len = (SMALL_FIELD_LEN + 8);
-    u64 sender_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+    u64 sign_offset = 2 * SMALL_FIELD_LEN;
+    u64 signed_len  = sign_offset;
+    u64 sender_ix   = *((u64*)(msg_buf + SMALL_FIELD_LEN));
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
@@ -1981,8 +2062,6 @@ void process_msg_60(u8* msg_buf){
     
     users_status_bitmask &= ~(1ULL << (63ULL - sender_ix));
 
-
-  
     return;
 }
 
@@ -2152,7 +2231,6 @@ u32 identify_new_transmission(){
                        ,expected_siz - SIGNATURE_LEN
                        ,found_user_ix
                       );
-        
         break;
     }
     
