@@ -2092,9 +2092,8 @@ u32 identify_new_transmission(){
 
     u8*  client_msg_buf = calloc(1, MAX_MSG_LEN);
     s64  bytes_read; 
-    u64  transmission_type;
+    u64  transmission_type = 0;
     s64  expected_siz;
-    u8   user_found = 0;
     u64  found_user_ix;
     u32  ret_val = 0;
     char *msg_type_str = calloc(1, 3);
@@ -2112,14 +2111,14 @@ u32 identify_new_transmission(){
     }
            
     /* Read the first 8 bytes to see what type of init transmission it is. */
-    memcpy(transmission_type, client_msg_buf, SMALL_FIELD_LEN);
+    memcpy((void*)transmission_type, client_msg_buf, SMALL_FIELD_LEN);
     
     switch(transmission_type){
     
     /* A client tried to log in Rosetta */
     case(PACKET_ID_00):{
         
-        expected_siz = SMALL_FIELD_LEN + PUB_KEY_LEN;
+        expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN;
         
         strncpy(msg_type_str, "00\0", 3);
         
@@ -2210,9 +2209,9 @@ u32 identify_new_transmission(){
         
         expected_siz =   (3 * SMALL_FIELD_LEN)
                        + ( 
-                           (rooms[users[found_user_ix].room_ix].num_people - 1)
-                           *
-                           (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
+                          (rooms[clients[found_user_ix].room_ix].num_people - 1)
+                          *
+                          (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
                          ) 
                        + *((u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN)))
                        + SIGNATURE_LEN;
