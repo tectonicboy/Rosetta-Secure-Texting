@@ -305,7 +305,10 @@ void remove_user_from_room(u64 sender_ix){
         
         *((u64*)(reply_buf)) = PACKET_ID_50;
                 
-        memcpy(reply_buf+SMALL_FIELD_LEN, clients[sender_ix].user_id, MAX_USERID_CHARS);
+        memcpy( reply_buf+SMALL_FIELD_LEN
+               ,clients[sender_ix].user_id
+               ,MAX_USERID_CHARS
+        );
         
         /* Compute a signature so the clients can authenticate the server. */
         Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
@@ -1122,7 +1125,7 @@ void process_msg_10(u8* msg_buf){
     CHACHA20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - key KB           */
              ,SESSION_KEY_LEN                      /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
-             ,(u32)(LONG_NONCE_LEN / sizeof(u32))   /* nonce_len in uint32_t's */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
              ,recv_K                               /* output target buffer    */
@@ -1760,16 +1763,16 @@ label_cleanup:
     return;
 }
 
-/* A client requested to send a text message to everyone in their chatroom.
+/* A client requested to send a text message to everyone else in their chatroom.
  
  Client ----> Server
  
 Main packet structure:
  
 ================================================================================
-| packet ID 30 |  user_ix  | T = Num_MSGs |    AD   |         Signature1       | 
-|==============|===========|==============|=========|==========================|
-|  SMALL_LEN   | SMALL_LEN |   SMALL_LEN  | L bytes |          SIG_LEN         |
+| packetID 30 |  user_ix  |  TXT_LEN   |    AD   | Encrypted_MSG | Signature1  | 
+|=============|===========|============|=========|=============================|
+|  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |    TXT_LEN    |   SIG_LEN   |
 --------------------------------------------------------------------------------
 
 AD - Associated Data, of length L bytes:
@@ -1840,9 +1843,9 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     Server ---> Client
     
 ================================================================================
-| packet ID 30 |  user_ix  | T = Num_MSGs |    AD   | Signature1 | Signature2  | 
-|==============|===========|==============|=========|==========================|
-|  SMALL_LEN   | SMALL_LEN |   SMALL_LEN  | L bytes |  SIG_LEN   |   SIG_LEN   |
+| packetID 30 |  user_ix  |  TXT_LEN  |    AD   | Encr_MSG |  Sign1  |  Sign2  |  
+|=============|===========|===========|=========|==========|===================|
+|  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L bytes |  TXT_LEN | SIG_LEN | SIG_LEN |
 --------------------------------------------------------------------------------    
     
     */
@@ -2109,15 +2112,15 @@ u32 identify_new_transmission(){
     }
            
     /* Read the first 8 bytes to see what type of init transmission it is. */
-    transmission_type = *((u64*)client_msg_buf);
+    memcpy(transmission_type, client_msg_buf, SMALL_FIELD_LEN);
     
     switch(transmission_type){
     
     /* A client tried to log in Rosetta */
     case(PACKET_ID_00):{
         
-        /* Size must be in bytes: 8 + 8 + pubkey size, which is bytes[8-15] */
-        expected_siz = (16 + (*((u64*)(client_msg_buf + 8))));
+        expected_siz = SMALL_FIELD_LEN + PUB_KEY_LEN;
+        
         strncpy(msg_type_str, "00\0", 3);
         
         if(bytes_read != expected_siz){
@@ -2134,8 +2137,8 @@ u32 identify_new_transmission(){
     /* Login part 2 - client sent their encrypted long-term public key. */
     case(PACKET_ID_01):{  
 
-        /* Size must be in bytes: 8 + 8 + 8 + pubkey size at msg[8-15] */
-        expected_siz = ((3*8) + (*((u64*)(client_msg_buf + 8))));
+        expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
+        
         strncpy(msg_type_str, "01\0", 3); 
         
         if(bytes_read != expected_siz){           
@@ -2152,8 +2155,8 @@ u32 identify_new_transmission(){
     /* A client wants to create a new chatroom of their own. */
     case(PACKET_ID_10):{
         
-        /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
-        expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
+        expected_siz = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
+        
         strncpy(msg_type_str, "10\0", 3);
         
         if(bytes_read != expected_siz){
@@ -2170,8 +2173,8 @@ u32 identify_new_transmission(){
     /* A client wants to join an existing chatroom. */
     case(PACKET_ID_20):{
         
-        /* Size must be in bytes: 8 + 8 + 32 + 8 + 8 + SIGNATURE_LEN */
-        expected_siz = ((4*8) + 32 + (SIGNATURE_LEN));
+        expected_siz = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
+        
         strncpy(msg_type_str, "20\0", 3);
         
         if(bytes_read != expected_siz){
@@ -2189,37 +2192,31 @@ u32 identify_new_transmission(){
     
         strncpy(msg_type_str, "30\0", 3);
         
-        /* Size must be in bytes: 8 + 8 + 8 + M + AD_LEN + SIGNATURE_LEN      */
-        /* AD_LEN = N * (8+32)   ---> where N = number of people in room - 1  */
-        /* Must find username's user_ix before being able to compute AD_LEN   */
+        /* Size must be in bytes: 
+         *
+         *   (3 * SMALL_FIELD_LEN) + AD_LEN + TXT_LEN + SIGNATURE_LEN 
+         *
+         *   where:
+         *          - TXT_LEN is found in message's third small field.  
+         *
+         *          - AD_LEN is length of Associated Data:
+         *              
+         *                 AD_LEN = N * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
+         *     
+         *                 where N = (number of people in sender's room) - 1
+         */
+         
+        found_user_ix = *((u64*)(client_msg_buf + SMALL_FIELD_LEN));
         
-        /* Find this username's user_ix. */
-        for(u64 i = 0; i < MAX_CLIENTS; ++i){
-            if(    (users_status_bitmask & (1ULL << (63ULL - i)))
-                && (strncmp( clients[i].user_id
-                            ,(const char*)(client_msg_buf + 8)
-                            ,8
-                           ) == 0 
-                   )
-              )
-            {
-                user_found = 1;
-                found_user_ix = i;    
-            }   
-        }
-        
-        if(!user_found){
-            printf("[ERR] Server: No user found with sender's id!!\n");
-            printf("              Discarding transmission quietly.\n\n");
-            ret_val = 1;
-            goto label_error;
-        }
-        
-        expected_siz =   
-               (3*8) + SIGNATURE_LEN + (*((u64*)(client_msg_buf + 16)))  
-             + ((rooms[clients[found_user_ix].room_ix].num_people - 1) * (8+32))
-             ;
-                       
+        expected_siz =   (3 * SMALL_FIELD_LEN)
+                       + ( 
+                           (rooms[users[found_user_ix].room_ix].num_people - 1)
+                           *
+                           (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
+                         ) 
+                       + *((u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN)))
+                       + SIGNATURE_LEN;
+                    
         if(bytes_read != expected_siz){
             ret_val = 1;
             goto label_error;
@@ -2239,7 +2236,7 @@ u32 identify_new_transmission(){
     
         strncpy(msg_type_str, "40\0", 3);    
     
-        expected_siz = SMALL_FIELD_LEN + 8 + SIGNATURE_LEN;
+        expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
             ret_val = 1;
@@ -2257,7 +2254,7 @@ u32 identify_new_transmission(){
     
         strncpy(msg_type_str, "50\0", 3);    
     
-        expected_siz = SMALL_FIELD_LEN + 8 + SIGNATURE_LEN;
+        expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
             ret_val = 1;
@@ -2274,7 +2271,7 @@ u32 identify_new_transmission(){
     case(PACKET_ID_60):{
         strncpy(msg_type_str, "60\0", 3);    
     
-        expected_siz = SMALL_FIELD_LEN + 8 + SIGNATURE_LEN;
+        expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
             ret_val = 1;
