@@ -214,7 +214,7 @@ u32 self_init(){
     G = get_BIGINT_from_DAT
         (3072, "../saved_nums/G_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
 
-    /* Montgomery Form of G, since we use Montgomery Multiplication. */
+    /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_BIGINT_from_DAT
      (3072, "../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
     
@@ -406,8 +406,8 @@ void remove_user_from_room(u64 sender_ix){
  * authenticate them to make sure it's really coming from a legit registered
  * user of Rosetta.
  *
- * Incoming cryptographic signatures are always contained in the same memory
- * buffer as the signed data. Extract signatures with a simple offset from it.
+ * Incoming cryptographic signatures are always in the same memory buffer as the
+ * signed data. Extract signatures with a simple offset from its beginning.
  */
 u8 authenticate_client( u64 client_ix,  u8* signed_ptr
                        ,u64 signed_len, u64 sign_offset
@@ -415,13 +415,15 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 {
     bigint *recv_e;
     bigint *recv_s;
+    
+    u64 s_offset = sign_offset;
+    u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
    
     u8 ret;
     
     /* Reconstruct the sender's signature as the two BigInts that make it up. */
-    recv_s = (bigint*)((signed_ptr + sign_offset));
-    
-    recv_e = (bigint*)(signed_ptr+(sign_offset + sizeof(bigint) + PRIVKEY_LEN));    
+    recv_s = (bigint*)(signed_ptr + s_offset);
+    recv_e = (bigint*)(signed_ptr + e_offset);    
     
     recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
     recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
@@ -450,10 +452,12 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 
 /* A user requested to be logged in Rosetta:
 
+    Client ----> Server
+
 ================================================================================
-|    packet identificator 00  |    Client's short-term public key in clear     |
+|        PACKET_ID_00         |   Client's short-term public key in the clear  |
 |=============================|================================================|
-|          8 bytes            |               PUBKEY_LEN bytes                 |
+|       SMALL_FIELD_LEN       |                    PUBKEY_LEN                  |
 --------------------------------------------------------------------------------
 
 */
@@ -462,27 +466,24 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 void process_msg_00(u8* msg_buf){
 
     time_curr_login_initiated = clock();
-    
-    bigint *A_s
-          ,zero
-          ,Am
-          ,*b_s
-          ,*B_s
-          ,*X_s;
+
+    bigint  zero;
+    bigint  Am; 
+       
+    bigint* A_s;
+    bigint* b_s;
+    bigint* B_s;
+    bigint* X_s;
             
-    u32 *Y_s
-        ,tempbuf_byte_offset = 0
-        ,replybuf_byte_offset = 0;
+    u32* Y_s;
+    u32  tempbuf_byte_offset = 0;
+    u32  replybuf_byte_offset = 0;
         
-    u8 *signature_buf = calloc(1, SIGNATURE_LEN);
-            
-    u8* reply_buf;
-    u64 reply_len;
-
-    reply_len = (3 * SMALL_FIELD_LEN) + SIGNATURE_LEN + PUBKEY_LEN;
+    u8* signature_buf = calloc(1, SIGNATURE_LEN);    
     
-    reply_buf = calloc(1, reply_len);
-
+    u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
+    u8* reply_buf = calloc(1, reply_len);
+    
     /* Construct a bigint out of the client's short-term public key.          */
     /* Here's where a constructor from a memory buffer and its length is good */
     /* Find time to implement one as part of the BigInt library.              */
@@ -496,16 +497,11 @@ void process_msg_00(u8* msg_buf){
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
     
-    memcpy( A_s->bits
-           ,msg_buf + (2 * SMALL_FIELD_LEN)
-           ,*(msg_buf + SMALL_FIELD_LEN)
-    );
+    memcpy(A_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
     A_s->size_bits = MAX_BIGINT_SIZ;
     
-    A_s->used_bits = get_used_bits( msg_buf + (2 * SMALL_FIELD_LEN)
-                                   ,(u32)*(msg_buf + SMALL_FIELD_LEN)
-                     );
+    A_s->used_bits = get_used_bits(msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
                      
     A_s->free_bits = A_s->size_bits - A_s->used_bits;
     
@@ -613,20 +609,30 @@ void process_msg_00(u8* msg_buf){
      * their bigint structs easily with get_used_bits().
      */
     
-    /* Construct the reply buffer. */   
-     replybuf_byte_offset = 0;
+    /* Construct the reply buffer. */ 
+    
+/* Send the client our short-term public key, so their software can compute a
+   shared secret and transport their long-term public key in encrypted form.
+   
+    Server ----> Client
+
+================================================================================
+| PACKET_ID_00 | Server's one time PubKey | Signature of unused part of X: Y_s |
+|==============|==========================|====================================|
+|  SMALL_LEN   |       PUBKEY_LEN         |             SIGNATURE_LEN          |
+--------------------------------------------------------------------------------
+
+*/  
+    replybuf_byte_offset = 0;
+     
     *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)PACKET_ID_00;
     
     replybuf_byte_offset += SMALL_FIELD_LEN;
-    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)PUBKEY_LEN; 
-    
-    replybuf_byte_offset += SMALL_FIELD_LEN;
+
     memcpy(reply_buf + replybuf_byte_offset, B_s->bits, PUBKEY_LEN);
     
     replybuf_byte_offset += PUBKEY_LEN;
-    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)SIGNATURE_LEN; 
-    
-    replybuf_byte_offset += SMALL_FIELD_LEN;
+
     memcpy(reply_buf + replybuf_byte_offset, signature_buf, SIGNATURE_LEN);
     
     /* Send the reply back to the client. */
@@ -639,7 +645,6 @@ void process_msg_00(u8* msg_buf){
       
 label_cleanup: 
 
-    /* Free temporaries on the heap. */
     free(zero.bits);
     free(Am.bits);
     free(signature_buf);
@@ -648,16 +653,17 @@ label_cleanup:
     return;
 }
 /* A user who's logging in continued the login protocol, sending us their long
- * term public key encrypted by the short-term shared secret with the server.
+   term public key encrypted by the short-term shared secret with the server.
+ 
+    Client ----> Server
  
 ================================================================================
-| packet ID 01  | Client's encrypted long-term public key | HMAC authenticator |
-|===============|=========================================|====================|
-|SMALL_FIELD_LEN|             PUBKEY_LEN                  |  HMAC_TRUNC_BYTES  |
+|  packet ID 01   | Client's encrypted long-term PubKey |  HMAC authenticator  |
+|=================|=====================================|======================|
+| SMALL_FIELD_LEN |             PUBKEY_LEN              |   HMAC_TRUNC_BYTES   |
 --------------------------------------------------------------------------------
 
 */
-/* Second part of the initial login handshake */
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_01(u8* msg_buf){
@@ -668,7 +674,7 @@ void process_msg_01(u8* msg_buf){
     u64 L = 128;
     u64 PACKET_ID02 = PACKET_ID_02;
     u64 PACKET_ID01 = PACKET_ID_01; 
-    u64 recv_HMAC_offset = SMALL_FIELD_LEN + sizeof(u64) + PUBKEY_LEN;
+    u64 recv_HMAC_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
     
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
     u8* PACKET_ID01_addr = (u8*)(&PACKET_ID01);
@@ -692,7 +698,6 @@ void process_msg_01(u8* msg_buf){
     
     /*  Use what's already in the locked memory region to compute HMAC and 
      *  to decrypt the user's long-term public key
-     *  Server uses KAB_s to compute the same HMAC on A_x
      *
      *  Server uses KAB_s to compute the same HMAC on A_x as the client did. 
      *
@@ -709,6 +714,7 @@ void process_msg_01(u8* msg_buf){
      */ 
      
     /* Step 3 of HMAC construction */
+    
     /* Length of K is less than B so append 0s to it until it's long enough. */
     /* This was done during K's initialization. Now place the actual key.    */
     memcpy( K0 + (B - SESSION_KEY_LEN)
@@ -723,7 +729,7 @@ void process_msg_01(u8* msg_buf){
     
     /* step 5 of HMAC construction */
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
-    memcpy(K0_XOR_ipad_TEXT + B, msg_buf + (2 * SMALL_FIELD_LEN), PUBKEY_LEN);
+    memcpy(K0_XOR_ipad_TEXT + B, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
     /* step 6 of HMAC construction */
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
@@ -766,10 +772,20 @@ void process_msg_01(u8* msg_buf){
     handshake_buf_nonce_offset = (4 * sizeof(bigint)) + (3 * SESSION_KEY_LEN);
     handshake_buf_key_offset   =  4 * sizeof(bigint);
     
-    CHACHA20(msg_buf + (2 * SMALL_FIELD_LEN)
+    /* Passed parameters to this call to ChaCha20:
+     *
+     *  1. INPUT TEXT   : Client's encrypted long-term public key.
+     *  2. TEXT_length  : in bytes.
+     *  3. ChaCha Nonce : inside the locked global handshake memory region.
+     *  4. Nonce_length : in uint32_t's.
+     *  5. ChaCha Key   : inside the locked global handshake memory region
+     *  6. Key_length   : in uint32_t's.
+     *  7. Destination  : Pointer to where ChaCha's result should go.
+     */
+    CHACHA20(msg_buf + SMALL_FIELD_LEN
             ,PUBKEY_LEN
             ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
-            ,(u32)(SHORT_NONCE_LEN / sizeof(u32))
+            ,(u32)(SHORT_NONCE_LEN / sizeof(u32))       
             ,(u32*)(temp_handshake_buf + handshake_buf_key_offset)
             ,(u32)(SESSION_KEY_LEN / sizeof(u32))
             ,client_pubkey_buf
@@ -1140,7 +1156,7 @@ void process_msg_10(u8* msg_buf){
     CHACHA20( msg_buf + room_id_offset             /* text: Encrypted room_ID */
              ,SMALL_FIELD_LEN                      /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
-             ,(u32)(LONG_NONCE_LEN / sizeof(u32))   /* nonce_len in uint32_t's */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_t's */
              ,(u32*)(recv_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* key_len in uint32_t's   */
              ,(u8*)(&room_id)                      /* output target buffer    */
@@ -1467,7 +1483,7 @@ void process_msg_20(u8* msg_buf){
     }  
       
     /* Construct the message buffer. */
-    buf_ixs_pubkeys_len = (num_users_in_room * (SMALL_FIELD_LEN + PUBKEY_LEN));
+    buf_ixs_pubkeys_len = num_users_in_room * (MAX_USERID_CHARS + PUBKEY_LEN);
     
     reply_len = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN 
                   + 
@@ -1536,11 +1552,11 @@ void process_msg_20(u8* msg_buf){
     for(u64 i = 0; i < num_users_in_room; ++i){
     
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
-               ,&(user_ixs_in_room[i])
-               ,SMALL_FIELD_LEN
+               ,clients[user_ixs_in_room[i]].user_id
+               ,MAX_USERID_CHARS
               );
         
-        buf_ixs_pubkeys_write_offset += SMALL_FIELD_LEN;
+        buf_ixs_pubkeys_write_offset += MAX_USERID_CHARS;
               
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
                ,clients[user_ixs_in_room[i]].client_pubkey.bits
@@ -1577,7 +1593,36 @@ void process_msg_20(u8* msg_buf){
         ,&server_privkey_bigint, PRIVKEY_LEN);
     
     /* The reply buffer is ready. Transmit it to the chatroom's new client. */  
-   
+
+    /* Reply to client with the user index and public key of all room guests. 
+     * in encrypted form. The key to decrypt them itself is also encrypted
+     * and hidden behind a deeper-level key extracted from the shared secret.
+     */
+    
+    /*
+    
+    Server ---> Client
+
+    Main packet structure:
+
+================================================================================
+| packetID 20 |        KC        |     N     | Associated Data |   Signature   |  
+|=============|==================|===========|=================|===============|
+|  SMALL_LEN  | ONE_TIME_KEY_LEN | SMALL_LEN |      L bytes    | SIGNATURE_LEN |
+--------------------------------------------------------------------------------    
+
+    where Associated Data of length L bytes:
+    
+================================================================================
+| user_id1  | long-term_public_key1 | ... | user_idN  | long-term_public_keyN  |    
+|===========|=======================|=====|===========|========================|
+| SMALL_LEN |      PUBKEY_LEN       | ... | SMALL_LEN |      PUBKEY_LEN        |
+-------------------------------------------------------------------------------- 
+
+    L = N * (SMALL_FIELD_LEN + PUBKEY_LEN). 
+    
+    */
+
     if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't send Room-Join-OK message.\n");
         goto label_cleanup;
@@ -1738,6 +1783,17 @@ void process_msg_20(u8* msg_buf){
              ,PRIVKEY_LEN
         );
         
+/* Send the new room guest's index and public key to all room participants.
+ 
+    Server ----> Client
+  
+================================================================================
+| packet ID 21 |        KC       | new_guest_ID | new_guest_PubKey | Signature |
+|==============|=================|==============|==================|===========|
+|  SMALL_LEN   | ONETIME_KEY_LEN |  SMALL_LEN   |    PUBKEY_LEN    |  SIG_LEN  |
+--------------------------------------------------------------------------------
+
+*/     
         add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
     }
 
