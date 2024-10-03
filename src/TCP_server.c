@@ -801,16 +801,27 @@ void process_msg_01(u8* msg_buf){
         printf("              Letting the user know and to try later.  \n");
         
         /* Construct the ROSETTA FULL reply message buffer */
-        reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+        reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
     
         *((u64*)(reply_buf)) = PACKET_ID_02;
-        *((u64*)(reply_buf + SMALL_FIELD_LEN)) = SIGNATURE_LEN;
         
         Signature_GENERATE( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
-                            ,reply_buf + (2 * SMALL_FIELD_LEN)
+                            ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
+                          
+/* A client tried logging in, but Rosetta's user slots are all full right now.
+ 
+    Server ----> Client
+  
+================================================================================
+| packet ID 02 |                         SIGNATURE                             | 
+|==============|===============================================================|
+|  SMALL_LEN   |                          SIG_LEN                              |
+--------------------------------------------------------------------------------
+
+*/
         
         if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
             printf("[ERR] Server: Couldn't send full-rosetta message.\n");
@@ -832,7 +843,7 @@ void process_msg_01(u8* msg_buf){
     /* Encrypt the ID with chacha20 and KBA key and N_s nonce! */
     
     /* Try using a chacha counter even with less than 64 bytes of input. */
-    reply_len  = (3 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+    reply_len  = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
     
     *((u64*)(reply_buf)) = PACKET_ID_01;
@@ -850,10 +861,9 @@ void process_msg_01(u8* msg_buf){
              ,(reply_buf + SMALL_FIELD_LEN)
              );
              
-    *((u64*)(reply_buf + (2 * SMALL_FIELD_LEN))) = SIGNATURE_LEN;
     
     Signature_GENERATE( M, Q, Gm, PACKET_ID01_addr, SMALL_FIELD_LEN
-                       ,(reply_buf+ (3 * SMALL_FIELD_LEN))
+                       ,(reply_buf+ (2 * SMALL_FIELD_LEN))
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
     
@@ -977,7 +987,19 @@ void process_msg_01(u8* msg_buf){
         }
         ++next_free_user_ix;
     }
-          
+
+/* A client successfully logged in. Let them know what their user_ix is.    
+ 
+    Server ----> Client
+  
+================================================================================
+| packet ID 01 |  user_ix  |                    SIGNATURE                      | 
+|==============|===========|===================================================|
+|  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
+--------------------------------------------------------------------------------
+
+*/
+      
     if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't send Login-OK message.\n");
         goto label_cleanup;
