@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "coreutil.h"
+#include "../lib/coreutil.h"
 
 #define SERVER_PORT      54746
 #define PRIVKEY_LEN      40   

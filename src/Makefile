@@ -57,16 +57,16 @@ test_argon2: tests/Simple_Tests/test_argon2.c
 	-pthread -O2 $(CFLAGS)
 
 
-TCP_server: TCP_server.c
-	gcc TCP_server.c -o ../bin/TCP_server -march=native -lm \
+TCP_server: server/TCP_server.c
+	gcc server/TCP_server.c -o ../bin/TCP_server -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 
-server_gen_priv_key: server_gen_priv_key.c
-	gcc server_gen_priv_key.c -o ../bin/server_gen_priv_key -march=native -lm \
-	-pthread -O2 $(CFLAGS)
+server_gen_priv_key: server/server_gen_priv_key.c
+	gcc server/server_gen_priv_key.c -o ../bin/server_gen_priv_key \
+	-march=native -lm -pthread -O2 $(CFLAGS)
 	
 	
-server_gen_pub_key: server_gen_pub_key.c
-	gcc server_gen_pub_key.c -o ../bin/server_gen_pub_key -march=native -lm \
-	-pthread -O2 $(CFLAGS)
+server_gen_pub_key: server/server_gen_pub_key.c
+	gcc server/server_gen_pub_key.c -o ../bin/server_gen_pub_key \
+	-march=native -lm -pthread -O2 $(CFLAGS)
