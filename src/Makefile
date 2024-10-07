@@ -22,6 +22,8 @@ CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
 
+WXFLAGS += `wx-config --cxxflags --libs`
+
 
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
 	TCP_server server_gen_priv_key server_gen_pub_key
@@ -70,3 +72,8 @@ server_gen_priv_key: server/server_gen_priv_key.c
 server_gen_pub_key: server/server_gen_pub_key.c
 	gcc server/server_gen_pub_key.c -o ../bin/server_gen_pub_key \
 	-march=native -lm -pthread -O2 $(CFLAGS)
+	
+
+client:
+	g++ -pipe client/cApp.cpp client/cMain.cpp `wx-config --cxxflags --libs` -o ../bin/Client
+
