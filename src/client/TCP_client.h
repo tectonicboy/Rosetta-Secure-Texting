@@ -31,13 +31,17 @@
 
 struct roommate{
     char   user_id[MAX_USERID_CHARS];
-    u64    nonce_counter;
+    u64    client_nonce_counter;
     bigint client_pubkey;
     bigint client_pubkey_mont;
-    bigint shared_secret; 
+    bigint client_shared_secret; 
 };
 
-u64 own_ix = 0;
+u64  own_ix = 0;
+char own_user_id[MAX_USERID_CHARS];
+
+bigint server_shared_secret;
+u64    server_nonce_counter;
 
 pthread_mutex_t mutex;
 pthread_t poller_threadID;
