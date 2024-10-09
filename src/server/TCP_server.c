@@ -35,9 +35,6 @@ struct connected_client{
     u32  num_pending_msgs;
     u64  pending_msg_sizes[MAX_PEND_MSGS];
     u8*  pending_msgs[MAX_PEND_MSGS];
-    u64  pubkey_len;
-    u64  pubkey_mont_len;
-    u64  shared_secret_len;
     u64  nonce_counter;
     
     time_t time_last_polled;
@@ -107,6 +104,7 @@ pthread_t conn_checker_threadID;
 #define PACKET_ID_60 0x0A7F4E5D330A14DD
 
 struct connected_client clients[MAX_CLIENTS];
+
 struct chatroom rooms[MAX_CHATROOMS];
 
 /* Memory region holding the temporary keys for the login handshake. */
@@ -134,8 +132,7 @@ u32 self_init(){
     server_address.sin_family      = AF_INET;
     server_address.sin_port        = htons(port);
     server_address.sin_addr.s_addr = INADDR_ANY;
-                   
-                                                 
+                                                        
     if( (listening_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("[ERR] Server: Could not open server socket. Aborting.\n");
         return 1;
@@ -183,6 +180,7 @@ u32 self_init(){
     
     if(fread(server_privkey, 1, PRIVKEY_LEN, privkey_dat) != PRIVKEY_LEN){
         printf("[ERR] Server: couldn't get private key from file. Aborting.\n");
+        fclose(privkey_dat);
         return 1;
     }
     else{
@@ -204,27 +202,27 @@ u32 self_init(){
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
     M = get_BIGINT_from_DAT
-        (3072, "../saved_nums/M_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../../saved_nums/M_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
     
     /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
     Q = get_BIGINT_from_DAT
-        (320,  "../saved_nums/Q_raw_bytes.dat\0", 320,  MAX_BIGINT_SIZ);
+        (320,  "../../saved_nums/Q_raw_bytes.dat\0", 320,  MAX_BIGINT_SIZ);
     
     /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
     G = get_BIGINT_from_DAT
-        (3072, "../saved_nums/G_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../../saved_nums/G_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_BIGINT_from_DAT
-     (3072, "../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+     (3072, "../../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
     
     server_pubkey_bigint = get_BIGINT_from_DAT
-        (3072, "../saved_nums/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../../saved_nums/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
     
     fclose(privkey_dat);
     
     /* Initialize the mutex that will be used to prevent the main thread and
-     * the connection checker thread from writing/reading data in parallel.
+     * the connection checker from writing/reading the same data in parallel.
      */
     if (pthread_mutex_init(&mutex, NULL) != 0) { 
         printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
@@ -305,7 +303,7 @@ void remove_user_from_room(u64 sender_ix){
         
         *((u64*)(reply_buf)) = PACKET_ID_50;
                 
-        memcpy( reply_buf+SMALL_FIELD_LEN
+        memcpy( reply_buf + SMALL_FIELD_LEN
                ,clients[sender_ix].user_id
                ,MAX_USERID_CHARS
         );
@@ -913,14 +911,6 @@ void process_msg_01(u8* msg_buf){
                   ,M
                  );      
                
-    clients[next_free_user_ix].pubkey_mont_len
-     = (clients[next_free_user_ix].client_pubkey_mont).used_bits;
-    
-    /* Get the Montgomery Form's length in bytes. */
-    while(clients[next_free_user_ix].pubkey_mont_len % 8 != 0){
-        ++clients[next_free_user_ix].pubkey_mont_len;
-    }
-    clients[next_free_user_ix].pubkey_mont_len /= 8;
      
     /* Compute a client-to-server encryption shared secret which will be used
      * to encrypt transmissions that occur before the client has started to
@@ -950,14 +940,6 @@ void process_msg_01(u8* msg_buf){
                   ,&(clients[next_free_user_ix].shared_secret)
                  );
     
-    clients[next_free_user_ix].shared_secret_len = 
-     (clients[next_free_user_ix].shared_secret).used_bits;
-     
-    /* Get the shared secret's length in bytes. */
-    while(clients[next_free_user_ix].shared_secret_len % 8 != 0){
-        ++clients[next_free_user_ix].shared_secret_len;
-    }
-    clients[next_free_user_ix].shared_secret_len /= 8;
     
     /* Reflect the new taken user slot in the global user status bitmask. */
     users_status_bitmask |= 
