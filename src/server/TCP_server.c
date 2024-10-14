@@ -18,7 +18,6 @@
 #define MAX_SOCK_QUEUE   1024
 #define MAX_BIGINT_SIZ   12800
 #define SMALL_FIELD_LEN  8 
-#define MAX_USERID_CHARS 8
 #define TEMP_BUF_SIZ     16384
 #define SESSION_KEY_LEN  32
 #define ONE_TIME_KEY_LEN 32
@@ -30,7 +29,7 @@
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
 struct connected_client{
-    char user_id[MAX_USERID_CHARS];
+    char user_id[SMALL_FIELD_LEN];
     u32  room_ix;
     u32  num_pending_msgs;
     u64  pending_msg_sizes[MAX_PEND_MSGS];
@@ -50,22 +49,7 @@ struct chatroom{
     u64 room_id;
 };
 
-/* A global bitmask for various control-related purposes.
- * 
- * Currently used bits:
- *
- *  [0] - Whether the temporary login handshake memory region is locked or not.
- *        This memory region holds very short-term public/private keys used
- *        to transport the client's long-term public key to the server securely.
- *        It can't be local, because the handshake spans several transmissions,
- *        (thus is interruptable), yet needs the keys for its entire duration.
- *        Every login procedure needs it. If a second client attempts to login
- *        while another client is already logging in, without checking this bit,
- *        the other client's login procedure's short-term keys could be erased.
- *        Thus, use this bit to disallow more than 1 login handshake at a time,
- *        regardless of how extremely unlikely this seems, it's still possible.
- */ 
-u32 server_control_bitmask = 0;
+u8 temp_handshake_memory_region_isLocked = 0;
 
 /* Avoid the ambiguity raised by questions like "which room is this user in?"
  * about the notion of not being in any room at all, by letting global index [0]
@@ -305,7 +289,7 @@ void remove_user_from_room(u64 sender_ix){
                 
         memcpy( reply_buf + SMALL_FIELD_LEN
                ,clients[sender_ix].user_id
-               ,MAX_USERID_CHARS
+               ,SMALL_FIELD_LEN
         );
         
         /* Compute a signature so the clients can authenticate the server. */
@@ -490,7 +474,7 @@ void process_msg_00(u8* msg_buf){
      * the initial login handshake protocol in the designated memory region and
      * lock it, disallowing another parallel login attempt to corrupt them.
      */
-    server_control_bitmask |= (1ULL << 63ULL);
+    temp_handshake_memory_region_isLocked = 1;
     
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
@@ -540,9 +524,11 @@ void process_msg_00(u8* msg_buf){
      *       KAB_s = X_s[0  .. 31 ]
      *       KBA_s = X_s[32 .. 63 ]
      *       Y_s   = X_s[64 .. 95 ]
-     *       N_s   = X_s[96 .. 107] <-- 12-byte Nonce for ChaCha20.
+     *       N_s   = X_s[96 .. 107] <--- 12-byte Nonce for ChaCha20.
      *
      *  These 7 things are all stored in the designated locked memory region.
+     *  It already had the client's short-term public key in it, so that's 8
+     *  cryptographic artifacts in the memory region in total.
      */
 
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
@@ -1007,7 +993,7 @@ label_cleanup:
      */
     explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
     
-    server_control_bitmask &= ~(1ULL << 63ULL);
+    temp_handshake_memory_region_isLocked = 0;
     
     /* Free temporaries on the heap. */
     free(K0);
@@ -1027,10 +1013,12 @@ label_cleanup:
 
 /* A client requested to create a new chatroom.
  
+                                          ENCRYPTED
+                            /\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 ================================================================================
-| packet ID 10 |  user_ix  |  Encrypted Key   |Encrypted Room_ID|  Signature   |
+| packet ID 10 |  user_ix  | Decryption Key   | Room_ID+user_ID |  Signature   |
 |==============|===========|==================|=================|==============|
-|  SMALL_LEN   | SMALL_LEN | ONE_TIME_KEY_LEN |    SMALL_LEN    | SIGNATURE_LEN|
+|  SMALL_LEN   | SMALL_LEN | ONE_TIME_KEY_LEN |  2 * SMALL_LEN  | SIGNATURE_LEN|
 --------------------------------------------------------------------------------
 
 */
@@ -1047,11 +1035,11 @@ void process_msg_10(u8* msg_buf){
     u8* reply_buf = NULL;
     u64 reply_len;
         
-    u64 room_id;
+    u8* room_user_ID_buf = calloc(1, 2 * SMALL_FIELD_LEN);
     u64 user_ix;
     u64 PACKET_ID11 = PACKET_ID_11;
     u64 PACKET_ID10 = PACKET_ID_10;
-    u64 signed_len = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+    u64 signed_len = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     u64 room_id_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     bigint  nonce_bigint
            ,one
@@ -1158,12 +1146,12 @@ void process_msg_10(u8* msg_buf){
     /* Use the incremented nonce in the other call to ChaCha to get room_id. */
    
     CHACHA20( msg_buf + room_id_offset             /* text: Encrypted room_ID */
-             ,SMALL_FIELD_LEN                      /* text_len in bytes       */
+             ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_t's */
              ,(u32*)(recv_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* key_len in uint32_t's   */
-             ,(u8*)(&room_id)                      /* output target buffer    */
+             ,room_user_ID_buf                     /* output target buffer    */
             );
   
     /* Increment nonce counter again to prepare the nonce for its next use. */
@@ -1226,9 +1214,15 @@ void process_msg_10(u8* msg_buf){
     /* Server bookkeeping - populate this room's slot, find next free slot. */
     rooms[next_free_room_ix].num_people = 1;
     rooms[next_free_room_ix].owner_ix = user_ix;
-    rooms[next_free_room_ix].room_id = room_id;
+    rooms[next_free_room_ix].room_id = *((u64*)room_user_ID_buf);
+    
 
     clients[user_ix].room_ix = next_free_room_ix;
+    
+    memcpy( clients[user_ix].user_id
+           ,(room_user_ID_buf + SMALL_FIELD_LEN) 
+           ,SMALL_FIELD_LEN
+          );
 
     /* Reflect the new taken room slot in the global room status bitmask. */
     rooms_status_bitmask |= (1ULL << (63ULL - next_free_room_ix));
@@ -1265,6 +1259,7 @@ label_cleanup:
     free(KBA);
     free(recv_K);
     free(send_K);
+    free(room_user_ID_buf);
     if(reply_buf){free(reply_buf);}
     
     return;
@@ -1272,10 +1267,12 @@ label_cleanup:
  
 /* A client requested to join an existing chatroom.
  
+                                          ENCRYPTED
+                            /\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 ================================================================================
-| packet ID 20 |  user_ix  |  Encrypted Key   |Encrypted Room_ID|  Signature   |
+| packet ID 20 |  user_ix  | Decryption Key   | Room_ID+user_ID |  Signature   |
 |==============|===========|==================|=================|==============|
-|  SMALL_LEN   | SMALL_LEN | ONE_TIME_KEY_LEN |    SMALL_LEN    | SIGNATURE_LEN|
+|  SMALL_LEN   | SMALL_LEN | ONE_TIME_KEY_LEN |  2 * SMALL_LEN  | SIGNATURE_LEN|
 --------------------------------------------------------------------------------
 
 */
@@ -1314,7 +1311,7 @@ void process_msg_20(u8* msg_buf){
     u64 send_type21_encr_part_offset = SMALL_FIELD_LEN + ONE_TIME_KEY_LEN;
     u64 send_type20_signed_len; 
     u64 send_type20_AD_offset  = ((2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN);
-    u64 room_id;
+    u8* room_user_ID_buf = calloc(1, 2 * SMALL_FIELD_LEN);
     u64 user_ix;
     u64 room_ix;
     u64 num_users_in_room = 0;
@@ -1331,7 +1328,7 @@ void process_msg_20(u8* msg_buf){
     one.bits = NULL;
     aux1.bits = NULL;
     
-    u64 sign_offset = ONE_TIME_KEY_LEN + (3 * SMALL_FIELD_LEN);
+    u64 sign_offset = ONE_TIME_KEY_LEN + (4 * SMALL_FIELD_LEN);
     u64 signed_len  = sign_offset;
     user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
     
@@ -1432,12 +1429,12 @@ void process_msg_20(u8* msg_buf){
     /* Use the incremented nonce in the other call to chacha to get room_id */
    
     CHACHA20( msg_buf + encrypted_roomID_offset    /* text: encrypted room_ID */
-             ,SMALL_FIELD_LEN                      /* text_len in bytes       */
+             ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(recv_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* key_len in uint32_t's   */
-             ,(u8*)(&room_id)                      /* output target buffer    */
+             ,room_user_ID_buf                     /* output target buffer    */
             );
   
     /* Increment nonce counter again to prepare the nonce for its next use. */
@@ -1449,7 +1446,7 @@ void process_msg_20(u8* msg_buf){
     room_found = 0;
     
     for(u64 i = 0; i < MAX_CHATROOMS; ++i){
-        if(rooms[i].room_id == room_id){
+        if(rooms[i].room_id == *((u64*)(room_user_ID_buf)) ){
             room_found = 1;
             room_ix = i;
             break;
@@ -1464,6 +1461,15 @@ void process_msg_20(u8* msg_buf){
         printf("              Dropping transmission silently.\n\n");
         goto label_cleanup;
     }
+
+    /* Server bookkeeping */
+    
+    ++(rooms[room_ix].num_people);
+    
+    memcpy( clients[user_ix].user_ID
+           ,*((u64*)(room_user_ID_buf + SMALL_FIELD_LEN))
+           ,SMALL_FIELD_LEN
+          ); 
 
     /* Send (encrypted and signed) the public keys of all users currently in the
      * chatroom, to the user who is now wanting to join it, as well as the new 
@@ -1487,7 +1493,7 @@ void process_msg_20(u8* msg_buf){
     }  
       
     /* Construct the message buffer. */
-    buf_ixs_pubkeys_len = num_users_in_room * (MAX_USERID_CHARS + PUBKEY_LEN);
+    buf_ixs_pubkeys_len = num_users_in_room * (SMALL_FIELD_LEN + PUBKEY_LEN);
     
     reply_len = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN 
                   + 
@@ -1557,10 +1563,10 @@ void process_msg_20(u8* msg_buf){
     
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
                ,clients[user_ixs_in_room[i]].user_id
-               ,MAX_USERID_CHARS
+               ,SMALL_FIELD_LEN
               );
         
-        buf_ixs_pubkeys_write_offset += MAX_USERID_CHARS;
+        buf_ixs_pubkeys_write_offset += SMALL_FIELD_LEN;
               
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
                ,clients[user_ixs_in_room[i]].client_pubkey.bits
@@ -1753,10 +1759,10 @@ void process_msg_20(u8* msg_buf){
 
         memcpy( type21_encrypted_part
                ,clients[user_ix].user_id
-               ,MAX_USERID_CHARS
+               ,SMALL_FIELD_LEN
         );
         
-        memcpy( type21_encrypted_part + MAX_USERID_CHARS
+        memcpy( type21_encrypted_part + SMALL_FIELD_LEN
                ,clients[user_ix].client_pubkey.bits
                ,PUBKEY_LEN
         );
@@ -2450,13 +2456,13 @@ void* check_for_lost_connections(){
          * unlock the global memory region for login cryptographic artifacts.
          */
         if( 
-              (server_control_bitmask & (1ULL << 63ULL))
+              temp_handshake_memory_region_isLocked == 1
             &&
               ( (curr_time - time_curr_login_initiated) > 5)       
           )
         {
             explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
-            server_control_bitmask &= ~(1ULL << 63ULL);               
+            temp_handshake_memory_region_isLocked = 0;               
         }
         
         printf("[OK]  Server: Checker for lost connections finished!\n\n\n"); 

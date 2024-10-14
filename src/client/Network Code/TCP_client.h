@@ -48,6 +48,8 @@ pthread_t poller_threadID;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
 
+u8 temp_handshake_memory_region_isLocked = 0;
+
 struct bigint *M, *Q, *G, *Gm, *server_pubkey_bigint, *own_privkey, *own_pubkey;
 
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
@@ -168,7 +170,31 @@ u32 self_init(){
     return 0;
 }
 
+void construct_msg_00(void){
 
+    /* Generate client's short-term public, private keys and ChaCha nonce N, and 
+     * shared secret and thus bidirectional keys KAB, KBA and "unused" part Y:
+     *
+     *
+     *       First section - reserved for server's short-term PubKey bigint. 
+     *
+     *       b_s = random in the range [1, Q)
+     * 
+     *       B_s = G^b_s mod M     <--- Montgomery Form of G.
+     *   
+     *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s.
+     *
+     *       KAB_s = X_s[0  .. 31 ]
+     *       KBA_s = X_s[32 .. 63 ]
+     *       Y_s   = X_s[64 .. 95 ] 
+     *       N_s   = X_s[96 .. 107] <--- 12-byte Nonce for ChaCha20.    
+     */
+
+    gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
+    a_s = (bigint*)(temp_handshake_buf + sizeof(bigint));
+
+
+}
 
 
 
