@@ -172,15 +172,22 @@ u32 self_init(){
 
 void construct_msg_00(void){
 
+    bigint* a_s;
+    bigint* A_s;
+    bigint* B_s;
+    bigint* X_s;
+    
+    у8* Y_s;
+
     /* Generate client's short-term public, private keys and ChaCha nonce N, and 
      * shared secret and thus bidirectional keys KAB, KBA and "unused" part Y:
      *
      *
-     *       First section - reserved for server's short-term PubKey bigint. 
+     *       First section - reserved for server's short-term PubKey B_s
      *
-     *       b_s = random in the range [1, Q)
+     *       a_s = random in the range [1, Q)
      * 
-     *       B_s = G^b_s mod M     <--- Montgomery Form of G.
+     *       A_s = G^b_s mod M     <--- Montgomery Form of G.
      *   
      *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s.
      *
@@ -191,6 +198,7 @@ void construct_msg_00(void){
      */
 
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
+    
     a_s = (bigint*)(temp_handshake_buf + sizeof(bigint));
 
 

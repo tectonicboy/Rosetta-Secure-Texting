@@ -457,7 +457,8 @@ void process_msg_00(u8* msg_buf){
     bigint* B_s;
     bigint* X_s;
             
-    u32* Y_s;
+    u8* Y_s;
+    
     u32  tempbuf_byte_offset = 0;
     u32  replybuf_byte_offset = 0;
         
@@ -572,7 +573,7 @@ void process_msg_00(u8* msg_buf){
            ,INIT_AUTH_LEN
     );
     
-    Y_s = (u32*)(temp_handshake_buf + tempbuf_byte_offset);
+    Y_s = temp_handshake_buf + tempbuf_byte_offset;
         
     tempbuf_byte_offset += INIT_AUTH_LEN;
     
@@ -582,7 +583,7 @@ void process_msg_00(u8* msg_buf){
     );
    
     /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
-    Signature_GENERATE( M, Q, Gm, (u8*)(Y_s), INIT_AUTH_LEN, signature_buf
+    Signature_GENERATE( M, Q, Gm, Y_s, INIT_AUTH_LEN, signature_buf
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
                   
