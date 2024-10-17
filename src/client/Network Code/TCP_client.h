@@ -73,8 +73,7 @@ u8* temp_handshake_buf;
 int port = SERVER_PORT
    ,own_socket_fd
    ,optval1 = 1
-   ,optval2 = 2
-   ,client_socket_fd;
+   ,optval2 = 2;
 
 socklen_t server_addr_len = sizeof(struct sockaddr_in);
 
@@ -170,14 +169,26 @@ u32 self_init(){
     return 0;
 }
 
-void construct_msg_00(void){
+/* A user requested to be logged in Rosetta:
+
+    Client ----> Server
+
+================================================================================
+|        PACKET_ID_00         |   Client's short-term public key in the clear  |
+|=============================|================================================|
+|       SMALL_FIELD_LEN       |                    PUBKEY_LEN                  |
+--------------------------------------------------------------------------------
+
+*/
+u8 construct_msg_00(void){
 
     bigint* a_s;
     bigint* A_s;
-    bigint* B_s;
-    bigint* X_s;
     
-    у8* Y_s;
+    u8 status = 0;
+    
+    const u64 msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
+    u8* msg_buf = calloc(1, msg_len);
 
     /* Generate client's short-term public, private keys and ChaCha nonce N, and 
      * shared secret and thus bidirectional keys KAB, KBA and "unused" part Y:
@@ -201,10 +212,68 @@ void construct_msg_00(void){
     
     a_s = (bigint*)(temp_handshake_buf + sizeof(bigint));
 
+    /* Interface generating a pub_key still needs priv_key in a file. Change. */
+    save_BIGINT_to_DAT("temp_privkey_DAT\0", a_s);
+  
+    A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+    
+    /* Place the server short-term pub_key also in the locked memory region. */
+    memcpy((temp_handshake_buf + (2 * sizeof(bigint))), A_s, sizeof(bigint));
 
+    /* Establish an initial connection to the Rosetta TCP server. */
+    printf("[OK]  Client: Now connecting to the Rosetta TCP server...\n");
+    
+    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
+        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              Aborting Login...\n\n");
+        status = 1;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Connected to the Rosetta TCP server!\n");
+    }
+    
+    /* Construct and send the MSG buffer to the TCP server. */
+    
+    *((u64*)(msg_buf)) = (u64)PACKET_ID_00;
+    
+    memcpy(msg_buf + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
+    
+    if(send(own_socket_fd, msg_buf, msg_len) == -1){
+        printf("[ERR] Client: Couldn't send initial login transmission.\n");
+        printf("[ERR]         Aborting Login...\n\n");
+        status = 1;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Sent initial login transmission!\n");
+    }
+    
+label_cleanup:
+
+    system("rm temp_privkey_DAT");
+    free(msg_buf);
+    
+    return status;
 }
 
+/* Server sent its short-term public key too, so the client can now compute a
+   shared secret and transport its LONG-TERM public key in encrypted form.
+   
+    Server ----> Client
 
+================================================================================
+| PACKET_ID_00 | Server's one time PubKey | Signature of unused part of X: Y_s |
+|==============|==========================|====================================|
+|  SMALL_LEN   |       PUBKEY_LEN         |             SIGNATURE_LEN          |
+--------------------------------------------------------------------------------
+
+*/  
+void process_msg_00(u8* msg_buf){
+
+
+
+}
 
 
 
