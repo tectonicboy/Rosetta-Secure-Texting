@@ -634,6 +634,7 @@ label_cleanup:
     free(Am.bits);
     free(signature_buf);
     free(reply_buf);
+    system("rm temp_privkey_DAT");
   
     return;
 }
