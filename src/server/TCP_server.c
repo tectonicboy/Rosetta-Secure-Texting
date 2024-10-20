@@ -685,7 +685,8 @@ void process_msg_01(u8* msg_buf){
     /*  Use what's already in the locked memory region to compute HMAC and 
      *  to decrypt the user's long-term public key
      *
-     *  Server uses KAB_s to compute the same HMAC on A_x as the client did. 
+     *  Server uses KAB_s to compute the same HMAC on A_x (client's long-term
+     *  public key in encrypted form) as the client did. 
      *
      *  HMAC parameters here:
      *

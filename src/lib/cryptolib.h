@@ -7,9 +7,10 @@
 #include <pthread.h>
 #include <immintrin.h> /* for _mulx_u64      */
 #include <adxintrin.h> /* for _addcarryx_u64 */
+
 #include "bigint.h"
 
-#include <time.h> /* for performance testing only. */
+#include <time.h> /* for performance testing. */
 
 
 /* mutex for testing only so we can see prints in argon2's G() properly */
@@ -24,7 +25,7 @@ pthread_mutex_t lock;
 /* Montgomery Modular Multiplication constants. */
 #define MONT_LIMB_SIZ 8  /* Size in bytes of limbs in Montgomery numbers.    */
 #define MONT_L        48 /* Non-zero-padded number of limbs in DH modulus M. */
-#define MONT_MU       5519087143809977509 /* Multiplicative inverse */
+#define MONT_MU       5519087143809977509 /* Multiplicative inverse          */
 
 /* Simplifies pointer arithmetic for access to Argon2's memory matrix B. */
 typedef struct block{
@@ -813,9 +814,9 @@ void argon2_initJ1J2_blockpool_for2i
 } 
 __attribute__ ((always_inline)) 
 inline
-uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p, 
-                     uint32_t J_1, uint32_t J_2, uint64_t n, uint64_t q, 
-                     uint64_t computed_blocks)
+uint64_t Argon2_getLZ(uint64_t r, uint64_t sl,  uint64_t cur_lane, 
+                      uint64_t p, uint32_t J_1, uint32_t J_2, 
+                      uint64_t n, uint64_t q,   uint64_t computed_blocks)
 {
     uint64_t W_siz, x, y, zz, l_ix, z_ix, start_z_ix;
 
@@ -867,8 +868,8 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl, uint64_t cur_lane, uint64_t p,
  *      - Use J_1 and J_2 to compute indices l and z.
  *      - Call compression function G(), transforming this 1024-byte block.
  *
- *  Input buffer contains: Pointer to start of this thread's segment in B[][] 
- *                         + r, l, sl, m', t, y, p, q as uint64_t's.
+ *  Input buffer contains: Pointer to start of this thread's segment in B[][], 
+ *                         as well as: r, l, sl, m', t, y, p, q - as uint64_t's.
  */
 void* argon2_transform_segment(void* thread_input){
 
