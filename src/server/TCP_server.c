@@ -28,6 +28,12 @@
 
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
+/* Memory region for short-term cryptographic artifacts for a login handshake */
+u8* temp_handshake_buf;
+
+/* Whether the login handshake memory region is currently locked or not. */
+u8 temp_handshake_memory_region_isLocked = 0;
+
 struct connected_client{
     char user_id[SMALL_FIELD_LEN];
     u32  room_ix;
@@ -49,19 +55,21 @@ struct chatroom{
     u64 room_id;
 };
 
-u8 temp_handshake_memory_region_isLocked = 0;
 
-/* Avoid the ambiguity raised by questions like "which room is this user in?"
+
+/* Bitmasks telling the server which client and room slots are currently free. 
+ *
+ * Avoid the ambiguity raised by questions like "which room is this user in?"
  * about the notion of not being in any room at all, by letting global index [0]
  * mean exactly that - for example, a room_ix of [0] in a client structure would
- * mean that the client is not in any room right now. Thus, begin populating
- * users and chatrooms at index 1 internally.
+ * mean that the client is not in any room right now. Therefore begin populating
+ * users and chatrooms at index 1 globally.
+ *
+ * Thus, set leftmost bit of the leftmost byte to 1 by initializing them to 128. 
+ * Assumes little endian byte order. Results in leftmost byte = 1000 0000.    
  */
-
-/* Bitmasks telling the server which client and room slots are currently free */
-/* Set the leftmost bit of the leftmost byte to 1. Little-endian byte order.  */
-u64 users_status_bitmask = 64; 
-u64 rooms_status_bitmask = 64;
+u64 users_status_bitmask = 128; 
+u64 rooms_status_bitmask = 128;
 
 u32 next_free_user_ix = 1;
 u32 next_free_room_ix = 1;
@@ -91,7 +99,7 @@ struct connected_client clients[MAX_CLIENTS];
 
 struct chatroom rooms[MAX_CHATROOMS];
 
-/* Memory region holding the temporary keys for the login handshake. */
+/* Memory region for cryptographic artifacts during the login handshake. */
 u8* temp_handshake_buf;
 
 /* Linux Sockets API related globals. */
@@ -453,7 +461,7 @@ void process_msg_00(u8* msg_buf){
     bigint  Am; 
        
     bigint* A_s;
-    bigint* b_s;
+    bigint* b_s = calloc(1, sizeof(bigint));
     bigint* B_s;
     bigint* X_s;
             
@@ -506,7 +514,7 @@ void process_msg_00(u8* msg_buf){
       )
     {
         printf("[ERR] Server: Client's short-term public key is invalid.\n");
-        printf("\n\nIts info and ALL bits:\n\n");
+        printf("              Its info and ALL bits:\n\n");
         bigint_print_info(A_s);
         bigint_print_all_bits(A_s);
         goto label_cleanup;
@@ -532,9 +540,13 @@ void process_msg_00(u8* msg_buf){
      *  cryptographic artifacts in the memory region in total.
      */
 
+    /* Places only the BITS of the private key, not a BigInt object!! */
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
-    
-    b_s = (bigint*)(temp_handshake_buf + sizeof(bigint));
+   
+    b_s->bits = temp_handshake_buf + sizeof(bigint));
+    b_s->size_bits = MAX_BIGINT_SIZ;
+    b_s->used_bits = get_used_bits(b_s->bits, PUBKEY_LEN);
+    b_s->free_bits = b_s->size_bits - b_s->used_bits;
     
     /* Interface generating a pub_key still needs priv_key in a file. Change. */
     save_BIGINT_to_DAT("temp_privkey_DAT\0", b_s);

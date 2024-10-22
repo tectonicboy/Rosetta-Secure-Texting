@@ -18,7 +18,6 @@
 #define MAX_SOCK_QUEUE   1024
 #define MAX_BIGINT_SIZ   12800
 #define SMALL_FIELD_LEN  8 
-#define MAX_USERID_CHARS 8
 #define TEMP_BUF_SIZ     16384
 #define SESSION_KEY_LEN  32
 #define ONE_TIME_KEY_LEN 32
@@ -29,8 +28,10 @@
 
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
+volatile u8 temp_handshake_memory_region_isLocked = 0;
+
 struct roommate{
-    char   user_id[MAX_USERID_CHARS];
+    char   user_id[SMALL_FIELD_LEN];
     u64    client_nonce_counter;
     bigint client_pubkey;
     bigint client_pubkey_mont;
@@ -38,7 +39,7 @@ struct roommate{
 };
 
 u64  own_ix = 0;
-char own_user_id[MAX_USERID_CHARS];
+char own_user_id[SMALL_FIELD_LEN];
 
 bigint server_shared_secret;
 u64    server_nonce_counter;
@@ -47,8 +48,6 @@ pthread_mutex_t mutex;
 pthread_t poller_threadID;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
-
-u8 temp_handshake_memory_region_isLocked = 0;
 
 struct bigint *M, *Q, *G, *Gm, *server_pubkey_bigint, *own_privkey, *own_pubkey;
 
@@ -190,7 +189,7 @@ u8 construct_msg_00(void){
     const u64 msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
     u8* msg_buf = calloc(1, msg_len);
 
-    /* Generate client's short-term public, private keys and ChaCha nonce N, and 
+    /* Generate client's short-term public/private key pair and ChaCha nonce N, and 
      * shared secret and thus bidirectional keys KAB, KBA and "unused" part Y:
      *
      *
@@ -207,18 +206,20 @@ u8 construct_msg_00(void){
      *       Y_s   = X_s[64 .. 95 ] 
      *       N_s   = X_s[96 .. 107] <--- 12-byte Nonce for ChaCha20.    
      */
-
-    gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
+     
+    temp_handshake_memory_region_isLocked = 1;
     
-    a_s = (bigint*)(temp_handshake_buf + sizeof(bigint));
+    gen_priv_key(PRIVKEY_LEN, temp_handshake_buf);
+    
+    a_s = (bigint*)(temp_handshake_buf);
 
     /* Interface generating a pub_key still needs priv_key in a file. Change. */
     save_BIGINT_to_DAT("temp_privkey_DAT\0", a_s);
   
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
     
-    /* Place the server short-term pub_key also in the locked memory region. */
-    memcpy((temp_handshake_buf + (2 * sizeof(bigint))), A_s, sizeof(bigint));
+    /* Place our short-term pub_key also in the locked memory region. */
+    memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
 
     /* Establish an initial connection to the Rosetta TCP server. */
     printf("[OK]  Client: Now connecting to the Rosetta TCP server...\n");
@@ -258,7 +259,8 @@ label_cleanup:
 }
 
 /* Server sent its short-term public key too, so the client can now compute a
-   shared secret and transport its LONG-TERM public key in encrypted form.
+   shared secret and transport its LONG-TERM public key in encrypted form and
+   complete the login handshake.
    
     Server ----> Client
 
@@ -270,10 +272,101 @@ label_cleanup:
 
 */  
 void process_msg_00(u8* msg_buf){
+   
+    u32 tempbuf_write_offset = 0;
+    
+    bigint *X_s;
+    bigint *B_s;
+    bigint  B_sM;
+    bigint  zero;
+    bigint *a_s = (bigint*)(temp_handshake_buf);
+
+    /* Grab the server's short-term public key from the transmission. */
+    B_s = calloc(1, sizeof(bigint));
+    B_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    
+    memcpy(B_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
+    
+    B_s->size_bits = MAX_BIGINT_SIZ;
+    B_s->used_bits = get_used_bits(B_s->bits, PUBKEY_LEN);
+    B_s->free_bits = B_s->size_bits - B_s->used_bits;
+    
+    /* Compute a short-term shared secret with the server, extract a pair of
+     * symmetric bidirectional keys and the symmetric ChaCha Nonce, as well as
+     * the unused part of the shared secret, of which the server has computed
+     * a cryptographic signature, which we need to verify for authentication.
+     *
+     *       X_s   = B_s^a_s mod M   <--- Montgomery Form of B_s.
+     *       KAB_s = X_s[0  .. 31 ]
+     *       KBA_s = X_s[32 .. 63 ]
+     *       Y_s   = X_s[64 .. 95 ]
+     *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
+     *
+     * Note: No need to place them in the locked memory region for the login
+     *       handshake temporary cryptographic artifacts, because these keys
+     *       and values won't be used after this function, so they can simply
+     *       be allocated on its stack frame, since the locked memory region
+     *       is cleared and unlocked at the end of this function anyway.
+     */
+    
+    bigint_create(X_s,   MAX_BIGINT_SIZ, 0);
+    bigint_create(&zero, MAX_BIGINT_SIZ, 0);
+    bigint_create(&B_sM, MAX_BIGINT_SIZ, 0);
+    
+    Get_Mont_Form(B_s, &B_sM, M);
+    
+    /* Check the other side's public key for security flaws and consistency. */   
+    if(   ((bigint_compare2(&zero, B_s)) != 3) 
+        || 
+          ((bigint_compare2(M, B_s)) != 1)
+        ||
+          (check_pubkey_form(&A_sM, M, Q) == 0) 
+      )
+    {
+        printf("[ERR] Client: Server's short-term public key is invalid.\n");
+        printf("              Its info and ALL %u bits:\n\n");
+        bigint_print_info(B_s);
+        bigint_print_all_bits(B_s);
+        goto label_cleanup;
+    }     
+    
+    /* X_s = B_s^a_s mod M */
+    MONT_POW_modM(&B_sm, a_s, M, X_s);
+     
     
 
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
