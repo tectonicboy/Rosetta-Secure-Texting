@@ -1,89 +1,87 @@
 #include "../../lib/cryptolib.h"
 
-#define RESBITS 12800
+#define MAX_BIGINT_SIZ 12800
+#define PRIVKEY_LEN    40 
+#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
 int main(){
 
-    /**************************************************************************/
-    /*              NOW TESTING SCHNORR SIGNATURE GENERATOR                   */
-    /**************************************************************************/
+    struct bigint *M, *Q, *G, *Gm, *Am, *a, *s, *e;
+    
+    clock_t time;
+    double total_time_sec;
+    
+    /* Text bytes to be signed */    
+    const uint64_t data_len = 197; 
+    uint8_t* msg = calloc(1, data_len);
+    FILE* ran = NULL;
+    size_t status;
+    uint8_t* result_signature = calloc(1, SIGNATURE_LEN);
+    uint8_t isValid;
 
+    ran = fopen("/dev/urandom","r");
+    
+    status = fread(msg, 1, 197, ran);
+    
+    if(status != 197){
+        printf("[ERR] TEST SIG_GEN: Failed to read urandom. Quitting.\n\n");
+        return 1;
+    }
+    
+    fclose(ran);
 
-
-    struct bigint *M, *Q, *G, *Gm, *Am, *a, *s, *e,
-      *A_computed = malloc(sizeof(struct bigint));
-    
-    printf("SIZEOF(STRUCT BIGINT) = %lu\n", sizeof(struct bigint));
-    
-    bigint_create(A_computed, RESBITS, 0);
-    
-    uint64_t data_len = 197;
- 
-    char *msg = malloc(data_len);
-    
-    
-    
-        /* ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )              */
-    /* Cuz the signature itself is (s,e) both of which are BigInts whose */
-    /* bitwidth is up to the bitwidth of Q and no more.                  */
-    
-    
-    
-    char *result_signature = malloc((2 * sizeof(struct bigint)) + (2 * 40));
-
-    M = get_BIGINT_from_DAT( 3072
-        ,"../saved_nums/M_raw_bytes.dat\0"
-        ,3071
-        ,RESBITS
-          );
-    
-    Q = get_BIGINT_from_DAT( 320
-        ,"../saved_nums/Q_raw_bytes.dat\0"
-        ,320
-        ,RESBITS
-           );
-    G = get_BIGINT_from_DAT( 3072
-    ,"../saved_nums/G_raw_bytes.dat\0"
-    ,3071
-    ,RESBITS
-   );
+    M  = get_BIGINT_from_DAT( 3072
+                             ,"../saved_nums/saved_M.dat\0"
+                             ,3071
+                             ,MAX_BIGINT_SIZ
+                            ); 
+       
+    Q  = get_BIGINT_from_DAT( 320
+                             ,"../saved_nums/saved_Q.dat\0"
+                             ,320
+                             ,MAX_BIGINT_SIZ
+                            );
+                            
+    G  = get_BIGINT_from_DAT( 3072
+                             ,"../saved_nums/saved_G.dat\0"
+                             ,3071
+                             ,MAX_BIGINT_SIZ
+                            );
 
     Gm = get_BIGINT_from_DAT( 3072
-    ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
-    ,3071
-    ,RESBITS
-   );
-    
-    a = get_BIGINT_from_DAT(312
-       ,"../saved_nums/testprivkey_raw_bytes.dat\0"
-       ,312
-       ,RESBITS
-      );
-      
-      
-    
+                             ,"../saved_nums/saved_Gm.dat\0"
+                             ,3071
+                             ,MAX_BIGINT_SIZ
+                            );
+   
+    a  = get_BIGINT_from_DAT( 320
+                             ,"../bin/server_privkey.dat\0"
+                             ,318
+                             ,MAX_BIGINT_SIZ
+                            );
 
-    Am = get_BIGINT_from_DAT
-   (
-    3072
-   ,"../saved_nums/PRACTICAL_Amont_raw_bytes.dat\0" 
-           ,3072
-           ,RESBITS
-           );
+    Am = get_BIGINT_from_DAT( 3072
+                             ,"../bin/server_pubkeymont.dat\0" 
+                             ,3071
+                             ,MAX_BIGINT_SIZ
+                            );
              
+    printf("Result of compare(G, a) : %u\n\n", bigint_compare2(G, a));
 
-    printf("Result of compare(G, a) : %u\n", bigint_compare2(G, a));
-
-    printf("Calling Signature_GENERATE() NOW!!!\n");
+    printf("Generating signatures...\n\n");
     
-    Signature_GENERATE(  M, Q, Gm, (u8*)(msg), data_len
-            ,(u8*)(result_signature), a, 39
-          );
-                  
-    printf("FINISHED SIGNATURE!!\n");
-    printf("The resulting signature itself is (s,e) both BigInts.\n");
-    printf("But we have to point the .bits pointer to their returned buffer\n");
+    for(uint64_t i = 0; i < 20; ++i){
+        time = clock();
+        
+        Signature_GENERATE(M, Q, Gm, msg, data_len, result_signature, a, 40);
+        
+        time = clock() - time;
+        total_time_sec = ((double)time)/CLOCKS_PER_SEC;
+        printf("Time taken for Sig[%lu]: %lf sec.\n\n", i, total_time_sec);
+    }
     
+    printf("\nFinished the signatures!\n\n");
+ 
     s = (struct bigint *)(result_signature + 0);
     e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);    
     
@@ -93,46 +91,28 @@ int main(){
     memcpy(s->bits, result_signature + (1*sizeof(struct bigint)) +  0, 40);
     memcpy(e->bits, result_signature + (2*sizeof(struct bigint)) + 40, 40);
     
-    printf("Reconstructed BigInts s and e from what's in Signature.\n");
-    printf("\n***** s: *****\n");
-    
+    /*
+    printf("Reconstructed BigInts s and e from what's in the signature.\n");  
+      
+    printf("\ns: \n");   
     bigint_print_info(s);
     bigint_print_bits(s);
-
-    
-    printf("\n***** e: *****\n");
-
+  
+    printf("\ne:\n");
     bigint_print_info(e);
     bigint_print_bits(e);
-
-    
-
-    /* Compute a public key from the generated private key.   */
-    /* This key is used in validating a signature generated from private key. */
-
-    /* A = G^a mod M */
-    
-    /* We can use montgomery modular MUL mod M function here. */
-    /* We already have Gmont above. */
-
-    
-    
-    
+   
     printf("Ready to call SIGNATURE VALIDATE now!\n");
-
-    uint8_t isValid = 
-    Signature_VALIDATE(Gm,Am ,M, Q, s, e, (u8*)(msg), data_len);
+    */
     
-    printf("FINISHED VALIDATING THE SIGNATURE!\n");
+    isValid = Signature_VALIDATE(Gm, Am, M, Q, s, e, msg, data_len);
     
-    if(!isValid){
-    printf("Valid Signature: NO\n");
+    if( ! isValid ){
+        printf("Valid Signature: NO\n");
     }
     else{
-    printf("Valid Signature: YES\n");
+        printf("Valid Signature: YES\n");
     }
     
-    return 0;
-    
-    
+    return 0; 
 }

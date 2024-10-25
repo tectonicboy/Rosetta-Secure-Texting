@@ -1589,11 +1589,12 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
 
     /* 7. */
     R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
+    
     R->free_bits = R->size_bits - R->used_bits;
     
+     /* old code: if ( (bigint_compare2(R, N)) != 3 ){ */    
      if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
-    /*if ( (bigint_compare2(R, N)) != 3 ){*/
-        printf("---->> We hit the R_L != 0 case at end of Mont_MUL!\n");
+        //printf("---->> We hit the R_L != 0 case at end of Mont_MUL!\n");
         /* Standard BigInt subtraction.  */
         bigint_equate2(&R_aux, R);        
         bigint_sub2(&R_aux, N, R);
@@ -1715,6 +1716,10 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
                        )
 {
 
+    /* Timers for TESTING */
+    time_t time;
+    double total_time_mont_pow_seconds;
+
     struct bigint second_btb_outnum, one, Q_minus_one, reduced_btb_res,
                   k, R, e, s, div_res, aux1, aux2, aux3;
         
@@ -1744,6 +1749,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
          
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
     
+    /*
     printf("\n\n[SIG_GEN] BLAKE2b produced 64-byte PREHASH:\n\n");
     
     for(uint32_t i = 0; i < 64; ++i){
@@ -1751,9 +1757,10 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
         printf("%02x ", (uint8_t)prehash[i]);
     }
     printf("\n\n");
+    */
     
     uint8_t *second_btb_outbuf = malloc(64)
-        ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
+           ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
         
     memcpy(second_btb_inbuf, private_key->bits, key_len_bytes);
     memcpy(second_btb_inbuf + key_len_bytes, prehash, prehash_len);
@@ -1775,22 +1782,42 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     bigint_div2(&second_btb_outnum, &Q_minus_one, &div_res, &reduced_btb_res);  
     bigint_add_fast(&reduced_btb_res, &one, &k);  /* <----- k */ 
     
+    /*
     printf("Signature generator computed k:\n");
     bigint_print_info(&k);
     bigint_print_bits(&k);
     
     printf("k in big-endian:\n");
     bigint_print_bits_bigend(&k);
+    */
+    
     /* Now compute R. */
-
+    
+    time = clock();
+    
     MONT_POW_modM(Gmont, &k, M, &R); 
- 
+    
+    time = clock() - time;
+    
+    total_time_mont_pow_seconds = ((double)time)/CLOCKS_PER_SEC;
+    
+    printf( "<SIG_GEN> Time for MONT_POW(%u-bit ^ %u-bit MOD %u-bit):"
+            " %lf sec.\n"
+           ,Gmont->used_bits
+           ,k.used_bits
+           ,M->used_bits
+           ,total_time_mont_pow_seconds
+          );
+
+    
+    /*
     printf("Montgomery R = G^k mod M FINISHED!!!  R:\n\n");
     bigint_print_info(&R);
     bigint_print_bits(&R);
     
     printf("R in big-endian:\n");
     bigint_print_bits_bigend(&R);
+    */
     
     R_used_bytes = R.used_bits;
     
@@ -1802,14 +1829,15 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     /* Now compute e. */
     uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len),
-         *e_buf = malloc(40), /* e has bitwidth of Q. */
-         *third_btb_outbuf = malloc(64);
+            *e_buf = malloc(40), /* e has bitwidth of Q. */
+            *third_btb_outbuf = malloc(64);
          
     memcpy(R_with_prehash, R.bits, R_used_bytes);
     memcpy(R_with_prehash + R_used_bytes, prehash, prehash_len);
     
     len_Rused_PH = R_used_bytes + prehash_len;
     
+    /*
     printf("[SIG_GEN] Parameters to B2B producing 64-byte e:\n");
     printf("parm 1 - R_with_prehash:\n\n");
     
@@ -1823,9 +1851,11 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     printf("parm 3 - 0\n\n");
     printf("parm 4 - 64\n\n");
     printf("parm 5 - out_buf\n\n");
+    */
     
     BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
     
+    /*
     printf("\n\n[SIG_GEN] BLAKE2b(R||PH) produced 64-byte e:\n\n");
     
     for(uint32_t i = 0; i < 64; ++i){
@@ -1833,6 +1863,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
         printf("%02x ", (uint8_t)third_btb_outbuf[i]);
     }
     printf("\n\n");
+    */
     
     memcpy(e.bits, third_btb_outbuf, 40);
 
@@ -1848,12 +1879,14 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     bigint_div2(&aux3, Q, &div_res, &s);
     
+    /*
     printf("Signature generator computed e and s!!\ne:\n");
     bigint_print_info(&e);
     bigint_print_bits(&e);
     printf("s:\n");
     bigint_print_info(&s);
     bigint_print_bits(&s);    
+    */
     
     /* signature buffer must have been allocated with exactly 
      * ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )
@@ -1939,7 +1972,8 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     /* Compute the signature validation prehash. Same as during generation. */ 
       
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
-
+    
+    /*
     printf("\n\n[SIG_VAL] BLAKE2b produced 64-byte PREHASH:\n\n");
     
     for(uint32_t i = 0; i < 64; ++i){
@@ -1947,17 +1981,19 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
         printf("%02x ", (uint8_t)prehash[i]);
     }
     printf("\n\n");
-
+    */
 
     /* Compute  R =  (G^s * A^e) mod M.               */
     /* This is: R = ((G^s mod M) * (A^e mod M)) mod M */
 
+    /*
     printf("[SIG_VAL] s in big-endian:\n");
     bigint_print_bits_bigend(s);
     
     printf("[SIG_VAL] e in big-endian:\n");
     bigint_print_bits_bigend(e);
-
+    */
+    
     MONT_POW_modM(Gmont, s, M, &R_aux1); 
     MONT_POW_modM(Amont, e, M, &R_aux2);
     
@@ -1965,13 +2001,14 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     
     bigint_div2(&R_aux3, M, &div_res, &R);
     
+    /*
     printf("[SIG_VAL] R_val = (G^s * A^e) mod M   FINISHED!!!  R_val:\n\n");
     bigint_print_info(&R);
     bigint_print_bits(&R);
     
     printf("[SIG_VAL] R_val in big-endian:\n");
     bigint_print_bits_bigend(&R);
-    
+    */
     
     R_used_bytes = R.used_bits;
       
@@ -1995,8 +2032,7 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     
     len_Rused_PH = R_used_bytes + prehash_len;
     
-    
-    
+    /*
     printf("[SIG_VAL] Parameters to B2B producing 64-byte e:\n");
     printf("parm 1 - R_with_prehash:\n\n");
     
@@ -2010,12 +2046,12 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     printf("parm 3 - 0\n\n");
     printf("parm 4 - 64\n\n");
     printf("parm 5 - out_buf\n\n");
-    
+    */
     
     
     BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
     
-    
+    /*
     printf("\n\n[SIG_VAL] BLAKE2b produced 64-byte e_val:\n\n");
     
     for(uint32_t i = 0; i < 64; ++i){
@@ -2023,6 +2059,7 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
         printf("%02x ", (uint8_t)third_btb_outbuf[i]);
     }
     printf("\n\n");
+    */
     
     memcpy(val_e.bits, third_btb_outbuf, 40);
 

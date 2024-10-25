@@ -325,17 +325,17 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     FILE*    dat_file;
    
     if(reserve_bits % 0x08 || reserve_bits < 0x40 || reserve_bits > 4290000000){ 
-        printf("[ERR] Cryptolib: get_BIGINT_from_DAT - Invalid reserve_bits\n");
+        printf("[ERR] BigInt: get_BIGINT_from_DAT - Invalid reserve_bits\n");
         return NULL;
     }  
     
     if(reserve_bits < used_bits){
-        printf("[ERR] Cryptolib: Too few reserved bits for .dat file: %s\n",fn);
+        printf("[ERR] BigInt: Too few reserved bits for .dat file: %s\n",fn);
         return NULL;
     }
     
     if ( (dat_file = fopen(fn, "r")) == NULL){
-        printf("[ERR] Cryptolib: Opening .dat file failed. Returning NULL.\n");
+        printf("[ERR] BigInt: Opening .dat file failed. Returning NULL.\n");
         return NULL;
     }
     
@@ -350,7 +350,7 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
     
     if(!fread(bigint_buf, 1, file_bytes, dat_file)){
-        printf("[WARN] Cryptolib: No bytes read from bigint file %s\n", fn);
+        printf("[WARN] BigInt: No bytes read from bigint file %s\n", fn);
     }
     
     big_n_ptr = calloc(1, sizeof(bigint)); 
@@ -365,7 +365,7 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     free(bigint_buf);
     
     if( fclose(dat_file) != 0){
-        printf("[ERR] Cryptolib: fclose() in READ failed for file: %s\n", fn);
+        printf("[ERR] BigInt: fclose() in READ failed for file: %s\n", fn);
     }
     
     return big_n_ptr;
@@ -378,7 +378,7 @@ void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){
     u32 file_bytes;
     
     if ( (dat_file = fopen(fn, "w")) == NULL){
-        printf("[ERR] Cryptolib: Opening .dat file failed in SAVE.\n");
+        printf("[ERR] BigInt: Opening .dat file failed in SAVE.\n");
         return;
     }
     
@@ -390,13 +390,13 @@ void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){
     file_bytes /= 8;
         
     if(! (bytes_written = fwrite(num->bits, 1, file_bytes, dat_file)) ){
-        printf("[WARN] Cryptolib: No bytes written to bigint dat file.\n");
+        printf("[WARN] BigInt: No bytes written to bigint dat file.\n");
     }
     
     printf("Written %lu bytes to bigint file %s\n", bytes_written, fn);
     
     if( fclose(dat_file) != 0){
-        printf("[ERR] Cryptolib: fclose() in SAVE failed for file %s\n", fn);
+        printf("[ERR] BigInt: fclose() in SAVE failed for file %s\n", fn);
     }
     
     return;
