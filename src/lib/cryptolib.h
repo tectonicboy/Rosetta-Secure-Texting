@@ -1080,16 +1080,7 @@ label_further_passes:
         memcpy(old_block, G_output, sizeof(block_t));
         
         
-        /*
-        pthread_mutex_lock(&lock); 
-        
-        printf("ON PASS: %lu\n\n", r);
-        printf("TWO INPUT BLOCKS addr: %p and %p\n", G_input_one, G_input_two);
-        printf("WRITING TO BLOCK (slice[%lu]): block addr: %p\n", sl, G_output);
-        printf("B[0] has address: %p\n", B[0]);
-        
-        pthread_mutex_unlock(&lock); 
-        */
+
         
         
         Argon2_G((uint8_t*)G_input_one, (uint8_t*)G_input_two, (uint8_t*)G_output); 
@@ -1106,11 +1097,6 @@ label_further_passes:
     
 label_finish_segment:
 
-    pthread_mutex_lock(&lock); 
-    
-
-
-    pthread_mutex_unlock(&lock); 
     
     free(Z_buf);
     free(old_block);
@@ -1122,8 +1108,7 @@ label_finish_segment:
     
 void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     
-    /* MUTEX FOR TESTING ONLY SO WE CAN SEE PRINTS IN G() properly. */
-    pthread_mutex_init(&lock, NULL);
+
     
     /* Length of input to the generator of 64-byte H0, BLAKE2B() in this case.*/
     uint64_t H0_input_len =   10 * sizeof(uint32_t)
