@@ -1,8 +1,9 @@
 #include "../../lib/cryptolib.h"
 
 #define MAX_BIGINT_SIZ 12800
-#define PRIVKEY_LEN    40 
+#define PRIVKEY_LEN    40
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
+#define TEST_DATA_LEN  1024
 
 int main(){
 
@@ -12,8 +13,7 @@ int main(){
     double total_time_sec;
     
     /* Text bytes to be signed */    
-    const uint64_t data_len = 197; 
-    uint8_t* msg = calloc(1, data_len);
+    uint8_t* msg = calloc(1, TEST_DATA_LEN);
     FILE* ran = NULL;
     size_t status;
     uint8_t* result_signature = calloc(1, SIGNATURE_LEN);
@@ -21,9 +21,9 @@ int main(){
 
     ran = fopen("/dev/urandom","r");
     
-    status = fread(msg, 1, 197, ran);
+    status = fread(msg, 1, TEST_DATA_LEN, ran);
     
-    if(status != 197){
+    if(status != TEST_DATA_LEN){
         printf("[ERR] TEST SIG_GEN: Failed to read urandom. Quitting.\n\n");
         return 1;
     }
@@ -73,23 +73,32 @@ int main(){
     for(uint64_t i = 0; i < 20; ++i){
         time = clock();
         
-        Signature_GENERATE(M, Q, Gm, msg, data_len, result_signature, a, 40);
+        Signature_GENERATE( M, Q, Gm, msg, TEST_DATA_LEN
+                           ,result_signature, a, PRIVKEY_LEN
+                          );
         
         time = clock() - time;
         total_time_sec = ((double)time)/CLOCKS_PER_SEC;
-        printf("Time taken for Sig[%lu]: %lf sec.\n\n", i, total_time_sec);
+        printf("Time taken for Sig_GEN[%lu]: %lf sec.\n\n", i, total_time_sec);
     }
     
     printf("\nFinished the signatures!\n\n");
  
     s = (struct bigint *)(result_signature + 0);
-    e = (struct bigint *)(result_signature + sizeof(struct bigint) + 40);    
+    e = (struct bigint *)(result_signature + sizeof(bigint) + PRIVKEY_LEN);    
     
     s->bits = calloc(1, (size_t)(s->size_bits / 8));
     e->bits = calloc(1, (size_t)(e->size_bits / 8));
  
-    memcpy(s->bits, result_signature + (1*sizeof(struct bigint)) +  0, 40);
-    memcpy(e->bits, result_signature + (2*sizeof(struct bigint)) + 40, 40);
+    memcpy( s->bits 
+           ,result_signature + (1*sizeof(struct bigint)) +  0
+           ,PRIVKEY_LEN
+          );
+     
+    memcpy( e->bits
+           ,result_signature + (2*sizeof(struct bigint)) + PRIVKEY_LEN
+           ,PRIVKEY_LEN
+          );
     
     /*
     printf("Reconstructed BigInts s and e from what's in the signature.\n");  
@@ -104,8 +113,14 @@ int main(){
    
     printf("Ready to call SIGNATURE VALIDATE now!\n");
     */
+    time = clock();
+
+    isValid = Signature_VALIDATE(Gm, Am, M, Q, s, e, msg, TEST_DATA_LEN);
     
-    isValid = Signature_VALIDATE(Gm, Am, M, Q, s, e, msg, data_len);
+    time = clock() - time;
+    total_time_sec = ((double)time)/CLOCKS_PER_SEC;
+    printf("Time taken for Sig_VAL: %lf sec.\n\n", total_time_sec);
+    
     
     if( ! isValid ){
         printf("Valid Signature: NO\n");
