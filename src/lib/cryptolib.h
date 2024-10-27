@@ -12,10 +12,6 @@
 
 #include <time.h> /* for performance testing. */
 
-
-/* mutex for testing only so we can see prints in argon2's G() properly */
-pthread_mutex_t lock;
-
 /* Rotation constants for BLAKE2b */
 #define R1 32
 #define R2 24
@@ -23,11 +19,11 @@ pthread_mutex_t lock;
 #define R4 63
 
 /* Montgomery Modular Multiplication constants. */
-#define MONT_LIMB_SIZ 8  /* Size in bytes of limbs in Montgomery numbers.    */
-#define MONT_L        48 /* Non-zero-padded number of limbs in DH modulus M. */
-#define MONT_MU       5519087143809977509 /* Multiplicative inverse          */
+#define MONT_LIMB_SIZ 8                   /* Bytes in a Montgomery space limb */
+#define MONT_L        48                  /* Number of limbs in DH modulus M  */
+#define MONT_MU       5519087143809977509 /* Modular inverse of DH modulus M  */ 
 
-/* Simplifies pointer arithmetic for access to Argon2's memory matrix B. */
+/* These simplify pointer arithmetic for access to Argon2's memory matrix B. */
 typedef struct block{
     uint8_t block_data[1024];
 } block_t;
@@ -85,7 +81,7 @@ const uint64_t sigma[12][16] = {
     { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
 };
 
-/* Useful offsets into the input buffer for the thread function of Argon2. */
+/* Offsets into the input buffer for the multithreaded function of Argon2. */
 #define OFFSET_r  (sizeof(block_t*) + (0 * sizeof(uint64_t)))
 #define OFFSET_l  (sizeof(block_t*) + (1 * sizeof(uint64_t)))
 #define OFFSET_sl (sizeof(block_t*) + (2 * sizeof(uint64_t)))
@@ -111,6 +107,8 @@ void uint32_roll_left(uint32_t* n, uint32_t roll_amount){
     }
     return;
 }
+
+/* Version 1 of bitwise_roll_right */
 /*
 void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
     uint8_t last_on = 0;
@@ -128,8 +126,11 @@ void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
     return; 
 }
 */
+
+/* Version 2 of bitwise_roll_right */
 //#define uint64_roll_right(v,n) ( (*((v)))  >>(n)|(*((v)))<<(64-(n)))
 
+/* Version 3 of bitwise_roll_right */
 __attribute__ ((always_inline)) 
 inline
 void uint64_roll_right(uint64_t* n, uint32_t roll_amount){
@@ -175,11 +176,10 @@ void CHACHA_INNER(uint32_t* matrix){
     return;
 }
 
-
 /*  Part of the block function is to construct the actual 
  *  chacha state matrix. It always consists of exactly
- *  16 unsigned 32-bit numbers. The constants are always
- *  four and always exactly the same as per the spec.
+ *  16 unsigned 32-bit integers. The constants are always
+ *  four and always exactly the same as per the RFC.
  *  
  *  This means: (key_len + counter_len + nonce_len) 
  *              MUST add up to 12. One unit of length
@@ -191,15 +191,19 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
                       ,uint32_t* serialized_result
                  )
 {
+    u32 state[16];
+    u32 initial_state[16]; 
+    u32 next_ix;
+    u32 i;
+    u32 j;
+
     if(key_len + counter_len + nonce_len != 12){
         printf("[ERR] Cryptolib - lengths of key, counter,"
                " nonce DOES NOT add up to 12.\n");
         return;
     }
-    
-    uint32_t state[16], initial_state[16], next_ix = 0, i, j;
-    
-    /* The 4 constants. */               
+        
+    /* The 4 constants. Specified in the RFC.*/               
     state[0] = 0x61707865;
     state[1] = 0x3320646e;
     state[2] = 0x79622d32; 
@@ -209,24 +213,26 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     
     for(i = key_len; i > 0; --i){
         for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(state[next_ix]))) + (3-j)) 
-              = *(((uint8_t*)(&(key[key_len - i]))) + j);
+            *(((u8*)(&(state[next_ix]))) + (3 - j)) 
+             = *(((u8*)(&(key[key_len - i]))) + j);
         }
         ++next_ix;
-    }           
+    }   
+            
     if(counter_len){
         state[next_ix] = *counter;
         ++next_ix;
     }  
+    
     for(i = nonce_len; i > 0; --i){
         for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(state[next_ix])))+(3-j)) 
+            *(((uint8_t*)(&(state[next_ix])))+(3 - j)) 
               = *(((uint8_t*)(&(nonce[nonce_len - i])))+j);
         }
         ++next_ix;
     }      
     
-    memcpy((void*)initial_state, (void*)state, 16 * sizeof(uint32_t));
+    memcpy(initial_state, state, 16 * sizeof(uint32_t));
 
     for(i = 1; i <= 10; ++i){
         CHACHA_INNER(state);
@@ -248,37 +254,37 @@ void CHACHA_BLOCK_FUNC(uint32_t* key,     uint8_t key_len
     return;
 }
 
-void CHACHA20(uint8_t* plaintext, uint32_t txt_len
-             ,uint32_t* nonce, uint8_t nonce_len
-             ,uint32_t* key,   uint8_t key_len 
-             ,uint8_t* cyphertext
+void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
+              ,uint32_t* nonce,     uint8_t nonce_len
+              ,uint32_t* key,       uint8_t key_len 
+              ,uint8_t* cyphertext
              )
 {
+    u32   num_matrices = (uint32_t)ceil((double)txt_len / 64.0);
+    u32   i;
+    u32   j; 
+    u32   counter_len = 16 - (key_len + nonce_len + 4);
+    u32   last_txt_block_len = (txt_len % 64);
+    u32** outputs = calloc(1, num_matrices * sizeof(uint32_t*));
+    u32*  counter = NULL;
+    u32   full_txt_blocks = 0;
+    
     /* This sum can be either 16 or 15. 16 means no space for Counter,
      * 15 means one uint32 space for counter. 
      * 64-bit counters or bigger are unsupported.
      */
-    if(key_len + nonce_len + 4 > 16 || key_len + nonce_len + 4 < 15){
+    if( (key_len + nonce_len + 4) > 16 || (key_len + nonce_len + 4) < 15 ){
         printf("[ERR] Cryptolib - sum of lengths of key,"
                " nonce, constants is invalid.\n");
         return;
     }
-
-    uint32_t num_matrices = (uint32_t)ceil((double)txt_len / 64.0)
-             , i, j, counter_len = 16 - (key_len + nonce_len + 4)
-            ,last_txt_block_len = (txt_len % 64)
-            ;
-            pthread_mutex_unlock(&lock); 
-    uint32_t** outputs = malloc(num_matrices * sizeof(uint32_t*));
-    
+  
     for(i = 0; i < num_matrices; ++i){
-        outputs[i] = malloc(64 * sizeof(uint8_t));   
+        outputs[i] = calloc(1, 64 * sizeof(uint8_t));   
     }
-
-    uint32_t* counter = NULL;
-    
+  
     if(counter_len > 0){
-        counter = malloc(sizeof(uint32_t));
+        counter = calloc(1, sizeof(uint32_t));
         *counter = 1;
     }
 
@@ -292,7 +298,6 @@ void CHACHA20(uint8_t* plaintext, uint32_t txt_len
         } 
     }
 
-    uint32_t full_txt_blocks = 0;
     if(num_matrices == 1 && last_txt_block_len == 0){
         full_txt_blocks = 1;
     }
@@ -302,30 +307,31 @@ void CHACHA20(uint8_t* plaintext, uint32_t txt_len
     
     for(i = 0; i < full_txt_blocks; ++i){
         for(j = 0; j < 64; ++j){
-            cyphertext[(64*i) + j] 
-            =   plaintext[(64*i) + j] 
-                ^ 
-                ((uint8_t*)(outputs[i]))[j]
-            ;
+            cyphertext[(64 * i) + j] 
+             = plaintext[(64 * i) + j] 
+               ^ 
+               ((uint8_t*)(outputs[i]))[j];
         }      
     }
     
     if(last_txt_block_len){
         for(j = 0; j < last_txt_block_len; ++j){
-            cyphertext[(64*full_txt_blocks) + j] 
-            =   plaintext[(64*full_txt_blocks) + j] 
-                ^ 
-                ((uint8_t*)(outputs[full_txt_blocks]))[j]
-            ;
+            cyphertext[(64 * full_txt_blocks) + j] 
+             = plaintext[(64 * full_txt_blocks) + j] 
+               ^ 
+               ((uint8_t*)(outputs[full_txt_blocks]))[j];
         }            
     }
     
     /* Cleanup */
-    if(counter){free(counter);}
+    if(counter){ free(counter); }
+    
     for(i = 0; i < num_matrices; ++i){
         free(outputs[i]);   
     }
+    
     free(outputs);
+    
     return;
 }
 
@@ -335,10 +341,8 @@ void CHACHA20(uint8_t* plaintext, uint32_t txt_len
 /*     The implementation is based on RFC 7693's theoretical description.    */
 /*****************************************************************************/  
 
-void BLAKE2B_G(uint64_t* v, uint64_t a, uint64_t b, uint64_t c
-              ,uint64_t  d, uint64_t x, uint64_t y
-              )
-{
+void BLAKE2B_G(u64* v, u64 a, u64 b, u64 c ,u64 d, u64 x, u64 y){
+
     v[a] = v[a] + v[b] + x;
     v[d] ^= v[a];
     uint64_roll_right(&(v[d]), R1);
@@ -354,15 +358,19 @@ void BLAKE2B_G(uint64_t* v, uint64_t a, uint64_t b, uint64_t c
     v[c] += v[d];
     v[b] ^= v[c];
     uint64_roll_right(&(v[b]), R4); 
+    
     return;
 }    
     
 void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
+
+    __builtin_prefetch(sigma);
+
     uint64_t v[16];
-    memcpy(v, h,  8*sizeof(uint64_t));
-    memcpy(v + 8, IV, 8*sizeof(uint64_t));
+    uint64_t s[16];
     
-    
+    memcpy(v, h, 8 * sizeof(uint64_t));
+    memcpy(v + 8, IV, 8 * sizeof(uint64_t));
     
     /* NOTE: Usually, t is a 128-bit unsigned integer. The second
      *       64 bits are used if the input message has more than 
@@ -370,16 +378,14 @@ void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
      *       happen in my secure chat app. So hardcode v[13] which
      *       is supposed to store said second 64 bits of t to 0.
      */
-    /* printf("Changing v[12] now. XORing it with (HEX) t = %lx\n", t);*/
      
     v[12] ^= t;
     v[13] ^= 0;
 
-    if(f){ v[14] = ~v[14]; }
+    if(f){ 
+        v[14] = ~v[14]; 
+    }
     
-    uint64_t s[16];
-    
-   
     for(uint8_t i = 0; i < 12; ++i){
         memcpy(s, (sigma[i % 12]), (16*sizeof(uint64_t)));
 
@@ -392,10 +398,12 @@ void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
         BLAKE2B_G(v, 1, 6, 11, 12, m[s[10]], m[s[11]]);
         BLAKE2B_G(v, 2, 7, 8,  13, m[s[12]], m[s[13]]);
         BLAKE2B_G(v, 3, 4, 9,  14, m[s[14]], m[s[15]]);
-    }   
+    }  
+     
     for(uint8_t i = 0; i < 8; ++i){
         h[i] ^= (v[i] ^ v[i+8]);
     }
+    
     return;
 }
 
@@ -412,16 +420,17 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
 {
     uint64_t h[8];
 
-    memcpy(h, IV, 8*sizeof(uint64_t));
+    memcpy(h, IV, 8 * sizeof(uint64_t));
 
     h[0] ^= 0x01010000 ^ (kk << 8) ^ nn;
 
     /* Process padded key and data blocks. */
     if(dd > 1){
-        for(uint64_t i = 0; i < (dd-1); ++i){
-            BLAKE2B_F(h, (d[i]), (i+1)*128, 0);
+        for(uint64_t i = 0; i < (dd - 1); ++i){
+            BLAKE2B_F(h, (d[i]), (i + 1) * 128, 0);
         }
     }
+    
     /* Final block. */
     if(kk == 0){ 
         BLAKE2B_F(h, d[dd-1], ll, 1); 
@@ -429,11 +438,13 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
     else{ 
         BLAKE2B_F(h, d[dd-1], ll + 128, 1); 
     }
+    
     /* Return the first NN bytes of the resulting little-endian word array h. 
      * The BLAKE2B initializer function must provide this buffer with enough 
      * memory allocated to hold NN bytes.
      */
     memcpy(ret_bytes, h, nn);
+    
     return;
 }
         
@@ -458,29 +469,32 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
  * nn - How many bytes of output we want from BLAKE2B.
  * rr - result buffer for BLAKE2B's output. Must have been already allocated.
  */      
-void BLAKE2B_INIT(uint8_t* m, uint64_t ll, uint64_t kk, uint64_t nn, uint8_t* rr){
+void BLAKE2B_INIT(u8* m, u64 ll, u64 kk, u64 nn, u8* rr){
 
-    /* Hardcoded to 0 for now, as no current use of BLAKE2B is keyed. */
+    /* Hardcoded to 0 for now, as all Rosetta uses of Blake2b are unkeyed. */
     kk = 0;
    
-    /* Find how many data blocks we will need in the 2D array d */
+    /* Find how many data blocks we will need in the 2D array d[][] */
     uint64_t dd = ceil((double)kk/128.0) + ceil((double)ll/128.0);
     
     /* Find length of last data block */
     uint64_t last_len = ll % 128;
     
-    uint64_t** data_blocks = malloc(dd * sizeof(uint64_t*));
+    uint64_t** data_blocks = calloc(1, dd * sizeof(uint64_t*));
     
     for(uint64_t i = 0; i < dd; ++i){
-        data_blocks[i] = malloc(16 * sizeof(uint64_t));
-        memset(data_blocks[i], 0x00, 16*sizeof(uint64_t));
+    
+        data_blocks[i] = calloc(1, 16 * sizeof(uint64_t));
+
         /* at last block? */
         if(i == dd-1){
             /* if it's 0, that means last block's length is 128. */
             if(last_len == 0){ 
                 last_len = 128; 
             }
+            
             memcpy(data_blocks[i], m + ((dd-1) * 128), last_len); 
+            
             break;
         }
         /* All blocks before last one are always full 128 bytes. */
@@ -488,12 +502,16 @@ void BLAKE2B_INIT(uint8_t* m, uint64_t ll, uint64_t kk, uint64_t nn, uint8_t* rr
             memcpy(data_blocks[i], m + (i*128), 128);
         }
     }
+    
     BLAKE2B(data_blocks, ll, kk, dd, nn, rr);
     
+    /* Cleanup */
     for(uint64_t i = 0; i < dd; ++i){
         free(data_blocks[i]);
     }
+    
     free(data_blocks);
+    
     return;
 }
     
@@ -510,34 +528,40 @@ void BLAKE2B_INIT(uint8_t* m, uint64_t ll, uint64_t kk, uint64_t nn, uint8_t* rr
 __attribute__ ((always_inline)) 
 inline 
 void Argon2_GB(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d){
-    *a = *a + *b 
-          +    /* Take only the 32 least significant bits of a and b. */ 
-          ((uint64_t)2 * ((uint64_t)((uint32_t)*a)) * ((uint64_t)((uint32_t)*b)));
+
+    /*  In third ADD operand, take only the 32 least significant bits of a and b
+     *
+     *  Do this by: First dereferencing the pointer to its 64-bit version
+     *              Then  casting that to an unsigned 32-bit integer
+     *              Then  reading the result
+     *              Then  casting the result back to an unsigned 64-bit integer.
+     *
+     *  Assumes little-endian byte ordering in the machine of course.          
+     */
+    *a = (*a) + (*b) + ((u64)2 * ((u64)((u32)(*a))) * ((u64)((u32)(*b))));
            
-    *d = *d ^ *a;
+    *d = (*d) ^ (*a);
     
     uint64_roll_right(d, 32);
     
-    *c = *c + *d 
-          + 
-          ((uint64_t)2 * ((uint64_t)((uint32_t)*c)) * ((uint64_t)((uint32_t)*d)));
+    *c = (*c) + (*d) + ((u64)2 * ((u64)((u32)(*c))) * ((u64)((u32)(*d))));
            
-    *b = *b ^ *c;
+    *b = (*b) ^ (*c);
+    
     uint64_roll_right(b, 24);
     
-    *a = *a + *b 
-          + 
-          ((uint64_t)2 * ((uint64_t)((uint32_t)*a)) * ((uint64_t)((uint32_t)*b)));   
+    *a = (*a) + (*b) + ((u64)2 * ((u64)((u32)(*a))) * ((u64)((u32)(*b))));   
              
-    *d = *d ^ *a;
+    *d = (*d) ^ (*a);
+    
     uint64_roll_right(d, 16);
     
-    *c = *c + *d
-          +   
-          ((uint64_t)2 * ((uint64_t)((uint32_t)*c)) * ((uint64_t)((uint32_t)*d)));   
+    *c = (*c) + (*d) + ((u64)2 * ((u64)((u32)(*c))) * ((u64)((u32)(*d))));   
            
-    *b = *b ^ *c;
+    *b = (*b) ^ (*c);
+    
     uint64_roll_right(b, 63);
+    
     return;
 }
     
@@ -556,11 +580,12 @@ void Argon2_P(uint8_t* input_128){
     /* To make the calls to GB() more elegant, prepare
      * the matrix of 4x4 uint64_t's in advance.
      */
-    uint64_t** matrix = malloc(16 * sizeof(uint64_t*));
+    u64* matrix[16];
     
     for(size_t i = 0; i < 16; ++i){
-        matrix[i] = (uint64_t*)(input_128 + (i*8));
+        matrix[i] = (uint64_t*)(input_128 + (i * 8));
     }
+    
     Argon2_GB((matrix[0]), (matrix[4]), (matrix[8]),  (matrix[12]));
     Argon2_GB((matrix[1]), (matrix[5]), (matrix[9]),  (matrix[13]));
     Argon2_GB((matrix[2]), (matrix[6]), (matrix[10]), (matrix[14]));
@@ -570,12 +595,12 @@ void Argon2_P(uint8_t* input_128){
     Argon2_GB((matrix[2]), (matrix[7]), (matrix[8]),  (matrix[13]));
     Argon2_GB((matrix[3]), (matrix[4]), (matrix[9]),  (matrix[14]));
 
-    free(matrix);
+    
     return;
 }
 
-
 /* Compression function G() for Argon2. 
+ *
  * Takes two 1024-byte blocks as input (X, Y).
  * Outputs one resulting 1024-byte block.
  *
@@ -587,29 +612,12 @@ __attribute__ ((always_inline))
 inline
 void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
 
-    /*
-    pthread_mutex_lock(&lock); 
-    
-    printf("TWO INPUT BLOCKS IN G():\n\n");
-    printf("X:\n\n");
-       for(uint32_t i = 0; i < 1024; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", ( (X)[i] )) ;
-    }
-    printf("\n\n"); 
-    printf("Y:\n\n");
-       for(uint32_t i = 0; i < 1024; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", ( (Y)[i] )) ;
-    }
-    printf("\n\n"); 
-    
-    pthread_mutex_unlock(&lock); 
-    */
-
-    uint8_t* matrix_R = malloc(1024);
-    
-    size_t i, j;
+    uint8_t matrix_R[1024];
+    uint8_t R_transformed[1024];
+    uint8_t Q_columns[1024];
+    uint8_t matrix_Z[1024];
+    size_t i; 
+    size_t j;
     
     for(i = 0; i < 1024; ++i){
         matrix_R[i] = X[i] ^ Y[i]; 
@@ -619,9 +627,8 @@ void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
      *  which itself will be transformed twice by P(), first into
      *  matrix Q, then Q into matrix Z.
      */
-    
-    uint8_t* R_transformed = malloc(1024);
     memcpy(R_transformed, matrix_R, 1024);
+    
     /*  Use P() to transform matrix R into matrix Q.     
      *  Each ROW of matrix R is fed as the input to P(), 
      *  producing the respective rows of matrix Q.
@@ -640,14 +647,11 @@ void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
      *  the transformed output buffers we will use to construct 
      *  matrix Z at the end.
      */
-    uint8_t* Q_columns = malloc(1024);
-    
     for(i = 0; i < 8; ++i){ /* for each of the 8 rows in Q */
         for(j = 0; j < 8; ++j){ /* for each 16-byte register in that row */
-            memcpy(
-                   Q_columns     + (j * 128) + (i * 16)
-                  ,R_transformed + (i * 128) + (j * 16)
-                  ,16
+            memcpy( Q_columns     + (j * 128) + (i * 16)
+                   ,R_transformed + (i * 128) + (j * 16)
+                   ,16
                   );
         }                    
     }   
@@ -659,28 +663,21 @@ void Argon2_G(uint8_t* X, uint8_t* Y, uint8_t* out_1024){
         Argon2_P(Q_columns + (i * 128));
     }   
     
-    uint8_t* matrix_Z = malloc(1024);
-    
     /* Reconstruct the contiguous rows of Z. This is the final matrix. */
     for(i = 0; i < 8; ++i){ /* for each column of matrix Q */
         for(j = 0; j < 8; ++j){ /* for each 16-byte register in that column */
-            memcpy(
-                   matrix_Z  + (j * 128) + (i * 16)
-                  ,Q_columns + (i * 128) + (j * 16)
-                  ,16
+            memcpy( matrix_Z  + (j * 128) + (i * 16)
+                   ,Q_columns + (i * 128) + (j * 16)
+                   ,16
                   );
         }                    
     }   
     
-    /* Final output is (R XOR Z). */
+    /* Final output is (matrix R XOR matrix Z). */
     for(i = 0; i < 1024; ++i){
         out_1024[i] = matrix_R[i] ^ matrix_Z[i];
     }
-
-    free(matrix_R);
-    free(matrix_Z);
-    free(R_transformed);
-    free(Q_columns);
+   
     return;
 }
     
@@ -689,7 +686,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
                   )
 {  
 
-    memset(output, 0x00, out_len);
+    memset(output, 0, out_len);
     
     uint8_t*   H_input;
     uint32_t   r;
@@ -768,8 +765,8 @@ void argon2_initJ1J2_blockpool_for2i
     uint8_t *zero1024 = malloc(1024)
            ,*zero968  = malloc(968);
            
-    memset(zero1024, 0x00, 1024);
-    memset(zero968,  0x00, 968 );
+    memset(zero1024, 0, 1024);
+    memset(zero968,  0, 968 );
     
     /* Remember, Argon2 G() takes two 1024-byte blocks and outputs one block. */
     
@@ -1496,13 +1493,17 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
     struct bigint R_aux;
     bigint_create(&R_aux, R->size_bits, 0);
     
-    /* Set R = 0, all of its (L+1) limbs. */
+    /* Set R = 0, all of its (L+1) limbs. Limb indices [0] to [L] inclusive. */
     bigint_nullify(R);
     
-    /* T - 3-limb variable, q - 1-limb variable. */
-    /* Keep T temporarily as part of R->bits in limbs [l+1] to [l+3]. */
+    /* T: 3-limb variable */ 
+    /* q: 1-limb variable */
+    
+    /* Optimization: Keep T in the memory of R->bits in limbs [L+1] to [L+3]. */
+    /* Set the pointer to point to the right memory region of R's bit buffer  */
     T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ)); 
-    memset(T, 0x00, (3 * MONT_LIMB_SIZ));
+    
+    memset(T, 0, (3 * MONT_LIMB_SIZ));
     
     for(uint64_t i = 0; i < MONT_L; ++i){
         /* 2. */
@@ -1530,13 +1531,10 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
         D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
     
         *(T + 2) += (uint64_t)D;
-        
-        /**(T + 2) = 0;*/
-        
-        
+    
         /* 4. */
         for(uint64_t j = 1; j < MONT_L; ++j){
-            /* Compute T. */
+            /* Compute T limb by limb. */
             Ul = _mulx_u64(q, *((uint64_t*)(N->bits + (j*MONT_LIMB_SIZ))), &Uh);
             
             
@@ -1567,35 +1565,29 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
             *((uint64_t*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
         }
 
-        /* 5. */    
-        
+        /* 5. */        
         C = _addcarryx_u64( (uint8_t)0
                    ,*(T + 1)
                    ,*((uint64_t*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
                    , (T + 0)
                   );
-        
-        
-        /*D = _addcarryx_u64(C, *(T+1), 0, (T+1));*/
-        
+       
         *(T + 1) = (uint64_t)C + *(T + 2); 
         *(T + 2) = 0;
+        
         /* 6. */ 
         *((uint64_t*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
         *((uint64_t*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);    
     }
 
-    memset((uint8_t*)T, 0x00, 3 * MONT_LIMB_SIZ);
+    memset((uint8_t*)T, 0, 3 * MONT_LIMB_SIZ);
 
     /* 7. */
     R->used_bits = get_used_bits(R->bits, (uint32_t)(R->size_bits / 8));
     
     R->free_bits = R->size_bits - R->used_bits;
     
-     /* old code: if ( (bigint_compare2(R, N)) != 3 ){ */    
-     if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
-        //printf("---->> We hit the R_L != 0 case at end of Mont_MUL!\n");
-        /* Standard BigInt subtraction.  */
+    if ( *((uint64_t*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
         bigint_equate2(&R_aux, R);        
         bigint_sub2(&R_aux, N, R);
     }
@@ -1659,10 +1651,16 @@ void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
 void MONT_POW_modM(struct bigint* B, struct bigint* P,
                    struct bigint* M, struct bigint* R)
 {
+    /* Timers and variables for testing. */
+    time_t time;
+    double total_time;
+ 
     uint32_t bit = 0;
+    
     struct bigint X, Y, R_1, one, div_res;
-    bigint_create(&X,          M->size_bits, 0);
-    bigint_create(&Y,          M->size_bits, 0);
+    
+    bigint_create(&X,       M->size_bits, 0);
+    bigint_create(&Y,       M->size_bits, 0);
     bigint_create(&R_1,     M->size_bits, 0);
     bigint_create(&one,     M->size_bits, 1);
     bigint_create(&div_res, M->size_bits, 0);
@@ -1671,21 +1669,24 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
 
-    for(int32_t i = (int32_t)(P->used_bits - 2); i >= 0; --i){     
-
-           
-        Montgomery_MUL(&Y, &Y, M, R);       
+    
+    time = clock();
+    
+    for(int64_t i = (int64_t)(P->used_bits - 2); i >= 0; --i){     
+       
+        Montgomery_MUL(&Y, &Y, M, R);     
         bigint_equate2(&Y, R);
-        
-
-        
+ 
         if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
-            Montgomery_MUL(&Y, &X, M, R);        
+            Montgomery_MUL(&Y, &X, M, R);      
             bigint_equate2(&Y, R);        
         }
-
-        if(i==0){break;}
     }
+    
+    time = clock() - time;
+    total_time = ((double)time)/CLOCKS_PER_SEC;
+    
+    printf("<MONT_POW> Time for main loop: %lf sec.\n", total_time);
     
     Montgomery_MUL(&one, R, M, &R_1);
     bigint_div2(&R_1, M, &div_res, R);    
@@ -1745,7 +1746,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
             ;
             
     uint8_t* prehash = malloc(prehash_len);   
-    memset(prehash, 0x00, prehash_len);
+    memset(prehash, 0, prehash_len);
          
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
     
@@ -1837,33 +1838,10 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     len_Rused_PH = R_used_bytes + prehash_len;
     
-    /*
-    printf("[SIG_GEN] Parameters to B2B producing 64-byte e:\n");
-    printf("parm 1 - R_with_prehash:\n\n");
-    
-    for(uint32_t i = 0; i < len_Rused_PH; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", (uint8_t)R_with_prehash[i]);
-    }
-    printf("\n\n");
-    
-    printf("parm 2 - len_Rused_PH: %lu\n\n", len_Rused_PH);
-    printf("parm 3 - 0\n\n");
-    printf("parm 4 - 64\n\n");
-    printf("parm 5 - out_buf\n\n");
-    */
+
     
     BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
     
-    /*
-    printf("\n\n[SIG_GEN] BLAKE2b(R||PH) produced 64-byte e:\n\n");
-    
-    for(uint32_t i = 0; i < 64; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", (uint8_t)third_btb_outbuf[i]);
-    }
-    printf("\n\n");
-    */
     
     memcpy(e.bits, third_btb_outbuf, 40);
 
@@ -1879,14 +1857,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     bigint_div2(&aux3, Q, &div_res, &s);
     
-    /*
-    printf("Signature generator computed e and s!!\ne:\n");
-    bigint_print_info(&e);
-    bigint_print_bits(&e);
-    printf("s:\n");
-    bigint_print_info(&s);
-    bigint_print_bits(&s);    
-    */
+
     
     /* signature buffer must have been allocated with exactly 
      * ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )
@@ -1951,13 +1922,17 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
         return 0;        
     }
 
+    /* Timers for TESTING */
+    time_t time;
+    double total_time_mont_pow_seconds;
+
     uint64_t prehash_len = 64
             ,R_used_bytes
             ,len_Rused_PH
             ;
             
     uint8_t* prehash = malloc(prehash_len);   
-    memset(prehash, 0x00, prehash_len);
+    memset(prehash, 0, prehash_len);
     
     
     struct bigint R, R_aux1, R_aux2, R_aux3, div_res, val_e;
@@ -1972,44 +1947,43 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     /* Compute the signature validation prehash. Same as during generation. */ 
       
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
-    
-    /*
-    printf("\n\n[SIG_VAL] BLAKE2b produced 64-byte PREHASH:\n\n");
-    
-    for(uint32_t i = 0; i < 64; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", (uint8_t)prehash[i]);
-    }
-    printf("\n\n");
-    */
 
-    /* Compute  R =  (G^s * A^e) mod M.               */
-    /* This is: R = ((G^s mod M) * (A^e mod M)) mod M */
-
-    /*
-    printf("[SIG_VAL] s in big-endian:\n");
-    bigint_print_bits_bigend(s);
-    
-    printf("[SIG_VAL] e in big-endian:\n");
-    bigint_print_bits_bigend(e);
-    */
-    
+    time = clock();
+      
     MONT_POW_modM(Gmont, s, M, &R_aux1); 
     MONT_POW_modM(Amont, e, M, &R_aux2);
     
+    time = clock() - time;
+    
+    total_time_mont_pow_seconds = ((double)time)/CLOCKS_PER_SEC;
+    
+    printf( "<SIG_VAL> Time for: MONT_POW(%u-bit ^ %u-bit MOD %u-bit)\n"
+            "                    MONT_POW(%u-bit ^ %u-bit MOD %u-bit)\n\n" 
+            "                    %lf sec.\n\n"
+           ,Gmont->used_bits
+           ,s->used_bits
+           ,M->used_bits
+           ,Amont->used_bits
+           ,e->used_bits
+           ,M->used_bits
+           ,total_time_mont_pow_seconds
+          );
+
     bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
+    
+    
+    
+    time = clock();
     
     bigint_div2(&R_aux3, M, &div_res, &R);
     
-    /*
-    printf("[SIG_VAL] R_val = (G^s * A^e) mod M   FINISHED!!!  R_val:\n\n");
-    bigint_print_info(&R);
-    bigint_print_bits(&R);
+    time = clock() - time;
+    total_time_mont_pow_seconds = ((double)time)/CLOCKS_PER_SEC;
+    printf( "<SIG_VAL> Time for last DIV(%u-bit ÷ %u-bit): %lf\n\n"
+           ,R_aux3.used_bits, M->used_bits, total_time_mont_pow_seconds
+          );
     
-    printf("[SIG_VAL] R_val in big-endian:\n");
-    bigint_print_bits_bigend(&R);
-    */
-    
+        
     R_used_bytes = R.used_bits;
       
     while(R_used_bytes % 8 != 0){
@@ -2019,53 +1993,23 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     R_used_bytes /= 8;
     
     /* Last step:                                                             */
-    /* Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.     */
-     /* Check that this is equal to e. If it is, validation passed.             */
+    /* Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.       */
+    /* Check that this is equal to e. If it is, validation passed.            */
      
-     /* Now compute val_e. */
-    uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len),
-         /* *e_buf = malloc(40), */ /* e has bitwidth of Q. */
-         *third_btb_outbuf = malloc(64); /* Not rlly 3rd here. Change it. */
+    uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len)
+           ,*third_btb_outbuf = malloc(64); /* Not rlly 3rd here. Change it. */
          
     memcpy(R_with_prehash, R.bits, R_used_bytes);
     memcpy(R_with_prehash + R_used_bytes, prehash, prehash_len);
     
-    len_Rused_PH = R_used_bytes + prehash_len;
-    
-    /*
-    printf("[SIG_VAL] Parameters to B2B producing 64-byte e:\n");
-    printf("parm 1 - R_with_prehash:\n\n");
-    
-    for(uint32_t i = 0; i < len_Rused_PH; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", (uint8_t)R_with_prehash[i]);
-    }
-    printf("\n\n");
-    
-    printf("parm 2 - len_Rused_PH: %lu\n\n", len_Rused_PH);
-    printf("parm 3 - 0\n\n");
-    printf("parm 4 - 64\n\n");
-    printf("parm 5 - out_buf\n\n");
-    */
-    
-    
+    len_Rused_PH = R_used_bytes + prehash_len; 
+        
     BLAKE2B_INIT(R_with_prehash, len_Rused_PH, 0, 64, third_btb_outbuf);
-    
-    /*
-    printf("\n\n[SIG_VAL] BLAKE2b produced 64-byte e_val:\n\n");
-    
-    for(uint32_t i = 0; i < 64; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", (uint8_t)third_btb_outbuf[i]);
-    }
-    printf("\n\n");
-    */
-    
+
     memcpy(val_e.bits, third_btb_outbuf, 40);
 
     val_e.used_bits = get_used_bits(val_e.bits, 40);
     val_e.free_bits = val_e.size_bits - val_e.used_bits;
-    
     
     if( bigint_compare2(e, &val_e) != 2 ){
         printf("[INFO] Cryptolib: SIG_VAL: val_e =/= passed e. Ret 0.\n");
@@ -2089,7 +2033,6 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     free(div_res.bits); 
     free(val_e.bits);
     free(R_with_prehash);
-    /*free(e_buf);*/
     free(third_btb_outbuf); /* Not rlly 3rd here. Change it. */
     
     return 1;
