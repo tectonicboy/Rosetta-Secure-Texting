@@ -189,17 +189,16 @@ u8 construct_msg_00(void){
     const u64 msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
     u8* msg_buf = calloc(1, msg_len);
 
-    /* Generate client's short-term public/private key pair and ChaCha nonce N, and 
+    /* Generate client's short-term public/private key pair and ChaCha nonce N, 
      * shared secret and thus bidirectional keys KAB, KBA and "unused" part Y:
-     *
-     *
-     *       First section - reserved for server's short-term PubKey B_s
      *
      *       a_s = random in the range [1, Q)
      * 
      *       A_s = G^b_s mod M     <--- Montgomery Form of G.
      *   
-     *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s.
+     *       B_s = Server's one-time public key for login handshake.
+     *
+     *       X_s = B_s^a_s mod M   <--- Shared secret. Montgomery Form of B_s.
      *
      *       KAB_s = X_s[0  .. 31 ]
      *       KBA_s = X_s[32 .. 63 ]
@@ -260,7 +259,7 @@ label_cleanup:
 
 /* Server sent its short-term public key too, so the client can now compute a
    shared secret and transport its LONG-TERM public key in encrypted form and
-   complete the login handshake.
+   obtain its user index, completing the login handshake.
    
     Server ----> Client
 
@@ -273,13 +272,17 @@ label_cleanup:
 */  
 void process_msg_00(u8* msg_buf){
    
-    u32 tempbuf_write_offset = 0;
+    u32 tempbuf_write_offset;
+    u32 shared_secret_read_offset;
     
     bigint *X_s;
     bigint *B_s;
     bigint  B_sM;
     bigint  zero;
     bigint *a_s = (bigint*)(temp_handshake_buf);
+
+    u8* reply_buf = NULL;
+    u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
 
     /* Grab the server's short-term public key from the transmission. */
     B_s = calloc(1, sizeof(bigint));
@@ -297,16 +300,11 @@ void process_msg_00(u8* msg_buf){
      * a cryptographic signature, which we need to verify for authentication.
      *
      *       X_s   = B_s^a_s mod M   <--- Montgomery Form of B_s.
+     *
      *       KAB_s = X_s[0  .. 31 ]
      *       KBA_s = X_s[32 .. 63 ]
      *       Y_s   = X_s[64 .. 95 ]
      *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
-     *
-     * Note: No need to place them in the locked memory region for the login
-     *       handshake temporary cryptographic artifacts, because these keys
-     *       and values won't be used after this function, so they can simply
-     *       be allocated on its stack frame, since the locked memory region
-     *       is cleared and unlocked at the end of this function anyway.
      */
     
     bigint_create(X_s,   MAX_BIGINT_SIZ, 0);
@@ -329,13 +327,94 @@ void process_msg_00(u8* msg_buf){
         bigint_print_all_bits(B_s);
         goto label_cleanup;
     }     
-    
+        
     /* X_s = B_s^a_s mod M */
     MONT_POW_modM(&B_sm, a_s, M, X_s);
      
+    /* Transport the 2 symmetric keys, server's one-time public key and the 
+     * 2 cryptographic artifacts (N, Y) to the designated locked memory region
+     */
+     
+    tempbuf_write_offset      = 2 * sizeof(bigint);
+    shared_secret_read_offset = 0;
     
+    /* Key B_s */
+    memcpy(temp_handshake_buf + tempbuf_write_offset, B_s, sizeof(bigint));
+    
+    tempbuf_write_offset += sizeof(bigint);
+    
+    /* Key KAB_s */
+    memcpy(temp_handshake_buf + tempbuf_write_offset, X_s, SESSION_KEY_LEN);
+    
+    shared_secret_read_offset += SESSION_KEY_LEN;
+    tempbuf_write_offset      += SESSION_KEY_LEN;
+    
+    /* Key KBA_s */
+    memcpy( temp_handshake_buf + tempbuf_write_offset
+           ,X_s->bits + shared_secret_read_offset
+           ,SESSION_KEY_LEN
+          );
+          
+    shared_secret_read_offset += SESSION_KEY_LEN;
+    tempbuf_write_offset      += SESSION_KEY_LEN;      
+    
+    /* Section of shared secret on which we'll compute Schnorr signatures. */
+    memcpy( temp_handshake_buf + tempbuf_write_offset
+        ,X_s->bits + shared_secret_read_offset
+        ,INIT_AUTH_LEN
+       );
 
-
+    shared_secret_read_offset += INIT_AUTH_LEN;
+    tempbuf_write_offset      += INIT_AUTH_LEN;  
+    
+    /* short-term symmetric Nonce for encrypting/decrypting with ChaCha20 */
+    memcpy( temp_handshake_buf + tempbuf_write_offset
+        ,X_s->bits + shared_secret_read_offset
+        ,SHORT_NONCE_LEN
+       );
+     
+    /* Ready to start constructing the reply buffer to the server. */ 
+    reply_buf = calloc(1, reply_len);
+    
+    *((u64*)(reply_buf)) = PACKET_ID_01;
+       
+    /*  Client uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
+     *  encrypt its long-term public key A, producing the key A_x.
+     *
+     *  Sends that encrypted long-term public key to the Rosetta server.
+     */
+    handshake_buf_nonce_offset =  
+                (3 * sizeof(bigint)) + (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN;
+                                                            
+    handshake_buf_key_offset = 3 * sizeof(bigint);
+    
+    /* Passed parameters to this call to ChaCha20:
+     *
+     *  1. INPUT TEXT   : Client's long-term public key unencrypted
+     *  2. TEXT_length  : in bytes
+     *  3. ChaCha Nonce : inside the locked global handshake memory region.
+     *  4. Nonce_length : in uint32_t's
+     *  5. ChaCha Key   : inside the locked global handshake memory region
+     *  6. Key_length   : in uint32_t's.
+     *  7. Destination  : Pointer to correct offset into the reply buffer.
+     */
+    CHACHA20( own_pubkey->bits
+             ,PUBKEY_LEN
+             ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
+             ,(u32)(SHORT_NONCE_LEN / sizeof(u32))       
+             ,(u32*)(temp_handshake_buf + handshake_buf_key_offset)
+             ,(u32)(SESSION_KEY_LEN / sizeof(u32))
+             ,reply_buf + SMALL_FIELD_LEN
+            );
+       
+    /* Only thing left to construct is the HMAC authenticator now. */ 
+       
+       
+       
+       
+       
+       
+       
 }
 
 
