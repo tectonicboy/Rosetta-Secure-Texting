@@ -535,7 +535,7 @@ void process_msg_00(u8* msg_buf){
      *       Y_s   = X_s[64 .. 95 ]
      *       N_s   = X_s[96 .. 107] <--- 12-byte Nonce for ChaCha20.
      *
-     *  These 7 things are all stored in the designated locked memory region.
+     *  These 6 things are all stored in the designated locked memory region.
      *  It already had the client's short-term public key in it, so that's 8
      *  cryptographic artifacts in the memory region in total.
      */
@@ -838,8 +838,8 @@ void process_msg_01(u8* msg_buf){
     }
     
     /* Construct the login OK reply message buffer. */
-    /* It will contain the user ID */
-    /* Encrypt the ID with chacha20 and KBA key and N_s nonce! */
+    /* It will contain the user index */
+    /* Encrypt the index with chacha20 and KBA key and N_s nonce! */
     
     /* Try using a chacha counter even with less than 64 bytes of input. */
     reply_len  = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
