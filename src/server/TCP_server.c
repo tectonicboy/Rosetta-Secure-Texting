@@ -685,7 +685,7 @@ void process_msg_01(u8* msg_buf){
     u8* last_BLAKE2B_input = calloc(1, (B + L));
     u8* K0_XOR_ipad = calloc(1, B);
     u8* K0_XOR_opad = calloc(1, B);
-    u8* HMAC_output = calloc(1, 8);
+    u8* HMAC_output = calloc(1, HMAC_TRUNC_BYTES);
     u8* client_pubkey_buf = calloc(1, PUBKEY_LEN);
     
     u8* reply_buf = NULL;
@@ -715,7 +715,7 @@ void process_msg_01(u8* msg_buf){
     /* Step 3 of HMAC construction */
     
     /* Length of K is less than B so append 0s to it until it's long enough. */
-    /* This was done during K's initialization. Now place the actual key.    */
+    /* This was done during K0's initialization. Now place the actual key.    */
     memcpy( K0 + (B - SESSION_KEY_LEN)
            ,temp_handshake_buf + (4 * sizeof(bigint))
            ,SESSION_KEY_LEN
@@ -742,7 +742,7 @@ void process_msg_01(u8* msg_buf){
     /* Step 8 of HMAC construction */
     /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
     /* B + L bytes total length */
-    memcpy(last_BLAKE2B_input, K0_XOR_opad, B);
+    memcpy(last_BLAKE2B_input + 0, K0_XOR_opad,    B);
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
     
     /* Step 9 of HMAC construction */ 
@@ -995,8 +995,13 @@ void process_msg_01(u8* msg_buf){
 
 label_cleanup:
 
+    /* TO DO IMPORTANT: Free memory pointed to by pointers in handshake buffer
+     * before zeroing it out, including bigints with pointers to bit buffers
+     * where the bigints reside in the handshake buf!!!
+     */
+
     /* Now it's time to clear and unlock the temporary login memory region. */
-    
+   
     /* memset(temp_handshake_buf, 0, TEMP_BUF_SIZ); */
     
     /* This version of bzero() prevents the compiler from eliminating and 
@@ -1010,7 +1015,6 @@ label_cleanup:
     
     temp_handshake_memory_region_isLocked = 0;
     
-    /* Free temporaries on the heap. */
     free(K0);
     free(ipad);
     free(opad);
