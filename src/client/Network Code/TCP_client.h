@@ -274,15 +274,27 @@ void process_msg_00(u8* msg_buf){
    
     u32 tempbuf_write_offset;
     u32 shared_secret_read_offset;
-    
+    u32 HMAC_reply_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
     bigint *X_s;
     bigint *B_s;
     bigint  B_sM;
     bigint  zero;
     bigint *a_s = (bigint*)(temp_handshake_buf);
-
-    u8* reply_buf = NULL;
+    
+    u64 B = 64;
+    u64 L = 128;
+    
+    u8* K0   = calloc(1, B);
+    u8* ipad = calloc(1, B);
+    u8* opad = calloc(1, B);
+    u8* K0_XOR_ipad_TEXT = calloc(1, (B + PUBKEY_LEN));
+    u8* BLAKE2B_output = calloc(1, L);   
+    u8* last_BLAKE2B_input = calloc(1, (B + L));
+    u8* K0_XOR_ipad = calloc(1, B);
+    u8* K0_XOR_opad = calloc(1, B);
+    
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
+    u8* reply_buf = calloc(1, reply_len);
 
     /* Grab the server's short-term public key from the transmission. */
     B_s = calloc(1, sizeof(bigint));
@@ -344,7 +356,10 @@ void process_msg_00(u8* msg_buf){
     tempbuf_write_offset += sizeof(bigint);
     
     /* Key KAB_s */
-    memcpy(temp_handshake_buf + tempbuf_write_offset, X_s, SESSION_KEY_LEN);
+    memcpy( temp_handshake_buf + tempbuf_write_offset
+           ,X_s->bits
+           ,SESSION_KEY_LEN
+          );
     
     shared_secret_read_offset += SESSION_KEY_LEN;
     tempbuf_write_offset      += SESSION_KEY_LEN;
@@ -374,8 +389,7 @@ void process_msg_00(u8* msg_buf){
        );
      
     /* Ready to start constructing the reply buffer to the server. */ 
-    reply_buf = calloc(1, reply_len);
-    
+        
     *((u64*)(reply_buf)) = PACKET_ID_01;
        
     /*  Client uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
@@ -408,13 +422,100 @@ void process_msg_00(u8* msg_buf){
             );
        
     /* Only thing left to construct is the HMAC authenticator now. */ 
+    memset(opad, 0x5c, B);
+    memset(ipad, 0x36, B);
+    
+    /*  Use what's already in the locked memory region to compute HMAC and 
+     *  to decrypt the user's long-term public key
+     *
+     *  Server uses KAB_s to compute the same HMAC on A_x (client's long-term
+     *  public key in encrypted form) as the client did. 
+     *
+     *  HMAC parameters here:
+     *
+     *  B    = input block size in bytes of BLAKE2B = 64
+     *  H    = hash function to be used - unkeyed BLAKE2B
+     *  ipad = buffer of the 0x36 byte repeated B=64 times
+     *  K    = key KAB_s
+     *  K_0  = K after pre-processing to form a B=64-byte key.
+     *  L    = output block size in bytes of BLAKE2B = 128
+     *  opad = buffer of the 0x5c byte repeated B=64 times
+     *  text = A_x
+     */    
        
+    /* Step 3 of HMAC construction: HMAC key (KAB) 0-extended to B bytes. */
+    memcpy( K0 + (B - SESSION_KEY_LEN)
+           ,temp_handshake_buf + (3 * sizeof(bigint))
+           ,SESSION_KEY_LEN
+          ); 
+    
+    /* Step 4 of HMAC construction */
+    for(u64 i = 0; i < B; ++i){
+        K0_XOR_ipad[i] = (K0[i] ^ ipad[i]);
+    }       
        
-       
-       
-       
-       
-       
+    /* step 5 of HMAC construction */
+    memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
+    memcpy(K0_XOR_ipad_TEXT + B, reply_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
+    
+    /* step 6 of HMAC construction */
+    /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
+    BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);       
+
+    /* Step 7 of HMAC construction */
+    for(u64 i = 0; i < B; ++i){
+        K0_XOR_opad[i] = (K0[i] ^ opad[i]);
+    }   
+    
+    /* Step 8 of HMAC construction */
+    /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
+    /* B + L bytes total length */
+    memcpy(last_BLAKE2B_input + 0, K0_XOR_opad,    B);
+    memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);    
+    
+    /* Step 9 of HMAC construction */ 
+    /* Call BLAKE2B on the combined buffer in step 8. */
+    BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
+    
+    /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
+    memcpy(reply_buf + HMAC_reply_offset, BLAKE2B_output, HMAC_TRUNC_BYTES);
+    
+    /* Now send the reply back to the Rosetta server. */
+    if(send(own_socket_fd, reply_buf, reply_len) == -1){
+        printf("[ERR] Client: Couldn't send second login transmission.\n");
+        printf("[ERR]         Aborting Login...\n\n");
+        status = 1;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Sent second login transmission!\n");
+    }
+    
+label_cleanup:
+
+    /* TO DO IMPORTANT: Free memory pointed to by pointers in handshake buffer
+     * before zeroing it out, including bigints with pointers to bit buffers
+     * where the bigints reside in the handshake buf!!!
+     */
+
+    /* Can free the login handshake locked memory region now. */
+    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
+    
+    temp_handshake_memory_region_isLocked = 0;
+    
+    free(K0);
+    free(ipad);
+    free(opad);
+    free(K0_XOR_ipad_TEXT);
+    free(BLAKE2B_output);   
+    free(last_BLAKE2B_input);
+    free(K0_XOR_ipad);
+    free(K0_XOR_opad);   
+    free(reply_buf);
+    free(B_s->bits);
+    free(B_s);
+
+    return;
 }
 
 
