@@ -49,7 +49,8 @@ pthread_t poller_threadID;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
 
-struct bigint *M, *Q, *G, *Gm, *server_pubkey_bigint, *own_privkey, *own_pubkey;
+struct bigint *M, *Q, *G, *Gm, *server_pubkey_bigint, *own_privkey, *own_pubkey
+             ,*server_pubkey_mont;
 
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
 u8* temp_handshake_buf;
@@ -153,7 +154,11 @@ u32 self_init(){
     
     server_pubkey_bigint = get_BIGINT_from_DAT
         (3072, "../../saved_nums/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
-        
+           
+    bigint_create(server_pubkey_mont, MAX_BIGINT_SIZ, 0);  
+           
+    Get_Mont_Form(server_pubkey_bigint, server_pubkey_mont, M);
+    
     own_pubkey = get_BIGINT_from_DAT
         (3072, "../../saved_nums/own_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
     
@@ -167,6 +172,45 @@ u32 self_init(){
   
     return 0;
 }
+
+u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 signature_offset){
+
+    bigint *recv_e;
+    bigint *recv_s;
+    
+    u64 s_offset = sign_offset;
+    u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
+   
+    u8 ret;
+    
+    /* Reconstruct the sender's signature as the two BigInts that make it up. */
+    recv_s = (bigint*)(signed_ptr + s_offset);
+    recv_e = (bigint*)(signed_ptr + e_offset);    
+    
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+ 
+    memcpy( recv_s->bits
+           ,signed_ptr + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_LEN
+    );
+    
+    memcpy( recv_e->bits
+           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
+           ,PRIVKEY_LEN
+    );
+       
+    /* Verify the sender's cryptographic signature. */
+    ret = Signature_VALIDATE(
+            Gm, server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
+    ); 
+
+    free(recv_s->bits);
+    free(recv_e->bits);
+
+    return ret;
+}
+
 
 /* A user requested to be logged in Rosetta:
 
@@ -281,6 +325,9 @@ void process_msg_00(u8* msg_buf){
     bigint  zero;
     bigint *a_s = (bigint*)(temp_handshake_buf);
     
+    u8  auth_status;
+    u8* auth_buf = calloc(1, (INIT_AUTH_LEN + SIGNATURE_LEN));
+        
     u64 B = 64;
     u64 L = 128;
     
@@ -342,7 +389,31 @@ void process_msg_00(u8* msg_buf){
         
     /* X_s = B_s^a_s mod M */
     MONT_POW_modM(&B_sm, a_s, M, X_s);
-     
+    
+    /* Construct a special buffer containing Y_s concatenated with the received
+     * signature, because the signature validating interface needs it that way
+     * because that's how most use cases of it have their buffers structured -
+     * the signature to be validated is in the same memory buffer as what was
+     * signed to begin with.
+     */
+    memcpy( auth_buf
+           ,X_s->bits + (2 * SESSION_KEY_LEN)
+           ,INIT_AUTH_LEN
+          );
+    
+    memcpy( auth_buf + INIT_AUTH_LEN
+           ,msg_buf  + (SMALL_FIELD_LEN + PUBKEY_LEN)
+           ,SIGNATURE_LEN
+          );
+    
+    /* Validate the signature of the unused part of the shared secret, Y_s. */
+    auth_status = authenticate_server(auth_buf, INIT_AUTH_LEN, INIT_AUTH_LEN);
+    
+    if(auth_status != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_00. Drop.\n\n");
+        goto label_cleanup;           
+    }
+    
     /* Transport the 2 symmetric keys, server's one-time public key and the 
      * 2 cryptographic artifacts (N, Y) to the designated locked memory region
      */
@@ -351,9 +422,9 @@ void process_msg_00(u8* msg_buf){
     shared_secret_read_offset = 0;
     
     /* Key B_s */
-    memcpy(temp_handshake_buf + tempbuf_write_offset, B_s, sizeof(bigint));
+    memcpy(temp_handshake_buf + tempbuf_write_offset, &B_s, sizeof(bigint*));
     
-    tempbuf_write_offset += sizeof(bigint);
+    tempbuf_write_offset += sizeof(bigint*);
     
     /* Key KAB_s */
     memcpy( temp_handshake_buf + tempbuf_write_offset
@@ -479,8 +550,16 @@ void process_msg_00(u8* msg_buf){
     
     /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
     memcpy(reply_buf + HMAC_reply_offset, BLAKE2B_output, HMAC_TRUNC_BYTES);
-    
-    /* Now send the reply back to the Rosetta server. */
+
+/*  Now send the reply back to the Rosetta server:
+
+================================================================================
+|  packet ID 01   | Client's encrypted long-term PubKey |  HMAC authenticator  |
+|=================|=====================================|======================|
+| SMALL_FIELD_LEN |             PUBKEY_LEN              |   HMAC_TRUNC_BYTES   |
+--------------------------------------------------------------------------------
+
+*/
     if(send(own_socket_fd, reply_buf, reply_len) == -1){
         printf("[ERR] Client: Couldn't send second login transmission.\n");
         printf("[ERR]         Aborting Login...\n\n");
@@ -512,10 +591,37 @@ label_cleanup:
     free(K0_XOR_ipad);
     free(K0_XOR_opad);   
     free(reply_buf);
-    free(B_s->bits);
-    free(B_s);
-
+    free(auth_buf);
     return;
+}
+
+/* This function is one of two possible ones to be called after the listen() 
+ * in the main processor blocks, expecting an answer after our 2nd login packet.
+ *
+ * This one is when the Login handshake was successful, there was room in 
+ * Rosetta for the client, and the server has sent us our user index.
+ *
+ * Authenticate it, process its contents and alert the user's GUI that login 
+ * went OK, so it can show it to the user and show the buttons to join or create
+ * a chatroom.
+ */
+
+/*  
+ 
+    Server ----> Client
+  
+================================================================================
+| packet ID 01 |  user_ix  |                    SIGNATURE                      | 
+|==============|===========|===================================================|
+|  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
+--------------------------------------------------------------------------------
+
+*/
+
+void process_msg_01(u8* msg){
+
+    
+
 }
 
 
@@ -523,6 +629,35 @@ label_cleanup:
 
 
 
+
+
+/* This function is one of two possible ones to be called after the listen() 
+ * in the main processor blocks, expecting an answer after our 2nd login packet.
+ *
+ * This one is when the server told us Rosetta is full. Verify the signature to
+ * make sure the reply was really sent by the Rosetta server and that it wasn't
+ * modified by a man in the middle attack somewhere along the way. 
+ *
+ * If it's valid, tell the user's GUI that there is no room in Rosetta right now 
+ * and to try logging in later, so it can display that to the user.
+ */
+ 
+/* 
+    Server ----> Client
+  
+================================================================================
+| packet ID 02 |                         SIGNATURE                             | 
+|==============|===============================================================|
+|  SMALL_LEN   |                          SIG_LEN                              |
+--------------------------------------------------------------------------------
+
+*/
+
+void process_msg_02(u8* msg){
+
+    
+
+}
 
 
 
