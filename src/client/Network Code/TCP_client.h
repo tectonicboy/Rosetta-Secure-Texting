@@ -159,6 +159,9 @@ u32 self_init(){
            
     Get_Mont_Form(server_pubkey_bigint, server_pubkey_mont, M);
     
+    /* Initialize the shared secret with the server. */
+    MONT_POW_modM(server_pubkey_mont, own_privkey, M, &server_shared_secret);
+    
     own_pubkey = get_BIGINT_from_DAT
         (3072, "../../saved_nums/own_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
     
@@ -169,7 +172,10 @@ u32 self_init(){
         printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
         return 1; 
     } 
-  
+    
+    /* Initialize the nonce increment count with the server to 0. */    
+    server_nonce_counter = 0;
+    
     return 0;
 }
 
@@ -315,7 +321,10 @@ label_cleanup:
 
 */  
 void process_msg_00(u8* msg_buf){
-   
+
+    u64 handshake_buf_key_offset;
+    u64 handshake_buf_nonce_offset;
+    
     u32 tempbuf_write_offset;
     u32 shared_secret_read_offset;
     u32 HMAC_reply_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
@@ -491,6 +500,9 @@ void process_msg_00(u8* msg_buf){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))
              ,reply_buf + SMALL_FIELD_LEN
             );
+            
+    /* Increment the Nonce to not reuse it when decrypting our user index. */       
+    ++(*(temp_handshake_buf + handshake_buf_nonce_offset));
        
     /* Only thing left to construct is the HMAC authenticator now. */ 
     memset(opad, 0x5c, B);
@@ -571,17 +583,7 @@ void process_msg_00(u8* msg_buf){
     }
     
 label_cleanup:
-
-    /* TO DO IMPORTANT: Free memory pointed to by pointers in handshake buffer
-     * before zeroing it out, including bigints with pointers to bit buffers
-     * where the bigints reside in the handshake buf!!!
-     */
-
-    /* Can free the login handshake locked memory region now. */
-    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
-    
-    temp_handshake_memory_region_isLocked = 0;
-    
+   
     free(K0);
     free(ipad);
     free(opad);
@@ -592,6 +594,7 @@ label_cleanup:
     free(K0_XOR_opad);   
     free(reply_buf);
     free(auth_buf);
+    
     return;
 }
 
@@ -618,18 +621,50 @@ label_cleanup:
 
 */
 
-void process_msg_01(u8* msg){
+u8 process_msg_01(u8* msg){
 
+    u64 nonce_offset;
+    U64 key_offset;
     
+    u8 status = 0;
 
+    /* Validate the incoming signature with the server's long-term public key
+     * on packet_ID_01 (for now... later it will be of the whole payload).
+     */    
+    
+    status = authenticate_server(msg, SMALL_FIELD_LEN, (2 * SMALL_FIELD_LEN));
+
+    if(status != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_01. Drop.\n\n");
+        status = 0;
+        goto label_cleanup;           
+    }
+    
+    /* Signature is valid! Can locate our index, decrypt it and save it. */
+    
+    nonce_offset = (2 * sizeof(bigint))  + sizeof(bigint*) + 
+                   (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN; 
+    
+    key_offset = (2 * sizeof(bigint)) + sizeof(bigint*) + SESSION_KEY_LEN ;  
+                 
+    CHACHA20( msg_buf + SMALL_FIELD_LEN                /* text - key KB       */
+             ,SMALL_FIELD_LEN                          /* text_len in bytes   */
+             ,(u32*)(temp_handshake_buf + nonce_offset)/* Nonce ptr           */
+             ,(u32)(SHORT_NONCE_LEN / sizeof(u32))     /* nonceLen in uint32s */
+             ,(u32*)(temp_handshake_buf + key_offset)  /* chacha Key ptr      */
+             ,(u32)(SESSION_KEY_LEN / sizeof(u32))     /* Key_len in uint32s  */
+             ,&own_ix                                  /* output buffer ptr   */
+            );
+      
+label_cleanup:             
+             
+    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
+    
+    temp_handshake_memory_region_isLocked = 0;     
+    
+    return status; 
+     
 }
-
-
-
-
-
-
-
 
 /* This function is one of two possible ones to be called after the listen() 
  * in the main processor blocks, expecting an answer after our 2nd login packet.
@@ -652,15 +687,42 @@ void process_msg_01(u8* msg){
 --------------------------------------------------------------------------------
 
 */
+u8 process_msg_02(u8* msg){
 
-void process_msg_02(u8* msg){
+    u8 status;
 
+    /* Validate the incoming signature with the server's long-term public key
+     * on packet_ID_02.
+     */    
     
+    status = authenticate_server(msg, SMALL_FIELD_LEN, SMALL_FIELD_LEN);    
 
+    if(status != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_02. Drop.\n\n");
+        status = 0;       
+    }
+
+    return status;
 }
 
+/* The user has requested to create a new chatroom.
+ 
+                                          ENCRYPTED
+                            /\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
+================================================================================
+| packet ID 10 |  user_ix  | Decryption Key   | Room_ID+user_ID |  Signature   |
+|==============|===========|==================|=================|==============|
+|  SMALL_LEN   | SMALL_LEN | ONE_TIME_KEY_LEN |  2 * SMALL_LEN  | SIGNATURE_LEN|
+--------------------------------------------------------------------------------
+
+*/
+u8 construct_msg_10( unsigned char* requested_userid
+                    ,unsigned char* requested_roomid )
+{
 
 
+
+}
 
 
 
