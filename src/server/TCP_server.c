@@ -789,7 +789,10 @@ void process_msg_01(u8* msg_buf){
             ,(u32)(SESSION_KEY_LEN / sizeof(u32))
             ,client_pubkey_buf
             );
-             
+    
+    /* Increment the Nonce to not reuse it when encrypting the user's index. */        
+    ++(*(temp_handshake_buf + handshake_buf_nonce_offset));   
+         
     /* Now we have the decrypted client's long-term public key. */
      
     /* If a message arrived to permit a newly arrived user to use Rosetta, but
@@ -860,7 +863,7 @@ void process_msg_01(u8* msg_buf){
              ,(reply_buf + SMALL_FIELD_LEN)
              );
              
-    
+    /* No need to increment this Nonce because it will be destroyed */
     Signature_GENERATE( M, Q, Gm, PACKET_ID01_addr, SMALL_FIELD_LEN
                        ,(reply_buf+ (2 * SMALL_FIELD_LEN))
                        ,&server_privkey_bigint, PRIVKEY_LEN
@@ -868,9 +871,9 @@ void process_msg_01(u8* msg_buf){
     
     /* Server bookkeeping - populate this user's slot, find next free slot. */
   
-    clients[next_free_user_ix].room_ix = 0;
+    clients[next_free_user_ix].room_ix          = 0;
     clients[next_free_user_ix].num_pending_msgs = 0;
-    clients[next_free_user_ix].nonce_counter = 0;
+    clients[next_free_user_ix].nonce_counter    = 0;
     clients[next_free_user_ix].time_last_polled = clock();
 
     for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
@@ -964,8 +967,7 @@ void process_msg_01(u8* msg_buf){
     ++next_free_user_ix;
     
     while(next_free_user_ix < MAX_CLIENTS){
-        if(!( users_status_bitmask & (1ULL << (63ULL - next_free_user_ix))))
-        {
+        if(!( users_status_bitmask & (1ULL << (63ULL - next_free_user_ix)))){
             break;
         }
         ++next_free_user_ix;
