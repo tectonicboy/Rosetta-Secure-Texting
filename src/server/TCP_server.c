@@ -1164,9 +1164,9 @@ void process_msg_10(u8* msg_buf){
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter);
    
-    /* Use the incremented nonce in the other call to ChaCha to get room_id. */
+    /* Now use the decrypted key to decrypt room_ID and user_ID. */
    
-    CHACHA20( msg_buf + room_id_offset             /* text: Encrypted room_ID */
+    CHACHA20( msg_buf + room_id_offset             /* text: encr room+user_ID */
              ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_t's */
