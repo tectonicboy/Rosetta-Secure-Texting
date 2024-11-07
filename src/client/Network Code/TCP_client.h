@@ -49,8 +49,10 @@ pthread_t poller_threadID;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
 
-struct bigint *M, *Q, *G, *Gm, *server_pubkey_bigint, *own_privkey, *own_pubkey
-             ,*server_pubkey_mont;
+bigint *M, *Q, *G, *Gm, *server_pubkey_bigint
+      ,*own_privkey, *own_pubkey_bigint, *server_pubkey_mont;
+
+u8 *KAB, *KBA;
 
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
 u8* temp_handshake_buf;
@@ -162,8 +164,26 @@ u32 self_init(){
     /* Initialize the shared secret with the server. */
     MONT_POW_modM(server_pubkey_mont, own_privkey, M, &server_shared_secret);
     
-    own_pubkey = get_BIGINT_from_DAT
+    own_pubkey_bigint = get_BIGINT_from_DAT
         (3072, "../../saved_nums/own_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
+    
+    /* Initialize the pair of bidirectional session keys (KBA, KAB). */
+    
+    /*  On client's side: 
+     *       - KAB = least significant 32 bytes of shared secret
+     *       - KBA = next 32 bytes of shared secret
+     *       - swap KBA with KAB if A < B  (our and server's public keys)
+     */
+       
+    /* if A < B */
+    if( (bigint_compare2(own_pubkey_bigint, server_pubkey_bigint)) == 3){
+        KAB = server_shared_secret + SESSION_KEY_LEN; 
+        KBA = server_shared_secret;
+    }
+    else{
+        KAB = server_shared_secret;
+        KBA = server_shared_secret + SESSION_KEY_LEN;
+    }    
     
     /* Initialize the mutex that will be used to prevent the main thread and
      * the poller thread from writing/reading the same data in parallel.
@@ -209,7 +229,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 signature_offset){
     /* Verify the sender's cryptographic signature. */
     ret = Signature_VALIDATE(
             Gm, server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
-    ); 
+    ); own_privkey
 
     free(recv_s->bits);
     free(recv_e->bits);
@@ -492,7 +512,7 @@ void process_msg_00(u8* msg_buf){
      *  6. Key_length   : in uint32_t's.
      *  7. Destination  : Pointer to correct offset into the reply buffer.
      */
-    CHACHA20( own_pubkey->bits
+    CHACHA20( own_pubkey_bigint->bits
              ,PUBKEY_LEN
              ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32))       
@@ -720,7 +740,136 @@ u8 construct_msg_10( unsigned char* requested_userid
                     ,unsigned char* requested_roomid )
 {
 
+    bigint nonce_bigint
+          ,one
+          ,aux1;
+    
+    nonce_bigint.bits = NULL;
+    one.bits = NULL;
+    aux1.bits = NULL;
 
+    u64 sendbuf_roomID_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+    
+    u64 signed_len = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+
+    FILE* ran_file = NULL;
+
+    u8 status = 0;
+
+    u8* send_K = calloc(1, ONE_TIME_KEY_LEN);
+    u8* roomID_userID = calloc(1, (2 * SMALL_FIELD_LEN));
+    
+    u64 send_len = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
+    u8* send_buf = calloc(1, send_len);
+    
+    /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
+     * with a different key - the session key KAB from the pair of bidirectional
+     * keys in the shared secret with the Rosetta server. 
+     *
+     * Then use Decryption Key K to encrypt the actual part of this packet's 
+     * payload that needs to be secured and hidden while in transit to the 
+     * Rosetta server - the Room_ID and User_ID the user picked for that room.
+     *
+     * The cryptographic signature is to be calculated on the entire payload of
+     * the packet - packetID_10, user_ix, key_K, room_ID + user_ID. The Rosetta
+     * server already expects a signature of the whole payload.
+     */  
+
+    ran_file = fopen("/dev/urandom", "r");
+    
+    if(!ran_file){
+        printf("[ERR] Client: Couldn't open urandom. Abort msg_10 creation.\n");
+        status = 0;
+        goto label_cleanup;
+    }       
+
+    if( (fread(send_K, 1, ONE_TIME_KEY_LEN, ran_file)) != ONE_TIME_KEY_LEN){
+        printf("[ERR] Client: Couldn't read urandom. Abort msg_10 creation.\n");
+        status = 0;
+        goto label_cleanup;
+    }
+        
+    /* Turn the nonce from the shared secret into a BigInt obj, increment it. */
+    
+    /* calloc() needs it in bytes, MAX_BIGINT_SIZ is in bits, so divide by 8. */
+    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    
+    memcpy( nonce_bigint.bits
+           ,server_shared_secret.bits + (2 * SESSION_KEY_LEN)
+           ,LONG_NONCE_LEN
+          ); 
+          
+    nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
+    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+   
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    
+    /* Increment nonce as many times as the saved counter says. */
+    for(u64 i = 0; i < server_nonce_counter; ++i){
+        bigint_add_fast(&nonce_bigint, &one, &aux1);
+        bigint_equate2(&nonce_bigint, &aux1);     
+    }    
+    
+    /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
+    
+    CHACHA20( send_K                               /* text: one-time key K    */
+             ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
+             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
+             ,(u32*)(KAB)                          /* chacha Key              */
+             ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
+             ,send_buf + (2 * SMALL_FIELD_LEN)     /* output target buffer    */
+            );    
+    
+    /* Maintain nonce's symmetry on both server and client with counters. */
+    ++server_nonce_counter;
+    
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);
+    
+    
+    /* Prepare the buffer containing the user_ID and room_ID for encryption. */
+    memcpy(roomID_userID, requested_roomid, SMALL_FIELD_LEN);   
+    memcpy(roomID_userID + SMALL_FIELD_LEN, requested_userid, SMALL_FIELD_LEN);
+    
+    /* Encrypt the user's requested user_ID and room_ID for their new room. */
+    
+    CHACHA20( roomID_userID                        /* text: one-time key K    */
+             ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
+             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
+             ,(u32*)(KAB)                          /* chacha Key              */
+             ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
+             ,send_buf + sendbuf_roomID_offset     /* output target buffer    */
+            );        
+
+    ++server_nonce_counter;
+
+    /* Construct the first 2 parts of this packet - identifier and user_ix. */
+    
+    *((u64*)(send_buf)) = PACKET_ID_10;
+    
+    *((u64*)(send_buf + SMALL_FIELD_LEN)) = own_ix;
+    
+    /* Now calculate a cryptographic signature of the whole packet's payload. */
+    
+    Signature_GENERATE( M, Q, Gm, send_buf, signed_len
+                       ,(send_buf + signed_len)
+                       ,own_privkey, PRIVKEY_LEN
+                      );
+
+    /* Ready to send the constructed packet to the Rosetta server now. */
+    
+    if(send(own_socket_fd, send_buf, send_len) == -1){
+        printf("[ERR] Client: Couldn't send constructed packet 10.\n");
+        status = 1;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Sent second login transmission!\n");
+    }
 
 }
 
