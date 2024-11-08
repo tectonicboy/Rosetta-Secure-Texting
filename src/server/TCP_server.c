@@ -548,7 +548,7 @@ void process_msg_00(u8* msg_buf){
     b_s->used_bits = get_used_bits(b_s->bits, PUBKEY_LEN);
     b_s->free_bits = b_s->size_bits - b_s->used_bits;
     
-    /* Interface generating a pub_key still needs priv_key in a file. Change. */
+    /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
     save_BIGINT_to_DAT("temp_privkey_DAT\0", b_s);
   
     B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
@@ -603,7 +603,7 @@ void process_msg_00(u8* msg_buf){
     
     /* Find time to change the signature generation to only place the actual
      * bits of s and e, excluding their bigint structs, because we reconstruct
-     * their bigint structs easily with get_used_bits().
+     * their bigint structs easily with get_used_bits(). TODO.
      */
     
     /* Construct the reply buffer. */ 
@@ -1613,7 +1613,6 @@ void process_msg_20(u8* msg_buf){
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter); 
        
-    /* UGLY!! Rewrite when I find time. */
     send_type20_signed_len = (2 * SMALL_FIELD_LEN) 
                               + ONE_TIME_KEY_LEN 
                               + buf_ixs_pubkeys_len;
@@ -1805,7 +1804,6 @@ void process_msg_20(u8* msg_buf){
         /* Final part of TYPE_21 replies - signature itself. */
         /* Compute the signature itself of everything so far.*/
         
-        /* UGLY!! Rewrite when I find time. */
         Signature_GENERATE
              (M, Q, Gm, buf_type_21
              ,buf_type_21_len - SIGNATURE_LEN
@@ -1918,7 +1916,6 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
      * packet, including the sender's cryptographic signature!
      */
     
-    /* UGLY!! Rewrite when I find time. */
     Signature_GENERATE
                     (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
                     ,&server_privkey_bigint, PRIVKEY_LEN
