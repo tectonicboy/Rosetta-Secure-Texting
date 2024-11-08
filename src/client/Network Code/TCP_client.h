@@ -298,7 +298,7 @@ u8 construct_msg_00(void){
     
     a_s = (bigint*)(temp_handshake_buf);
 
-    /* Interface generating a pub_key still needs priv_key in a file. Change. */
+    /* Interface generating a pub_key still needs priv_key in a file. TODO. */
     save_BIGINT_to_DAT("temp_privkey_DAT\0", a_s);
   
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
@@ -700,8 +700,9 @@ u8 process_msg_01(u8* msg){
     printf("[OK]  Client: Server told us Login was successful!\n");
     printf("              Tell GUI to tell user the good news!\n\n");   
       
-label_cleanup:             
-             
+label_cleanup:            
+ 
+    /* TODO Free() pointers to heap memory in handshake_buf before zeroing it */         
     explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
     
     temp_handshake_memory_region_isLocked = 0;     
@@ -746,6 +747,7 @@ u8 process_msg_02(u8* msg){
         status = 0;       
     }
     
+    /* TODO Free() pointers to heap memory in handshake_buf before zeroing it */    
     explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
     
     temp_handshake_memory_region_isLocked = 0;    
@@ -1158,11 +1160,142 @@ label_cleanup:
 
     L = N * (SMALL_FIELD_LEN + PUBKEY_LEN). 
 */
-u8 process_msg_20(u8* msg){
+u8 process_msg_20(u8* msg, u64 msg_len){
 
-           
+    bigint one, aux1;
     
+    one.bits  = NULL;
+    aux1.bits = NULL;
+
+    u8 status = 1;
+
+    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
+    u8* buf_decrypted_AD;
+    
+    u64 recv_type20_AD_len;
+    u64 recv_type20_AD_len_expected;
+    u64 recv_type20_signed_len;
+    u64 recv_type20_AD_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+    
+    /* First validate the signature the server sent us to authenaticate it. */
+
+    /* Make sure the field that tells us AD's number of entries is itself 
+     * containing the correct count value, using the fact that we already know 
+     * the size of that field and all other fields, except the size of the field
+     * that this field is telling us the size of (Associated Data field), and
+     * we already know how many bytes in total we read.
+     */
+    recv_type20_AD_len_expected = 
+        msg_len - ((2 * SMALL_FIELD_LEN) + SIGNATURE_LEN + ONE_TIME_KEY_LEN); 
+                                  
+    recv_type20_AD_len =  (*((u64*)(msg + SMALL_LEN + ONE_TIME_KEY_LEN)))
+                         * 
+                          (SMALL_FIELD_LEN + PUBKEY_LEN);
+    
+    if(recv_type20_AD_len != recv_type20_AD_len_expected){
+        printf("[ERR] Client: Invalid field for N in process_msg_20. Drop.\n");
+        printf("              Tell GUI to tell user to try join again.\n\n");
+        status = 0;
+        goto label_cleanup;
+    }
+
+    buf_decrypted_AD = calloc(1, recv_type20_AD_len);
+
+    recv_type20_signed_len = (2 * SMALL_FIELD_LEN) 
+                              + ONE_TIME_KEY_LEN 
+                              + recv_type20_AD_len;
+
+    /* Change this interface to take the 2nd parameter only once, and not have
+     * a 3rd parameter (same with 3rd and 4th params in server's version?) since
+     * in the final version and in the actual security scheme, ALL packets will
+     * always have a signature as the very last thing, of EVERYTHING before it.
+     * TODO.
+     */
+    status = 
+       authenticate_server(msg, send_type20_signed_len, send_type20_signed_len);    
+
+    if(status != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_20. Drop.\n");
+        printf("              Tell GUI to tell user to try join again.\n\n");
+        status = 0;   
+        goto label_cleanup;    
+    }
+    
+    /* Next, use shared secret with server to decrypt KC with KBA chacha key. */
+    /* This yields us the key to in turn decrypt the Associated Data with.    */
+ 
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    
+    /* Increment nonce as many times as the saved counter with server says. */
+    for(u64 i = 0; i < server_nonce_counter; ++i){
+        bigint_add_fast(&nonce_bigint, &one, &aux1);
+        bigint_equate2(&nonce_bigint, &aux1);     
+    }    
+    
+    CHACHA20( (msg + SMALL_FIELD_LEN)              /* text: one-time key K    */
+             ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
+             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
+             ,(u32*)(KBA)                          /* chacha Key              */
+             ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
+             ,recv_K                               /* output target buffer    */
+            );        
+    
+    ++server_nonce_counter;
+    
+    bigint_add_fast(&nonce_bigint, &one, &aux1);
+    bigint_equate2(&nonce_bigint, &aux1);     
+
+    /* Now use the obtained one-time key K to decrypt the room guests' info. */
+    
+    CHACHA20( (msg + recv_type20_AD_offset)        /* text: one-time key K    */
+             ,recv_type20_AD_len                   /* text_len in bytes       */
+             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* Nonce_len in uint32_t's */
+             ,(u32*)(recv_K)                       /* chacha Key              */
+             ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
+             ,buf_decrypted_AD                     /* output target buffer    */
+            );  
+        
+    ++server_nonce_counter;
+     
+    /* Now process the AD, filling a guest structure for each guest in it. */ 
+        
+    
+    
+    
+    
+    
+label_cleanup:
+                 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
