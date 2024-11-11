@@ -1285,7 +1285,9 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     next_free_roommate_slot = 0;
     roommate_slots_bitmask = 0;
     num_roommates = num_current_guests;   
-         
+    
+    /* Only for reference while implementing this part of the MSG processor. */ 
+    /*    
      struct roommate{
         char   guest_user_id[SMALL_FIELD_LEN];
         bigint guest_pubkey;
@@ -1295,7 +1297,8 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         u8*    guest_Nonce; 
         u64    guest_nonce_counter;
     };
-
+    */
+    
     for(u64 i = 0; i < num_current_guests; ++i){
 
         /* Reflect the new guest slot in the global guest slots bitmask. */
