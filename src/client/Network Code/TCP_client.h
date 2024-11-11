@@ -31,12 +31,20 @@
 volatile u8 temp_handshake_memory_region_isLocked = 0;
 
 struct roommate{
-    char   user_id[SMALL_FIELD_LEN];
-    u64    client_nonce_counter;
-    bigint client_pubkey;
-    bigint client_pubkey_mont;
-    bigint client_shared_secret; 
+    char   guest_user_id[SMALL_FIELD_LEN];
+    bigint guest_pubkey;
+    bigint guest_pubkey_mont;
+    u8*    guest_KBA;   
+    u8*    guest_KAB;
+    u8*    guest_Nonce; 
+    u64    guest_nonce_counter;
 };
+
+const u64 roommates_arr_siz = MAX_CLIENTS - 1;
+struct roommate roommates[roommates_arr_siz];
+u64 next_free_roommate_slot = 0;
+u64 roommate_slots_bitmask = 0; /* Currently only bits 0 to 62 can be used. */
+u64 num_roommates = 0;
 
 u64  own_ix = 0;
 char own_user_id[SMALL_FIELD_LEN];
@@ -59,6 +67,17 @@ u8 *KAB, *KBA;
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
 u8* temp_handshake_buf;
 
+/* Linux Sockets API related globals. */
+int port = SERVER_PORT
+   ,own_socket_fd
+   ,optval1 = 1
+   ,optval2 = 2;
+
+socklen_t server_addr_len = sizeof(struct sockaddr_in);
+
+struct sockaddr_in server_address;
+
+/* List of packet ID magic constats for legitimate recognized packet types. */
 #define PACKET_ID_00 0xAD0084FF0CC25B0E
 #define PACKET_ID_01 0xE7D09F1FEFEA708B
 #define PACKET_ID_02 0x146AAE4D100DAEEA
@@ -73,19 +92,10 @@ u8* temp_handshake_buf;
 #define PACKET_ID_51 0x2CC04FBEDA0B5E63
 #define PACKET_ID_60 0x0A7F4E5D330A14DD
 
-/* Linux Sockets API related globals. */
-int port = SERVER_PORT
-   ,own_socket_fd
-   ,optval1 = 1
-   ,optval2 = 2;
-
-socklen_t server_addr_len = sizeof(struct sockaddr_in);
-
-struct sockaddr_in server_address;
-
-
 /* First thing done when we start the client software - initialize it. */
 u32 self_init(){
+
+    memset(roommates, 0, roommates_arr_siz);
 
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
@@ -969,6 +979,8 @@ u8 process_msg_10(u8* msg){
         printf("              Telling GUI to tell the user the good news.\n\n");
     }
 
+    num_roommates = 0;
+
     return status;     
 }
 
@@ -1167,30 +1179,33 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     one.bits  = NULL;
     aux1.bits = NULL;
 
+    /* Makes for better readability in guest descriptor initializing code. */
+    bigint* this_pubkey;
+
     u8 status = 1;
 
     u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
     u8* buf_decrypted_AD;
-    
+    u64 num_current_guests = *((u64*)(msg + SMALL_LEN + ONE_TIME_KEY_LEN));
     u64 recv_type20_AD_len;
     u64 recv_type20_AD_len_expected;
     u64 recv_type20_signed_len;
+    u64 guest_info_slot_siz = (SMALL_FIELD_LEN + PUBKEY_LEN);
+    
     u64 recv_type20_AD_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     
     /* First validate the signature the server sent us to authenaticate it. */
 
-    /* Make sure the field that tells us AD's number of entries is itself 
+    /* Make sure the field that tells us AD's number of present guests is itself 
      * containing the correct count value, using the fact that we already know 
      * the size of that field and all other fields, except the size of the field
      * that this field is telling us the size of (Associated Data field), and
-     * we already know how many bytes in total we read.
+     * we know how many bytes in total we already read.
      */
     recv_type20_AD_len_expected = 
         msg_len - ((2 * SMALL_FIELD_LEN) + SIGNATURE_LEN + ONE_TIME_KEY_LEN); 
                                   
-    recv_type20_AD_len =  (*((u64*)(msg + SMALL_LEN + ONE_TIME_KEY_LEN)))
-                         * 
-                          (SMALL_FIELD_LEN + PUBKEY_LEN);
+    recv_type20_AD_len = num_current_guests * guest_info_slot_siz;
     
     if(recv_type20_AD_len != recv_type20_AD_len_expected){
         printf("[ERR] Client: Invalid field for N in process_msg_20. Drop.\n");
@@ -1232,6 +1247,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         bigint_add_fast(&nonce_bigint, &one, &aux1);
         bigint_equate2(&nonce_bigint, &aux1);     
     }    
+
     
     CHACHA20( (msg + SMALL_FIELD_LEN)              /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
@@ -1260,9 +1276,67 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         
     ++server_nonce_counter;
      
-    /* Now process the AD, filling a guest structure for each guest in it. */ 
+    /* Now initialize the global state for keeping information about guests in
+     * the chatroom we're currently in, process this message's associated data, 
+     * filling a guest structure for each guest in it. 
+     */ 
+
+    memset(roommates, 0, roommates_arr_siz); 
+    next_free_roommate_slot = 0;
+    roommate_slots_bitmask = 0;
+    num_roommates = num_current_guests;   
+         
+     struct roommate{
+        char   guest_user_id[SMALL_FIELD_LEN];
+        bigint guest_pubkey;
+        bigint guest_pubkey_mont;
+        u8*    guest_KBA;   
+        u8*    guest_KAB;
+        u8*    guest_Nonce; 
+        u64    guest_nonce_counter;
+    };
+
+    for(u64 i = 0; i < num_current_guests; ++i){
+
+        /* Reflect the new guest slot in the global guest slots bitmask. */
+        roommate_slots_bitmask |= (1ULL << (63ULL - next_free_roommate_slot)); 
+                       
+        /* Pointer arithmetic to get to the right guest slot in message's AD. */
+        /* No need to dereference the obtained pointer, we're using memcpy(). */
         
+        /* Beginning of THIS SLOT in AD: guest's user_ID. */
+        memcpy( roommates[i].guest_user_id
+               ,buf_decrypted_AD + (i * guest_info_slot_siz)
+               ,SMALL_FIELD_LEN
+              );
+               
     
+        /* SMALL_FIELD_LEN bytes offset into THIS SLOT in AD: guest's PubKey. */
+        this_pubkey = &(roommates[i].guest_pubkey);
+        
+        this_pubkey->bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
+        
+        memcpy( this_pubkey.bits
+               ,buf_decrypted_AD + (i * guest_info_slot_siz) + SMALL_FIELD_LEN 
+               ,PUBKEY_LEN
+              ); 
+              
+        /* Now initialize the rest of this guest's descriptor structure. */   
+        this_pubkey.size_bits = MAX_BIGINT_SIZ;
+        this_pubkey.used_bits = get_used_bits(this_pubkey.bits, PUBKEY_LEN);
+        this_pubkey.free_bits = this_pubkey.size_bits - this_pubkey.used_bits;
+
+        bigint_create(&(roommates[i].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);  
+        Get_Mont_Form(this_bigint, &(roommates[i].guest_pubkey_mont), M);
+        
+        roommates[i].guest_nonce_counter = 0;
+        
+        /* Now compute a shared secret with the guest to get our bidirectional
+         * symmetric session keys KAB, KBA and the symmetric ChaCha nonce. 
+         */
+        
+    }
+
     
     
     
