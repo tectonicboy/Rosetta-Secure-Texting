@@ -1852,7 +1852,7 @@ label_cleanup:
  
  Client ----> Server
  
-Main packet structure:
+ Main packet structure:
  
 ================================================================================
 | packetID 30 |  user_ix  |  TXT_LEN   |    AD   | Encrypted_MSG | Signature1  | 
@@ -1860,15 +1860,15 @@ Main packet structure:
 |  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |    TXT_LEN    |   SIG_LEN   |
 --------------------------------------------------------------------------------
 
-AD - Associated Data, of length L bytes:
+ AD - Associated Data, of length L bytes:
 
 ================================================================================
-| receiver_ix1 |  encrypted_key1  |   ...   | receiver_ixT |  encrypted_keyT   |
+| receiver_id1 |  encrypted_key1  |   ...   | receiver_idT |  encrypted_keyT   |
 |==============|==================|=========|==============|===================|
 |  SMALL_LEN   | ONE_TIME_KEY_LEN |   ...   |  SMALL_LEN   | ONE_TIME_KEY_LEN  |
 --------------------------------------------------------------------------------
 
-L = (People in sender's chatroom - 1) * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN).
+ L = (People in sender's chatroom - 1) * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN).
 
 */
 //__attribute__ ((always_inline)) 
