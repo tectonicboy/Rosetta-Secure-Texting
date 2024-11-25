@@ -324,8 +324,8 @@ perform another SPECIAL PROTOCOL with each message sent:
    
    ChaCha Constants: Always the same. They're part of the ChaCha specification.
    
-   ChaCha Nonce: A new 16-byte Nonce is randomly drawn for that user the moment 
-                 a user joins or creates a chatroom. 
+   ChaCha Nonce: A new 16-byte Nonce is drawn for that user from this client's
+                 DH shared secret with them.
                  
                  After each message this user sends in that chatroom, 
                  their ChaCha Nonce is incremented by 1.
@@ -341,25 +341,33 @@ perform another SPECIAL PROTOCOL with each message sent:
    The only purpose of these message-sending keys is to securely convey Alice's 
    one-time-use ChaCha20 key K to each receiver of her text message.
    
-2. Forms the message's Associated Data:
-
-   Let idA, idB be Alice's registered Username, Bob's Username and so on.
-   To form this message's Associated Data AD, Alice's client concatenates:
-   
-   AD = [(idA, Nonce_A), (idB, KB), (idC, KC), (idF, KF)]
-   
-3. Alice's client invokes a new, different usage of ChaCha20:
+   Increment our Nonce with this guest to keep it symmetric.
+     
+2. Alice's client invokes a new, different usage of ChaCha20:
 
    This time, ChaCha enciphers Alice's text message itself. 
+   
+   As many calls to ChaCha are made here as for encrypting the one-time key K.
+   
+   The encrypted text message, each version of it, is appended to the receiver's
+   slot in the AD!!
    
    INPUT:
    
    ChaCha Key    : K
-   ChaCha Nonce  : Least significant 12 bytes of Alice's current 16-byte Nonce
+   ChaCha Nonce  : Leftmost 12 bytes of our incremented Nonce with the guest
    ChaCha Counter: Starts at 1, incremented for each chacha matrix required.
    
    (remember, it's one chacha matrix per 64 bytes of plaintext)
    
+   Increment our Nonce with the guest again to keep it symmetric.
+   
+3. Forms the message's Associated Data:
+
+   Let idA, idB be Alice's registered Username, Bob's Username and so on.
+   To form this message's Associated Data AD, Alice's client concatenates:
+   
+   AD = [ (idB, KB, encr_msg_B), (idC, KC, encr_msg_C), (idF, KF, encr_msg_F)]  
 4. Compute Alice's Schnorr Signature of (encrypted message and its AD).
 
 5. Send these three things to the server: (Alice's signature, AD, encrypted MSG)

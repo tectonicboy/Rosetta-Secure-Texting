@@ -13,7 +13,7 @@
 #define MAX_CLIENTS      64
 #define MAX_PEND_MSGS    64
 #define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      8192
+#define MAX_MSG_LEN      131072
 #define MAX_TXT_LEN      1024
 #define MAX_SOCK_QUEUE   1024
 #define MAX_BIGINT_SIZ   12800
@@ -1855,20 +1855,21 @@ label_cleanup:
  Main packet structure:
  
 ================================================================================
-| packetID 30 |  user_ix  |  TXT_LEN   |    AD   | Encrypted_MSG | Signature1  | 
-|=============|===========|============|=========|===============|=============|
-|  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |    TXT_LEN    |   SIG_LEN   |
+| packetID 30 |  user_ix  |  TXT_LEN   |    AD   |          Signature1         | 
+|=============|===========|============|=========|=============================|
+|  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |            SIG_LEN          |
 --------------------------------------------------------------------------------
 
- AD - Associated Data, of length L bytes:
+ AD - Associated Data, of length L bytes: From T = 1 to num_guests:
 
 ================================================================================
-| receiver_id1 |  encrypted_key1  |   ...   | receiver_idT |  encrypted_keyT   |
-|==============|==================|=========|==============|===================|
-|  SMALL_LEN   | ONE_TIME_KEY_LEN |   ...   |  SMALL_LEN   | ONE_TIME_KEY_LEN  |
+| guestID_1 | encr_key_1 | encr_msg_1| ... |guestID_T | encr_key_T | encr_msg_T| 
+|===========|============|===========|=====|==========|============|===========|
+| SMALL_LEN |  X bytes   |  TXT_LEN  | ... |SMALL_LEN |  X bytes   |  TXT_LEN  |
 --------------------------------------------------------------------------------
 
- L = (People in sender's chatroom - 1) * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN).
+ L = (People in our chatroom - 1) * (SMALL_LEN + ONE_TIME_KEY_LEN + TXT_LEN)
+ X = ONE_TIME_KEY_LEN
 
 */
 //__attribute__ ((always_inline)) 
@@ -1876,12 +1877,14 @@ label_cleanup:
 void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
 {
     u64 next_free_receivers_ix = 0;
-
+    char userid[SMALL_FIELD_LEN];
     u8 *reply_buf = NULL;
     u64 reply_len;
     u64 signed_len = (packet_siz - SIGNATURE_LEN);
     u64 *receiver_ixs = NULL;
  
+    memset(userid, 0, SMALL_FIELD_LEN);
+
     /* Verify the sender's cryptographic signature. */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
@@ -1921,15 +1924,22 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
                     ,&server_privkey_bigint, PRIVKEY_LEN
     );
         
+    /* Replace the sender's index in the server's internal bookkeeping with
+     * their userID so the client's internal bookkeeping can also locate them.
+     */
+    memcpy(userid, clients[sender_ix].user_id, SMALL_FIELD_LEN);
+
+    memcpy(reply_buf + SMALL_FIELD_LEN, userid, SMALL_FIELD_LEN);
+
     /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
     /*
     
     Server ---> Client
     
 ================================================================================
-| packetID 30 |  user_ix  |  TXT_LEN  |    AD   | Encr_MSG |  Sign1  |  Sign2  |  
-|=============|===========|===========|=========|==========|=========|=========|
-|  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L bytes |  TXT_LEN | SIG_LEN | SIG_LEN |
+| packetID 30 | sender_id |  TXT_LEN  |    AD   |     Sign1     |    Sign2     |  
+|=============|===========|===========|=========|===============|==============|
+|  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L bytes |    SIG_LEN    |   SIG_LEN    |
 --------------------------------------------------------------------------------    
     
     */
@@ -2179,6 +2189,7 @@ u32 identify_new_transmission(){
     u64  transmission_type = 0;
     s64  expected_siz;
     u64  found_user_ix;
+    u64 text_msg_len;
     u32  ret_val = 0;
     char *msg_type_str = calloc(1, 3);
         
@@ -2191,7 +2202,7 @@ u32 identify_new_transmission(){
         goto label_cleanup;
     }
     else{
-        printf("[OK]  Server: Read %lu bytes from a request!\n\n", bytes_read);
+        printf("[OK]  Server: Read %ld bytes from a request!\n\n", bytes_read);
     }
            
     /* Read the first 8 bytes to see what type of init transmission it is. */
@@ -2290,12 +2301,13 @@ u32 identify_new_transmission(){
          */
          
         found_user_ix = *((u64*)(client_msg_buf + SMALL_FIELD_LEN));
-        
+        text_msg_len  = *((u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN)));
+
         expected_siz =   (3 * SMALL_FIELD_LEN)
                        + ( 
                           (rooms[clients[found_user_ix].room_ix].num_people - 1)
                           *
-                          (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
+                          (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_msg_len)
                          ) 
                        + *((u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN)))
                        + SIGNATURE_LEN;
@@ -2307,7 +2319,7 @@ u32 identify_new_transmission(){
         
         /* If transmission is of a valid type and size, process it. */
         process_msg_30( client_msg_buf
-                       ,bytes_read
+                       ,expected_siz
                        ,expected_siz - SIGNATURE_LEN
                        ,found_user_ix
                       );
