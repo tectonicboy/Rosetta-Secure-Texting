@@ -7,6 +7,8 @@
 
 #include "../lib/coreutil.h"
 
+#define BITMASK_BIT_AT(X) (1ULL << (63ULL - ((X))))
+
 #define SERVER_PORT      54746
 #define PRIVKEY_LEN      40   
 #define PUBKEY_LEN       384
@@ -1307,7 +1309,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     for(u64 i = 0; i < num_current_guests; ++i){
 
         /* Reflect the new guest slot in the global guest slots bitmask. */
-        roommate_slots_bitmask |= (1ULL << (63ULL - next_free_roommate_slot)); 
+        roommate_slots_bitmask |= BITMASK_BIT_AT(next_free_roommate_slot); 
 
         /* Pointer arithmetic to get to the right guest slot in message's AD. */
         /* No need to dereference the obtained pointer, we're using memcpy(). */
@@ -1477,8 +1479,8 @@ u8 process_msg_21(u8* msg){
      */ 
 
     /* Reflect the new guest slot in the global guest slots bitmask. */
-    roommate_slots_bitmask     |= (1ULL << (63ULL - next_free_roommate_slot)); 
-    roommate_key_usage_bitmask |= (1ULL << (63ULL - next_free_roommate_slot)); 
+    roommate_slots_bitmask     |= BITMASK_BIT_AT(next_free_roommate_slot); 
+    roommate_key_usage_bitmask |= BITMASK_BIT_AT(next_free_roommate_slot); 
 
     guest_ix = next_free_roommate_slot;
 
@@ -1493,7 +1495,7 @@ u8 process_msg_21(u8* msg){
      * indices start at 0, not at 1.
      */
     for(u64 i = next_free_roommate_slot + 1; i <= MAX_CLIENTS - 2; ++i){
-        if( roommate_slots_bitmask & (1ULL << (63ULL - i)) ){
+        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
             continue;
         }
         /* We found a free slot in the global bitmask. */
@@ -1648,7 +1650,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
 
     /* Construct the Associated Data within the payload. */
     for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
-        if( roommate_slots_bitmask & (1ULL << (63ULL - i)) ){
+        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
 
             /* Place this guest's userid. */
             memcpy(
@@ -1660,7 +1662,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
             AD_write_offset += SMALL_FIELD_LEN;
             
             /* Decide whether to encrypt with session key KAB or with KBA. */
-            if( roommate_key_usage_bitmask & (1ULL << (63ULL - i)) ){
+            if( roommate_key_usage_bitmask & BITMASK_BIT_AT(i) ){
                 chacha_key = (u32*)(roommates[i].guest_KAB);
             }
             else{
@@ -1788,7 +1790,7 @@ label_cleanup:
  X = ONE_TIME_KEY_LEN
 
 */
-u8 process_msg_30(u8* payload){
+u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     /* Order of operations here:
      *  - Read in the text message's length from 3rd small field. Verify it.
@@ -1813,25 +1815,34 @@ u8 process_msg_30(u8* payload){
     u64 s_offset;
     u64 e_offset;
 
+    u32* chacha_key;
+
     char temp_user_id[SMALL_FIELD_LEN];
 
-    u8* AD_pointer = payload + (3 * SMALL_FIELD_LEN);
-    u8* encrypted_msg = NULL;
-    u8* decrypted_msg = NULL;
-    u8* encrypted_key = NULL;
-    u8* decrypted_key = NULL;
+    const char* GUI_string_helper = ": ";
 
-    u8 status = 1;
+    u8* AD_pointer = payload + (3 * SMALL_FIELD_LEN);
+    u8* our_K_pointer;
+    u8* our_msg_pointer;
+    u8* decrypted_msg = NULL;
+    u8* decrypted_key = NULL;
+    u8  status = 1;
 
     bigint *recv_e;
     bigint *recv_s;
+    bigint  guest_nonce_bigint;
+    bigint  one;
+    bigint  aux1;
 
+    one.bits     = NULL;
+    aux1.bits    = NULL;
     recv_e->bits = NULL;
     recv_s->bits = NULL;
+    guest_nonce_bigint.bits = NULL;
 
-    memset(temp_user_id, 0, SMALL_FIELD_LEN);
+    explicit_bzero(temp_user_id, SMALL_FIELD_LEN);
 
-    if( [[unlikely]] (text_len < 1 || text_len > MAX_TXT_LEN) ){
+    if(text_len < 1 || text_len > MAX_TXT_LEN) [[unlikely]] {
 
         printf("[ERR] Client: Text message by a guest is of invalid length.\n");
         printf("              Obtained message length: %lu\n\n", text_len);
@@ -1847,7 +1858,7 @@ u8 process_msg_30(u8* payload){
 
     /* Find the index of the guest with this userID. */
     for(u64 i = 0; i <= num_roommates - 2; ++i){
-        if( roommate_slots_bitmask & (1ULL << (63ULL - i)) ){
+        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
             
             /* if userIDs match. */
             if(strncmp( roommates[i].guest_user_id
@@ -1863,7 +1874,7 @@ u8 process_msg_30(u8* payload){
     } 
 
     /* If the sender wasn't found in any global descriptor */
-    if(sender_ix == MAX_CLIENTS + 1){
+    if(sender_ix == MAX_CLIENTS + 1) [[unlikely]] {
         printf("[ERR] Client: Couldn't find the message sender. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1908,7 +1919,7 @@ u8 process_msg_30(u8* payload){
                     ,(payload + sign1_offset), sign1_offset
     ); 
 
-    if(status != 1){
+    if(status != 1) [[unlikely]] {
         printf("[ERR] Client: Invalid sender signature in msg_30 Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1926,7 +1937,7 @@ u8 process_msg_30(u8* payload){
     }
 
     /* If we didn't find our userID in the associated data, drop the message. */
-    if(our_AD_slot == (MAX_CLIENTS + 1)){
+    if(our_AD_slot == (MAX_CLIENTS + 1)) [[unlikely]] {
         printf("[ERR] Client: Didn't find our message slot in AD. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1935,25 +1946,99 @@ u8 process_msg_30(u8* payload){
     /* TODO: Extract encrypted key and msg, decrypt them, send MSG to GUI. */
 
     /* Extract the encrypted key and message from our slot in associated data */
-    encrypted_msg = calloc(1, text_len);
+
     decrypted_msg = calloc(1, text_len);
-    encrypted_key = calloc(1, ONE_TIME_KEY_LEN);
     decrypted_key = calloc(1, ONE_TIME_KEY_LEN);
 
+    guest_nonce_bigint.bits = 
+    calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
+    /* Decide whether to encrypt with session key KAB or with KBA. */
+    if( roommate_key_usage_bitmask & BITMASK_BIT_AT(sender_ix) ){
+        chacha_key = (u32*)(roommates[sender_ix].guest_KAB);
+    }
+    else{
+        chacha_key = (u32*)(roommates[sender_ix].guest_KBA);
+    }
 
+    /* Another instance of a manual BigInt constructor from mem :( */
+    /* MAX_BIGINT_SIZ is in bits so divide by 8 to get reserved BYTES */
+                
+    memcpy( 
+        guest_nonce_bigint.bits
+        ,roommates[sender_ix].guest_Nonce
+        ,LONG_NONCE_LEN
+    );
+    
+    guest_nonce_bigint.used_bits = 
+        get_used_bits(guest_nonce_bigint.bits, LONG_NONCE_LEN);
 
+    guest_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
 
+    guest_nonce_bigint.free_bits = 
+        MAX_BIGINT_SIZ - guest_nonce_bigint.used_bits;
 
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+
+    /* Increment nonce as many times as counter says for this guest. */
+    for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter; ++j){
+        bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
+        bigint_equate2(&guest_nonce_bigint, &aux1);     
+    }
+
+    our_K_pointer = AD_pointer + (our_AD_slot * AD_slot_len) + SMALL_FIELD_LEN;
+    our_msg_pointer = our_K_pointer + ONE_TIME_KEY_LEN;
+
+    /* Place this guest's encrypted one-time ChaCha key. */
+    CHACHA20( 
+        our_K_pointer                        /* text - recv (encr) K   */
+       ,ONE_TIME_KEY_LEN                     /* text_len in bytes      */
+       ,(u32*)(guest_nonce_bigint.bits)      /* Nonce (long)           */
+       ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_ts */
+       ,chacha_key                           /* chacha Key             */
+       ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_ts   */
+       ,decrypted_key                        /* output target buffer   */
+    );
+
+    roommates[sender_ix].guest_nonce_counter;
+
+    bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
+    bigint_equate2(&guest_nonce_bigint, &aux1);   
+
+    /* Place this guest's encrypted one-time ChaCha key. */
+    CHACHA20( 
+        our_msg_pointer                       /* text - recv (encr) MSG */
+       ,text_len                              /* text_len in bytes      */
+       ,(u32*)(guest_nonce_bigint.bits)       /* Nonce (short), counter */
+       ,(u32)(SHORT_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_ts */
+       ,decrypted_key                         /* chacha Key             */
+       ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32)) /* Key_len in uint32_ts   */
+       ,decrypted_msg                         /* output target buffer   */
+    );
+
+    roommates[sender_ix].guest_nonce_counter;
+
+    /* Displayed name format in GUI is always "xxxxNAME: MSG"            */
+    /* Always 8 chars space for username and max_txt_len for msg, 1 row. */
+    result_chars = SMALL_FIELD_LEN + 2 + text_len;
+
+    explicit_bzero(name_with_msg_string, result_chars);
+
+    /* Construct the string with name and message to be displayed on the GUI. */
+    memcpy(name_with_msg_string, payload + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+    memcpy(name_with_msg_string, GUI_string_helper, 2);
+    memcpy(name_with_msg_string, decrypted_msg, text_len);
 
 label_cleanup:
 
-    if(recv_s->bits != NULL)  { free(recv_s->bits);  }
-    if(recv_e->bits != NULL)  { free(recv_e->bits);  }
-    if(encrypted_msg != NULL) { free(encrypted_msg); }
-    if(decrypted_msg != NULL) { free(decrypted_msg); }
-    if(encrypted_key != NULL) { free(encrypted_key); }
-    if(decrypted_key != NULL) { free(decrypted_key); }
+    if(recv_s->bits != NULL)            { free(recv_s->bits);           }
+    if(recv_e->bits != NULL)            { free(recv_e->bits);           }
+    if(guest_nonce_bigint.bits != NULL) { free(guest_nonce_bigint.bits);}
+    if(one.bits != NULL)                { free(one.bits);               }
+    if(aux1.bits != NULL)               { free(aux1.bits);              }    
+    if(decrypted_msg != NULL)           { free(decrypted_msg);          }
+    if(decrypted_key != NULL)           { free(decrypted_key);          }
 
     return status;
 }
