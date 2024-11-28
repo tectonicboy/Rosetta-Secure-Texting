@@ -76,6 +76,7 @@ bigint nonce_bigint;
 bigint *M, *Q, *G, *Gm, *server_pubkey_bigint
       ,*own_privkey, *own_pubkey_bigint, *server_pubkey_mont;
 
+/* These are for talking to the Rosetta server only. */
 u8 *KAB, *KBA;
 
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
@@ -1320,7 +1321,6 @@ u8 process_msg_20(u8* msg, u64 msg_len){
                ,SMALL_FIELD_LEN
               );
                
-    
         /* SMALL_FIELD_LEN bytes offset into THIS SLOT in AD: guest's PubKey. */
         this_pubkey = &(roommates[i].guest_pubkey);
         
@@ -1354,6 +1354,9 @@ u8 process_msg_20(u8* msg, u64 msg_len){
            ,&temp_shared_secret
         );
 
+        roommates[i].guest_KBA = calloc(1, SESSION_KEY_LEN);
+        roommates[i].guest_KAB = calloc(1, SESSION_KEY_LEN);
+
         /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
         memcpy(roommates[i].guest_KBA, temp_shared_secret, SESSION_KEY_LEN);
 
@@ -1362,6 +1365,8 @@ u8 process_msg_20(u8* msg, u64 msg_len){
            ,temp_shared_secret + SESSION_KEY_LEN
            ,SESSION_KEY_LEN
         );
+
+        roommates[i].guest_Nonce = calloc(1, LONG_NONCE_LEN);
 
         memcpy( 
             roommates[i].guest_Nonce
@@ -1489,23 +1494,11 @@ u8 process_msg_21(u8* msg){
      * Guest deletion logic makes sure the next free guest slot in the bitmask
      * is always the leftmost available, so just go to the right now, until
      * we see a bit that's not set.
-     * 
-     * Stop at Minus 2, because we only wanna go up until the second to last
-     * index, not the very last one, and another 1 off of MAX_CLIENTS because
-     * indices start at 0, not at 1.
-     */
-    for(u64 i = next_free_roommate_slot + 1; i <= MAX_CLIENTS - 2; ++i){
-        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
-            continue;
-        }
-        /* We found a free slot in the global bitmask. */
-        else{
-            next_free_roommate_slot = i;
-            break;    
-        }
-    }
-
-    ++num_roommates;
+     *         /* Compute a cryptographic signature so the client can authenticate us*/
+        Signature_GENERATE
+             ( M, Q, Gm, reply_buf, SMALL_FIELD_LEN, reply_buf + SMALL_FIELD_LEN
+              ,&server_privkey_bigint, PRIVKEY_LEN
+        );;
   
     /* Grab the decrypted guest userid. */
     memcpy( 
@@ -1689,18 +1682,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
             /* Increment nonce as many times as counter says for this guest. */
             for(u64 j = 0; j < roommates[i].guest_nonce_counter; ++j){
                 bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
-                bigint_equate2(&guest_nonce_bigint, &aux1);     
-            }
-
-            /* Place this guest's encrypted one-time ChaCha key. */
-            CHACHA20( 
-                send_K                              /* text - key KB or KA    */
-               ,ONE_TIME_KEY_LEN                    /* text_len in bytes      */
-               ,(u32*)(guest_nonce_bigint.bits)     /* Nonce (long)           */
-               ,(u32)(LONG_NONCE_LEN / sizeof(u32)) /* nonce_len in uint32_ts */
-               ,chacha_key                          /* chacha Key             */
-               ,(u32)(SESSION_KEY_LEN / sizeof(u32))/* Key_len in uint32_ts   */
-               ,associated_data + AD_write_offset   /* output target buffer   */
+            u8* msg_buf   ,associated_data + AD_write_offset   /* output target buffer   */
             );
 
             AD_write_offset += ONE_TIME_KEY_LEN;
@@ -1819,7 +1801,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     char temp_user_id[SMALL_FIELD_LEN];
 
-    const char* GUI_string_helper = ": ";
+    char* GUI_string_helper = ": ";
 
     u8* AD_pointer = payload + (3 * SMALL_FIELD_LEN);
     u8* our_K_pointer;
@@ -2043,10 +2025,353 @@ label_cleanup:
     return status;
 }
 
+/* Our client is sending a poll request to the Rosetta server to see if there
+   is anything new that just happened that we need to be aware of, such as 
+   one of our chat roommates sending a text message, a new roommate joining
+   or one leaving our chatroom, or the owner of the chatroom closing it.
+ 
+ Client ----> Server
+  
+================================================================================
+| packet ID 40 |  user_ix  |                    SIGNATURE                      | 
+|==============|===========|===================================================|
+|  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
+--------------------------------------------------------------------------------
 
+*/
+u8 construct_msg_40(void){
 
+    const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
+    u8 payload[payload_len];
+    explicit_bzero(payload, payload_len);
 
+    *((u64*)(payload)) = PACKET_ID_40;
+
+    memcpy((payload + SMALL_FIELD_LEN), own_user_id, SMALL_FIELD_LEN);
+
+    /* Compute a cryptographic signature so Rosetta server authenticates us. */
+    Signature_GENERATE( 
+        M, Q, Gm, payload, 2 * SMALL_FIELD_LEN, 
+        payload + (2 * SMALL_FIELD_LEN), own_privkey, PRIVKEY_LEN
+    );
+
+    /* Transmit our request to the Rosetta server. */
+    if(send(own_socket_fd, payload, payload_len, 0) == -1){
+        printf("[ERR] Client: Couldn't poll the server for anything new.\n\n");
+        ret = 0;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Polled the server for anything new.\n\n");
+    }
+
+label_cleanup:
+
+    /* No function cleanup yet. Keep the label for completeness. */
+
+    return ret;
+}
+
+/* The Rosetta server replied to our polling request with nothing new for us.
+ 
+   Server ---> Client
+
+================================================================================
+|  packet ID 40   |                  Cryptographic Signature                   |
+|=================|============================================================|
+| SMALL_FIELD_LEN |                        SIGNATURE_LEN                       |
+--------------------------------------------------------------------------------
+*/
+u8 process_msg_40(u8* payload){
+
+    u8 ret;
+
+    /* Verify the server's signature first. */
+    ret = uthenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+
+    if(ret != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_40. Drop.\n\n");
+        ret = 0;
+        goto label_cleanup;           
+    }
+
+    /* Cleanup. */
+label_cleanup:
+
+    /* No function cleanup for now. Keep the label for completeness. */
+
+    return ret;
+}
+
+/* The Rosetta server replied to our polling request with information that 
+   a NON-OWNER room guest has left our chatroom. Remove that user from our
+   global descriptors, bitmasks and other guest bookkeeping.
+ 
+   Server ---> Client
+
+================================================================================
+|  packet ID 50   |  guest_userID   |         Cryptographic Signature          |
+|=================|=================|==========================================|
+| SMALL_FIELD_LEN | SMALL_FIELD_LEN |              SIGNATURE_LEN               |
+--------------------------------------------------------------------------------
+*/
+u8 process_msg_50(u8* payload){
+
+    u64 sender_ix = MAX_CLIENTS + 1;
+    
+    u8 ret;
+
+    /* Verify the server's signature first. */
+    ret = uthenticate_server(payload, 2 * SMALL_FIELD_LEN, 2 * SMALL_FIELD_LEN);
+
+    if(ret != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_50. Drop.\n\n");
+        ret = 0;
+        goto label_cleanup;           
+    }
+
+    /* Find the index of the guest with this userID. */
+    for(u64 i = 0; i <= num_roommates - 2; ++i){
+        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
+            
+            /* if userID matches the one in payload */
+            if(strncmp( roommates[i].guest_user_id
+                       ,(payload + SMALL_FIELD_LEN)
+                       ,SMALL_FIELD_LEN
+                      ) == 0
+              )
+            {
+                sender_ix = i;
+                break;
+            }
+        }
+    }
+
+    /* If no guest found with the userID in the payload */
+    if(sender_ix == MAX_CLIENTS + 1){
+        printf("[ERR] Client: No departed guest found in chatroom. Drop.\n\n");
+        ret = 0;
+        goto label_cleanup;
+    }
+
+    /* Remove the guest found at this index from all global bookkeeping. */
+    
+    /* If the current next free slot is AFTER this guest's slot, update the 
+     * next free slot to be back here, making sure the next free guest slot
+     * is always the leftmost unset bit in the global bitmasks and descriptors.
+     */
+    if(sender_ix < next_free_roommate_slot){
+        next_free_roommate_slot = sender_ix;
+    }
+
+    /* Make sure we deallocate any memory pointed to by pointers contained
+     * in the struct itself or by pointers in an object that's part of the
+     * struct BEFORE we zero out the descriptor itself.
+     */
+    explicit_bzero(roommates[sender_ix].guest_user_id, SMALL_FIELD_LEN);
+    free(roommates[sender_ix].guest_pubkey.bits);
+    free(roommates[sender_ix].guest_pubkey_mont.bits);
+    free(roommates[sender_ix].guest_KBA);
+    free(roommates[sender_ix].guest_KAB);
+    free(roommates[sender_ix].guest_Nonce);
+
+    /* Now zero out the descriptor without the risk of memory leaks. */
+    explicit_bzero(&(roommates[sender_ix]), sizeof(struct roommate));
+
+    roommate_slots_bitmask     &= ~(BITMASK_BIT_AT(sender_ix));
+    roommate_key_usage_bitmask &= ~(BITMASK_BIT_AT(sender_ix));
+
+    --num_roommates;
+
+    /* Cleanup. */
+label_cleanup:
+
+    /* No function cleanup for now. Keep the label for completeness. */
+
+    return ret;
+}
+
+/* Tell the Rosetta server that the user wants to leave the chatroom.
+ 
+ Client ----> Server
+  
+================================================================================
+| packet ID 50 |  user_ix  |                    SIGNATURE                      | 
+|==============|===========|===================================================|
+|  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
+--------------------------------------------------------------------------------
+
+*/
+u8 construct_msg_50(void){
+
+    const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+
+    u8 ret = 1;
+    u8 payload[payload_len];
+
+    explicit_bzero(payload, payload_len);
+
+    for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
+
+        /* Make sure we deallocate any memory pointed to by pointers contained
+         * in the struct itself or by pointers in an object that's part of the
+         * struct BEFORE we zero out the descriptor itself.
+         */
+        if(roommate_slots_bitmask & BITMASK_BIT_AT(i)){
+            explicit_bzero(roommates[i].guest_user_id, SMALL_FIELD_LEN);
+            free(roommates[i].guest_pubkey.bits);
+            free(roommates[i].guest_pubkey_mont.bits);
+            free(roommates[i].guest_KBA);
+            free(roommates[i].guest_KAB);
+            free(roommates[i].guest_Nonce);
+        }
+    }
+
+    /* Now zero out all global descriptors without the risk of memory leaks. */
+    explicit_bzero(roommates, (roommates_arr_siz * sizeof(struct roommate)));
+    
+    /* Reset the two global guest bitmasks and other bookkeeping information. */
+    roommate_slots_bitmask     = 0;
+    roommate_key_usage_bitmask = 0;
+    num_roommates              = 0;
+    next_free_roommate_slot    = 0;
+
+    explicit_bzero(own_user_id, SMALL_FIELD_LEN);
+
+    *((u64*)(payload)) = PACKET_ID_50;
+
+    memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
+
+    /* Compute a cryptographic signature so Rosetta server authenticates us. */
+    Signature_GENERATE( 
+        M, Q, Gm, payload, 2 * SMALL_FIELD_LEN, 
+        payload + (2 * SMALL_FIELD_LEN), own_privkey, PRIVKEY_LEN
+    );
+
+    /* Transmit our request to the Rosetta server. */
+    if(send(own_socket_fd, payload, payload_len, 0) == -1){
+        printf("[ERR] Client: Couldn't send request to leave the room.\n\n");
+        ret = 0;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Told the server we wanna leave the room.\n\n");
+    }
+
+label_cleanup: 
+
+    /* No function cleanup yet. Keep the label for completeness. */
+
+    return ret;
+}
+
+/* The Rosetta server replied to our polling request with information that 
+   the chatroom owner has left our chatroom. Delete the entire room and reset
+   all global bookkeeping.
+ 
+   Server ---> Client
+
+================================================================================
+|  packet ID 51   |                  Cryptographic Signature                   |
+|=================|============================================================|
+| SMALL_FIELD_LEN |                        SIGNATURE_LEN                       |
+--------------------------------------------------------------------------------
+*/
+u8 process_msg_51(u8* payload){
+
+    u8 ret = 1;
+
+    /* Verify the server's signature first. */
+    ret = uthenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+
+    if(ret != 1){
+        printf("[ERR] Client: Invalid signature in process_msg_51. Drop.\n\n");
+        ret = 0;
+        goto label_cleanup;           
+    }
+
+    for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
+
+        /* Make sure we deallocate any memory pointed to by pointers contained
+         * in the struct itself or by pointers in an object that's part of the
+         * struct BEFORE we zero out the descriptor itself.
+         */
+        if(roommate_slots_bitmask & BITMASK_BIT_AT(i)){
+            explicit_bzero(roommates[i].guest_user_id, SMALL_FIELD_LEN);
+            free(roommates[i].guest_pubkey.bits);
+            free(roommates[i].guest_pubkey_mont.bits);
+            free(roommates[i].guest_KBA);
+            free(roommates[i].guest_KAB);
+            free(roommates[i].guest_Nonce);
+        }
+    }
+
+    /* Now zero out all global descriptors without the risk of memory leaks. */
+    explicit_bzero(roommates, (roommates_arr_siz * sizeof(struct roommate)));
+    
+    /* Reset the two global guest bitmasks and other bookkeeping information. */
+    roommate_slots_bitmask     = 0;
+    roommate_key_usage_bitmask = 0;
+    num_roommates              = 0;
+    next_free_roommate_slot    = 0;
+
+    /* Cleanup. */
+label_cleanup:
+
+    /* No function cleanup for now. Keep the label for completeness. */
+
+    return ret;
+}
+
+/* Tell the Rosetta server that the user wants to log off.
+ 
+ Client ----> Server
+  
+================================================================================
+| packet ID 60 |  user_ix  |                    SIGNATURE                      | 
+|==============|===========|===================================================|
+|  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
+--------------------------------------------------------------------------------
+
+*/
+u8 construct_msg_60(void){
+
+    const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+
+    u8 ret = 1;
+    u8 payload[payload_len];
+
+    explicit_bzero(payload, payload_len);
+
+    *((u64*)(payload)) = PACKET_ID_60;
+
+    memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
+
+    /* Compute a cryptographic signature so Rosetta server authenticates us. */
+    Signature_GENERATE( 
+        M, Q, Gm, payload, 2 * SMALL_FIELD_LEN, 
+        payload + (2 * SMALL_FIELD_LEN), own_privkey, PRIVKEY_LEN
+    );
+
+    own_ix = 0;
+
+    /* Transmit our request to the Rosetta server. */
+    if(send(own_socket_fd, payload, payload_len, 0) == -1){
+        printf("[ERR] Client: Couldn't send request to get logged off.\n\n");
+        ret = 0;
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Told the server we wanna get logged off.\n\n");
+    }
+
+label_cleanup: 
+
+    /* No function cleanup yet. Keep the label for completeness. */
+
+    return ret;
+}
 
 
 
