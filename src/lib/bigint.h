@@ -37,7 +37,7 @@ void bigint_create ( bigint* const  num
     }    
     
     num->size_bits = bitsize;
-    num->bits = calloc(1, bitsize / 0x08);
+    num->bits = (u8*)calloc(1, bitsize / 0x08);
     num->used_bits = 0x00;    
     
     for(u32 i = 0x00; i < 0x20; ++i){
@@ -83,7 +83,7 @@ void bigint_create_from_string(bigint* const     num
     }
     
     num->size_bits = bitsize;
-    num->bits = calloc(0x01, bitsize / 0x08);    
+    num->bits = (u8*)calloc(0x01, bitsize / 0x08);    
     
     for(int32_t i = (strlen / 8) - 1; i >= 0; --i){
         for(u32 j = 0; j < 8; ++j){
@@ -175,8 +175,8 @@ void bigint_print_bits(const bigint* const n){
     
     bytes_used = (u32)((double)bits_to_8 / (double)8.0);
      
-    bitstring = malloc(bytes_used * 8);
-    
+    bitstring = (char*)calloc(1, (bytes_used * 8));
+
     bigint_get_ascii_bits(n, bitstring);
     
     printf("\n\n");
@@ -215,8 +215,8 @@ void bigint_print_bits_bigend(const bigint* const n){
     
     bytes_used = (u32)((double)bits_to_8 / (double)8.0);
         
-    bitstring        = malloc(bytes_used * 8);
-    bitstring_bigend = malloc(bytes_used * 8);
+    bitstring        = (char*)calloc(1, bytes_used * 8);
+    bitstring_bigend = (char*)calloc(1, bytes_used * 8);
     
     bigint_get_ascii_bits(n, bitstring);
     
@@ -347,13 +347,13 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     
     file_bytes /= 8;
     
-    bigint_buf = calloc(1, (size_t)(reserve_bits / 8));
+    bigint_buf = (u8*)calloc(1, (size_t)(reserve_bits / 8));
     
     if(!fread(bigint_buf, 1, file_bytes, dat_file)){
         printf("[WARN] BigInt: No bytes read from bigint file %s\n", fn);
     }
     
-    big_n_ptr = calloc(1, sizeof(bigint)); 
+    big_n_ptr = (bigint*)calloc(1, sizeof(bigint)); 
     
     bigint_create(big_n_ptr, reserve_bits, 0); 
      

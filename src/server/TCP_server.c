@@ -113,7 +113,7 @@ socklen_t clientLen = sizeof(struct sockaddr_in);
 
 struct bigint *M, *Q, *G, *Gm, server_privkey_bigint, *server_pubkey_bigint;
 struct sockaddr_in client_address;
-struct sockaddr_in server_address;
+struct sockaddr_in servaddr;
 
 /* First thing done when we start the server - initialize it. */
 u32 self_init(){
@@ -121,9 +121,9 @@ u32 self_init(){
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
 
-    server_address.sin_family      = AF_INET;
-    server_address.sin_port        = htons(port);
-    server_address.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_family      = AF_INET;
+    servaddr.sin_port        = htons(port);
+    servaddr.sin_addr.s_addr = INADDR_ANY;
                                                         
     if( (listening_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("[ERR] Server: Could not open server socket. Aborting.\n");
@@ -142,8 +142,8 @@ u32 self_init(){
         (
          bind(
             listening_socket
-           ,(struct sockaddr*)&server_address
-           ,sizeof(server_address)
+           ,(struct sockaddr*)&servaddr
+           ,sizeof(servaddr)
         )
       ) == -1
     )

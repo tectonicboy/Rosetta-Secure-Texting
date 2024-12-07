@@ -1,6 +1,6 @@
 # -*- MakeFile -*-
 
-CFLAGS += -Wpedantic -pedantic-errors
+CFLAGS += -Wpedantic
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Waggregate-return
@@ -10,7 +10,6 @@ CFLAGS += -Wfloat-equal
 CFLAGS += -Wformat=2
 CFLAGS += -Wlogical-op
 CFLAGS += -Wmissing-include-dirs
-CFLAGS += -Wnested-externs
 CFLAGS += -Wpointer-arith
 CFLAGS += -Wredundant-decls
 CFLAGS += -Wsequence-point
@@ -21,8 +20,8 @@ CFLAGS += -Wunreachable-code
 CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
-
-WXFLAGS += `wx-config --cxxflags --libs`
+CFLAGS += -Wno-unused-function
+CFLAGS += -Wno-aggregate-return
 
 
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
@@ -74,6 +73,11 @@ server_gen_pub_key: server/server_gen_pub_key.c
 	-march=native -lm -pthread -O2 $(CFLAGS)
 	
 
-client:
-	g++ -pipe client/cApp.cpp client/cMain.cpp `wx-config --cxxflags --libs` -o ../bin/Client
+client: client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp
+	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp \
+	`wx-config --cxxflags --libs` -o ../bin/Client $(CFLAGS) \
+	-lm -pthread -march=native
 
+clean:
+	rm ../bin/Client ../bin/TCP_server
+ 

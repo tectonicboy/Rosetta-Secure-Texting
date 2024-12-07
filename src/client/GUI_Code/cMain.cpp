@@ -1,4 +1,5 @@
 #include "cMain.h"
+#include "../Network_Code/TCP_client.h"
 
 /* Implement what the Event Table is.
  *
@@ -6,7 +7,12 @@
  * Parm 2 - it also requires the base class that parm 1 inherited from.
  */
 BEGIN_EVENT_TABLE(cMain, wxFrame)
-    EVT_BUTTON(10001, cMain::OnButtonClicked)
+    EVT_BUTTON(10001, cMain::BtnClickLogin    )
+    EVT_BUTTON(10002, cMain::BtnClickRegister )
+    EVT_BUTTON(10003, cMain::BtnClickLoginGo  )
+    EVT_BUTTON(10004, cMain::BtnClickLoginBack)
+    EVT_BUTTON(10005, cMain::BtnClickRegGo    )
+    EVT_BUTTON(10006, cMain::BtnClickRegBack  )
 END_EVENT_TABLE()
 
 /* Constructor - uses constructor of wxFrame with parameters. */
@@ -35,8 +41,68 @@ cMain::cMain() : wxFrame(
         ,wxSize(200, 50) /* Width and height in pixels                    */
     );
     
-    
-    
+    btn_login_GO = new wxButton(
+        this
+       ,10003
+       ,"Go"
+       ,wxPoint(850, 600)
+       ,wxSize(200, 50)
+    );
+
+    btn_login_BACK = new wxButton(
+        this
+       ,10004
+       ,"Back"
+       ,wxPoint(850, 660)
+       ,wxSize(200,50)
+    );
+
+    btn_reg_GO = new wxButton(
+        this
+       ,10005
+       ,"Go"
+       ,wxPoint(850, 600)
+       ,wxSize(200,50)
+    );
+
+    btn_reg_BACK = new wxButton(
+        this
+       ,10006
+       ,"Back"
+       ,wxPoint(850, 660)
+       ,wxSize(200,50)
+    ); 
+
+    btn_login_GO->Hide();
+    btn_login_BACK->Hide();
+    btn_reg_GO->Hide();
+    btn_reg_BACK->Hide();
+
+    password_input = new wxTextCtrl( 
+        this
+        ,wxID_ANY
+        ,""
+        ,wxPoint(850, 750)
+        ,wxSize(200, 50)
+        ,wxTE_PASSWORD
+    );
+
+    password_input->SetHint("Your password...");
+
+    err_msg_box = new wxTextCtrl(
+        this
+        ,wxID_ANY
+        ,""
+        ,wxPoint(725, 850)
+        ,wxSize(500, 100)
+        ,wxTE_READONLY
+    );
+
+    password_input->Hide();
+    err_msg_box->Hide();
+
+
+
     /* Similarly construct the rest of the member variables. */
     
     /*
@@ -91,6 +157,8 @@ cMain::cMain() : wxFrame(
     this->SetBackgroundColour(*wxBLACK);
 
     // Load the JPG image from file
+
+    /*
     wxImage::AddHandler(new wxPNGHandler());
     
     wxImage padlock_image;
@@ -117,8 +185,10 @@ cMain::cMain() : wxFrame(
     else{
         wxMessageBox("Failed to load image!", "Error", wxICON_ERROR);
     }
-    
+    */
+
     /* do the second padlock image now.*/
+    /*
     wxImage padlock_image2;
     
     if ( padlock_image2.LoadFile( "../resources/padlock_image.png"
@@ -143,7 +213,7 @@ cMain::cMain() : wxFrame(
     else{
         wxMessageBox("Failed to load image!", "Error", wxICON_ERROR);
     }    
-    
+    */
 }
     
     
@@ -153,18 +223,148 @@ cMain::~cMain()
     /* empty destructor function body */
 }
 
-void cMain::OnButtonClicked(wxCommandEvent &evt){
+void cMain::BtnClickLogin(wxCommandEvent &evt){
 
-    /* Do something when the button has been clicked. */
-    
-    
-    
-    /* Tell the system that this event has been handled by telling the event
-     * that it has finished, by calling its Skip() member function.
-     */
+    btn_reg->Hide();
+    btn_login->Hide();
+
+    btn_login_GO->Show();
+    btn_login_BACK->Show();
+
+    password_input->Show();
+
+    /* End the event. */
     evt.Skip();
     
+    return;
 }
 
+void cMain::BtnClickLoginGo(wxCommandEvent &evt){
 
+    uint8_t login_status = 1;
+    uint8_t password[16];
+    int password_len;
 
+    wxString pwd_as_wxstring;
+    
+    err_msg_box->Hide();
+
+    pwd_as_wxstring = password_input->GetValue();
+    password_len    = pwd_as_wxstring.Length();
+
+    if(password_len > 15 || password_len < 5){
+        err_msg_box->SetValue("");
+        err_msg_box->WriteText("Error. Enter 5 to 15 characters.");
+        err_msg_box->Show();
+    }
+
+    password_input->AppendText("\0");
+
+    strncpy( (char*)password
+            ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
+            ,password_len
+    );
+
+    login_status = login(password, password_len);
+
+    printf("Obtained user's entered password from GUI!\n");
+    printf("password_len = %d\n", password_len);
+    printf("password: %s\n", password);
+
+    if(login_status == 1){
+        /* Add code to render OK msg and buttons for joining/creating a chatroom. */
+        /* And to hide the rendering of the login stuff .*/
+    }
+    else{
+        /* Add code to render 'Could not log in' error message. */
+    }
+    
+    /* End the event. */
+    evt.Skip();
+
+}
+
+void cMain::BtnClickLoginBack(wxCommandEvent &evt){
+
+    btn_reg->Show();
+    btn_login->Show();
+
+    btn_login_GO->Hide();
+    btn_login_BACK->Hide();
+
+    password_input->SetValue("");
+    password_input->Hide();
+
+    err_msg_box->SetValue("");
+    err_msg_box->Hide();
+
+    /* End the event. */
+    evt.Skip();
+}
+
+void cMain::BtnClickRegister(wxCommandEvent &evt){
+
+    btn_reg->Hide();
+    btn_login->Hide();
+
+    btn_reg_GO->Show();
+    btn_reg_BACK->Show();
+
+    password_input->Show();
+
+    /* End the event. */
+    evt.Skip();
+}
+
+void cMain::BtnClickRegGo(wxCommandEvent &evt){
+
+    uint8_t register_status = 1;
+    uint8_t password[16];
+    int password_len;
+    wxString pwd_as_wxstring;
+    
+    err_msg_box->Hide();
+
+    pwd_as_wxstring = password_input->GetValue();
+    password_len    = pwd_as_wxstring.Length();
+
+    if(password_len > 15 || password_len < 5){
+        err_msg_box->SetValue("");
+        err_msg_box->WriteText("Error. Enter 5 to 15 characters.");
+        err_msg_box->Show();
+    }
+
+    password_input->AppendText("\0");
+
+    strncpy( (char*)password
+            ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
+            ,password_len
+    );
+
+    //register_status = register(password, password_len);
+
+    printf("Obtained user's entered password from GUI!\n");
+    printf("password_len = %d\n", password_len);
+    printf("password: %s\n", password);
+
+    /* End the event. */
+    evt.Skip();
+}
+
+void cMain::BtnClickRegBack(wxCommandEvent &evt){
+
+    btn_reg->Show();
+    btn_login->Show();
+
+    btn_reg_GO->Hide();
+    btn_reg_BACK->Hide();
+
+    password_input->SetValue("");
+    password_input->Hide();
+
+    err_msg_box->SetValue("");
+    err_msg_box->Hide();
+
+    /* End the event. */
+    evt.Skip();
+}

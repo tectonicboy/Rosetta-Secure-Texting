@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "../lib/coreutil.h"
+#include "../../lib/coreutil.h"
 
 #define BITMASK_BIT_AT(X) (1ULL << (63ULL - ((X))))
 
@@ -42,7 +42,7 @@ struct roommate{
     u64    guest_nonce_counter;
 };
 
-const u64 roommates_arr_siz = MAX_CLIENTS - 1;
+#define roommates_arr_siz 63
 struct roommate roommates[roommates_arr_siz];
 
 u64 next_free_roommate_slot = 0;
@@ -91,7 +91,7 @@ int own_socket_fd
 
 const socklen_t server_addr_len = sizeof(struct sockaddr_in);
 
-struct sockaddr_in server_address;
+struct sockaddr_in servaddr;
 
 /* List of packet ID magic constats for legitimate recognized packet types. */
 #define PACKET_ID_00 0xAD0084FF0CC25B0E
@@ -111,7 +111,7 @@ struct sockaddr_in server_address;
 /* First thing done when we start the client software - initialize it. */
 u32 self_init(){
 
-    memset(roommates, 0, roommates_arr_siz);
+    memset(roommates, 0, roommates_arr_siz * sizeof(struct roommate));
 
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
@@ -123,21 +123,21 @@ u32 self_init(){
         printf("[ERR] Client: Own TCP socket init failed. Terminating.\n");
         return 1;
     }
-
+    /*
     setsockopt(
           own_socket_fd, SOL_SOCKET, SO_REUSEPORT, &optval1, sizeof(optval1)
     );  
-      
+    */
     setsockopt(
           own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
     );
     
-    explicit_bzero(&server_address, sizeof(struct sockaddr_in));
+    memset(&servaddr, 0, sizeof(struct sockaddr_in));
  
     /* Initialize the server address structure. */
     servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr("212.104.116.132");
-    servaddr.sin_port        = htons(PORT);
+    servaddr.sin_port        = htons(port);
  
     /* Load our own private key. */
     FILE* privkey_dat = fopen("client_privkey.dat", "r"); 
@@ -156,10 +156,10 @@ u32 self_init(){
     fclose(privkey_dat);
 
     /* Initialize the BigInt that stores our private key. */
-    bigint_create(&own_privkey, MAX_BIGINT_SIZ, 0);
-    memcpy(own_privkey.bits, own_privkey_buf, PRIVKEY_LEN);     
-    own_privkey.used_bits = get_used_bits(own_privkey_buf, PRIVKEY_LEN);                            
-    own_privkey.free_bits = MAX_BIGINT_SIZ - own_privkey.used_bits;   
+    bigint_create(own_privkey, MAX_BIGINT_SIZ, 0);
+    memcpy(own_privkey->bits, own_privkey_buf, PRIVKEY_LEN);     
+    own_privkey->used_bits = get_used_bits(own_privkey_buf, PRIVKEY_LEN);                            
+    own_privkey->free_bits = MAX_BIGINT_SIZ - own_privkey->used_bits;   
 
     /* Load in other BigInts needed for the cryptography to work. */
     
@@ -205,12 +205,12 @@ u32 self_init(){
        
     /* if A < B */
     if( (bigint_compare2(own_pubkey_bigint, server_pubkey_bigint)) == 3){
-        KAB = server_shared_secret + SESSION_KEY_LEN; 
-        KBA = server_shared_secret;
+        KAB = server_shared_secret.bits + SESSION_KEY_LEN; 
+        KBA = server_shared_secret.bits;
     }
     else{
-        KAB = server_shared_secret;
-        KBA = server_shared_secret + SESSION_KEY_LEN;
+        KAB = server_shared_secret.bits;
+        KBA = server_shared_secret.bits + SESSION_KEY_LEN;
     }    
 
     
@@ -242,7 +242,7 @@ u32 self_init(){
 }
 
 
-u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 signature_offset){
+u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 
     bigint *recv_e;
     bigint *recv_s;
@@ -272,7 +272,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 signature_offset){
     /* Verify the sender's cryptographic signature. */
     ret = Signature_VALIDATE(
             Gm, server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
-    ); own_privkey
+    );
 
     free(recv_s->bits);
     free(recv_e->bits);
@@ -352,7 +352,7 @@ u8 construct_msg_00(void){
     
     memcpy(msg_buf + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
     
-    if(send(own_socket_fd, msg_buf, msg_len) == -1){
+    if(send(own_socket_fd, msg_buf, msg_len, 0) == -1){
         printf("[ERR] Client: Couldn't send initial login transmission.\n");
         printf("[ERR]         Aborting Login...\n\n");
         status = 0;
@@ -393,7 +393,7 @@ u8 process_msg_00(u8* msg_buf){
     u32 tempbuf_write_offset;
     u32 shared_secret_read_offset;
     u32 HMAC_reply_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
-    bigint *X_s;
+    bigint  X_s;
     bigint *B_s;
     bigint  B_sM;
     bigint  zero;
@@ -440,7 +440,7 @@ u8 process_msg_00(u8* msg_buf){
      *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
      */
     
-    bigint_create(X_s,   MAX_BIGINT_SIZ, 0);
+    bigint_create(&X_s,   MAX_BIGINT_SIZ, 0);
     bigint_create(&zero, MAX_BIGINT_SIZ, 0);
     bigint_create(&B_sM, MAX_BIGINT_SIZ, 0);
     
@@ -451,11 +451,11 @@ u8 process_msg_00(u8* msg_buf){
         || 
           ((bigint_compare2(M, B_s)) != 1)
         ||
-          (check_pubkey_form(&A_sM, M, Q) == 0) 
+          (check_pubkey_form(&B_sM, M, Q) == 0) 
       )
     {
         printf("[ERR] Client: Server's short-term public key is invalid.\n");
-        printf("              Its info and ALL %u bits:\n\n");
+        printf("              Its info and ALL %u bits:\n\n", B_s->size_bits);
         bigint_print_info(B_s);
         bigint_print_all_bits(B_s);
         status = 0;
@@ -463,7 +463,7 @@ u8 process_msg_00(u8* msg_buf){
     }     
         
     /* X_s = B_s^a_s mod M */
-    MONT_POW_modM(&B_sm, a_s, M, X_s);
+    MONT_POW_modM(&B_sM, a_s, M, &X_s);
     
     /* Construct a special buffer containing Y_s concatenated with the received
      * signature, because the signature validating interface needs it that way
@@ -472,7 +472,7 @@ u8 process_msg_00(u8* msg_buf){
      * signed to begin with.
      */
     memcpy( auth_buf
-           ,X_s->bits + (2 * SESSION_KEY_LEN)
+           ,X_s.bits + (2 * SESSION_KEY_LEN)
            ,INIT_AUTH_LEN
           );
     
@@ -504,7 +504,7 @@ u8 process_msg_00(u8* msg_buf){
     
     /* Key KAB_s */
     memcpy( temp_handshake_buf + tempbuf_write_offset
-           ,X_s->bits
+           ,X_s.bits
            ,SESSION_KEY_LEN
           );
     
@@ -513,7 +513,7 @@ u8 process_msg_00(u8* msg_buf){
     
     /* Key KBA_s */
     memcpy( temp_handshake_buf + tempbuf_write_offset
-           ,X_s->bits + shared_secret_read_offset
+           ,X_s.bits + shared_secret_read_offset
            ,SESSION_KEY_LEN
           );
           
@@ -522,7 +522,7 @@ u8 process_msg_00(u8* msg_buf){
     
     /* Section of shared secret on which we'll compute Schnorr signatures. */
     memcpy( temp_handshake_buf + tempbuf_write_offset
-        ,X_s->bits + shared_secret_read_offset
+        ,X_s.bits + shared_secret_read_offset
         ,INIT_AUTH_LEN
        );
 
@@ -531,7 +531,7 @@ u8 process_msg_00(u8* msg_buf){
     
     /* short-term symmetric Nonce for encrypting/decrypting with ChaCha20 */
     memcpy( temp_handshake_buf + tempbuf_write_offset
-        ,X_s->bits + shared_secret_read_offset
+        ,X_s.bits + shared_secret_read_offset
         ,SHORT_NONCE_LEN
        );
      
@@ -639,7 +639,7 @@ u8 process_msg_00(u8* msg_buf){
 --------------------------------------------------------------------------------
 
 */
-    if(send(own_socket_fd, reply_buf, reply_len) == -1){
+    if(send(own_socket_fd, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Client: Couldn't send second login transmission.\n");
         printf("[ERR]         Aborting Login...\n\n");
         status = 0;
@@ -691,7 +691,7 @@ label_cleanup:
 u8 process_msg_01(u8* msg){
 
     u64 nonce_offset;
-    U64 key_offset;
+    u64 key_offset;
     
     u8 status = 1;
 
@@ -715,13 +715,13 @@ u8 process_msg_01(u8* msg){
     
     key_offset = (2 * sizeof(bigint)) + sizeof(bigint*) + SESSION_KEY_LEN ;  
                  
-    CHACHA20( msg_buf + SMALL_FIELD_LEN                /* text - key KB       */
+    CHACHA20( msg + SMALL_FIELD_LEN                    /* text - key KB       */
              ,SMALL_FIELD_LEN                          /* text_len in bytes   */
              ,(u32*)(temp_handshake_buf + nonce_offset)/* Nonce ptr           */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32))     /* nonceLen in uint32s */
              ,(u32*)(temp_handshake_buf + key_offset)  /* chacha Key ptr      */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))     /* Key_len in uint32s  */
-             ,&own_ix                                  /* output buffer ptr   */
+             ,(u8*)(&own_ix)                           /* output buffer ptr   */
             );
     
     printf("[OK]  Client: Server told us Login was successful!\n");
@@ -730,7 +730,7 @@ u8 process_msg_01(u8* msg){
 label_cleanup:            
  
     /* TODO Free() pointers to heap memory in handshake_buf before zeroing it */         
-    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
+    memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
     
     temp_handshake_memory_region_isLocked = 0;     
     
@@ -775,7 +775,7 @@ u8 process_msg_02(u8* msg){
     }
     
     /* TODO Free() pointers to heap memory in handshake_buf before zeroing it */    
-    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
+    memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
     
     temp_handshake_memory_region_isLocked = 0;    
     
@@ -899,7 +899,7 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     /* Ready to send the constructed packet to the Rosetta server now. */
     
-    if(send(own_socket_fd, send_buf, send_len) == -1){
+    if(send(own_socket_fd, send_buf, send_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 10.\n");
         printf("              Which is the request to create a new room\n");
         printf("              Tell GUI to tell the user about this!\n\n");
@@ -1119,7 +1119,7 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Ready to send the constructed packet to the Rosetta server now. */
     
-    if(send(own_socket_fd, send_buf, send_len) == -1){
+    if(send(own_socket_fd, send_buf, send_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 20.\n");
         printf("              Which is the request to join an existing room\n");
         printf("              Tell GUI to tell the user about this!\n\n");
@@ -1207,7 +1207,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
 
     u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
     u8* buf_decrypted_AD = NULL;
-    u64 num_current_guests = *((u64*)(msg + SMALL_LEN + ONE_TIME_KEY_LEN));
+    u64 num_current_guests = *((u64*)(msg + SMALL_FIELD_LEN + ONE_TIME_KEY_LEN));
     u64 recv_type20_AD_len;
     u64 recv_type20_AD_len_expected;
     u64 recv_type20_signed_len;
@@ -1248,7 +1248,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
      * TODO.
      */
     status = 
-       authenticate_server(msg, send_type20_signed_len, send_type20_signed_len);    
+       authenticate_server(msg, recv_type20_signed_len, recv_type20_signed_len);    
 
     if(status != 1){
         printf("[ERR] Client: Invalid signature in process_msg_20. Drop.\n");
@@ -1301,7 +1301,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
      * the chatroom we're currently in, process this message's associated data, 
      * filling a guest structure for each guest in it. 
      */ 
-    memset(roommates, 0, roommates_arr_siz); 
+    memset(roommates, 0, roommates_arr_siz * sizeof(struct roommate)); 
     next_free_roommate_slot = 0;
     roommate_slots_bitmask = 0;
     num_roommates = num_current_guests;
@@ -1326,15 +1326,15 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         
         this_pubkey->bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
         
-        memcpy( this_pubkey.bits
+        memcpy( this_pubkey->bits
                ,buf_decrypted_AD + (i * guest_info_slot_siz) + SMALL_FIELD_LEN 
                ,PUBKEY_LEN
               ); 
               
         /* Now initialize the rest of this guest's descriptor structure. */   
-        this_pubkey.size_bits = MAX_BIGINT_SIZ;
-        this_pubkey.used_bits = get_used_bits(this_pubkey.bits, PUBKEY_LEN);
-        this_pubkey.free_bits = this_pubkey.size_bits - this_pubkey.used_bits;
+        this_pubkey->size_bits = MAX_BIGINT_SIZ;
+        this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
+        this_pubkey->free_bits = this_pubkey->size_bits - this_pubkey->used_bits;
 
         bigint_create(&(roommates[i].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);  
         Get_Mont_Form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
@@ -1345,7 +1345,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
          * bidirectional session keys KAB, KBA and the symmetric ChaCha nonce. 
          */
 
-        bigint_create(temp_shared_secret, MAX_BIGINT_SIZ, 0);
+        bigint_create(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
 
         MONT_POW_modM(
             &(roommates[i].guest_pubkey_mont)
@@ -1358,11 +1358,11 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         roommates[i].guest_KAB = calloc(1, SESSION_KEY_LEN);
 
         /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
-        memcpy(roommates[i].guest_KBA, temp_shared_secret, SESSION_KEY_LEN);
+        memcpy(roommates[i].guest_KBA, temp_shared_secret.bits, SESSION_KEY_LEN);
 
         memcpy( 
             roommates[i].guest_KAB
-           ,temp_shared_secret + SESSION_KEY_LEN
+           ,temp_shared_secret.bits + SESSION_KEY_LEN
            ,SESSION_KEY_LEN
         );
 
@@ -1370,7 +1370,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
 
         memcpy( 
             roommates[i].guest_Nonce
-           ,temp_shared_secret + (2 * SESSION_KEY_LEN)
+           ,temp_shared_secret.bits + (2 * SESSION_KEY_LEN)
            ,LONG_NONCE_LEN
         );
     }
@@ -1494,11 +1494,7 @@ u8 process_msg_21(u8* msg){
      * Guest deletion logic makes sure the next free guest slot in the bitmask
      * is always the leftmost available, so just go to the right now, until
      * we see a bit that's not set.
-     *         /* Compute a cryptographic signature so the client can authenticate us*/
-        Signature_GENERATE
-             ( M, Q, Gm, reply_buf, SMALL_FIELD_LEN, reply_buf + SMALL_FIELD_LEN
-              ,&server_privkey_bigint, PRIVKEY_LEN
-        );;
+     */
   
     /* Grab the decrypted guest userid. */
     memcpy( 
@@ -1513,15 +1509,15 @@ u8 process_msg_21(u8* msg){
     this_pubkey->bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
     
     memcpy( 
-        this_pubkey.bits
+        this_pubkey->bits
        ,buf_decrypted_guest_info + SMALL_FIELD_LEN 
        ,PUBKEY_LEN
     ); 
             
     /* Now initialize the rest of the new guest's descriptor structure. */   
-    this_pubkey.size_bits = MAX_BIGINT_SIZ;
-    this_pubkey.used_bits = get_used_bits(this_pubkey.bits, PUBKEY_LEN);
-    this_pubkey.free_bits = this_pubkey.size_bits - this_pubkey.used_bits;
+    this_pubkey->size_bits = MAX_BIGINT_SIZ;
+    this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
+    this_pubkey->free_bits = this_pubkey->size_bits - this_pubkey->used_bits;
 
     bigint_create(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);  
     Get_Mont_Form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
@@ -1531,7 +1527,7 @@ u8 process_msg_21(u8* msg){
     /* Now compute a shared secret with the new guest to get our pair of
      * bidirectional session keys KAB, KBA and the symmetric ChaCha nonce. 
      */
-    bigint_create(temp_shared_secret, MAX_BIGINT_SIZ, 0);
+    bigint_create(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
 
     MONT_POW_modM(
         &(roommates[guest_ix].guest_pubkey_mont)
@@ -1541,17 +1537,17 @@ u8 process_msg_21(u8* msg){
     );
 
     /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
-    memcpy(roommates[guest_ix].guest_KBA, temp_shared_secret, SESSION_KEY_LEN);
+    memcpy(roommates[guest_ix].guest_KBA, temp_shared_secret.bits, SESSION_KEY_LEN);
 
     memcpy( 
         roommates[guest_ix].guest_KAB
-        ,temp_shared_secret + SESSION_KEY_LEN
+        ,temp_shared_secret.bits + SESSION_KEY_LEN
         ,SESSION_KEY_LEN
     );
 
     memcpy( 
         roommates[guest_ix].guest_Nonce
-        ,temp_shared_secret + (2 * SESSION_KEY_LEN)
+        ,temp_shared_secret.bits + (2 * SESSION_KEY_LEN)
         ,LONG_NONCE_LEN
     );
 
@@ -1608,7 +1604,13 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     FILE* ran_file = NULL;
 
     bigint guest_nonce_bigint;
+    bigint one;
+    bigint aux1;
+
+    one.bits = NULL;
+    aux1.bits = NULL;
     guest_nonce_bigint.bits = NULL;
+
 
     size_t ret_val;
 
@@ -1637,6 +1639,9 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
         status = 0;
         goto label_cleanup;
     }
+
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
 
     guest_nonce_bigint.bits = 
         calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
@@ -1682,8 +1687,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
             /* Increment nonce as many times as counter says for this guest. */
             for(u64 j = 0; j < roommates[i].guest_nonce_counter; ++j){
                 bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
-            u8* msg_buf   ,associated_data + AD_write_offset   /* output target buffer   */
-            );
+            }
 
             AD_write_offset += ONE_TIME_KEY_LEN;
 
@@ -1708,8 +1712,9 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
             /* Increment our Nonce with this guest again to keep it symmetric */
             ++(roommates[i].guest_nonce_counter);
 
-            explicit_bzero(
+            memset(
                 guest_nonce_bigint.bits
+               ,0
                ,((size_t)((double)MAX_BIGINT_SIZ/(double)8))
             );
         }
@@ -1724,7 +1729,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
 
     /* Ready to send the constructed packet to the Rosetta server now. */
     
-    if(send(own_socket_fd, payload, payload_len) == -1){
+    if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 30.\n");
         printf("              Which is the request to send a text message\n");
         printf("              Tell GUI to tell the user about this!\n\n");
@@ -1738,6 +1743,9 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
 label_cleanup:
 
     if(guest_nonce_bigint.bits != NULL) {free(guest_nonce_bigint.bits);}
+
+    if(one.bits  != NULL) { free(one.bits);  } 
+    if(aux1.bits != NULL) { free(aux1.bits); }
 
     free(associated_data);
     free(payload);
@@ -1801,7 +1809,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     char temp_user_id[SMALL_FIELD_LEN];
 
-    char* GUI_string_helper = ": ";
+    const char* GUI_string_helper = ": ";
 
     u8* AD_pointer = payload + (3 * SMALL_FIELD_LEN);
     u8* our_K_pointer;
@@ -1810,21 +1818,20 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     u8* decrypted_key = NULL;
     u8  status = 1;
 
-    bigint *recv_e;
-    bigint *recv_s;
+    bigint *recv_e = NULL;
+    bigint *recv_s = NULL;
     bigint  guest_nonce_bigint;
     bigint  one;
     bigint  aux1;
 
     one.bits     = NULL;
     aux1.bits    = NULL;
-    recv_e->bits = NULL;
-    recv_s->bits = NULL;
+
     guest_nonce_bigint.bits = NULL;
 
-    explicit_bzero(temp_user_id, SMALL_FIELD_LEN);
+    memset(temp_user_id, 0, SMALL_FIELD_LEN);
 
-    if(text_len < 1 || text_len > MAX_TXT_LEN) [[unlikely]] {
+    if(text_len < 1 || text_len > MAX_TXT_LEN) {
 
         printf("[ERR] Client: Text message by a guest is of invalid length.\n");
         printf("              Obtained message length: %lu\n\n", text_len);
@@ -1844,7 +1851,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
             
             /* if userIDs match. */
             if(strncmp( roommates[i].guest_user_id
-                       ,(payload + SMALL_FIELD_LEN)
+                       ,(char*)(payload + SMALL_FIELD_LEN)
                        ,SMALL_FIELD_LEN
                       ) == 0
               )
@@ -1856,7 +1863,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     } 
 
     /* If the sender wasn't found in any global descriptor */
-    if(sender_ix == MAX_CLIENTS + 1) [[unlikely]] {
+    if(sender_ix == MAX_CLIENTS + 1) {
         printf("[ERR] Client: Couldn't find the message sender. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1901,7 +1908,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
                     ,(payload + sign1_offset), sign1_offset
     ); 
 
-    if(status != 1) [[unlikely]] {
+    if(status != 1) {
         printf("[ERR] Client: Invalid sender signature in msg_30 Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1919,7 +1926,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     }
 
     /* If we didn't find our userID in the associated data, drop the message. */
-    if(our_AD_slot == (MAX_CLIENTS + 1)) [[unlikely]] {
+    if(our_AD_slot == (MAX_CLIENTS + 1)) {
         printf("[ERR] Client: Didn't find our message slot in AD. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1983,7 +1990,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
        ,decrypted_key                        /* output target buffer   */
     );
 
-    roommates[sender_ix].guest_nonce_counter;
+    ++roommates[sender_ix].guest_nonce_counter;
 
     bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
     bigint_equate2(&guest_nonce_bigint, &aux1);   
@@ -1994,18 +2001,18 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
        ,text_len                              /* text_len in bytes      */
        ,(u32*)(guest_nonce_bigint.bits)       /* Nonce (short), counter */
        ,(u32)(SHORT_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_ts */
-       ,decrypted_key                         /* chacha Key             */
+       ,(u32*)decrypted_key                   /* chacha Key             */
        ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32)) /* Key_len in uint32_ts   */
        ,decrypted_msg                         /* output target buffer   */
     );
 
-    roommates[sender_ix].guest_nonce_counter;
+    ++roommates[sender_ix].guest_nonce_counter;
 
     /* Displayed name format in GUI is always "xxxxNAME: MSG"            */
     /* Always 8 chars space for username and max_txt_len for msg, 1 row. */
     result_chars = SMALL_FIELD_LEN + 2 + text_len;
 
-    explicit_bzero(name_with_msg_string, result_chars);
+    memset(name_with_msg_string, 0, result_chars);
 
     /* Construct the string with name and message to be displayed on the GUI. */
     memcpy(name_with_msg_string, payload + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
@@ -2014,8 +2021,8 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
 label_cleanup:
 
-    if(recv_s->bits != NULL)            { free(recv_s->bits);           }
-    if(recv_e->bits != NULL)            { free(recv_e->bits);           }
+    if(recv_s != NULL)                  { free(recv_s->bits);           }
+    if(recv_e != NULL)                  { free(recv_e->bits);           }
     if(guest_nonce_bigint.bits != NULL) { free(guest_nonce_bigint.bits);}
     if(one.bits != NULL)                { free(one.bits);               }
     if(aux1.bits != NULL)               { free(aux1.bits);              }    
@@ -2041,10 +2048,12 @@ label_cleanup:
 */
 u8 construct_msg_40(void){
 
+    u8 ret = 1;
+
     const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
     u8 payload[payload_len];
-    explicit_bzero(payload, payload_len);
+    memset(payload, 0, payload_len);
 
     *((u64*)(payload)) = PACKET_ID_40;
 
@@ -2088,7 +2097,7 @@ u8 process_msg_40(u8* payload){
     u8 ret;
 
     /* Verify the server's signature first. */
-    ret = uthenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+    ret = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     if(ret != 1){
         printf("[ERR] Client: Invalid signature in process_msg_40. Drop.\n\n");
@@ -2123,7 +2132,7 @@ u8 process_msg_50(u8* payload){
     u8 ret;
 
     /* Verify the server's signature first. */
-    ret = uthenticate_server(payload, 2 * SMALL_FIELD_LEN, 2 * SMALL_FIELD_LEN);
+    ret = authenticate_server(payload, 2 * SMALL_FIELD_LEN, 2 * SMALL_FIELD_LEN);
 
     if(ret != 1){
         printf("[ERR] Client: Invalid signature in process_msg_50. Drop.\n\n");
@@ -2137,7 +2146,7 @@ u8 process_msg_50(u8* payload){
             
             /* if userID matches the one in payload */
             if(strncmp( roommates[i].guest_user_id
-                       ,(payload + SMALL_FIELD_LEN)
+                       ,(char*)(payload + SMALL_FIELD_LEN)
                        ,SMALL_FIELD_LEN
                       ) == 0
               )
@@ -2169,7 +2178,7 @@ u8 process_msg_50(u8* payload){
      * in the struct itself or by pointers in an object that's part of the
      * struct BEFORE we zero out the descriptor itself.
      */
-    explicit_bzero(roommates[sender_ix].guest_user_id, SMALL_FIELD_LEN);
+    memset(roommates[sender_ix].guest_user_id, 0, SMALL_FIELD_LEN);
     free(roommates[sender_ix].guest_pubkey.bits);
     free(roommates[sender_ix].guest_pubkey_mont.bits);
     free(roommates[sender_ix].guest_KBA);
@@ -2177,7 +2186,7 @@ u8 process_msg_50(u8* payload){
     free(roommates[sender_ix].guest_Nonce);
 
     /* Now zero out the descriptor without the risk of memory leaks. */
-    explicit_bzero(&(roommates[sender_ix]), sizeof(struct roommate));
+    memset(&(roommates[sender_ix]), 0, sizeof(struct roommate));
 
     roommate_slots_bitmask     &= ~(BITMASK_BIT_AT(sender_ix));
     roommate_key_usage_bitmask &= ~(BITMASK_BIT_AT(sender_ix));
@@ -2210,7 +2219,7 @@ u8 construct_msg_50(void){
     u8 ret = 1;
     u8 payload[payload_len];
 
-    explicit_bzero(payload, payload_len);
+    memset(payload, 0, payload_len);
 
     for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
 
@@ -2219,7 +2228,7 @@ u8 construct_msg_50(void){
          * struct BEFORE we zero out the descriptor itself.
          */
         if(roommate_slots_bitmask & BITMASK_BIT_AT(i)){
-            explicit_bzero(roommates[i].guest_user_id, SMALL_FIELD_LEN);
+            memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
             free(roommates[i].guest_pubkey.bits);
             free(roommates[i].guest_pubkey_mont.bits);
             free(roommates[i].guest_KBA);
@@ -2229,7 +2238,7 @@ u8 construct_msg_50(void){
     }
 
     /* Now zero out all global descriptors without the risk of memory leaks. */
-    explicit_bzero(roommates, (roommates_arr_siz * sizeof(struct roommate)));
+    memset(roommates, 0, (roommates_arr_siz * sizeof(struct roommate)));
     
     /* Reset the two global guest bitmasks and other bookkeeping information. */
     roommate_slots_bitmask     = 0;
@@ -2237,7 +2246,7 @@ u8 construct_msg_50(void){
     num_roommates              = 0;
     next_free_roommate_slot    = 0;
 
-    explicit_bzero(own_user_id, SMALL_FIELD_LEN);
+    memset(own_user_id, 0, SMALL_FIELD_LEN);
 
     *((u64*)(payload)) = PACKET_ID_50;
 
@@ -2283,7 +2292,7 @@ u8 process_msg_51(u8* payload){
     u8 ret = 1;
 
     /* Verify the server's signature first. */
-    ret = uthenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+    ret = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     if(ret != 1){
         printf("[ERR] Client: Invalid signature in process_msg_51. Drop.\n\n");
@@ -2298,7 +2307,7 @@ u8 process_msg_51(u8* payload){
          * struct BEFORE we zero out the descriptor itself.
          */
         if(roommate_slots_bitmask & BITMASK_BIT_AT(i)){
-            explicit_bzero(roommates[i].guest_user_id, SMALL_FIELD_LEN);
+            memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
             free(roommates[i].guest_pubkey.bits);
             free(roommates[i].guest_pubkey_mont.bits);
             free(roommates[i].guest_KBA);
@@ -2308,7 +2317,7 @@ u8 process_msg_51(u8* payload){
     }
 
     /* Now zero out all global descriptors without the risk of memory leaks. */
-    explicit_bzero(roommates, (roommates_arr_siz * sizeof(struct roommate)));
+    memset(roommates, 0, (roommates_arr_siz * sizeof(struct roommate)));
     
     /* Reset the two global guest bitmasks and other bookkeeping information. */
     roommate_slots_bitmask     = 0;
@@ -2342,7 +2351,7 @@ u8 construct_msg_60(void){
     u8 ret = 1;
     u8 payload[payload_len];
 
-    explicit_bzero(payload, payload_len);
+    memset(payload, 0, payload_len);
 
     *((u64*)(payload)) = PACKET_ID_60;
 
@@ -2373,6 +2382,12 @@ label_cleanup:
     return ret;
 }
 
+u8 login(u8* password, int password_len){
+
+    printf("Called TCP_Client's login function now.\n");
+
+    return 1;
+}
 
 
 

@@ -265,7 +265,7 @@ void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
     u32   j; 
     u32   counter_len = 16 - (key_len + nonce_len + 4);
     u32   last_txt_block_len = (txt_len % 64);
-    u32** outputs = calloc(1, num_matrices * sizeof(uint32_t*));
+    u32** outputs = (u32**)calloc(1, num_matrices * sizeof(uint32_t*));
     u32*  counter = NULL;
     u32   full_txt_blocks = 0;
     
@@ -280,11 +280,11 @@ void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
     }
   
     for(i = 0; i < num_matrices; ++i){
-        outputs[i] = calloc(1, 64 * sizeof(uint8_t));   
+        outputs[i] = (u32*)calloc(1, 64 * sizeof(uint8_t));   
     }
   
     if(counter_len > 0){
-        counter = calloc(1, sizeof(uint32_t));
+        counter = (u32*)calloc(1, sizeof(uint32_t));
         *counter = 1;
     }
 
@@ -480,11 +480,11 @@ void BLAKE2B_INIT(u8* m, u64 ll, u64 kk, u64 nn, u8* rr){
     /* Find length of last data block */
     uint64_t last_len = ll % 128;
     
-    uint64_t** data_blocks = calloc(1, dd * sizeof(uint64_t*));
+    uint64_t** data_blocks = (u64**)calloc(1, dd * sizeof(uint64_t*));
     
     for(uint64_t i = 0; i < dd; ++i){
     
-        data_blocks[i] = calloc(1, 16 * sizeof(uint64_t));
+        data_blocks[i] = (u64*)calloc(1, 16 * sizeof(uint64_t));
 
         /* at last block? */
         if(i == dd-1){
@@ -692,7 +692,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
     uint32_t   r;
     block64_t* V;
     
-    H_input = malloc(4 + in_len);
+    H_input = (u8*)malloc(4 + in_len);
     
     memcpy(H_input + 0, &out_len, sizeof(uint32_t)); 
     memcpy(H_input + 4, input,    in_len); 
@@ -721,7 +721,7 @@ void Argon2_H_dash(uint8_t* input,   uint8_t* output
          * We pass a pointer to the next 64-byte memory block V[i] 
          * as the output destination of BLAKE2.
          */
-        V = malloc( (r+1) * sizeof(block64_t));
+        V = (block64_t*)malloc( (r+1) * sizeof(block64_t));
         
         BLAKE2B_INIT(H_input, (4 + in_len), 0, 64, V[0].block_data);
         for(uint64_t i = 1; i <= r-1; ++i){
@@ -762,18 +762,18 @@ void argon2_initJ1J2_blockpool_for2i
     uint64_t G_inner_counter = 0;
 
     /* Some helpers for constructing the input to the usage of G() here. */
-    uint8_t *zero1024 = malloc(1024)
-           ,*zero968  = malloc(968);
+    uint8_t *zero1024 = (u8*)malloc(1024)
+           ,*zero968  = (u8*)malloc(968);
            
     memset(zero1024, 0, 1024);
     memset(zero968,  0, 968 );
     
     /* Remember, Argon2 G() takes two 1024-byte blocks and outputs one block. */
     
-    uint8_t *G_inner_input_2 = malloc(1024), /* 2nd arg. of inner G() call.  */
-            *G_inner_output  = malloc(1024), /* outout   of inner G() call,  */
+    u8 *G_inner_input_2 = (u8*)malloc(1024), /* 2nd arg. of inner G() call.  */
+       *G_inner_output  = (u8*)malloc(1024), /* outout   of inner G() call,  */
                                              /* which is input to outer G(). */
-            *G_outer_output  = malloc(1024); /* Output of outer call to G(). */
+       *G_outer_output  = (u8*)malloc(1024); /* Output of outer call to G(). */
             
     /* Initialize the buffer for 2nd input block to inner call of G(). */
     memcpy(G_inner_input_2, Z, 6*sizeof(uint64_t));
@@ -901,14 +901,14 @@ void* argon2_transform_segment(void* thread_input){
     //printf("Computed num_blocks = q/(128*4) which is: %lu\n", num_blocks);
     
     
-    block_t* J1J2blockpool = malloc(num_blocks * (1024));
+    block_t* J1J2blockpool = (block_t*)malloc(num_blocks * (1024));
 
 
-    uint8_t* Z_buf = malloc(6 * sizeof(uint64_t));
+    uint8_t* Z_buf = (u8*)malloc(6 * sizeof(uint64_t));
     
     memcpy(Z_buf, ((uint8_t*)thread_input) + OFFSET_r, (6 * sizeof(uint64_t)));
     
-    old_block = malloc(sizeof(block_t));
+    old_block = (block_t*)malloc(sizeof(block_t));
     
     /* Determine the start and end control values of this thread's j-loop.    
      * In short, which quarter of this thread's row we're transforming,      
