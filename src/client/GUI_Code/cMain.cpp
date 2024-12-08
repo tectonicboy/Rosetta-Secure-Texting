@@ -54,7 +54,7 @@ cMain::cMain() : wxFrame(
        ,10004
        ,"Back"
        ,wxPoint(850, 660)
-       ,wxSize(200,50)
+       ,wxSize(200, 50)
     );
 
     btn_reg_GO = new wxButton(
@@ -62,7 +62,7 @@ cMain::cMain() : wxFrame(
        ,10005
        ,"Go"
        ,wxPoint(850, 600)
-       ,wxSize(200,50)
+       ,wxSize(200, 50)
     );
 
     btn_reg_BACK = new wxButton(
@@ -70,8 +70,16 @@ cMain::cMain() : wxFrame(
        ,10006
        ,"Back"
        ,wxPoint(850, 660)
-       ,wxSize(200,50)
+       ,wxSize(200, 50)
     ); 
+
+    btn_quit = new wxButton(
+        this
+        ,wxID_ANY
+        ,"Quit Rosetta"
+        ,wxPOint(850, 720)
+        ,wxSize(200, 50)
+    );
 
     btn_login_GO->Hide();
     btn_login_BACK->Hide();
@@ -89,17 +97,17 @@ cMain::cMain() : wxFrame(
 
     password_input->SetHint("Your password...");
 
-    err_msg_box = new wxTextCtrl(
+    info_msg_box = new wxTextCtrl(
         this
         ,wxID_ANY
         ,""
         ,wxPoint(725, 850)
         ,wxSize(500, 100)
-        ,wxTE_READONLY
+        ,wxTE_READONLY | wxTE_MULTILINE
     );
 
     password_input->Hide();
-    err_msg_box->Hide();
+    info_msg_box->Hide();
 
 
 
@@ -247,15 +255,15 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
 
     wxString pwd_as_wxstring;
     
-    err_msg_box->Hide();
+    info_msg_box->Hide();
 
     pwd_as_wxstring = password_input->GetValue();
     password_len    = pwd_as_wxstring.Length();
 
     if(password_len > 15 || password_len < 5){
-        err_msg_box->SetValue("");
-        err_msg_box->WriteText("Error. Enter 5 to 15 characters.");
-        err_msg_box->Show();
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Error. Enter 5 to 15 characters.");
+        info_msg_box->Show();
     }
 
     password_input->AppendText("\0");
@@ -295,8 +303,8 @@ void cMain::BtnClickLoginBack(wxCommandEvent &evt){
     password_input->SetValue("");
     password_input->Hide();
 
-    err_msg_box->SetValue("");
-    err_msg_box->Hide();
+    info_msg_box->SetValue("");
+    info_msg_box->Hide();
 
     /* End the event. */
     evt.Skip();
@@ -323,15 +331,17 @@ void cMain::BtnClickRegGo(wxCommandEvent &evt){
     int password_len;
     wxString pwd_as_wxstring;
     
-    err_msg_box->Hide();
+    info_msg_box->SetValue("");
+    info_msg_box->Hide();
 
     pwd_as_wxstring = password_input->GetValue();
     password_len    = pwd_as_wxstring.Length();
 
     if(password_len > 15 || password_len < 5){
-        err_msg_box->SetValue("");
-        err_msg_box->WriteText("Error. Enter 5 to 15 characters.");
-        err_msg_box->Show();
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Error: Password must be 5 to 15 characters.");
+        info_msg_box->Show();
+        goto label_exit;
     }
 
     password_input->AppendText("\0");
@@ -341,11 +351,39 @@ void cMain::BtnClickRegGo(wxCommandEvent &evt){
             ,password_len
     );
 
-    //register_status = register(password, password_len);
+    /* At this point we're sure the password is valid. Register the user. */
+    register_status = reg(password, password_len);
 
-    printf("Obtained user's entered password from GUI!\n");
-    printf("password_len = %d\n", password_len);
-    printf("password: %s\n", password);
+    /* Display error box that something went wrong, try again. */
+    if(register_status == 0){
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Error: Something went wrong. Try again.");
+        info_msg_box->Show();
+        goto label_exit;
+    }
+
+    /* Change GUI to reflect successful registration, say GOOD in msg box
+     * and go back to login screen, keep the "reg went ok, now login" box up.
+     */
+    else{
+        info_msg_box->SetValue("");
+
+        info_msg_box->WriteText
+        ("Successful registration!\nSave File created.\nYou may login now.");
+
+        info_msg_box->Show();
+
+        btn_reg->Show();
+        btn_login->Show();
+
+        btn_reg_GO->Hide();
+        btn_reg_BACK->Hide();
+
+        password_input->SetValue("");
+        password_input->Hide();
+    }
+
+label_exit:
 
     /* End the event. */
     evt.Skip();
@@ -362,8 +400,8 @@ void cMain::BtnClickRegBack(wxCommandEvent &evt){
     password_input->SetValue("");
     password_input->Hide();
 
-    err_msg_box->SetValue("");
-    err_msg_box->Hide();
+    info_msg_box->SetValue("");
+    info_msg_box->Hide();
 
     /* End the event. */
     evt.Skip();

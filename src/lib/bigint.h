@@ -336,6 +336,7 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     
     if ( (dat_file = fopen(fn, "r")) == NULL){
         printf("[ERR] BigInt: Opening .dat file failed. Returning NULL.\n");
+        printf("              File name: %s\n", fn);
         return NULL;
     }
     

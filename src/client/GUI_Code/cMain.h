@@ -20,7 +20,7 @@ public:
     wxListBox  *MSG_entries    = NULL;
     wxTextCtrl *ROSETTA_LABEL  = NULL;
     wxTextCtrl *password_input = NULL;
-    wxTextCtrl *err_msg_box    = NULL;
+    wxTextCtrl *info_msg_box    = NULL;
     
     /* Events have types. wxCommandEvent is the type for a button click. */
     /* which in simple terms is the "do something" event.                */

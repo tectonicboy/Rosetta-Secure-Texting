@@ -1117,8 +1117,8 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
                            ;
                            
     /* Input to the generator of H0. */
-    uint8_t *H0_input      = malloc(H0_input_len),
-            *final_block_C = malloc(sizeof(block_t));
+    uint8_t *H0_input      = (u8*)malloc(H0_input_len),
+            *final_block_C = (u8*)malloc(sizeof(block_t));
          
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
     /* The order has to be exactly as specified in the RFC.             */
@@ -1166,7 +1166,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     /* The offset also tells us the total length of the input to H{64}() now.*/
     
     /* Generate H_0 now. */
-    uint8_t* H0 = malloc(64);
+    uint8_t* H0 = (u8*)malloc(64);
     
     BLAKE2B_INIT(H0_input, H0_in_offset, 0, 64, H0);
 
@@ -1196,12 +1196,12 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
      */
     
     /* Allocate the working memory matrix of Argon2. */
-    uint8_t* working_memory = malloc(m_dash * sizeof(block_t));
+    uint8_t* working_memory = (u8*)malloc(m_dash * sizeof(block_t));
     
     /* Split the memory matrix into p rows by setting pointers to the 
      * start of each row. Each row has many 1024-byte blocks. 
      */
-    block_t** B = malloc(parms->p * sizeof(block_t*));
+    block_t** B = (block_t**)malloc(parms->p * sizeof(block_t*));
     
     /* Set a pointer to the start of each row in the memory matrix. */
     for(uint64_t i = 0; i < parms->p; ++i){
@@ -1221,7 +1221,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
      * in order for the security of the hashing algorithm to work.
      */
     
-    uint8_t* B_init_buf = malloc(64 + 4 + 4);
+    uint8_t* B_init_buf = (u8*)malloc(64 + 4 + 4);
     uint32_t zero = 0, one = 1;
     
     memcpy(B_init_buf + 0 , H0, 64); 
@@ -1252,14 +1252,14 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
      */
     
     /* Create p thread_id's - one for each thread we will run. */
-    pthread_t argon2_thread_ids[parms->p];
+    pthread_t* argon2_thread_ids = (pthread_t*)calloc(1, parms->p * sizeof(pthread_t));
     
     /* Offset into the input buffer of Argon2 threads. */
     size_t thread_in_offset = 0;
     
     /* Allocate input buffers for each thread.                    */
     /* Each input buffer will contain a pointer and 8 uint64_t's. */
-    void** thread_inputs = malloc(parms->p * sizeof(void*));
+    void** thread_inputs = (void**)malloc(parms->p * sizeof(void*));
     
     for(uint32_t i = 0; i < parms->p; ++i){
         thread_inputs[i] = malloc(sizeof(block_t*) + (8 * sizeof(uint64_t)));
@@ -1446,6 +1446,7 @@ label_start_pass:
     free(H0);
     free(H0_input);
     free(final_block_C);
+    free(argon2_thread_ids);
 }
 
 
@@ -1730,7 +1731,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
             ,len_Rused_PH
             ;
             
-    uint8_t* prehash = malloc(prehash_len);   
+    uint8_t* prehash = (u8*)malloc(prehash_len);   
     memset(prehash, 0, prehash_len);
          
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
@@ -1745,8 +1746,8 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     printf("\n\n");
     */
     
-    uint8_t *second_btb_outbuf = malloc(64)
-           ,*second_btb_inbuf  = malloc(key_len_bytes + prehash_len);
+    uint8_t *second_btb_outbuf = (u8*)malloc(64)
+           ,*second_btb_inbuf  = (u8*)malloc(key_len_bytes + prehash_len);
         
     memcpy(second_btb_inbuf, private_key->bits, key_len_bytes);
     memcpy(second_btb_inbuf + key_len_bytes, prehash, prehash_len);
@@ -1814,9 +1815,9 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     R_used_bytes /= 8;
     
     /* Now compute e. */
-    uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len),
-            *e_buf = malloc(40), /* e has bitwidth of Q. */
-            *third_btb_outbuf = malloc(64);
+    uint8_t *R_with_prehash = (u8*)malloc(R_used_bytes + prehash_len),
+            *e_buf = (u8*)malloc(40), /* e has bitwidth of Q. */
+            *third_btb_outbuf = (u8*)malloc(64);
          
     memcpy(R_with_prehash, R.bits, R_used_bytes);
     memcpy(R_with_prehash + R_used_bytes, prehash, prehash_len);
@@ -1916,7 +1917,7 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
             ,len_Rused_PH
             ;
             
-    uint8_t* prehash = malloc(prehash_len);   
+    uint8_t* prehash = (u8*)malloc(prehash_len);   
     memset(prehash, 0, prehash_len);
     
     
@@ -1981,8 +1982,8 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     /* Computes val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.       */
     /* Check that this is equal to e. If it is, validation passed.            */
      
-    uint8_t *R_with_prehash = malloc(R_used_bytes + prehash_len)
-           ,*third_btb_outbuf = malloc(64); /* Not rlly 3rd here. Change it. */
+    uint8_t *R_with_prehash   = (u8*)malloc(R_used_bytes + prehash_len)
+           ,*third_btb_outbuf = (u8*)malloc(64); /* Not rlly 3rd here. Change it. */
          
     memcpy(R_with_prehash, R.bits, R_used_bytes);
     memcpy(R_with_prehash + R_used_bytes, prehash, prehash_len);

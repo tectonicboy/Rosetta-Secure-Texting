@@ -38,7 +38,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
         return NULL;
     }
 
-    uint8_t* privkey_buf = malloc(privkey_len_bytes);
+    uint8_t* privkey_buf = (u8*)malloc(privkey_len_bytes);
     size_t bytes_read;
     
     if ( 
@@ -58,7 +58,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     );
     fclose(privkey_dat);
     
-    struct bigint* privkey_bigint = malloc(sizeof(struct bigint));
+    struct bigint* privkey_bigint = (bigint*)malloc(sizeof(struct bigint));
     
     privkey_bigint->bits = privkey_buf;
     privkey_bigint->size_bits = resbits;
@@ -69,19 +69,19 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
             
     struct bigint *M
                  ,*Gm
-                 ,*R = malloc(sizeof(struct bigint))
+                 ,*R = (bigint*)malloc(sizeof(struct bigint))
                  ;
     
 
     
     M = get_BIGINT_from_DAT( 3072
-                            ,"../saved_nums/M_raw_bytes.dat\0"
+                            ,"../saved_nums/saved_M.dat\0"
                             ,3071
                             ,12800
                               );
     
     Gm = get_BIGINT_from_DAT( 3072
-                            ,"../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
+                            ,"../saved_nums/saved_Gm.dat\0"
                             ,3071
                             ,12800
                            );

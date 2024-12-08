@@ -35,7 +35,10 @@ PART O: Server generates its own (public/private) key pair. Its public key
 
 PART I - Registration, login, credentials storage & validation
 
-On registration, Client enters a password. Then:
+On registration, Client enters a password 5 to 15 ASCII characters.
+
+System embeds a null byte at password's last slot, 
+checks password's length, then, if valid:
      
  1. Client generates its long-term private/public keys (a,A):
 

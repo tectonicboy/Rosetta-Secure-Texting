@@ -26,6 +26,7 @@
 #define INIT_AUTH_LEN    32
 #define SHORT_NONCE_LEN  12
 #define LONG_NONCE_LEN   16
+#define PASSWORD_BUF_SIZ 16
 #define HMAC_TRUNC_BYTES 8
 
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
@@ -114,7 +115,7 @@ u32 self_init(){
     memset(roommates, 0, roommates_arr_siz * sizeof(struct roommate));
 
     /* Allocate memory for the temporary login handshake memory region. */
-    temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
+    temp_handshake_buf = (u8*)calloc(1, TEMP_BUF_SIZ);
  
     /* Initialize our own socket. */
     own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -158,7 +159,7 @@ u32 self_init(){
     /* Initialize the BigInt that stores our private key. */
     bigint_create(own_privkey, MAX_BIGINT_SIZ, 0);
     memcpy(own_privkey->bits, own_privkey_buf, PRIVKEY_LEN);     
-    own_privkey->used_bits = get_used_bits(own_privkey_buf, PRIVKEY_LEN);                            
+    own_privkey->used_bits = get_used_bits(own_privkey_buf, PRIVKEY_LEN); 
     own_privkey->free_bits = MAX_BIGINT_SIZ - own_privkey->used_bits;   
 
     /* Load in other BigInts needed for the cryptography to work. */
@@ -215,7 +216,7 @@ u32 self_init(){
 
     
     /* calloc() needs it in bytes, MAX_BIGINT_SIZ is in bits, so divide by 8. */
-    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    nonce_bigint.bits = (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
     
     memcpy( nonce_bigint.bits
            ,server_shared_secret.bits + (2 * SESSION_KEY_LEN)
@@ -256,8 +257,8 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
     recv_s = (bigint*)(signed_ptr + s_offset);
     recv_e = (bigint*)(signed_ptr + e_offset);    
     
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
  
     memcpy( recv_s->bits
            ,signed_ptr + (sign_offset + sizeof(bigint))
@@ -294,13 +295,13 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 */
 u8 construct_msg_00(void){
 
-    bigint* a_s;
     bigint* A_s;
-    
+    bigint* temp_privkey = (bigint*)calloc(1, sizeof(bigint));
+
     u8 status = 1;
     
     const u64 msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
-    u8* msg_buf = calloc(1, msg_len);
+    u8* msg_buf = (u8*)calloc(1, msg_len);
 
     /* Generate client's short-term public/private key pair and ChaCha nonce N, 
      * shared secret and thus bidirectional keys KAB, KBA and "unused" part Y:
@@ -323,10 +324,14 @@ u8 construct_msg_00(void){
     
     gen_priv_key(PRIVKEY_LEN, temp_handshake_buf);
     
-    a_s = (bigint*)(temp_handshake_buf);
+    temp_privkey->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    memcpy(temp_privkey->bits, temp_handshake_buf, PRIVKEY_LEN);
+    temp_privkey->size_bits = MAX_BIGINT_SIZ;
+    temp_privkey->used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
+    temp_privkey->free_bits = MAX_BIGINT_SIZ - temp_privkey->used_bits;
 
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
-    save_BIGINT_to_DAT("temp_privkey_DAT\0", a_s);
+    save_BIGINT_to_DAT("temp_privkey_DAT\0", temp_privkey);
   
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
     
@@ -366,7 +371,8 @@ label_cleanup:
 
     system("rm temp_privkey_DAT");
     free(msg_buf);
-    
+    free(temp_privkey->bits);
+    free(temp_privkey);
     return status;
 }
 
@@ -400,26 +406,26 @@ u8 process_msg_00(u8* msg_buf){
     bigint *a_s = (bigint*)(temp_handshake_buf);
     
     u8  auth_status;
-    u8* auth_buf = calloc(1, (INIT_AUTH_LEN + SIGNATURE_LEN));
+    u8* auth_buf = (u8*)calloc(1, (INIT_AUTH_LEN + SIGNATURE_LEN));
         
     u64 B = 64;
     u64 L = 128;
     
-    u8* K0   = calloc(1, B);
-    u8* ipad = calloc(1, B);
-    u8* opad = calloc(1, B);
-    u8* K0_XOR_ipad_TEXT = calloc(1, (B + PUBKEY_LEN));
-    u8* BLAKE2B_output = calloc(1, L);   
-    u8* last_BLAKE2B_input = calloc(1, (B + L));
-    u8* K0_XOR_ipad = calloc(1, B);
-    u8* K0_XOR_opad = calloc(1, B);
+    u8* K0   = (u8*)calloc(1, B);
+    u8* ipad = (u8*)calloc(1, B);
+    u8* opad = (u8*)calloc(1, B);
+    u8* K0_XOR_ipad_TEXT = (u8*)calloc(1, (B + PUBKEY_LEN));
+    u8* BLAKE2B_output = (u8*)calloc(1, L);   
+    u8* last_BLAKE2B_input = (u8*)calloc(1, (B + L));
+    u8* K0_XOR_ipad = (u8*)calloc(1, B);
+    u8* K0_XOR_opad = (u8*)calloc(1, B);
     
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
-    u8* reply_buf = calloc(1, reply_len);
+    u8* reply_buf = (u8*)calloc(1, reply_len);
 
     /* Grab the server's short-term public key from the transmission. */
-    B_s = calloc(1, sizeof(bigint));
-    B_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    B_s = (bigint*)calloc(1, sizeof(bigint));
+    B_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
     
     memcpy(B_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
@@ -809,10 +815,10 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     u8  status   = 1;
     u64 send_len = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
-    u8* send_K   = calloc(1, ONE_TIME_KEY_LEN);
-    u8* send_buf = calloc(1, send_len);
+    u8* send_K   = (u8*)calloc(1, ONE_TIME_KEY_LEN);
+    u8* send_buf = (u8*)calloc(1, send_len);
     
-    u8* roomID_userID = calloc(1, (2 * SMALL_FIELD_LEN));   
+    u8* roomID_userID = (u8*)calloc(1, (2 * SMALL_FIELD_LEN));   
      
     /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
      * with a different key - the session key KAB from the pair of bidirectional
@@ -1029,10 +1035,10 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     u8  status   = 1;
     u64 send_len = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
-    u8* send_K   = calloc(1, ONE_TIME_KEY_LEN);
-    u8* send_buf = calloc(1, send_len);
+    u8* send_K   = (u8*)calloc(1, ONE_TIME_KEY_LEN);
+    u8* send_buf = (u8*)calloc(1, send_len);
     
-    u8* roomID_userID = calloc(1, (2 * SMALL_FIELD_LEN));   
+    u8* roomID_userID = (u8*)calloc(1, (2 * SMALL_FIELD_LEN));   
 
     /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
      * with a different key - the session key KAB from the pair of bidirectional
@@ -1205,7 +1211,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
 
     u8 status = 1;
 
-    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
+    u8* recv_K = (u8*)calloc(1, ONE_TIME_KEY_LEN);
     u8* buf_decrypted_AD = NULL;
     u64 num_current_guests = *((u64*)(msg + SMALL_FIELD_LEN + ONE_TIME_KEY_LEN));
     u64 recv_type20_AD_len;
@@ -1235,7 +1241,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         goto label_cleanup;
     }
 
-    buf_decrypted_AD = calloc(1, recv_type20_AD_len);
+    buf_decrypted_AD = (u8*)calloc(1, recv_type20_AD_len);
 
     recv_type20_signed_len = (2 * SMALL_FIELD_LEN) 
                               + ONE_TIME_KEY_LEN 
@@ -1324,7 +1330,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         /* SMALL_FIELD_LEN bytes offset into THIS SLOT in AD: guest's PubKey. */
         this_pubkey = &(roommates[i].guest_pubkey);
         
-        this_pubkey->bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
+        this_pubkey->bits = (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
         
         memcpy( this_pubkey->bits
                ,buf_decrypted_AD + (i * guest_info_slot_siz) + SMALL_FIELD_LEN 
@@ -1354,8 +1360,8 @@ u8 process_msg_20(u8* msg, u64 msg_len){
            ,&temp_shared_secret
         );
 
-        roommates[i].guest_KBA = calloc(1, SESSION_KEY_LEN);
-        roommates[i].guest_KAB = calloc(1, SESSION_KEY_LEN);
+        roommates[i].guest_KBA = (u8*)calloc(1, SESSION_KEY_LEN);
+        roommates[i].guest_KAB = (u8*)calloc(1, SESSION_KEY_LEN);
 
         /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
         memcpy(roommates[i].guest_KBA, temp_shared_secret.bits, SESSION_KEY_LEN);
@@ -1366,7 +1372,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
            ,SESSION_KEY_LEN
         );
 
-        roommates[i].guest_Nonce = calloc(1, LONG_NONCE_LEN);
+        roommates[i].guest_Nonce = (u8*)calloc(1, LONG_NONCE_LEN);
 
         memcpy( 
             roommates[i].guest_Nonce
@@ -1421,8 +1427,8 @@ u8 process_msg_21(u8* msg){
     aux1.bits = NULL;
     temp_shared_secret.bits = NULL; 
 
-    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
-    u8* buf_decrypted_guest_info = calloc(1, new_guest_info_len);
+    u8* recv_K = (u8*)calloc(1, ONE_TIME_KEY_LEN);
+    u8* buf_decrypted_guest_info = (u8*)calloc(1, new_guest_info_len);
     /* First, verify the Schnorr signature in the packet, in order to validate
      * the authenticity of the message, ensure it was not edited in trasnit and
      * that it really is coming from the Rosetta server.
@@ -1506,7 +1512,7 @@ u8 process_msg_21(u8* msg){
     /* Grab the decrypted guest's long-term public key. */
     this_pubkey = &(roommates[guest_ix].guest_pubkey);
     
-    this_pubkey->bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
+    this_pubkey->bits = (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
     
     memcpy( 
         this_pubkey->bits
@@ -1594,9 +1600,9 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     u64 AD_write_offset = 0;
     u64 signed_len = payload_len - SIGNATURE_LEN;
 
-    u8* associated_data = calloc(1, L);
-    u8* payload = calloc(1, payload_len);
-    u8* send_K = calloc(1, ONE_TIME_KEY_LEN);
+    u8* associated_data = (u8*)calloc(1, L);
+    u8* payload = (u8*)calloc(1, payload_len);
+    u8* send_K = (u8*)calloc(1, ONE_TIME_KEY_LEN);
     u8  status = 1;
 
     u32* chacha_key = NULL;
@@ -1644,7 +1650,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
 
     guest_nonce_bigint.bits = 
-        calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+        (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     /* Construct the Associated Data within the payload. */
     for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
@@ -1888,8 +1894,8 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     recv_s = (bigint*)(payload + s_offset);
     recv_e = (bigint*)(payload + e_offset);  
 
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
 
     memcpy( recv_s->bits
            ,payload + (sign1_offset + sizeof(bigint))
@@ -1936,11 +1942,11 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     /* Extract the encrypted key and message from our slot in associated data */
 
-    decrypted_msg = calloc(1, text_len);
-    decrypted_key = calloc(1, ONE_TIME_KEY_LEN);
+    decrypted_msg = (u8*)calloc(1, text_len);
+    decrypted_key = (u8*)calloc(1, ONE_TIME_KEY_LEN);
 
     guest_nonce_bigint.bits = 
-    calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     /* Decide whether to encrypt with session key KAB or with KBA. */
     if( roommate_key_usage_bitmask & BITMASK_BIT_AT(sender_ix) ){
@@ -2380,6 +2386,209 @@ label_cleanup:
     /* No function cleanup yet. Keep the label for completeness. */
 
     return ret;
+}
+
+u8 reg(u8* password, int password_len){
+
+    u8 status = 1;
+
+    u8* privkey_buf = (u8*)calloc(1, PRIVKEY_LEN);
+
+    /* Salt = S || BLAKE2B{64}(A) */
+    /* S is a random 8 byte string, so Salt length is 64+8 = 72 bytes. */
+    /* Access /dev/urandom for random 8-byte string S for Argon2 Salt. */
+    FILE* ranfile = NULL;
+    u8* argon2_salt_string = (u8*)calloc(1, 8);
+    u8* b2b_pubkey_output  = (u8*)calloc(1, 64);
+    const u64 argon2_len_Salt = (8 + 64);
+    u8* Salt = (u8*)calloc(1, argon2_len_Salt);
+
+    const u64 argon2_hash_len = 64;
+    u8* argon2_output_tag = (u8*)calloc(1, argon2_hash_len);
+
+    const u32 chacha_key_len = 32;
+    u8* V = (u8*)calloc(1, chacha_key_len);
+    u8* chacha_nonce_buf = (u8*)calloc(1, LONG_NONCE_LEN);
+    u8* encrypted_privkey_buf = (u8*)calloc(1, PRIVKEY_LEN);
+
+    struct Argon2_parms prms;
+
+    bigint* A_longterm;
+    bigint* temp_privkey = (bigint*)calloc(1, sizeof(bigint));
+    temp_privkey->bits = NULL;
+
+    FILE* user_save = NULL;
+
+    u64 save_len = 8 + PUBKEY_LEN + PRIVKEY_LEN + LONG_NONCE_LEN;
+    u64 save_offset = 0;
+    u8* user_save_buf = (u8*)calloc(1, save_len);
+
+    printf("[OK]  TCP_Client obtained user's register password from GUI!\n");
+    printf("      password_len = %d\n", password_len);
+    printf("      password: %s\n\n", password);
+
+    /* Registration step 1: Generate a long-term private/public keys a/A. */
+
+    /* a = random in the range [1, Q) */
+    gen_priv_key(PRIVKEY_LEN, privkey_buf);
+
+    /* Interface generating a pub_key still needs priv_key in a file. TODO.  */
+    /* Putting it in a file needs it in the form of bigint object. Make one. */
+    temp_privkey->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    memcpy(temp_privkey->bits, privkey_buf, PRIVKEY_LEN);
+    temp_privkey->size_bits = MAX_BIGINT_SIZ;
+    temp_privkey->used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
+    temp_privkey->free_bits = MAX_BIGINT_SIZ - temp_privkey->used_bits;
+
+    save_BIGINT_to_DAT("temp_privkey_DAT\0", temp_privkey);
+
+    /* A = G^a mod M */
+    A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+
+    /* Registration step 2: Use the password as a secret key in Argon2 hashing
+     *                      algorithm, whose output hash we use as a 
+     *                      cryptographic key in another hashing algorith, 
+     *                      ChaCha20, to encrypt the user's private key.
+     */
+        
+    /* Fill in the parameters to Argon2. */
+
+    prms.p = 4;                 /* How many threads to use.             */
+    prms.T = argon2_hash_len;   /* How many bytes of output we want.    */
+    prms.m = 2097000;           /* How many kibibytes of memory to use. */  
+    prms.t = 1;                 /* How many passes Argon2 should do.    */
+    prms.v = 0x13;              /* Constant in Argon2 spec.             */
+    prms.y = 0x02;              /* Constant in Argon2 spec.             */
+             
+    /* Zero-extend the password to 16 bytes including a null terminator.   */
+    /* Len does not include the null terminator already placed by the GUI. */
+    if(password_len != (PASSWORD_BUF_SIZ - 1)){
+        memset(
+            password + (password_len + 1)
+            ,0
+            ,(PASSWORD_BUF_SIZ - (password_len + 1))
+        );
+    }
+
+    prms.P = password;
+
+    /* Now construct the Argon2 Salt parameter.                         */
+    /* Salt = S || BLAKE2B{64}(client's long-term public key)           */
+    /* S is a random 8 byte string, so Salt length is 64+8 = 72 bytes.  */
+
+    ranfile = fopen("/dev/urandom", "r");
+
+    if( (!ranfile) || (fread(argon2_salt_string, 1, 8, ranfile) != 8) ){
+        printf("[ERR] Client: Reg failed to read urandom. Alert GUI.\n\n");
+        status = 0;
+        goto label_cleanup;
+    }
+
+    /* Call blake2b to get the second component of the salt parameter. */
+    BLAKE2B_INIT(A_longterm->bits, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
+
+    /* Now construct the complete Salt parameter with the two components. */
+    memcpy(Salt,     argon2_salt_string,  8);
+    memcpy(Salt + 8, b2b_pubkey_output,  64);
+
+    prms.S = Salt;
+
+    prms.len_P = PASSWORD_BUF_SIZ;
+    prms.len_S = (8 + 64);  /* 8-byte string plus 64-byte output of blake2b. */
+    prms.len_K = 0;         /* unused here, so set length to 0               */
+    prms.len_X = 0;         /* unused here, so set length to 0               */
+            
+    Argon2_MAIN(&prms, argon2_output_tag);
+
+    /* Registration step 3: Let V be the leftmost 32 bytes of Argon2's hash.
+     *                      Use V as a key in ChaCha20, along with a 
+     *                      randomly-generated 16-byte Nonce (no counter)
+     *                      to encrypt the private key.
+     */
+
+    /* Construct V. */
+    memcpy(V, argon2_output_tag, chacha_key_len);
+
+    /* Get the Nonce. */
+    if(fread(chacha_nonce_buf, 1, LONG_NONCE_LEN, ranfile) != LONG_NONCE_LEN){
+        printf("[ERR] Client: Reg failed to read urandom. Alert GUI.\n\n");
+        status = 0;
+        goto label_cleanup;
+    }   
+
+    CHACHA20( temp_privkey->bits                  /* text - private key  */
+             ,PRIVKEY_LEN                         /* text_len in bytes   */
+             ,(u32*)chacha_nonce_buf              /* Nonce ptr           */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32)) /* nonceLen in uint32s */
+             ,(u32*)V                             /* chacha Key ptr      */
+             ,(u32)(chacha_key_len / sizeof(u32)) /* Key_len in uint32s  */
+             ,encrypted_privkey_buf               /* output buffer ptr   */
+            );   
+
+    /* Registration step 4: Save on the client's filesystem the necessary 
+     *                      cryptographic artifacts for a secure login:
+     *                      ChaCha20 Nonce, Argon2 Salt parameter, long-term
+     *                      public key and long-term encrypted private key.
+     *                      
+     *                      May decide to also encrypt the long-term public
+     *                      key in the future, but for now only private key.
+     */
+    user_save = fopen("user_save", "w");
+
+    if(!user_save){
+        printf("[ERR] Client: Reg failed to open user_save. Alert GUI.\n\n");
+        status = 0;
+        goto label_cleanup;      
+    }
+
+    /* Prepare a buffer containing all the stuff to be saved for easy write. */
+
+    memcpy(user_save_buf + save_offset, chacha_nonce_buf, LONG_NONCE_LEN);
+
+    save_offset += LONG_NONCE_LEN;
+
+    memcpy(user_save_buf + save_offset, encrypted_privkey_buf, PRIVKEY_LEN);
+
+    save_offset += PRIVKEY_LEN;
+
+    memcpy(user_save_buf + save_offset, A_longterm->bits, PUBKEY_LEN);
+
+    save_offset += PUBKEY_LEN;
+
+    memcpy(user_save_buf + save_offset, argon2_salt_string, 8);
+
+    fwrite(user_save_buf, 1, save_len, user_save);
+
+label_cleanup:
+
+    free(privkey_buf);
+    free(argon2_salt_string);
+    free(b2b_pubkey_output);
+    free(Salt);
+    free(argon2_output_tag);
+    free(V);
+    free(chacha_nonce_buf);
+    free(encrypted_privkey_buf);
+
+    if(A_longterm->bits){
+        free(A_longterm->bits);
+    }
+
+    free(A_longterm);
+
+    if(temp_privkey->bits != NULL){
+        free(temp_privkey->bits);
+    }
+
+    free(temp_privkey);
+    free(user_save_buf);
+
+    system("rm temp_privkey_DAT");
+
+    if(ranfile)   { fclose(ranfile);   }
+    if(user_save) { fclose(user_save); }
+
+    return status;
 }
 
 u8 login(u8* password, int password_len){
