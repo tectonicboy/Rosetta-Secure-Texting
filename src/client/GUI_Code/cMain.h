@@ -14,6 +14,7 @@ public:
     wxButton *btn_reg        = NULL;
     wxButton *btn_reg_GO     = NULL;
     wxButton *btn_reg_BACK   = NULL;
+    wxButton *btn_quit       = NULL;
     
     //wxTextCtrl *ROSETTA_LABEL = NULL;
     

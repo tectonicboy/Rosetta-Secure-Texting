@@ -25,10 +25,10 @@ CFLAGS += -Wno-aggregate-return
 
 
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
-	TCP_server server_gen_priv_key server_gen_pub_key
+	server server_gen_priv_key server_gen_pub_key
 
 
-prod: TCP_server server_gen_priv_key server_gen_pub_key
+prod: server client
 
 
 tests: test_signatures test_chacha20 test_blake2b test_argon2
@@ -58,8 +58,8 @@ test_argon2: tests/Simple_Tests/test_argon2.c
 	-pthread -O2 $(CFLAGS)
 
 
-TCP_server: server/TCP_server.c
-	gcc server/TCP_server.c -o ../bin/TCP_server -march=native -lm \
+server: server/TCP_server.c
+	gcc server/TCP_server.c -o ../bin/tcp_server -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 
@@ -75,8 +75,8 @@ server_gen_pub_key: server/server_gen_pub_key.c
 
 client: client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp
 	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp \
-	`wx-config --cxxflags --libs` -o ../bin/Client $(CFLAGS) \
-	-lm -pthread -march=native
+	`wx-config --cxxflags --libs` -o ../bin/tcp_client $(CFLAGS) \
+	-lm -pthread -O2 -march=native
 
 clean:
 	rm ../bin/Client ../bin/TCP_server

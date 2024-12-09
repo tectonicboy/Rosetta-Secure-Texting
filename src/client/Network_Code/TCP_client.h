@@ -166,22 +166,23 @@ u32 self_init(){
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
     M = get_BIGINT_from_DAT
-        (3072, "../../saved_nums/M_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../bin/saved_M.dat\0", 3071, MAX_BIGINT_SIZ);
     
     /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
     Q = get_BIGINT_from_DAT
-        (320,  "../../saved_nums/Q_raw_bytes.dat\0", 320,  MAX_BIGINT_SIZ);
+        (320,  "../bin/saved_Q.dat\0", 320,  MAX_BIGINT_SIZ);
     
     /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
     G = get_BIGINT_from_DAT
-        (3072, "../../saved_nums/G_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../bin/saved_G.dat\0", 3071, MAX_BIGINT_SIZ);
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_BIGINT_from_DAT( 3072
-                             ,"../../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0"
+                             ,"../bin/saved_Gm.dat\0"
                              ,3071
                              ,MAX_BIGINT_SIZ
     );
+    
     
     server_pubkey_bigint = get_BIGINT_from_DAT
         (3072, "../../saved_nums/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
@@ -2533,7 +2534,7 @@ u8 reg(u8* password, int password_len){
      *                      May decide to also encrypt the long-term public
      *                      key in the future, but for now only private key.
      */
-    user_save = fopen("user_save", "w");
+    user_save = fopen("../bin/user_save.dat", "w");
 
     if(!user_save){
         printf("[ERR] Client: Reg failed to open user_save. Alert GUI.\n\n");

@@ -99,9 +99,6 @@ struct connected_client clients[MAX_CLIENTS];
 
 struct chatroom rooms[MAX_CHATROOMS];
 
-/* Memory region for cryptographic artifacts during the login handshake. */
-u8* temp_handshake_buf;
-
 /* Linux Sockets API related globals. */
 int port = SERVER_PORT
    ,listening_socket
@@ -163,7 +160,7 @@ u32 self_init(){
      *  everything it transmits, so all users can verify it with the server's
      *  public key they already have by default for authenticity.
      */
-    FILE* privkey_dat = fopen("server_privkey.dat", "r");
+    FILE* privkey_dat = fopen("../bin/server_privkey.dat", "r");
     
     if(!privkey_dat){
         printf("[ERR] Server: couldn't open private key DAT file. Aborting.\n");
@@ -194,27 +191,27 @@ u32 self_init(){
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
     M = get_BIGINT_from_DAT
-        (3072, "../../saved_nums/M_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../bin/saved_M.dat\0", 3071, MAX_BIGINT_SIZ);
     
     /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
     Q = get_BIGINT_from_DAT
-        (320,  "../../saved_nums/Q_raw_bytes.dat\0", 320,  MAX_BIGINT_SIZ);
+        (320,  "../bin/saved_Q.dat\0", 320,  MAX_BIGINT_SIZ);
     
     /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
     G = get_BIGINT_from_DAT
-        (3072, "../../saved_nums/G_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../bin/saved_G.dat\0", 3071, MAX_BIGINT_SIZ);
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_BIGINT_from_DAT
-     (3072, "../../saved_nums/PRACTICAL_Gmont_raw_bytes.dat\0", 3071, MAX_BIGINT_SIZ);
+     (3072, "../bin/saved_Gm.dat\0", 3071, MAX_BIGINT_SIZ);
     
     server_pubkey_bigint = get_BIGINT_from_DAT
-        (3072, "../../saved_nums/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
+        (3072, "../bin/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
     
     fclose(privkey_dat);
     
     /* Initialize the mutex that will be used to prevent the main thread and
-     * the connection checker from writing/reading the same data in parallel.
+     * the connection checker thread from getting into a race condition.
      */
     if (pthread_mutex_init(&mutex, NULL) != 0) { 
         printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
@@ -236,7 +233,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
      */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if(   (users_status_bitmask & (1ULL << (63ULL - i)))
-           && (clients[i].pubkey_len == pubkey_siz)
+           && (PUBKEY_LEN == pubkey_siz)
            && (memcmp(pubkey_buf,(clients[i].client_pubkey).bits,pubkey_siz)==0)
           )
         {
@@ -543,7 +540,7 @@ void process_msg_00(u8* msg_buf){
     /* Places only the BITS of the private key, not a BigInt object!! */
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
    
-    b_s->bits = temp_handshake_buf + sizeof(bigint));
+    b_s->bits = temp_handshake_buf + sizeof(bigint);
     b_s->size_bits = MAX_BIGINT_SIZ;
     b_s->used_bits = get_used_bits(b_s->bits, PUBKEY_LEN);
     b_s->free_bits = b_s->size_bits - b_s->used_bits;
@@ -880,7 +877,7 @@ void process_msg_01(u8* msg_buf){
         clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
     }
     
-    clients[next_free_user_ix].pubkey_len = PUBKEY_LEN;
+
     
     memset( clients[next_free_user_ix].pending_msg_sizes
            ,0
@@ -895,7 +892,7 @@ void process_msg_01(u8* msg_buf){
     
     memcpy( (clients[next_free_user_ix].client_pubkey).bits
             ,client_pubkey_buf
-            ,clients[next_free_user_ix].pubkey_len
+            ,PUBKEY_LEN
           );
     
     (clients[next_free_user_ix].client_pubkey).used_bits 
@@ -1487,8 +1484,8 @@ void process_msg_20(u8* msg_buf){
     
     ++(rooms[room_ix].num_people);
     
-    memcpy( clients[user_ix].user_ID
-           ,*((u64*)(room_user_ID_buf + SMALL_FIELD_LEN))
+    memcpy( clients[user_ix].user_id
+           ,(room_user_ID_buf + SMALL_FIELD_LEN)
            ,SMALL_FIELD_LEN
           ); 
 

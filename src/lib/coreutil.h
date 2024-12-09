@@ -75,13 +75,13 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
 
     
     M = get_BIGINT_from_DAT( 3072
-                            ,"../saved_nums/saved_M.dat\0"
+                            ,"../bin/saved_M.dat\0"
                             ,3071
                             ,12800
                               );
     
     Gm = get_BIGINT_from_DAT( 3072
-                            ,"../saved_nums/saved_Gm.dat\0"
+                            ,"../bin/saved_Gm.dat\0"
                             ,3071
                             ,12800
                            );

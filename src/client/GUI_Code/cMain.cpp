@@ -77,7 +77,7 @@ cMain::cMain() : wxFrame(
         this
         ,wxID_ANY
         ,"Quit Rosetta"
-        ,wxPOint(850, 720)
+        ,wxPoint(850, 720)
         ,wxSize(200, 50)
     );
 
