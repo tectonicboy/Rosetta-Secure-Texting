@@ -424,7 +424,7 @@ u8 self_init(u8* password, int password_len){
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
 
     servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("37.63.32.187");
+    servaddr.sin_addr.s_addr = inet_addr("192.168.8.21");
     servaddr.sin_port        = htons(port);
      
     /* Initialize the mutex that will be used to prevent the main thread and
@@ -509,9 +509,6 @@ u8 construct_msg_00(void){
         printf("[ERR]         Aborting Login...\n\n");
         status = 0;
         goto label_cleanup;
-    }
-    else{
-        printf("[OK]  Client: Sent initial login transmission!\n");
     }
     
 label_cleanup:
@@ -2723,7 +2720,7 @@ u8 reg(u8* password, int password_len){
 
     /* Registration step 4: Save on the client's filesystem the necessary 
      *                      cryptographic artifacts for a secure login:
-     *                      ChaCha20 Nonce, Argon2 Salt parameter, long-term
+     *                      ChaCha20 Nonce, Argon2 Salt string only, long-term
      *                      public key and long-term encrypted private key.
      *                      
      *                      May decide to also encrypt the long-term public

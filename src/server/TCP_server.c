@@ -2184,7 +2184,7 @@ u32 identify_new_transmission(){
     u8*  client_msg_buf = calloc(1, MAX_MSG_LEN);
     s64  bytes_read; 
     u64  transmission_type = 0;
-    s64  expected_siz;
+    s64  expected_siz = 0;
     u64  found_user_ix;
     u64 text_msg_len;
     u32  ret_val = 0;
@@ -2203,13 +2203,13 @@ u32 identify_new_transmission(){
     }
            
     /* Read the first 8 bytes to see what type of init transmission it is. */
-    memcpy((void*)transmission_type, client_msg_buf, SMALL_FIELD_LEN);
+    memcpy(&transmission_type, client_msg_buf, SMALL_FIELD_LEN);
     
     switch(transmission_type){
     
     /* A client tried to log in Rosetta */
     case(PACKET_ID_00):{
-        
+        printf("[OK]  Server: Found a matching packet_ID = 00\n\n");
         expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN;
         
         strncpy(msg_type_str, "00\0", 3);
@@ -2227,7 +2227,7 @@ u32 identify_new_transmission(){
     
     /* Login part 2 - client sent their encrypted long-term public key. */
     case(PACKET_ID_01):{  
-
+        printf("[OK]  Server: Found a matching packet_ID = 01\n\n");
         expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
         
         strncpy(msg_type_str, "01\0", 3); 
@@ -2245,7 +2245,7 @@ u32 identify_new_transmission(){
     
     /* A client wants to create a new chatroom of their own. */
     case(PACKET_ID_10):{
-        
+        printf("[OK]  Server: Found a matching packet_ID = 10\n\n");
         expected_siz = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
         
         strncpy(msg_type_str, "10\0", 3);
@@ -2263,7 +2263,7 @@ u32 identify_new_transmission(){
     
     /* A client wants to join an existing chatroom. */
     case(PACKET_ID_20):{
-        
+        printf("[OK]  Server: Found a matching packet_ID = 20\n\n");
         expected_siz = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
         
         strncpy(msg_type_str, "20\0", 3);
@@ -2280,7 +2280,7 @@ u32 identify_new_transmission(){
     }
     /* A client wants to send a text message to everyone else in the chatroom */
     case(PACKET_ID_30):{
-    
+        printf("[OK]  Server: Found a matching packet_ID = 30\n\n");
         strncpy(msg_type_str, "30\0", 3);
         
         /* Size must be in bytes: 
@@ -2325,7 +2325,7 @@ u32 identify_new_transmission(){
     
     /* A client polled the server asking for any pending unreceived messages. */
     case(PACKET_ID_40):{
-    
+        printf("[OK]  Server: Found a matching packet_ID = 40\n\n");
         strncpy(msg_type_str, "40\0", 3);    
     
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
@@ -2343,7 +2343,7 @@ u32 identify_new_transmission(){
     
     /* A client decided to exit the chatroom they're currently in. */
     case(PACKET_ID_50):{
-    
+        printf("[OK]  Server: Found a matching packet_ID = 50\n\n");
         strncpy(msg_type_str, "50\0", 3);    
     
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
@@ -2362,7 +2362,7 @@ u32 identify_new_transmission(){
     /* A client decided to log off Rosetta. */
     case(PACKET_ID_60):{
         strncpy(msg_type_str, "60\0", 3);    
-    
+        printf("[OK]  Server: Found a matching packet_ID = 60\n\n");
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
@@ -2380,6 +2380,7 @@ u32 identify_new_transmission(){
     /* Also do something in case it was a bad unrecognized transmission!    */
     /* Just say FUCK YOU to whoever sent it and maybe tried hacking us.     */
     default:{
+        printf("[WAR] Server: No valid packet type found in request.\n\n");
         /* Send the reply back to the client. */
         if(send(client_socket_fd, "fuck you", 8, 0) == -1){
             printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
