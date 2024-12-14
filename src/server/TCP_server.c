@@ -2501,8 +2501,6 @@ void* check_for_lost_connections(){
 int main(){
 
     u32 status;
-    
-    ssize_t bytes_received = -1;
 
     /* Initialize Linux Sockets API, load cryptographic keys and artifacts. */ 
     status = self_init();

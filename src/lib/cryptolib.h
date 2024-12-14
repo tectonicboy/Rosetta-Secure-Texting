@@ -1477,6 +1477,7 @@ void Montgomery_MUL(struct bigint* X, struct bigint* Y,
     uint8_t C, D;
     unsigned long long Ul, Uh, Vl, Vh, W, *T, q;
     struct bigint R_aux;
+
     bigint_create(&R_aux, R->size_bits, 0);
     
     /* Set R = 0, all of its (L+1) limbs. Limb indices [0] to [L] inclusive. */
@@ -1644,13 +1645,13 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     uint32_t bit = 0;
     
     struct bigint X, Y, R_1, one, div_res;
-    
+
     bigint_create(&X,       M->size_bits, 0);
     bigint_create(&Y,       M->size_bits, 0);
     bigint_create(&R_1,     M->size_bits, 0);
     bigint_create(&one,     M->size_bits, 1);
     bigint_create(&div_res, M->size_bits, 0);
-  
+
     /* X and Y both become equal to the passed base B */
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
