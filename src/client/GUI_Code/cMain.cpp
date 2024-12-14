@@ -279,12 +279,24 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
     printf("password_len = %d\n", password_len);
     printf("password: %s\n", password);
 
-    if(login_status == 1){
-        /* Add code to render OK msg and buttons for joining/creating a chatroom. */
-        /* And to hide the rendering of the login stuff .*/
+    if(login_status == 0){
+        /* Add code to render 'could not login rosetta' msg on user's screen. */
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Error. Login failed unexpectedly.");
+        info_msg_box->Show();
+    }
+    else if(login_status == 3){
+        /* Add code to render 'rosetta is full' msg on user's screen. */
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Rosetta is full right now. Try again later.");
+        info_msg_box->Show();
     }
     else{
-        /* Add code to render 'Could not log in' error message. */
+        /* Add code to render OK msg and buttons to join/create a chatroom. */
+        /* And to hide the rendering of the login stuff. */      
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Success! You are now logged in Rosetta!");
+        info_msg_box->Show(); 
     }
     
     /* End the event. */

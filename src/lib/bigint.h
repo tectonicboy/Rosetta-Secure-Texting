@@ -351,7 +351,9 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     bigint_buf = (u8*)calloc(1, (size_t)(reserve_bits / 8));
     
     if(!fread(bigint_buf, 1, file_bytes, dat_file)){
-        printf("[WARN] BigInt: No bytes read from bigint file %s\n", fn);
+        printf("[WARN] BigInt: No bytes read from bigint DAT file: %s\n", fn);
+        free(bigint_buf);
+        return NULL;
     }
     
     big_n_ptr = (bigint*)calloc(1, sizeof(bigint)); 
@@ -366,7 +368,8 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     free(bigint_buf);
     
     if( fclose(dat_file) != 0){
-        printf("[ERR] BigInt: fclose() in READ failed for file: %s\n", fn);
+        printf("[ERR] BigInt: fclose() failed for file: %s\n", fn);
+        return NULL;
     }
     
     return big_n_ptr;
