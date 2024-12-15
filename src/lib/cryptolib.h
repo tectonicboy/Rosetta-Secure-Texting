@@ -1360,7 +1360,7 @@ label_start_pass:
         printf("------------- ARGON2: Slice %lu finished. -------------\n", sl);
     } /* End of one slice. */
 
-
+    /*
     printf("END OF PASS [%lu] BLOCK 0:\n\n", r);
        for(uint32_t i = 0; i < 1024; ++i){
         if(i % 16 == 0 && i > 0){printf("\n");}
@@ -1373,6 +1373,7 @@ label_start_pass:
         printf("%02x ", ( ((uint8_t*)(&(B[3][7])))[i] )) ;
     }
     printf("\n\n"); 
+    */
 
     /* Finished all 4 slices of a pass. Increment pass number.*/
     ++r;
@@ -1638,9 +1639,7 @@ void Get_Mont_Form(struct bigint *src, struct bigint *target, struct bigint* M){
 void MONT_POW_modM(struct bigint* B, struct bigint* P,
                    struct bigint* M, struct bigint* R)
 {
-    /* Timers and variables for testing. */
-    time_t time;
-    double total_time;
+
  
     uint32_t bit = 0;
     
@@ -1656,9 +1655,6 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
     bigint_equate2(&X, B);
     bigint_equate2(&Y, B);
 
-    
-    time = clock();
-    
     for(int64_t i = (int64_t)(P->used_bits - 2); i >= 0; --i){     
        
         Montgomery_MUL(&Y, &Y, M, R);     
@@ -1669,11 +1665,6 @@ void MONT_POW_modM(struct bigint* B, struct bigint* P,
             bigint_equate2(&Y, R);        
         }
     }
-    
-    time = clock() - time;
-    total_time = ((double)time)/CLOCKS_PER_SEC;
-    
-    printf("<MONT_POW> Time for main loop: %lf sec.\n", total_time);
     
     Montgomery_MUL(&one, R, M, &R_1);
     bigint_div2(&R_1, M, &div_res, R);    
@@ -1703,11 +1694,6 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
                        ,struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
-
-    /* Timers for TESTING */
-    time_t time;
-    double total_time_mont_pow_seconds;
-
     struct bigint second_btb_outnum, one, Q_minus_one, reduced_btb_res,
                   k, R, e, s, div_res, aux1, aux2, aux3;
         
@@ -1781,22 +1767,9 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
     
     /* Now compute R. */
     
-    time = clock();
+
     
     MONT_POW_modM(Gmont, &k, M, &R); 
-    
-    time = clock() - time;
-    
-    total_time_mont_pow_seconds = ((double)time)/CLOCKS_PER_SEC;
-    
-    printf( "<SIG_GEN> Time for MONT_POW(%u-bit ^ %u-bit MOD %u-bit):"
-            " %lf sec.\n"
-           ,Gmont->used_bits
-           ,k.used_bits
-           ,M->used_bits
-           ,total_time_mont_pow_seconds
-          );
-
     
     /*
     printf("Montgomery R = G^k mod M FINISHED!!!  R:\n\n");
@@ -1909,10 +1882,6 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
         return 0;        
     }
 
-    /* Timers for TESTING */
-    time_t time;
-    double total_time_mont_pow_seconds;
-
     uint64_t prehash_len = 64
             ,R_used_bytes
             ,len_Rused_PH
@@ -1934,42 +1903,13 @@ uint8_t Signature_VALIDATE(struct bigint* Gmont, struct bigint* Amont,
     /* Compute the signature validation prehash. Same as during generation. */ 
       
     BLAKE2B_INIT(data, data_len, 0, prehash_len, prehash);
-
-    time = clock();
       
     MONT_POW_modM(Gmont, s, M, &R_aux1); 
     MONT_POW_modM(Amont, e, M, &R_aux2);
     
-    time = clock() - time;
-    
-    total_time_mont_pow_seconds = ((double)time)/CLOCKS_PER_SEC;
-    
-    printf( "<SIG_VAL> Time for: MONT_POW(%u-bit ^ %u-bit MOD %u-bit)\n"
-            "                    MONT_POW(%u-bit ^ %u-bit MOD %u-bit)\n\n" 
-            "                    %lf sec.\n\n"
-           ,Gmont->used_bits
-           ,s->used_bits
-           ,M->used_bits
-           ,Amont->used_bits
-           ,e->used_bits
-           ,M->used_bits
-           ,total_time_mont_pow_seconds
-          );
-
     bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
-    
-    
-    
-    time = clock();
-    
+
     bigint_div2(&R_aux3, M, &div_res, &R);
-    
-    time = clock() - time;
-    total_time_mont_pow_seconds = ((double)time)/CLOCKS_PER_SEC;
-    printf( "<SIG_VAL> Time for last DIV(%u-bit ÷ %u-bit): %lf\n\n"
-           ,R_aux3.used_bits, M->used_bits, total_time_mont_pow_seconds
-          );
-    
         
     R_used_bytes = R.used_bits;
       

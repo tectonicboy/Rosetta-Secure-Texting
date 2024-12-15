@@ -397,7 +397,7 @@ void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){
         printf("[WARN] BigInt: No bytes written to bigint dat file.\n");
     }
     
-    printf("Written %lu bytes to bigint file %s\n", bytes_written, fn);
+    //printf("Written %lu bytes to bigint file %s\n", bytes_written, fn);
     
     if( fclose(dat_file) != 0){
         printf("[ERR] BigInt: fclose() in SAVE failed for file %s\n", fn);
@@ -1270,12 +1270,12 @@ void bigint_mod_mul( bigint** nums
 
     /* The long loop */
     for(u32 i = 0; i < how_many; ++i){
-    
+        /*
         printf("[BigInt] - Long loop in MOD_MUL moved  i = %u to %u"
               " (how many big numbers we multiply).\n"
               , i, how_many
               ); 
-              
+        */      
         bigint_mul_fast(R, nums[i], &mul_res);
 
         if( (compare_res = bigint_compare2(&mul_res, mod)) != 3){
@@ -1393,12 +1393,12 @@ void bigint_mod_pow( const bigint* const N
 
     /* The long loop */
     for(u32 i = 0; i < P->used_bits; ++i){   
-
+        /*
         printf("[BigInt] - Long loop in MOD_POW moved  i = %u to %u"
                " (power's used bits).\n"
                , i, P->used_bits
                ); 
-               
+        */     
         if( i == arr1[arr1_curr_ind] ){
             bigint_equate2( arr_ptrs[arr1_curr_ind], &aux1);
             ++arr1_curr_ind;

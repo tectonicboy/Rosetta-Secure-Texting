@@ -71,6 +71,13 @@ struct chatroom{
 u64 users_status_bitmask = 128; 
 u64 rooms_status_bitmask = 128;
 
+/* Bitmask telling the server which socket file descriptors are free to be
+ * used to accept a new connection to a client machine and begin its recv()
+ * loop which it will be stuck on until the server kicks the client out.
+ */
+u64 socket_status_bitmask = 0;
+u32 next_free_socket_ix = 0;
+
 u32 next_free_user_ix = 1;
 u32 next_free_room_ix = 1;
 
@@ -103,17 +110,24 @@ struct chatroom rooms[MAX_CHATROOMS];
 int port = SERVER_PORT
    ,listening_socket
    ,optval1 = 1
-   ,optval2 = 2
-   ,client_socket_fd;
-      
-socklen_t clientLen = sizeof(struct sockaddr_in);
+   ,optval2 = 2;
+
+int client_socket_fd[MAX_CLIENTS];
+struct sockaddr_in client_addresses[MAX_CLIENTS];  
+socklen_t clientLens[MAX_CLIENTS];
+
+/* Create thread_id's for every client machine's recv() loop thread. */
+pthread_t client_thread_ids[MAX_CLIENTS];
 
 struct bigint *M, *Q, *G, *Gm, server_privkey_bigint, *server_pubkey_bigint;
-struct sockaddr_in client_address;
 struct sockaddr_in servaddr;
 
 /* First thing done when we start the server - initialize it. */
 u32 self_init(){
+
+    for(socklen_t i = 0; i < MAX_CLIENTS; ++i){
+        clientLens[i] = sizeof(struct sockaddr_in);
+    }
 
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
@@ -145,6 +159,8 @@ u32 self_init(){
       ) == -1
     )
     {
+        printf("[ERR] Server: Bind() returned -1.\n");
+        
         if(errno != 13){
             printf("[ERR] Server: bind() failed. Errno != 13. Aborting.\n");
             return 1;
@@ -450,9 +466,9 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 */
 //__attribute__ ((always_inline)) 
 //inline
-void process_msg_00(u8* msg_buf){
+void process_msg_00(u8* msg_buf, u32 sock_ix){
 
-    time_curr_login_initiated = clock();
+    
 
     bigint  zero;
     bigint  Am; 
@@ -460,7 +476,7 @@ void process_msg_00(u8* msg_buf){
     bigint* A_s;
     bigint* b_s = calloc(1, sizeof(bigint));
     bigint* B_s;
-    bigint* X_s;
+    bigint* X_s = calloc(1, sizeof(bigint));
             
     u8* Y_s;
     
@@ -472,6 +488,59 @@ void process_msg_00(u8* msg_buf){
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
     u8* reply_buf = calloc(1, reply_len);
     
+    u64 PACKET_ID02 = PACKET_ID_02;
+    u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
+
+
+    /* If the login handshake memory region is locked, that means another
+     * client is currently in the process of logging in, and only one login
+     * is allowed at a time, so reject this login attempt now.
+     */
+    if(temp_handshake_memory_region_isLocked != 0){
+        printf(
+            "[OK] Server: Caught a login attempt in the middle of another!\n"
+            "             Rejecting this login attempt with packet_02.\n\n"
+        );
+
+        /* Construct the ROSETTA FULL reply message buffer */
+        reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
+        free(reply_buf);
+        reply_buf = calloc(1, reply_len);
+    
+        *((u64*)(reply_buf)) = PACKET_ID_02;
+        
+        Signature_GENERATE( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
+                            ,reply_buf + SMALL_FIELD_LEN
+                           ,&server_privkey_bigint, PRIVKEY_LEN
+                          );
+                          
+/* A client tried logging in but should try later.
+ 
+    Server ----> Client
+  
+================================================================================
+| packet ID 02 |                         SIGNATURE                             | 
+|==============|===============================================================|
+|  SMALL_LEN   |                          SIG_LEN                              |
+--------------------------------------------------------------------------------
+
+*/
+        
+        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
+            printf("[ERR] Server: Couldn't send try-login-later message.\n");
+        }
+        else{
+            printf("[OK]  Server: Told client to try login later.\n");
+        }
+
+        free(X_s);
+        free(b_s);
+        free(signature_buf);
+        free(reply_buf);
+
+        return;
+    } 
+
     /* Construct a bigint out of the client's short-term public key.          */
     /* Here's where a constructor from a memory buffer and its length is good */
     /* Find time to implement one as part of the BigInt library.              */
@@ -481,10 +550,14 @@ void process_msg_00(u8* msg_buf){
      * lock it, disallowing another parallel login attempt to corrupt them.
      */
     temp_handshake_memory_region_isLocked = 1;
+
+    time_curr_login_initiated = clock();
+
+    bigint_create(X_s, MAX_BIGINT_SIZ, 0);
     
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    
+
     memcpy(A_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
     A_s->size_bits = MAX_BIGINT_SIZ;
@@ -506,8 +579,8 @@ void process_msg_00(u8* msg_buf){
     if(   ((bigint_compare2(&zero, A_s)) != 3) 
         || 
           ((bigint_compare2(M, A_s)) != 1)
-        ||
-          (check_pubkey_form(&Am, M, Q) == 0) 
+        //||
+        //  (check_pubkey_form(&Am, M, Q) == 0) 
       )
     {
         printf("[ERR] Server: Client's short-term public key is invalid.\n");
@@ -541,27 +614,32 @@ void process_msg_00(u8* msg_buf){
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
    
     b_s->bits = temp_handshake_buf + sizeof(bigint);
+
+    b_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    memcpy(b_s->bits, temp_handshake_buf + sizeof(bigint), PRIVKEY_LEN);
+
     b_s->size_bits = MAX_BIGINT_SIZ;
-    b_s->used_bits = get_used_bits(b_s->bits, PUBKEY_LEN);
+    b_s->used_bits = get_used_bits(b_s->bits, PRIVKEY_LEN);
     b_s->free_bits = b_s->size_bits - b_s->used_bits;
     
+    memset(temp_handshake_buf + sizeof(bigint), 0, PRIVKEY_LEN);
+    memcpy(temp_handshake_buf + sizeof(bigint), b_s, sizeof(bigint));
+
     /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
-    save_BIGINT_to_DAT("temp_privkey_DAT\0", b_s);
+    save_BIGINT_to_DAT("temp_privkey.dat", b_s);
   
-    B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+    B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
     
     /* Place the server short-term pub_key also in the locked memory region. */
     memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
     
     /* X_s = A_s^b_s mod M */
-    X_s = (bigint*)(temp_handshake_buf + (3 * sizeof(bigint)));
-    
-    bigint_create(X_s, MAX_BIGINT_SIZ, 0);
+   // X_s = (bigint*)(temp_handshake_buf + (3 * sizeof(bigint)));
     
     MONT_POW_modM(&Am, b_s, M, X_s);
     
     /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
-    tempbuf_byte_offset = 4 * sizeof(bigint);
+    tempbuf_byte_offset = 3 * sizeof(bigint);
     
     memcpy( temp_handshake_buf + tempbuf_byte_offset
            ,X_s->bits
@@ -619,7 +697,7 @@ void process_msg_00(u8* msg_buf){
 */  
     replybuf_byte_offset = 0;
      
-    *((u64*)(reply_buf + replybuf_byte_offset)) = (u64)PACKET_ID_00;
+    *((u64*)(reply_buf + replybuf_byte_offset)) = PACKET_ID_00;
     
     replybuf_byte_offset += SMALL_FIELD_LEN;
 
@@ -630,7 +708,7 @@ void process_msg_00(u8* msg_buf){
     memcpy(reply_buf + replybuf_byte_offset, signature_buf, SIGNATURE_LEN);
     
     /* Send the reply back to the client. */
-    if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");
     }
     else{
@@ -643,7 +721,10 @@ label_cleanup:
     free(Am.bits);
     free(signature_buf);
     free(reply_buf);
-    system("rm temp_privkey_DAT");
+    free(b_s);
+    free(X_s->bits);
+    free(X_s);
+    system("rm temp_privkey.dat");
   
     return;
 }
@@ -661,7 +742,7 @@ label_cleanup:
 */
 //__attribute__ ((always_inline)) 
 //inline
-void process_msg_01(u8* msg_buf){
+void process_msg_01(u8* msg_buf, u32 sock_ix){
 
     u64 handshake_buf_key_offset;
     u64 handshake_buf_nonce_offset;
@@ -688,6 +769,8 @@ void process_msg_01(u8* msg_buf){
     u8* reply_buf = NULL;
     u64 reply_len;
     
+    bigint* temp_ptr;
+
     memset(opad, 0x5c, B);
     memset(ipad, 0x36, B);
     
@@ -714,7 +797,7 @@ void process_msg_01(u8* msg_buf){
     /* Length of K is less than B so append 0s to it until it's long enough. */
     /* This was done during K0's initialization. Now place the actual key.    */
     memcpy( K0 + (B - SESSION_KEY_LEN)
-           ,temp_handshake_buf + (4 * sizeof(bigint))
+           ,temp_handshake_buf + (3 * sizeof(bigint))
            ,SESSION_KEY_LEN
           );
 
@@ -765,8 +848,10 @@ void process_msg_01(u8* msg_buf){
      *
      *  Server then destroys all cryptographic artifacts for handshake. 
      */
-    handshake_buf_nonce_offset = (4 * sizeof(bigint)) + (3 * SESSION_KEY_LEN);
-    handshake_buf_key_offset   =  4 * sizeof(bigint);
+    handshake_buf_nonce_offset = 
+    (3 * sizeof(bigint)) + (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN;
+
+    handshake_buf_key_offset =  3 * sizeof(bigint);
     
     /* Passed parameters to this call to ChaCha20:
      *
@@ -788,7 +873,7 @@ void process_msg_01(u8* msg_buf){
             );
     
     /* Increment the Nonce to not reuse it when encrypting the user's index. */        
-    ++(*(temp_handshake_buf + handshake_buf_nonce_offset));   
+    ++(*((u64*)(temp_handshake_buf + handshake_buf_nonce_offset)));  
          
     /* Now we have the decrypted client's long-term public key. */
      
@@ -810,7 +895,7 @@ void process_msg_01(u8* msg_buf){
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
                           
-/* A client tried logging in, but Rosetta's user slots are all full right now.
+/* A client tried logging in but should try later.
  
     Server ----> Client
   
@@ -822,11 +907,11 @@ void process_msg_01(u8* msg_buf){
 
 */
         
-        if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't send full-rosetta message.\n");
+        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
+            printf("[ERR] Server: Couldn't send try-login-later message.\n");
         }
         else{
-            printf("[OK]  Server: Told client Rosetta is full, try later\n");
+            printf("[OK]  Server: Told client to try login later.\n");
         }
         goto label_cleanup;
     }
@@ -847,9 +932,7 @@ void process_msg_01(u8* msg_buf){
     
     *((u64*)(reply_buf)) = PACKET_ID_01;
     
-    
-    handshake_buf_nonce_offset = (4 * sizeof(bigint)) + (3 * SESSION_KEY_LEN);
-    handshake_buf_key_offset   = (4 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);
+    handshake_buf_key_offset  = (3 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);
     
     CHACHA20((u8*)(&next_free_user_ix)
              ,SMALL_FIELD_LEN
@@ -876,8 +959,6 @@ void process_msg_01(u8* msg_buf){
     for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
         clients[next_free_user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
     }
-    
-
     
     memset( clients[next_free_user_ix].pending_msg_sizes
            ,0
@@ -982,7 +1063,7 @@ void process_msg_01(u8* msg_buf){
 
 */
       
-    if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't send Login-OK message.\n");
         goto label_cleanup;
     }
@@ -994,14 +1075,21 @@ void process_msg_01(u8* msg_buf){
 
 label_cleanup:
 
-    /* TO DO IMPORTANT: Free memory pointed to by pointers in handshake buffer
-     * before zeroing it out, including bigints with pointers to bit buffers
-     * where the bigints reside in the handshake buf!!!
-     */
-
     /* Now it's time to clear and unlock the temporary login memory region. */
-   
-    /* memset(temp_handshake_buf, 0, TEMP_BUF_SIZ); */
+    temp_ptr = (bigint*)temp_handshake_buf;
+    free(temp_ptr->bits);
+
+    temp_ptr = (bigint*)(temp_handshake_buf + sizeof(bigint));
+    free(temp_ptr->bits);
+
+    temp_ptr = (bigint*)(temp_handshake_buf + (2 * sizeof(bigint)));
+    free(temp_ptr->bits);
+
+    memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
+
+    temp_handshake_memory_region_isLocked = 0;     
+
+    printf("[OK]  Client: Handshake memory region has been released!\n\n");
     
     /* This version of bzero() prevents the compiler from eliminating and 
      * optimizing away the call that clears the buffer if it determines it
@@ -1042,7 +1130,7 @@ label_cleanup:
 */
 //__attribute__ ((always_inline)) 
 //inline
-void process_msg_10(u8* msg_buf){
+void process_msg_10(u8* msg_buf, u32 sock_ix){
         
     u8* nonce  = calloc(1, LONG_NONCE_LEN);
     u8* KAB    = calloc(1, SESSION_KEY_LEN);
@@ -1201,7 +1289,7 @@ void process_msg_10(u8* msg_buf){
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
         
-        if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
             printf("[ERR] Server: Couldn't send No Room Space message.\n");
         }
         else{
@@ -1259,7 +1347,7 @@ void process_msg_10(u8* msg_buf){
     }
     
     /* Transmit the server's ROOM CREATION OK reply back to the client. */    
-    if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't send Login-OK message.\n");
         goto label_cleanup;
     }
@@ -1296,7 +1384,7 @@ label_cleanup:
 */
 //__attribute__ ((always_inline)) 
 //inline
-void process_msg_20(u8* msg_buf){
+void process_msg_20(u8* msg_buf, u32 sock_ix){
 
     FILE* ran_file = NULL;
     
@@ -1650,7 +1738,7 @@ void process_msg_20(u8* msg_buf){
     
     */
 
-    if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
         printf("[ERR] Server: Couldn't send Room-Join-OK message.\n");
         goto label_cleanup;
     }
@@ -1965,7 +2053,7 @@ label_cleanup:
 */
 //__attribute__ ((always_inline)) 
 //inline
-void process_msg_40(u8* msg_buf){
+void process_msg_40(u8* msg_buf, u32 sock_ix){
 
     /* Check the cryptographic signature to authenticate the sender. */
         
@@ -2016,7 +2104,7 @@ void process_msg_40(u8* msg_buf){
 
 */        
         /* Send the reply back to the client. */
-        if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
             printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");
         }
         else{
@@ -2093,7 +2181,7 @@ void process_msg_40(u8* msg_buf){
 
 */              
         /* Send the reply back to the client. */
-        if(send(client_socket_fd, reply_buf, reply_len, 0) == -1){
+        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
             printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");
         }
         else{
@@ -2179,29 +2267,19 @@ void process_msg_60(u8* msg_buf){
  *      - A client decides to log off Rosetta.
  */
 
-u32 identify_new_transmission(){
+u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
 
-    u8*  client_msg_buf = calloc(1, MAX_MSG_LEN);
-    s64  bytes_read; 
+    printf("?? identifier entering?? \n");
+
     u64  transmission_type = 0;
     s64  expected_siz = 0;
     u64  found_user_ix;
     u64 text_msg_len;
     u32  ret_val = 0;
     char *msg_type_str = calloc(1, 3);
-        
-    /* Capture the message the Rosetta TCP client sent to us. */
-    bytes_read = recv(client_socket_fd, client_msg_buf, MAX_MSG_LEN, 0);
-    
-    if(bytes_read == -1 || bytes_read < 8){
-        printf("[ERR] Server: Couldn't read message on socket or too short.\n");
-        ret_val = 1;
-        goto label_cleanup;
-    }
-    else{
-        printf("[OK]  Server: Read %ld bytes from a request!\n\n", bytes_read);
-    }
-           
+    printf("?? right before printing socket[sock_ix]  \n");    
+    printf("[OK]  Server: Entered packet identifier for socket[%u]\n", sock_ix);
+
     /* Read the first 8 bytes to see what type of init transmission it is. */
     memcpy(&transmission_type, client_msg_buf, SMALL_FIELD_LEN);
     
@@ -2220,7 +2298,7 @@ u32 identify_new_transmission(){
         }
         
         /* If transmission is of a valid type and size, process it. */
-        process_msg_00(client_msg_buf);
+        process_msg_00(client_msg_buf, sock_ix);
         
         break;
     }
@@ -2238,7 +2316,7 @@ u32 identify_new_transmission(){
         }
     
         /* If transmission is of a valid type and size, process it. */
-        process_msg_01(client_msg_buf); 
+        process_msg_01(client_msg_buf, sock_ix); 
         
         break;           
     }
@@ -2256,7 +2334,7 @@ u32 identify_new_transmission(){
         }
         
         /* If transmission is of a valid type and size, process it. */
-        process_msg_10(client_msg_buf);
+        process_msg_10(client_msg_buf, sock_ix);
         
         break;
     } 
@@ -2274,7 +2352,7 @@ u32 identify_new_transmission(){
         }
         
         /* If transmission is of a valid type and size, process it. */
-        process_msg_20(client_msg_buf);
+        process_msg_20(client_msg_buf, sock_ix);
         
         break;
     }
@@ -2336,7 +2414,7 @@ u32 identify_new_transmission(){
         }
         
         /* If transmission is of a valid type and size, process it. */
-        process_msg_40(client_msg_buf);
+        process_msg_40(client_msg_buf, sock_ix);
         
         break;
     }
@@ -2382,7 +2460,7 @@ u32 identify_new_transmission(){
     default:{
         printf("[WAR] Server: No valid packet type found in request.\n\n");
         /* Send the reply back to the client. */
-        if(send(client_socket_fd, "fuck you", 8, 0) == -1){
+        if(send(client_socket_fd[sock_ix], "fuck you", 8, 0) == -1){
             printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
             ret_val = 1;
             goto label_error;
@@ -2417,6 +2495,8 @@ label_cleanup:
 
 void remove_inactive_user(u64 removing_user_ix){
     
+    int status;
+
     /* Might have to remove them from a room (as a guest or as the owner)
      * or simply from the server if they weren't in a room.
      */
@@ -2427,7 +2507,27 @@ void remove_inactive_user(u64 removing_user_ix){
     /* Clear the user's descriptor, free their global user index slot. */
     memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
-    
+
+    status = pthread_cancel(client_thread_ids[removing_user_ix]);
+
+    if(status != 0){
+        printf("[ERR] Server: Couldn't stop quitting client's recv thread.\n\n");
+    }
+
+    status = close(client_socket_fd[next_free_socket_ix]);
+
+    if(status != 0){
+        printf("[ERR] Server: Couldn't close quitting client's socket.\n\n");
+    }
+
+    /* Update next free socket slot if needed. */
+    if(removing_user_ix < next_free_socket_ix){
+        next_free_socket_ix = removing_user_ix;
+    }
+
+    /* Reflect in global socket bitmask that this socket is now free again. */
+    socket_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
+
     return;
 }
 
@@ -2443,7 +2543,7 @@ void* check_for_lost_connections(){
        
         curr_time = clock();
         
-        printf("[OK]  Server: Checker for lost connections started!\n");
+        //printf("[OK]  Server: Checker for lost connections started!\n");
         
         /* Go over all user slots, for every connected client, check the last 
          * time they polled the server. If it's more than 5 seconds ago, assume 
@@ -2454,7 +2554,9 @@ void* check_for_lost_connections(){
             if( 
                (users_status_bitmask & (1ULL << (63ULL - i))) 
                 &&
-               ((curr_time - clients[i].time_last_polled) > 5)
+                (clients[i].room_ix != 0)
+                &&
+               ((curr_time - clients[i].time_last_polled) > 10)
               )
             {
                 printf("[ERR] Server: Caught an inactive connected client!\n"
@@ -2473,35 +2575,77 @@ void* check_for_lost_connections(){
          * login request was sent and before the second login packet could be
          * sent by the client. In this case, the global memory region keeping 
          * the very short-lived shared secret and key pair only used to securely
-         * transport the client's long-term public key to us will remain locked
-         * unless we notice the failed login attempt and unlock it from here.
+         * transport the cl\n\n", bytes_read);he failed login attempt and unlock it from here.
          *
          * To defend against such a scenario (be it caused by a real loss of 
          * network connection to the server, or a malicious person deliberately
          * trying to do this to DoS or otherwise attack the server), check the
          * time elapsed since the CURRENT login was started. If it's been over
-         * 5 seconds, assume a lost connection - drop the login attempt and
+         * 10 seconds, assume a lost connection - drop the login attempt and
          * unlock the global memory region for login cryptographic artifacts.
          */
         if( 
               temp_handshake_memory_region_isLocked == 1
             &&
-              ( (curr_time - time_curr_login_initiated) > 5)       
+              ( (curr_time - time_curr_login_initiated) > 10)       
           )
         {
             explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
             temp_handshake_memory_region_isLocked = 0;               
         }
         
-        printf("[OK]  Server: Checker for lost connections finished!\n\n\n"); 
+        //printf("[OK]  Server: Checker for lost connections finished!\n\n\n"); 
         
         pthread_mutex_unlock(&mutex);
+    }
+}
+
+void* start_new_client_thread(void* ix_ptr){
+
+    u8*  client_msg_buf = calloc(1, MAX_MSG_LEN);
+    s64  bytes_read; 
+    u32  status;
+    u32 ix = *((u32*)ix_ptr);
+
+    while(1){
+printf("?? 6\n");
+        memset(client_msg_buf, 0, MAX_MSG_LEN);
+printf("?? 7\n");
+        /* Block on this recv call since clients always commence a transmission. */
+        bytes_read = recv(client_socket_fd[ix], client_msg_buf, MAX_MSG_LEN, 0);
+        printf("?? 8\n");
+        if(bytes_read == -1 || bytes_read < 8){
+            printf( "[ERR] Server: Couldn't recv() or msg too short, client[%u]\n\n"
+                ,ix
+            );
+            perror("recv() failed, errno was set");
+        }
+        else{
+            printf( "[OK]  Server: Read %ld bytes from a request by client[%u]\n\n" 
+                ,bytes_read, ix
+            );
+        }
+        printf("?? 1\n");
+        pthread_mutex_lock(&mutex);
+printf("?? 2\n");
+        status = identify_new_transmission(client_msg_buf, bytes_read, ix);
+printf("?? 3\n");
+        if(status){
+            printf("\n\n****** WARNING ******\n\n"
+                    "Error while processing a received "
+                    "transmission, look at log to find it.\n"
+            );    
+        }   
+printf("?? 4\n");
+        pthread_mutex_unlock(&mutex); 
+        printf("?? 5\n");
     }
 }
 
 int main(){
 
     u32 status;
+    u32 curr_free_socket_ix;
 
     /* Initialize Linux Sockets API, load cryptographic keys and artifacts. */ 
     status = self_init();
@@ -2516,7 +2660,7 @@ int main(){
     printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
     
     /* Begin the thread function that will, in parallel to the running server,
-     * check every 5 seconds for any lost connections, identified by connected
+     * check every 10 seconds for any lost connections, identified by connected
      * clients that haven't polled us for pending messages in over 3 seconds.
      * The normal polling is every 0.2 seconds.
      */
@@ -2534,26 +2678,51 @@ int main(){
     
     while(1){
 
-        /* Block on this accept() call until someone sends us a message. */
-        client_socket_fd = accept(  listening_socket
-                                   ,(struct sockaddr*)(&client_address)
-                                   ,&clientLen
-                                 );
-        
+
+        /* Block on this accept() until a new client machine wants to connect */
+        client_socket_fd[next_free_socket_ix] = 
+        accept( listening_socket,
+                (struct sockaddr*)(&(client_addresses[next_free_socket_ix])),
+                &(clientLens[next_free_socket_ix])
+        );
+
+        curr_free_socket_ix = next_free_socket_ix;
+
+        if(client_socket_fd[curr_free_socket_ix] == -1){
+            printf("[ERR] Server: accept() failed to connect the socket.\n");
+            perror("accept() failed, errno was set");
+            continue;
+        }
+                printf("[OK] Server: Passed accept()! Received a new connection!\n\n");
+
         pthread_mutex_lock(&mutex);
-                                   
-        /* 0 on success, greater than 0 otherwise. */                         
-        status = identify_new_transmission();
+
+        /* Give this new client a thread on which their socket will be stuck
+         * on a recv() call loop and send() whatever the msg processor needs to.
+         */
+
+        /* Start the recv() looping thread for this new client. */
+        pthread_create(
+            &(client_thread_ids[curr_free_socket_ix])
+           ,NULL
+           , start_new_client_thread
+           ,((void*)(&curr_free_socket_ix))
+        );
+
+        /* Reflect the new taken socket slot in the global status bitmask. */
+        socket_status_bitmask |= (1ULL << (63ULL - curr_free_socket_ix));
+
+        /* Find the next free index. */
+        ++next_free_socket_ix;
         
-        close(client_socket_fd);
-        
-        if(status){
-            printf("\n\n****** WARNING ******\n\n"
-                   "Error while processing a received "
-                   "transmission, look at log to find it.\n"
-                  );    
-        }    
-        
+        while(next_free_socket_ix < MAX_CLIENTS){
+            if(!(socket_status_bitmask & (1ULL<<(63ULL - next_free_socket_ix))))
+            {
+                break;
+            }
+            ++next_free_socket_ix;
+        }  
+
         pthread_mutex_unlock(&mutex);                  
     }
                  

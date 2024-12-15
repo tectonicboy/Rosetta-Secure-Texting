@@ -64,6 +64,15 @@ u64 roommate_slots_bitmask = 0;
  */
 u64 roommate_key_usage_bitmask = 0;
 
+/* It could be in 2 states of fullness when we clear it, because our login
+ * attempt could be rejected after we send msg_00 OR after we send msg_01.
+ * The two functions that send these messages both fill out the handshake
+ * memory region with different things, including pointers to heap memory,
+ * which is why we need to keep track of what was placed in the handshake
+ * memory region at the point of zeroing it out and releasing it.
+ */
+u8 handshake_memory_region_state = 0;
+
 u64  own_ix = 0;
 char own_user_id[SMALL_FIELD_LEN];
 
@@ -401,24 +410,6 @@ u8 self_init(u8* password, int password_len){
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
     nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
 
-    /* Initialize the our own socket. */
-    own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    
-    if(own_socket_fd == -1) {
-        printf("[ERR] Client: Own TCP socket init failed. Terminating.\n");
-        status = 0;
-        goto label_cleanup;
-    }
-    /*
-    setsockopt(
-          own_socket_fd, SOL_SOCKET, SO_REUSEPORT, &optval1, sizeof(optval1)
-    );  
-    */
-    setsockopt(
-          own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
-    );
-
-
     /* Initialize the Rosetta server's address structure. */
 
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
@@ -440,6 +431,36 @@ label_cleanup:
     if(savefile)                { fclose(savefile);         }
 
     return status;
+}
+
+void release_handshake_memory_region(){
+
+    bigint* temp_ptr;
+
+    temp_ptr = (bigint*)temp_handshake_buf;
+    free(temp_ptr->bits);
+
+    temp_ptr = (bigint*)(temp_handshake_buf + sizeof(bigint));
+    free(temp_ptr->bits);
+
+    /* If we WEREN'T told to try login later right after msg_00, but rather 
+     * after msg_01, which means rosetta is full right now, then the client
+     * software will have placed a third bigint object in the memory region
+     * at the very least - free its bit buffer too before zeroing it out.
+     */
+    if(handshake_memory_region_state == 2){
+        temp_ptr = (bigint*)(temp_handshake_buf + (2 * sizeof(bigint)));
+        free(temp_ptr->bits);
+    }
+
+    memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
+
+    temp_handshake_memory_region_isLocked = 0;     
+    handshake_memory_region_state = 0;
+
+    printf("[OK]  Client: Handshake memory region has been released!\n\n");
+
+    return;
 }
 
 /* A user requested to be logged in Rosetta:
@@ -480,6 +501,10 @@ u8 construct_msg_00(void){
     temp_privkey->used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
     temp_privkey->free_bits = MAX_BIGINT_SIZ - temp_privkey->used_bits;
 
+    memset(temp_handshake_buf, 0, PRIVKEY_LEN);
+
+    memcpy(temp_handshake_buf, temp_privkey, sizeof(bigint));
+
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
     save_BIGINT_to_DAT("temp_privkey_DAT\0", temp_privkey);
   
@@ -488,13 +513,16 @@ u8 construct_msg_00(void){
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
    
+    handshake_memory_region_state = 1;
+
     /* Construct and send the MSG buffer to the TCP server. */
     
-    *((u64*)(msg_buf)) = (u64)PACKET_ID_00;
+    *((u64*)(msg_buf)) = PACKET_ID_00;
     
     memcpy(msg_buf + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
         printf("              ERRNO = %d\n\n", errno);
@@ -502,7 +530,7 @@ u8 construct_msg_00(void){
         status = 0;
         goto label_cleanup;
     }
-
+    */
     /* Send the packet. */
     if(send(own_socket_fd, msg_buf, msg_len, 0) == -1){
         printf("[ERR] Client: Couldn't send initial login transmission.\n");
@@ -511,11 +539,12 @@ u8 construct_msg_00(void){
         goto label_cleanup;
     }
     
+    printf("[OK] Client: MSG_00 sent. Server should get %lu bytes.\n", msg_len);
+
 label_cleanup:
 
     system("rm temp_privkey_DAT");
     free(msg_buf);
-    free(temp_privkey->bits);
     free(temp_privkey);
 
     return status;
@@ -591,7 +620,7 @@ u8 process_msg_00(u8* msg_buf){
      *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
      */
     
-    bigint_create(&X_s,   MAX_BIGINT_SIZ, 0);
+    bigint_create(&X_s,  MAX_BIGINT_SIZ, 0);
     bigint_create(&zero, MAX_BIGINT_SIZ, 0);
     bigint_create(&B_sM, MAX_BIGINT_SIZ, 0);
     
@@ -601,8 +630,8 @@ u8 process_msg_00(u8* msg_buf){
     if(   ((bigint_compare2(&zero, B_s)) != 3) 
         || 
           ((bigint_compare2(M, B_s)) != 1)
-        ||
-          (check_pubkey_form(&B_sM, M, Q) == 0) 
+        //||
+        // (check_pubkey_form(&B_sM, M, Q) == 0) 
       )
     {
         printf("[ERR] Client: Server's short-term public key is invalid.\n");
@@ -612,10 +641,10 @@ u8 process_msg_00(u8* msg_buf){
         status = 0;
         goto label_cleanup;
     }     
-        
+    printf("?? 1 \n");
     /* X_s = B_s^a_s mod M */
     MONT_POW_modM(&B_sM, a_s, M, &X_s);
-    
+     printf("?? 2 \n");
     /* Construct a special buffer containing Y_s concatenated with the received
      * signature, because the signature validating interface needs it that way
      * because that's how most use cases of it have their buffers structured -
@@ -626,39 +655,42 @@ u8 process_msg_00(u8* msg_buf){
            ,X_s.bits + (2 * SESSION_KEY_LEN)
            ,INIT_AUTH_LEN
           );
-    
+     printf("?? 3 \n");
     memcpy( auth_buf + INIT_AUTH_LEN
            ,msg_buf  + (SMALL_FIELD_LEN + PUBKEY_LEN)
            ,SIGNATURE_LEN
           );
     
+     printf("?? 4 \n");
     /* Validate the signature of the unused part of the shared secret, Y_s. */
     auth_status = authenticate_server(auth_buf, INIT_AUTH_LEN, INIT_AUTH_LEN);
-    
+     printf("?? 5\n");
     if(auth_status != 1){
         printf("[ERR] Client: Invalid signature in process_msg_00. Drop.\n\n");
         status = 0;
         goto label_cleanup;           
     }
-    
+     printf("?? 6 \n");
     /* Transport the 2 symmetric keys, server's one-time public key and the 
-     * 2 cryptographic artifacts (N, Y) to the designated locked memory region
+     * 2 cryptographic artifacts (N, Y) to the designated locked memory region.
      */
      
     tempbuf_write_offset      = 2 * sizeof(bigint);
     shared_secret_read_offset = 0;
     
     /* Key B_s */
-    memcpy(temp_handshake_buf + tempbuf_write_offset, &B_s, sizeof(bigint*));
-    
-    tempbuf_write_offset += sizeof(bigint*);
+    memcpy(temp_handshake_buf + tempbuf_write_offset, B_s, sizeof(bigint));
+     printf("?? 7 \n");
+    tempbuf_write_offset += sizeof(bigint);
+
+    handshake_memory_region_state = 2;
     
     /* Key KAB_s */
     memcpy( temp_handshake_buf + tempbuf_write_offset
            ,X_s.bits
            ,SESSION_KEY_LEN
           );
-    
+     printf("?? 8 \n");
     shared_secret_read_offset += SESSION_KEY_LEN;
     tempbuf_write_offset      += SESSION_KEY_LEN;
     
@@ -667,7 +699,7 @@ u8 process_msg_00(u8* msg_buf){
            ,X_s.bits + shared_secret_read_offset
            ,SESSION_KEY_LEN
           );
-          
+           printf("?? 9 \n");
     shared_secret_read_offset += SESSION_KEY_LEN;
     tempbuf_write_offset      += SESSION_KEY_LEN;      
     
@@ -676,7 +708,7 @@ u8 process_msg_00(u8* msg_buf){
         ,X_s.bits + shared_secret_read_offset
         ,INIT_AUTH_LEN
        );
-
+    printf("?? 10 \n");
     shared_secret_read_offset += INIT_AUTH_LEN;
     tempbuf_write_offset      += INIT_AUTH_LEN;  
     
@@ -685,7 +717,7 @@ u8 process_msg_00(u8* msg_buf){
         ,X_s.bits + shared_secret_read_offset
         ,SHORT_NONCE_LEN
        );
-     
+      printf("?? 11 \n");
     /* Ready to start constructing the reply buffer to the server. */ 
         
     *((u64*)(reply_buf)) = PACKET_ID_01;
@@ -718,9 +750,13 @@ u8 process_msg_00(u8* msg_buf){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))
              ,reply_buf + SMALL_FIELD_LEN
             );
-            
-    /* Increment the Nonce to not reuse it when decrypting our user index. */       
-    ++(*(temp_handshake_buf + handshake_buf_nonce_offset));
+             printf("?? 12 \n");
+
+    /* Increment the Nonce to not reuse it when decrypting our user index.  */
+    /* It's not a BigInt in there but just increment to leftmost 64 bits.   */
+    /* And it should have the same effect unless we lucked out with all 1s. */
+    /* But generating 64 1s in a row with no 0s should be extremely rare.   */       
+    ++(*((u64*)(temp_handshake_buf + handshake_buf_nonce_offset)));
        
     /* Only thing left to construct is the HMAC authenticator now. */ 
     memset(opad, 0x5c, B);
@@ -791,12 +827,15 @@ u8 process_msg_00(u8* msg_buf){
 
 */
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+    */
     if(send(own_socket_fd, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Client: Couldn't send second login transmission.\n");
         printf("[ERR]         Aborting Login...\n\n");
@@ -819,6 +858,10 @@ label_cleanup:
     free(K0_XOR_opad);   
     free(reply_buf);
     free(auth_buf);
+    free(B_s);
+    free(X_s.bits);
+    free(zero.bits);
+    free(B_sM.bits);
     
     return status;
 } 
@@ -868,16 +911,15 @@ u8 process_msg_01(u8* msg){
     
     /* Signature is valid! Can locate our index, decrypt it and save it. */
     
-    nonce_offset = (2 * sizeof(bigint))  + sizeof(bigint*) + 
-                   (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN; 
+    nonce_offset = (3 * sizeof(bigint)) + (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN; 
     
-    key_offset = (2 * sizeof(bigint)) + sizeof(bigint*) + SESSION_KEY_LEN ;  
+    key_offset = (3 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);  
                  
-    CHACHA20( msg + SMALL_FIELD_LEN                    /* text - key KB       */
+    CHACHA20( msg + SMALL_FIELD_LEN                    /* text - encrypted ix */
              ,SMALL_FIELD_LEN                          /* text_len in bytes   */
              ,(u32*)(temp_handshake_buf + nonce_offset)/* Nonce ptr           */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32))     /* nonceLen in uint32s */
-             ,(u32*)(temp_handshake_buf + key_offset)  /* chacha Key ptr      */
+             ,(u32*)(temp_handshake_buf + key_offset)  /* chacha Key - KBA_s  */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))     /* Key_len in uint32s  */
              ,(u8*)(&own_ix)                           /* output buffer ptr   */
             );
@@ -887,10 +929,7 @@ u8 process_msg_01(u8* msg){
       
 label_cleanup:            
  
-    /* TODO Free() pointers to heap memory in handshake_buf before zeroing it */         
-    memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
-    
-    temp_handshake_memory_region_isLocked = 0;     
+    release_handshake_memory_region();
     
     return status; 
      
@@ -899,7 +938,7 @@ label_cleanup:
 /* This function is one of two possible ones to be called after the listen() 
  * in the main processor blocks, expecting an answer after our 2nd login packet.
  *
- * This one is when the server told us Rosetta is full. Verify the signature to
+ * This one is when the server told us to try again later. Verify the signature,
  * make sure the reply was really sent by the Rosetta server and that it wasn't
  * modified by a man in the middle attack somewhere along the way. 
  *
@@ -932,10 +971,7 @@ u8 process_msg_02(u8* msg){
         status = 0;       
     }
     
-    /* TODO Free() pointers to heap memory in handshake_buf before zeroing it */    
-    memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
-    
-    temp_handshake_memory_region_isLocked = 0;    
+    release_handshake_memory_region();
     
     return status;
 }
@@ -1058,12 +1094,15 @@ u8 construct_msg_10( unsigned char* requested_userid
     /* Ready to send the constructed packet to the Rosetta server now. */
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+*/
     if(send(own_socket_fd, send_buf, send_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 10.\n");
         printf("              Which is the request to create a new room\n");
@@ -1285,12 +1324,15 @@ u8 construct_msg_20( unsigned char* requested_userid
     /* Ready to send the constructed packet to the Rosetta server now. */
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+*/
     if(send(own_socket_fd, send_buf, send_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 20.\n");
         printf("              Which is the request to join an existing room\n");
@@ -1902,12 +1944,15 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     /* Ready to send the constructed packet to the Rosetta server now. */
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+*/
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 30.\n");
         printf("              Which is the request to send a text message\n");
@@ -2245,12 +2290,15 @@ u8 construct_msg_40(void){
     );
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+*/
     /* Transmit our request to the Rosetta server. */
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't poll the server for anything new.\n\n");
@@ -2445,12 +2493,15 @@ u8 construct_msg_50(void){
     );
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+*/
     /* Transmit our request to the Rosetta server. */
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send request to leave the room.\n\n");
@@ -2559,12 +2610,15 @@ u8 construct_msg_60(void){
     own_ix = 0;
 
     /* Connect to the Rosetta server. */
+    /*
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
         status = 0;
         goto label_cleanup;
     }
-
+*/
     /* Transmit our request to the Rosetta server. */
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send request to get logged off.\n\n");
@@ -2789,8 +2843,6 @@ u8 login(u8* password, int password_len){
     u8  status;
     u8 msg_buf[MAX_MSG_LEN];
 
-    int conn_stopper_status;
-
     ssize_t bytes_read;
 
     status = self_init(password, password_len);
@@ -2805,6 +2857,44 @@ u8 login(u8* password, int password_len){
      * by using a different, extremely short-term pair of public / private keys
      * and shared secret that get destroyed right after this login handshake.
      */
+
+    /* Initialize the our own socket before the connect() call. */
+    own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if(own_socket_fd == -1) {
+        printf("[ERR] Client: Own TCP socket init failed. Terminating.\n");
+        return 0;
+    }
+    /*
+    setsockopt(
+          own_socket_fd, SOL_SOCKET, SO_REUSEPORT, &optval1, sizeof(optval1)
+    );  
+    */
+    if(
+        setsockopt(
+           own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
+        ) 
+        != 0
+    )
+    {
+        printf("[ERR] Client: set socket option failed.\n\n");
+    }
+
+    printf("[OK]  Client: Socket initialized, and won't be closed.\n");
+
+    /* Connect to the Rosetta server. */
+    
+    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
+        == -1 
+      )
+    {
+        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        printf("              ERRNO = %d\n\n", errno);
+        perror("connect() failed, errno was set");
+        return 0;
+    }
+    
+    printf("[OK]  Client: Connect() call finished, won't be re-attempted.\n");
 
     /* Contains a connect() and send() call. A server reply is then expected. */
     if( (status = construct_msg_00()) != 1){
@@ -2825,44 +2915,50 @@ u8 login(u8* password, int password_len){
 
     memset(msg_buf, 0, MAX_MSG_LEN);
 
+    printf("[DEBUG] Before recv for reply to msg_00\n");
+
     bytes_read = recv(own_socket_fd, msg_buf, MAX_MSG_LEN, 0);
+
+    printf("[DEBUG] After recv for reply to msg_00\n");
 
     if(bytes_read == -1){
         printf("[ERR] Client: Couldn't receive a reply to msg_00.\n\n");
         return 0;
     }
 
-    printf("[OK]  Client: Received reply to msg_00.\n\n");
+    printf("[OK]  Client: Received reply to msg_00: %lu bytes.\n", bytes_read);
 
+    /*
     if( (conn_stopper_status = shutdown(own_socket_fd, SHUT_RDWR)) != 0){
         printf("[ERR] Client: Couldn't shut down connection after msg_00.\n\n");
         return 0;
     }
+    */
 
     if( *((u64*)msg_buf) != PACKET_ID_00 ){
         printf("[ERR] Client: Unexpected reply by the server to msg_00\n\n");
         return 0;
     }
 
+    /* Has a connect() call in it too. */
     process_msg_00(msg_buf);
 
     printf("[OK]  Client: Sent msg_01 to server.\n\n");
 
     memset(msg_buf, 0, MAX_MSG_LEN);
 
+    printf("[DEBUG] Before recv for reply to msg_01\n");
+
     bytes_read = recv(own_socket_fd, msg_buf, MAX_MSG_LEN, 0);
+
+    printf("[DEBUG] After recv for reply to msg_01\n");
 
     if(bytes_read == -1){
         printf("[ERR] Client: Couldn't receive a reply to msg_01.\n\n");
         return 0;
     }
 
-    printf("[OK]  Client: Received reply to msg_01.\n\n");
-
-    if( (conn_stopper_status = shutdown(own_socket_fd, SHUT_RDWR)) != 0){
-        printf("[ERR] Client: Couldn't shut down connection after msg_00.\n\n");
-        return 0;
-    }
+    printf("[OK]  Client: Received reply to msg_01: %lu bytes.\n", bytes_read);
 
     if( *((u64*)msg_buf) == PACKET_ID_01 ){
 

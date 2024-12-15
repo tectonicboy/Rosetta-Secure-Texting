@@ -20,7 +20,7 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
         exit(1);
     }
     
-    printf("[OK] Successfully generated %u-byte private key!\n", len_bytes);
+    printf("[OK] coreutil: Finished computing private key.\n");
     fclose(ran);
     return;
 }
@@ -34,7 +34,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     FILE* privkey_dat = fopen(privkey_filename, "r");
     
     if(privkey_dat == NULL){
-        printf("[ERROR] gen_pub_key - couldnt open privkey file. Ret NULL.\n");
+        printf("[ERR] gen_pub_key - couldnt open privkey file. Ret NULL.\n");
         return NULL;
     }
 
@@ -52,10 +52,11 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
         fclose(privkey_dat);
         return NULL;
     }
-    
+    /*
     printf("[OK] Successfully read %u bytes from privkey_file\n"
            ,privkey_len_bytes
     );
+    */
     fclose(privkey_dat);
     
     struct bigint* privkey_bigint = (bigint*)malloc(sizeof(struct bigint));
@@ -89,12 +90,12 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     bigint_create(R, M->size_bits, 0);
     
     MONT_POW_modM(Gm, privkey_bigint, M, R); 
-
-    printf("Computed public key:\n");
     
+    printf("[OK] coreutil: Finished computed public key.\n");
+    /*
     bigint_print_info(R);
     bigint_print_bits(R);
-
+    */
     free(privkey_buf);
     free(privkey_bigint);
     
