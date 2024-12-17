@@ -319,57 +319,45 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
                             ,const u32    used_bits
                             ,const u32    reserve_bits)
 {  
-    bigint*  big_n_ptr;
-    u32 file_bytes;
-    u8* bigint_buf;
-    FILE*    dat_file;
-   
+    bigint* big_n_ptr;
+    FILE*   dat_file;
+    u32     file_bytes;
+
+    big_n_ptr = (bigint*)calloc(1, sizeof(bigint)); 
+    bigint_create(big_n_ptr, reserve_bits, 0); 
+
     if(reserve_bits % 0x08 || reserve_bits < 0x40 || reserve_bits > 4290000000){ 
         printf("[ERR] BigInt: get_BIGINT_from_DAT - Invalid reserve_bits\n");
-        return NULL;
+        return big_n_ptr;
     }  
     
     if(reserve_bits < used_bits){
         printf("[ERR] BigInt: Too few reserved bits for .dat file: %s\n",fn);
-        return NULL;
+        return big_n_ptr;
     }
     
     if ( (dat_file = fopen(fn, "r")) == NULL){
-        printf("[ERR] BigInt: Opening .dat file failed. Returning NULL.\n");
-        printf("              File name: %s\n", fn);
-        return NULL;
+        printf("[ERR] BigInt: Could not open DAT file. File name: %s\n\n", fn);
+        return big_n_ptr;
     }
     
     file_bytes = file_bits;
-    
+
     while(file_bytes % 8 != 0){
         ++file_bytes;
     }
-    
+
     file_bytes /= 8;
-    
-    bigint_buf = (u8*)calloc(1, (size_t)(reserve_bits / 8));
-    
-    if(!fread(bigint_buf, 1, file_bytes, dat_file)){
-        printf("[WARN] BigInt: No bytes read from bigint DAT file: %s\n", fn);
-        free(bigint_buf);
-        return NULL;
-    }
-    
-    big_n_ptr = (bigint*)calloc(1, sizeof(bigint)); 
-    
-    bigint_create(big_n_ptr, reserve_bits, 0); 
-     
-    memcpy(big_n_ptr->bits, bigint_buf, file_bytes);  
-    
+  
     big_n_ptr->used_bits = used_bits;
     big_n_ptr->free_bits = reserve_bits - used_bits;
-    
-    free(bigint_buf);
-    
+
+    if(fread(big_n_ptr->bits, 1, file_bytes, dat_file) != file_bytes){
+        printf("[ERR] BigInt: Could not read bigint DAT file: %s\n\n", fn);
+    }
+        
     if( fclose(dat_file) != 0){
-        printf("[ERR] BigInt: fclose() failed for file: %s\n", fn);
-        return NULL;
+        printf("[ERR] BigInt: Could not close bigint DAT file: %s\n\n", fn);
     }
     
     return big_n_ptr;
@@ -377,12 +365,11 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
 
 void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){  
 
-    FILE*    dat_file;
-    size_t   bytes_written;
-    u32 file_bytes;
+    FILE* dat_file;
+    u32   file_bytes;
     
     if ( (dat_file = fopen(fn, "w")) == NULL){
-        printf("[ERR] BigInt: Opening .dat file failed in SAVE.\n");
+        printf("[ERR] BigInt: Could not open DAT file for writing:%s\n\n", fn);
         return;
     }
     
@@ -393,14 +380,12 @@ void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){
     }
     file_bytes /= 8;
         
-    if(! (bytes_written = fwrite(num->bits, 1, file_bytes, dat_file)) ){
-        printf("[WARN] BigInt: No bytes written to bigint dat file.\n");
+    if( fwrite(num->bits, 1, file_bytes, dat_file) != file_bytes ){
+        printf("[ERR] BigInt: Could not write bigint to DAT file: %s\n\n", fn);
     }
     
-    //printf("Written %lu bytes to bigint file %s\n", bytes_written, fn);
-    
     if( fclose(dat_file) != 0){
-        printf("[ERR] BigInt: fclose() in SAVE failed for file %s\n", fn);
+        printf("[ERR] BigInt: Could not close DAT file for bigint:%s\n\n", fn);
     }
     
     return;
@@ -826,7 +811,8 @@ void bigint_pow( const bigint* const n1
 {
     bigint n1_used_bits
           ,R_req_bits
-          ,zero,one
+          ,zero
+          ,one
           ,R_res_bits
           ,R_temp
           ,starter
@@ -901,14 +887,14 @@ void bigint_pow( const bigint* const n1
     } 
     
 ret_label:
-        free(n1_used_bits.bits);
-        free(R_req_bits.bits);
-        free(zero.bits); 
-        free(one.bits);
-        free(R_res_bits.bits); 
-        free(R_temp.bits); 
-        free(starter.bits); 
-        free(starter_temp.bits);
+    free(n1_used_bits.bits);
+    free(R_req_bits.bits);
+    free(zero.bits); 
+    free(one.bits);
+    free(R_res_bits.bits); 
+    free(R_temp.bits); 
+    free(starter.bits); 
+    free(starter_temp.bits);
         
     return;
 }
@@ -1052,10 +1038,6 @@ void bigint_div2( const bigint* const A
     
     bigint big_temps[num_temps];
     
-    for(i = 0; i < num_temps; ++i){
-        bigint_create(&(big_temps[i]), A->size_bits, 0);
-    }
-
     /* Quickly check if A or B are zero. */
     if(bigint_compare2(B, &(big_temps[0])) == 2){
         printf("\n\n[ERR] BIGINT - Division by ZERO.\n\nOPERAND 1:\n");
@@ -1077,6 +1059,10 @@ void bigint_div2( const bigint* const A
         return;
     }
     
+    for(i = 0; i < num_temps; ++i){
+        bigint_create(&(big_temps[i]), A->size_bits, 0);
+    }
+
     bigint_equate2(&(big_temps[0]), A);
     bigint_equate2(&(big_temps[2]), B);
 
@@ -1320,11 +1306,36 @@ void bigint_mod_pow( const bigint* const N
     bigint_create(&zero, M->size_bits, 0);
     bigint_create(&div_res, M->size_bits, 1);
     
+    
     u32 *arr1 = NULL
-            ,c1 = 0
-            ,P_used_bytes = P->used_bits
-            ,arr1_curr_ind = 0;
-            ;
+        ,c1 = 0
+        ,P_used_bytes = P->used_bits
+        ,arr1_curr_ind = 0;
+        ;
+
+    arr2     = (bigint*) calloc(1, c1 * sizeof(bigint));
+    arr_ptrs = (bigint**)calloc(1, c1 * sizeof(bigint*));
+    arr1     = (u32*)    calloc(1, P->used_bits * (sizeof(u32)));
+
+    while(P_used_bytes % 8) { 
+        ++P_used_bytes; 
+    }
+    P_used_bytes /= 8;
+    
+    for(u32 i = 0; i < P_used_bytes; ++i){
+        for(u32 j = 0; j < 8; ++j){
+            if( ( (*(P->bits + i)) >> j) & 0x01){
+                arr1[arr1_curr_ind] = (i * 8) + j;
+                ++arr1_curr_ind;
+                ++c1;
+            }     
+        }
+    }
+   
+    for(u32 i = 0; i < c1; ++i){
+        bigint_create(&(arr2[i]), M->size_bits, 1); 
+        arr_ptrs[i] = &arr2[i];
+    }
 
     if(R->size_bits < M->used_bits){
         printf("[ERR] BigInt: Mod_Pow - too few reserved bits in Result.\n");
@@ -1363,31 +1374,6 @@ void bigint_mod_pow( const bigint* const N
         goto label_ret;
     }
 
-    arr1 = (u32*)malloc(P->used_bits * (sizeof(u32)));
-
-    while(P_used_bytes % 8) { 
-        ++P_used_bytes; 
-    }
-    P_used_bytes /= 8;
-    
-    for(u32 i = 0; i < P_used_bytes; ++i){
-        for(u32 j = 0; j < 8; ++j){
-            if( ( (*(P->bits + i)) >> j) & 0x01){
-                arr1[arr1_curr_ind] = (i * 8) + j;
-                ++arr1_curr_ind;
-                ++c1;
-            }     
-        }
-    }
-    
-    arr2 = (bigint*)malloc(c1 * sizeof(bigint));
-    arr_ptrs = (bigint**)malloc(c1 * sizeof(bigint*));
-   
-    for(u32 i = 0; i < c1; ++i){
-        bigint_create(&(arr2[i]), M->size_bits, 1); 
-        arr_ptrs[i] = &arr2[i];
-    }
-
     arr1_curr_ind = 0;  
     bigint_div2(N, M, &div_res, &aux1);
 
@@ -1417,21 +1403,19 @@ void bigint_mod_pow( const bigint* const N
     
 label_ret:
 
-    if(arr2){
-        for(u32 i = 0; i < c1; ++i){
-            free(arr2[i].bits);
-        }   
-        free(arr_ptrs);  
-        free(arr2);
+    for(u32 i = 0; i < c1; ++i){
+        free(arr2[i].bits);
     }  
-     
-    if(arr1){ 
-        free(arr1); 
-    }
+
+    free(arr2);
+    free(arr_ptrs);  
+    free(arr1); 
     
     free(aux1.bits);
     free(aux2.bits);
     free(div_res.bits);
+    free(zero.bits);
+    free(one.bits);
     free(two.bits);
     
     return;
@@ -1465,20 +1449,18 @@ u8 Rabin_Miller(const bigint* const N, const u32 passes){
            ,lab_ret_flag = 0;
     
     bigint_create(&N_minus_one, N->size_bits, 0);
-    bigint_create(&one, N->size_bits, 1);
-    bigint_create(&two, N->size_bits, 2);   
-    bigint_create(&N_minus_one, N->size_bits, 0);
-    
-    bigint_sub2(N, &one, &N_minus_one);
+    bigint_create(&one,         N->size_bits, 1);
+    bigint_create(&two,         N->size_bits, 2);   
+    bigint_create(&M,           N->size_bits, 0);
+    bigint_create(&B0,          N->size_bits, 0);
+    bigint_create(&Bi_prev,     N->size_bits, 0);
+    bigint_create(&Bi,          N->size_bits, 0);
+    bigint_create(&div_res,     N->size_bits, 0);
+    bigint_create(&rem,         N->size_bits, 0);
+    bigint_create(&zero,        N->size_bits, 0);
+    bigint_create(&aux1,        N->size_bits, 0);    
 
-    bigint_create(&M,       N->size_bits, 0);
-    bigint_create(&B0,      N->size_bits, 0);
-    bigint_create(&Bi_prev, N->size_bits, 0);
-    bigint_create(&Bi,      N->size_bits, 0);
-    bigint_create(&div_res, N->size_bits, 0);
-    bigint_create(&rem,     N->size_bits, 0);
-    bigint_create(&zero,    N->size_bits, 0);
-    bigint_create(&aux1,    N->size_bits, 0);
+    bigint_sub2(N, &one, &N_minus_one);
       
     /* Get K and M */
     bigint_equate2(&aux1, &N_minus_one);
@@ -1498,7 +1480,7 @@ u8 Rabin_Miller(const bigint* const N, const u32 passes){
     }
     
     /* Create the different A's we will use */
-    As = (bigint*)malloc(( (passes * 2) + 1) * sizeof(bigint));
+    As = (bigint*)calloc(1, ( (passes * 2) + 1) * sizeof(bigint));
     
     for(u32 i = 0; i < (passes * 2) + 1; ++i){
         bigint_create(&(As[i]), N->size_bits, A_val);
