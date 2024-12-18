@@ -55,8 +55,6 @@ struct chatroom{
     u64 room_id;
 };
 
-
-
 /* Bitmasks telling the server which client and room slots are currently free. 
  *
  * Avoid the ambiguity raised by questions like "which room is this user in?"
@@ -72,8 +70,8 @@ u64 users_status_bitmask = 128;
 u64 rooms_status_bitmask = 128;
 
 /* Bitmask telling the server which socket file descriptors are free to be
- * used to accept a new connection to a client machine and begin its recv()
- * loop which it will be stuck on until the server kicks the client out.
+ * used to accept a new connection to a client machine and begin its recv() loop
+ * thread function which it will be stuck on until they exit Rosetta.
  */
 u64 socket_status_bitmask = 0;
 u32 next_free_socket_ix = 0;
@@ -192,7 +190,7 @@ u32 self_init(){
         printf("[OK]  Server: Successfully loaded private key.\n");
     }
     
-    /* Initialize the BigInt that stores the server's private key. */
+    /* Initialize the global BigInt that stores the server's private key. */
     bigint_create(&server_privkey_bigint, MAX_BIGINT_SIZ, 0);
     
     memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_LEN); 
@@ -468,22 +466,20 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 //inline
 void process_msg_00(u8* msg_buf, u32 sock_ix){
 
-    
-
     bigint  zero;
     bigint  Am; 
        
     bigint* A_s;
-    bigint* b_s = calloc(1, sizeof(bigint));
+    bigint  b_s;
     bigint* B_s;
-    bigint* X_s = calloc(1, sizeof(bigint));
+    bigint  X_s;
             
     u8* Y_s;
     
     u32  tempbuf_byte_offset = 0;
     u32  replybuf_byte_offset = 0;
         
-    u8* signature_buf = calloc(1, SIGNATURE_LEN);    
+    u8* signature_buf[SIGNATURE_LEN];    
     
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
     u8* reply_buf = calloc(1, reply_len);
@@ -491,6 +487,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     u64 PACKET_ID02 = PACKET_ID_02;
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
 
+    memset(signature_buf, 0, SIGNATURE_LEN);
 
     /* If the login handshake memory region is locked, that means another
      * client is currently in the process of logging in, and only one login
@@ -533,9 +530,6 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
             printf("[OK]  Server: Told client to try login later.\n");
         }
 
-        free(X_s);
-        free(b_s);
-        free(signature_buf);
         free(reply_buf);
 
         return;
@@ -553,7 +547,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
 
     time_curr_login_initiated = clock();
 
-    bigint_create(X_s, MAX_BIGINT_SIZ, 0);
+    bigint_create(&X_s, MAX_BIGINT_SIZ, 0);
     
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
@@ -613,50 +607,48 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     /* Places only the BITS of the private key, not a BigInt object!! */
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
    
-    b_s->bits = temp_handshake_buf + sizeof(bigint);
+    b_s.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    memcpy(b_s.bits, temp_handshake_buf + sizeof(bigint), PRIVKEY_LEN);
 
-    b_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
-    memcpy(b_s->bits, temp_handshake_buf + sizeof(bigint), PRIVKEY_LEN);
-
-    b_s->size_bits = MAX_BIGINT_SIZ;
-    b_s->used_bits = get_used_bits(b_s->bits, PRIVKEY_LEN);
-    b_s->free_bits = b_s->size_bits - b_s->used_bits;
+    b_s.size_bits = MAX_BIGINT_SIZ;
+    b_s.used_bits = get_used_bits(b_s.bits, PRIVKEY_LEN);
+    b_s.free_bits = b_s.size_bits - b_s.used_bits;
     
-    memset(temp_handshake_buf + sizeof(bigint), 0, PRIVKEY_LEN);
-    memcpy(temp_handshake_buf + sizeof(bigint), b_s, sizeof(bigint));
+    memset(temp_handshake_buf + sizeof(bigint), 0,    sizeof(bigint));
+    memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
 
     /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
-    save_BIGINT_to_DAT("temp_privkey.dat", b_s);
+    save_BIGINT_to_DAT("temp_privkey.dat", &b_s);
   
     B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
     
     /* Place the server short-term pub_key also in the locked memory region. */
     memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
     
-    /* X_s = A_s^b_s mod M */
+   /* X_s = A_s^b_s mod M */
    // X_s = (bigint*)(temp_handshake_buf + (3 * sizeof(bigint)));
     
-    MONT_POW_modM(&Am, b_s, M, X_s);
+    MONT_POW_modM(&Am, &b_s, M, &X_s);
     
     /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
     tempbuf_byte_offset = 3 * sizeof(bigint);
     
     memcpy( temp_handshake_buf + tempbuf_byte_offset
-           ,X_s->bits
+           ,X_s.bits
            ,SESSION_KEY_LEN
     );
 
     tempbuf_byte_offset += SESSION_KEY_LEN;
     
     memcpy( temp_handshake_buf + tempbuf_byte_offset
-           ,X_s->bits + SESSION_KEY_LEN
+           ,X_s.bits + SESSION_KEY_LEN
            ,SESSION_KEY_LEN
     );
  
     tempbuf_byte_offset += SESSION_KEY_LEN;
     
     memcpy( temp_handshake_buf + tempbuf_byte_offset
-           ,X_s->bits + (2 * SESSION_KEY_LEN)
+           ,X_s.bits + (2 * SESSION_KEY_LEN)
            ,INIT_AUTH_LEN
     );
     
@@ -665,7 +657,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     tempbuf_byte_offset += INIT_AUTH_LEN;
     
     memcpy( temp_handshake_buf + tempbuf_byte_offset
-           ,X_s->bits + ((2 * SESSION_KEY_LEN) + (INIT_AUTH_LEN))
+           ,X_s.bits + ((2 * SESSION_KEY_LEN) + (INIT_AUTH_LEN))
            ,SHORT_NONCE_LEN
     );
    
@@ -719,11 +711,8 @@ label_cleanup:
 
     free(zero.bits);
     free(Am.bits);
-    free(signature_buf);
     free(reply_buf);
-    free(b_s);
     free(X_s->bits);
-    free(X_s);
     system("rm temp_privkey.dat");
   
     return;
@@ -746,30 +735,37 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
 
     u64 handshake_buf_key_offset;
     u64 handshake_buf_nonce_offset;
-    u64 B = 64;
-    u64 L = 128;
+    const u64 B = 64;
+    const u64 L = 128;
     u64 PACKET_ID02 = PACKET_ID_02;
     u64 PACKET_ID01 = PACKET_ID_01; 
     u64 recv_HMAC_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
+    u64 reply_len;
     
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
     u8* PACKET_ID01_addr = (u8*)(&PACKET_ID01);
-    
-    u8* K0   = calloc(1, B);
-    u8* ipad = calloc(1, B);
-    u8* opad = calloc(1, B);
-    u8* K0_XOR_ipad_TEXT = calloc(1, (B + PUBKEY_LEN));
-    u8* BLAKE2B_output = calloc(1, L);   
-    u8* last_BLAKE2B_input = calloc(1, (B + L));
-    u8* K0_XOR_ipad = calloc(1, B);
-    u8* K0_XOR_opad = calloc(1, B);
-    u8* HMAC_output = calloc(1, HMAC_TRUNC_BYTES);
-    u8* client_pubkey_buf = calloc(1, PUBKEY_LEN);
-    
+    u8  K0[B];
+    u8  ipad[B];
+    u8  opad[B];
+    u8  K0_XOR_ipad_TEXT[(B + PUBKEY_LEN)];
+    u8  BLAKE2B_output[L]; 
+    u8  last_BLAKE2B_input[B + L];
+    u8  K0_XOR_ipad[B];
+    u8  K0_XOR_opad[B];
+    u8  HMAC_output[HMAC_TRUNC_BYTES];
+    u8  client_pubkey_buf[PUBKEY_LEN];
     u8* reply_buf = NULL;
-    u64 reply_len;
     
     bigint* temp_ptr;
+
+    memset(K0, 0, B);
+    memset(K0_XOR_ipad_TEXT, 0, (B + PUBKEY_LEN));
+    memset(BLAKE2B_output, 0, L);
+    memset(last_BLAKE2B_input, 0, B + L);
+    memset(K0_XOR_ipad, 0, B);
+    memset(K0_XOR_opad, 0, B);
+    memset(HMAC_output, 0, HMAC_TRUNC_BYTES);
+    memset(client_pubkey_buf, 0, PUBKEY_LEN);
 
     memset(opad, 0x5c, B);
     memset(ipad, 0x36, B);
@@ -1007,10 +1003,6 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
      * it in that client's structure entry, just like it keeps the client's
      * public key there too.
      */
-
-
-    /* shared_secret = A^b mod M  <---- Montgomery Form of A */
-    
     bigint_create( &(clients[next_free_user_ix].shared_secret)
                   ,MAX_BIGINT_SIZ
                   ,0
@@ -1021,7 +1013,6 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
                   ,M
                   ,&(clients[next_free_user_ix].shared_secret)
                  );
-    
     
     /* Reflect the new taken user slot in the global user status bitmask. */
     users_status_bitmask |= 
@@ -1091,28 +1082,9 @@ label_cleanup:
 
     printf("[OK]  Client: Handshake memory region has been released!\n\n");
     
-    /* This version of bzero() prevents the compiler from eliminating and 
-     * optimizing away the call that clears the buffer if it determines it
-     * to be "unnecessary". For security reasons, since this buffer contains
-     * keys and other cryptographic artifacts that are meant to be extremely
-     * short-lived, use this explicit version to prevent the compiler from 
-     * optimizing the memory clearing call away.
-     */
-    explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
-    
-    temp_handshake_memory_region_isLocked = 0;
-    
-    free(K0);
-    free(ipad);
-    free(opad);
-    free(K0_XOR_ipad_TEXT);
-    free(BLAKE2B_output);   
-    free(last_BLAKE2B_input);
-    free(K0_XOR_ipad);
-    free(K0_XOR_opad);
-    free(HMAC_output);
-    free(client_pubkey_buf);
-    if(reply_buf){free(reply_buf);}
+    if(reply_buf){
+        free(reply_buf);
+    }
     
     return ;
 }
