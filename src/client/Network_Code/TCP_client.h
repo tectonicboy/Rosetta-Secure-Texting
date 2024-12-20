@@ -212,8 +212,7 @@ u8 self_init(u8* password, int password_len){
     
     if(savefile == NULL){
         printf("[ERR] Client: couldn't open the user's save file. Aborting.\n");
-        status = 0;
-        goto label_cleanup;
+        return 0;
     }       
     
     /* Read savefile in the same order that Registration writes it in. */
@@ -423,12 +422,13 @@ u8 self_init(u8* password, int password_len){
      */
     if (pthread_mutex_init(&mutex, NULL) != 0) { 
         printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
-        return 0; 
+        status = 0;
+        goto label_cleanup; 
     } 
     
 label_cleanup:
 
-    if(savefile)                { fclose(savefile);         }
+    fclose(savefile);
 
     return status;
 }
@@ -477,12 +477,14 @@ void release_handshake_memory_region(){
 u8 construct_msg_00(void){
 
     bigint* A_s;
-    bigint* temp_privkey = (bigint*)calloc(1, sizeof(bigint));
+    bigint temp_privkey;
 
     u8 status = 1;
     
     const u64 msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
-    u8* msg_buf = (u8*)calloc(1, msg_len);
+    u8 msg_buf[msg_len];
+
+    temp_privkey.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
 
     /* Generate a short-term pair of private and public keys, store them in the
      * designated handshake memory region and send the short-term public key
@@ -495,20 +497,19 @@ u8 construct_msg_00(void){
     
     gen_priv_key(PRIVKEY_LEN, temp_handshake_buf);
     
-    temp_privkey->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
-    memcpy(temp_privkey->bits, temp_handshake_buf, PRIVKEY_LEN);
-    temp_privkey->size_bits = MAX_BIGINT_SIZ;
-    temp_privkey->used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
-    temp_privkey->free_bits = MAX_BIGINT_SIZ - temp_privkey->used_bits;
+    memcpy(temp_privkey.bits, temp_handshake_buf, PRIVKEY_LEN);
+    temp_privkey.size_bits = MAX_BIGINT_SIZ;
+    temp_privkey.used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
+    temp_privkey.free_bits = MAX_BIGINT_SIZ - temp_privkey.used_bits;
 
     memset(temp_handshake_buf, 0, PRIVKEY_LEN);
 
-    memcpy(temp_handshake_buf, temp_privkey, sizeof(bigint));
+    memcpy(temp_handshake_buf, &temp_privkey, sizeof(bigint));
 
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
-    save_BIGINT_to_DAT("temp_privkey_DAT\0", temp_privkey);
+    save_BIGINT_to_DAT("temp_privkey_DAT.dat", &temp_privkey);
   
-    A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+    A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_BIGINT_SIZ);
     
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
@@ -543,9 +544,9 @@ u8 construct_msg_00(void){
 
 label_cleanup:
 
-    system("rm temp_privkey_DAT");
-    free(msg_buf);
-    free(temp_privkey);
+    system("rm temp_privkey_DAT.dat");
+    free(temp_privkey.bits);
+    free(A_s);
 
     return status;
 }
