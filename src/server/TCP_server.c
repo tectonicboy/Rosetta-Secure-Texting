@@ -117,6 +117,18 @@ socklen_t clientLens[MAX_CLIENTS];
 /* Create thread_id's for every client machine's recv() loop thread. */
 pthread_t client_thread_ids[MAX_CLIENTS];
 
+/* A global array of pointers that point to the heap memory buffer used for
+ * the i-th client machine thread's network payload. We need this global array
+ * in order to be able to release the heap-allocated memory buffer back to the
+ * process' dynamic memory allocator with free() AFTER the client machine has
+ * been disconnected from the Rosetta server, since that thread function enters
+ * an infinite recv() loop that never exits, and is thus unable to free its own
+ * heap-allocated payload buffer by itself, so it has to be done by the function
+ * that cleans up a client machine's in-server state, and it is to be done via
+ * this global array of pointers.
+ */
+u8* client_payload_buffer_ptrs[MAX_CLIENTS]; 
+
 struct bigint *M, *Q, *G, *Gm, server_privkey_bigint, *server_pubkey_bigint;
 struct sockaddr_in servaddr;
 
@@ -713,6 +725,7 @@ label_cleanup:
     free(Am.bits);
     free(reply_buf);
     free(X_s->bits);
+    free(B_s);
     system("rm temp_privkey.dat");
   
     return;
@@ -1104,28 +1117,55 @@ label_cleanup:
 //inline
 void process_msg_10(u8* msg_buf, u32 sock_ix){
         
-    u8* nonce  = calloc(1, LONG_NONCE_LEN);
-    u8* KAB    = calloc(1, SESSION_KEY_LEN);
-    u8* KBA    = calloc(1, SESSION_KEY_LEN);
-    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
-    u8* send_K = calloc(1, ONE_TIME_KEY_LEN);
-    
+    u8 nonce[LONG_NONCE_LEN];
+    u8 KAB[SESSION_KEY_LEN];
+    u8 KBA[SESSION_KEY_LEN];
+    u8 recv_K[ONE_TIME_KEY_LEN];
+    u8 send_K[ONE_TIME_KEY_LEN];
+    u8 room_user_ID_buf[2 * SMALL_FIELD_LEN];
+
     u8* reply_buf = NULL;
     u64 reply_len;
         
-    u8* room_user_ID_buf = calloc(1, 2 * SMALL_FIELD_LEN);
     u64 user_ix;
-    u64 PACKET_ID11 = PACKET_ID_11;
-    u64 PACKET_ID10 = PACKET_ID_10;
-    u64 signed_len = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+    u64 PACKET_ID11    = PACKET_ID_11;
+    u64 PACKET_ID10    = PACKET_ID_10;
+    u64 signed_len     = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     u64 room_id_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
-    bigint  nonce_bigint
-           ,one
-           ,aux1;
-    
-    u64 sign_offset = signed_len;
+    u64 sign_offset    = signed_len;
+
+    bigint nonce_bigint;
+    bigint one;
+    bigint aux1;
+
+    memset(nonce,            0, LONG_NONCE_LEN);
+    memset(KAB,              0, SESSION_KEY_LEN);
+    memset(KBA,              0, SESSION_KEY_LEN);
+    memset(recv_K,           0, ONE_TIME_KEY_LEN);
+    memset(send_K,           0, ONE_TIME_KEY_LEN);
+    memset(room_user_ID_buf, 0, 2 * SMALL_FIELD_LEN);
 
     user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+
+    /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
+     * - Turn it into a temporary BigInt
+     */
+
+    /* Another instance of a BigInt constructor from mem. Find time for it. */
+    /* MAX_BIGINT_SIZ is in bits, so divide by 8 to get the reserved BYTES. */
+    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    
+    memcpy( nonce_bigint.bits
+           ,clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN)
+           ,LONG_NONCE_LEN
+    );
+     
+    nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
+    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+    
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
@@ -1172,8 +1212,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
         ); 
     }
     
-    /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
-     * - Turn it into a temporary BigInt
+     /*
      * - Add 1 to it as many times as this user_ix's nonce_counter says
      * - Turn that incremented nonce back into a buffer pointed to by a u32*
      * - Use that nonce in the call to ChaCha20 that gets us the one-use key K
@@ -1185,23 +1224,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
      *      - Do any required server bookkeeping for global arrays and indices.
      *      - Send a reply either saying OK, or not enough space for new rooms.
      */
-    
-    /* Another instance of a BigInt constructor from mem. Find time for it. */
-    /* MAX_BIGINT_SIZ is in bits, so divide by 8 to get the reserved BYTES. */
-    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
-    
-    memcpy( nonce_bigint.bits
-           ,clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN)
-           ,LONG_NONCE_LEN
-    );
      
-    nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
-    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
-    
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
-    
     /* Increment nonce as many times as needed. */
     for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
         bigint_add_fast(&nonce_bigint, &one, &aux1);
@@ -1332,13 +1355,13 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
 
 label_cleanup:
 
-    free(nonce);
-    free(KAB);
-    free(KBA);
-    free(recv_K);
-    free(send_K);
-    free(room_user_ID_buf);
-    if(reply_buf){free(reply_buf);}
+    free(nonce_bigint.bits);
+    free(one.bits);
+    free(aux1.bits);
+
+    if(reply_buf){ 
+        free(reply_buf);
+    }
     
     return;
 }
@@ -1359,57 +1382,71 @@ label_cleanup:
 void process_msg_20(u8* msg_buf, u32 sock_ix){
 
     FILE* ran_file = NULL;
-    
-    u8* KAB    = calloc(1, SESSION_KEY_LEN);
-    u8* KBA    = calloc(1, SESSION_KEY_LEN);
-    u8* recv_K = calloc(1, ONE_TIME_KEY_LEN);
-    u8* send_K = calloc(1, ONE_TIME_KEY_LEN);
-    
-    u8* type21_encrypted_part = calloc(1, (SMALL_FIELD_LEN + PUBKEY_LEN));
-    
-    u64 user_ixs_in_room[MAX_CLIENTS];
-    memset(user_ixs_in_room, 0, MAX_CLIENTS * sizeof(u32));
-    
-    u8* reply_buf = NULL;
-    u64 reply_len;
-    
-    /* unknown at compile time. */
-    u8* buf_ixs_pubkeys = NULL;
-    u64 buf_ixs_pubkeys_len;
-    u64 buf_ixs_pubkeys_write_offset;
-    
+
     /* static, known at compile time. */
     const u64 buf_type_21_len = 
           (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN + PUBKEY_LEN;
                               
-    u8* buf_type_21 = calloc(1, buf_type_21_len);
+    u8 buf_type_21[buf_type_21_len];
+    u8 room_user_ID_buf[2 * SMALL_FIELD_LEN];
+    u8 KAB[SESSION_KEY_LEN];
+    u8 KBA[SESSION_KEY_LEN];
+    u8 recv_K[ONE_TIME_KEY_LEN];
+    u8 send_K[ONE_TIME_KEY_LEN];
+    u8 type21_encrypted_part[SMALL_FIELD_LEN + PUBKEY_LEN];
+
+    u64 user_ixs_in_room[MAX_CLIENTS];
+
+    u64 buf_ixs_pubkeys_write_offset;
+    
+    /* unknown at compile time. */
+    u8* buf_ixs_pubkeys = NULL;
+    u64 buf_ixs_pubkeys_len;
+    u8* reply_buf = NULL;
+    u64 reply_len;
       
     u8 room_found;
     
     u64 send_type21_encr_part_offset = SMALL_FIELD_LEN + ONE_TIME_KEY_LEN;
-    u64 send_type20_signed_len; 
-    u64 send_type20_AD_offset  = ((2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN);
-    u8* room_user_ID_buf = calloc(1, 2 * SMALL_FIELD_LEN);
-    u64 user_ix;
-    u64 room_ix;
+    u64 send_type20_AD_offset = ((2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN);
     u64 num_users_in_room = 0;
     u64 next_free_room_users_ix = 0;
     u64 encrypted_roomID_offset = ((2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN);
+    u64 user_ix;
+    u64 room_ix;
+    u64 send_type20_signed_len;
     
     size_t ret_val;
        
-    bigint nonce_bigint
-          ,one
-          ,aux1;
-    
+    bigint nonce_bigint;
+    bigint one;
+    bigint aux1;
+        
+    u64 sign_offset = ONE_TIME_KEY_LEN + (4 * SMALL_FIELD_LEN);
+    u64 signed_len  = sign_offset;
+
+    user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+
+    /* Early initializations and heap allocations. */
+
     nonce_bigint.bits = NULL;
     one.bits = NULL;
     aux1.bits = NULL;
-    
-    u64 sign_offset = ONE_TIME_KEY_LEN + (4 * SMALL_FIELD_LEN);
-    u64 signed_len  = sign_offset;
-    user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
-    
+
+    memset(buf_type_21,           0, buf_type_21_len);
+    memset(room_user_ID_buf,      0, 2 * SMALL_FIELD_LEN);
+    memset(KAB,                   0, SESSION_KEY_LEN);
+    memset(KBA,                   0, SESSION_KEY_LEN);
+    memset(recv_K,                0, ONE_TIME_KEY_LEN);
+    memset(send_K,                0, ONE_TIME_KEY_LEN);
+    memset(type21_encrypted_part, 0, SMALL_FIELD_LEN + PUBKEY_LEN);
+    memset(user_ixs_in_room,      0, MAX_CLIENTS * sizeof(u32));
+
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+
+    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
@@ -1471,7 +1508,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     
     /* Another instance of a BigInt constructor from mem. Find time for it. */
     /* MAX_BIGINT_SIZ is in bits, so divide by 8 to get the bytes.          */
-    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    
     
     memcpy( nonce_bigint.bits
            ,clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN)
@@ -1481,10 +1518,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
     nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
-   
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
-    
+       
     /* Increment nonce as many times as needed. */
     for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
         bigint_add_fast(&nonce_bigint, &one, &aux1);
@@ -1886,21 +1920,13 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
 label_cleanup:
 
     if(ran_file){ fclose(ran_file); }
-    
-    free(KAB);
-    free(KBA);
-    free(recv_K);
-    free(send_K); 
-    free(type21_encrypted_part);
 
     if(reply_buf)      { free(reply_buf);       }
     if(buf_ixs_pubkeys){ free(buf_ixs_pubkeys); }
-
-    free(buf_type_21);
-     
-    if(nonce_bigint.bits != NULL) { free(nonce_bigint.bits); }
-    if(one.bits != NULL)          { free(one.bits);          }
-    if(aux1.bits != NULL)         { free(aux1.bits);         }
+ 
+    free(nonce_bigint.bits);
+    free(one.bits);
+    free(aux1.bits); 
     
     return;
 }
@@ -1936,11 +1962,16 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     u64 next_free_receivers_ix = 0;
     char userid[SMALL_FIELD_LEN];
     u8 *reply_buf = NULL;
-    u64 reply_len;
+    u64 reply_len = packet_siz + SIGNATURE_LEN;
     u64 signed_len = (packet_siz - SIGNATURE_LEN);
     u64 *receiver_ixs = NULL;
- 
+
     memset(userid, 0, SMALL_FIELD_LEN);
+
+    receiver_ixs = 
+    calloc(1, (rooms[clients[sender_ix].room_ix].num_people -1) * sizeof(u64));
+
+    reply_buf  = calloc(1, reply_len);
 
     /* Verify the sender's cryptographic signature. */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1){
@@ -1950,8 +1981,6 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     else{
         printf("[OK]  Server: Client authenticated successfully!\n");
     }  
-    
-    receiver_ixs = calloc(1, (rooms[clients[sender_ix].room_ix].num_people -1));
     
     /* Iterate over all user indices to find the other chatroom participants. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
@@ -1966,9 +1995,6 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
         }
     }  
       
-    reply_len  = packet_siz + SIGNATURE_LEN;
-    reply_buf  = calloc(1, reply_len);
-  
     /* Place the already received packet into the upgraded type_30 packet */
     memcpy(reply_buf, msg_buf, packet_siz);
         
@@ -2006,8 +2032,8 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     
 label_cleanup:
     
-    if(reply_buf)   { free(reply_buf);    }
-    if(receiver_ixs){ free(receiver_ixs); }
+    free(reply_buf);
+    free(receiver_ixs);
     
     return;
 }
@@ -2026,8 +2052,6 @@ label_cleanup:
 //__attribute__ ((always_inline)) 
 //inline
 void process_msg_40(u8* msg_buf, u32 sock_ix){
-
-    /* Check the cryptographic signature to authenticate the sender. */
         
     u8 *reply_buf = NULL;
     u64 reply_len;
@@ -2459,7 +2483,6 @@ label_error:
            
 label_cleanup: 
 
-    free(client_msg_buf);
     free(msg_type_str);
     
     return ret_val;
@@ -2481,6 +2504,9 @@ void remove_inactive_user(u64 removing_user_ix){
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
 
     status = pthread_cancel(client_thread_ids[removing_user_ix]);
+
+    /* Free the network payload buffer this client's thread had allocated. */
+    free(client_payload_buffer_ptrs[removing_user_ix]);
 
     if(status != 0){
         printf("[ERR] Server: Couldn't stop quitting client's recv thread.\n\n");
@@ -2574,14 +2600,33 @@ void* check_for_lost_connections(){
 
 void* start_new_client_thread(void* ix_ptr){
 
-    u8*  client_msg_buf = calloc(1, MAX_MSG_LEN);
+    u8*  client_msg_buf;
     s64  bytes_read; 
     u32  status;
+
     u32 ix = *((u32*)ix_ptr);
+
+    pthread_mutex_lock(&mutex);
+
+    /* Get the ix-th global pointer to point to this heap memory buffer so
+     * that the client cleanup functionality can free() it later, since this
+     * function enters an infinite recv() loop that is never exited, and thus
+     * cannot free() it by itself when the client machine gets disconnected
+     * from the Rosetta server.
+     */
+    client_payload_buffer_ptrs[ix] = calloc(1, MAX_MSG_LEN);
+
+    pthread_mutex_unlock(&mutex);
+
+    client_msg_buf = client_payload_buffer_ptrs[ix];
+
+    memset(client_msg_buf, 0, MAX_MSG_LEN);
+
+    
 
     while(1){
 printf("?? 6\n");
-        memset(client_msg_buf, 0, MAX_MSG_LEN);
+        
 printf("?? 7\n");
         /* Block on this recv call since clients always commence a transmission. */
         bytes_read = recv(client_socket_fd[ix], client_msg_buf, MAX_MSG_LEN, 0);
@@ -2609,6 +2654,9 @@ printf("?? 3\n");
             );    
         }   
 printf("?? 4\n");
+
+        memset(client_msg_buf, 0, bytes_read);
+
         pthread_mutex_unlock(&mutex); 
         printf("?? 5\n");
     }
@@ -2684,7 +2732,7 @@ int main(){
         /* Reflect the new taken socket slot in the global status bitmask. */
         socket_status_bitmask |= (1ULL << (63ULL - curr_free_socket_ix));
 
-        /* Find the next free index. */
+        /* Find the next free socket index. */
         ++next_free_socket_ix;
         
         while(next_free_socket_ix < MAX_CLIENTS){
