@@ -3,25 +3,31 @@
 /* Generate a new pseudorandom private key. */
 void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
     
-    FILE* ran = fopen("/dev/urandom","r");
-    
-    if(ran == NULL){
-        printf("[ERROR] Priv key gen - couldn't open /dev/urandom.\n");
-        exit(1);
-    }
-    
     size_t bytes_read;
-    
-    if (  (bytes_read = fread((void*)buf, 1, len_bytes, ran)) != len_bytes){
-        printf("[ERROR] Priv key gen - couldn't read %u bytes from urandom.\n"
-               ,len_bytes
-              );
-        fclose(ran);
-        exit(1);
+
+    FILE* ran = fopen("/dev/urandom", "r");
+
+    if(ran == NULL){
+        printf("[ERR] utilities: gen_priv_key - couldn't open urandom.\n\n");
+        return;
     }
     
-    printf("[OK] coreutil: Finished computing private key.\n");
+    if ( (bytes_read = fread((void*)buf, 1, len_bytes, ran)) != len_bytes ){
+
+        printf("[ERR] utilities: gen_priv_key - couldn't read %u bytes "
+               "from urandom.\n\n"
+               ,len_bytes
+        );
+
+        fclose(ran);
+
+        return;
+    }
+    
+    printf("[OK] utilities: Generated a %u-byte private key!\n\n", len_bytes);
+
     fclose(ran);
+
     return;
 }
 
@@ -29,75 +35,60 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
 struct bigint* gen_pub_key( uint32_t privkey_len_bytes
                            ,const char* privkey_filename
                            ,uint32_t resbits
-){
+                          )
+{
+    struct bigint* M;
+    struct bigint* Gm;
+    struct bigint* R = (bigint*)calloc(1, sizeof(struct bigint));
+    struct bigint  privkey_bigint;
+
+    u8* privkey_buf = (u8*)calloc(1, privkey_len_bytes);
+
+    size_t bytes_read;
+
+    FILE* privkey_dat;
     
-    FILE* privkey_dat = fopen(privkey_filename, "r");
+    privkey_dat = fopen(privkey_filename, "r");
     
+    M  = get_BIGINT_from_DAT(3072, "../bin/saved_M.dat\0",  3071, 12800);
+    Gm = get_BIGINT_from_DAT(3072, "../bin/saved_Gm.dat\0", 3071, 12800);
+
     if(privkey_dat == NULL){
-        printf("[ERR] gen_pub_key - couldnt open privkey file. Ret NULL.\n");
-        return NULL;
+        printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
+        goto label_cleanup;
     }
 
-    uint8_t* privkey_buf = (u8*)malloc(privkey_len_bytes);
-    size_t bytes_read;
-    
-    if ( 
-            (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat)) 
-         != 
-            privkey_len_bytes
-       ){
-        printf("[ERR] pub_key_gen - couldn't read %u bytes from privkey_file.\n"
+    if ( (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat)) 
+         != privkey_len_bytes
+       )
+    {
+        printf( "[ERR] utilities: gen_pub_key - couldn't read %u bytes from "
+                "privkey_file.\n\n"
                ,privkey_len_bytes
               );
-        fclose(privkey_dat);
-        return NULL;
+
+        goto label_cleanup;
     }
-    /*
-    printf("[OK] Successfully read %u bytes from privkey_file\n"
-           ,privkey_len_bytes
-    );
-    */
-    fclose(privkey_dat);
-    
-    struct bigint* privkey_bigint = (bigint*)malloc(sizeof(struct bigint));
-    
+        
     privkey_bigint->bits = privkey_buf;
     privkey_bigint->size_bits = resbits;
     privkey_bigint->used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
     privkey_bigint->free_bits = 
             privkey_bigint->size_bits - privkey_bigint->used_bits;
-            
-            
-    struct bigint *M
-                 ,*Gm
-                 ,*R = (bigint*)malloc(sizeof(struct bigint))
-                 ;
-    
-
-    
-    M = get_BIGINT_from_DAT( 3072
-                            ,"../bin/saved_M.dat\0"
-                            ,3071
-                            ,12800
-                              );
-    
-    Gm = get_BIGINT_from_DAT( 3072
-                            ,"../bin/saved_Gm.dat\0"
-                            ,3071
-                            ,12800
-                           );
-
+                
     bigint_create(R, M->size_bits, 0);
     
     MONT_POW_modM(Gm, privkey_bigint, M, R); 
     
-    printf("[OK] coreutil: Finished computed public key.\n");
-    /*
-    bigint_print_info(R);
-    bigint_print_bits(R);
-    */
+label_cleanup:
+
+    if(privkey_dat != NULL){
+        fclose(privkey_dat);
+    }
+
     free(privkey_buf);
-    free(privkey_bigint);
+    free(M);
+    free(Gm);
     
     return R;    
 }
@@ -111,14 +102,12 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
  *  Return 1 for valid and 0 for invalid public key.
  */
  
-bool check_pubkey_form( bigint* Km
-                       ,bigint* M
-                       ,bigint* Q)
+bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
 {
-    bigint M_over_Q
-          ,one
-          ,div_rem
-          ,mod_pow_res;
+    bigint M_over_Q;
+    bigint one;
+    bigint div_rem;
+    bigint mod_pow_res;
           
     bool ret = 1;
     
@@ -129,11 +118,7 @@ bool check_pubkey_form( bigint* Km
        
     bigint_div2(M, Q, &M_over_Q, &div_rem);
     
-    MONT_POW_modM( Km
-                  ,&M_over_Q
-                  ,M
-                  ,&mod_pow_res
-                 );
+    MONT_POW_modM(Km, &M_over_Q, M, &mod_pow_res);
     
     if(bigint_compare2(&mod_pow_res, &one) != 2){
         printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
