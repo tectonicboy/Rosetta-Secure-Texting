@@ -2792,7 +2792,7 @@ label_cleanup:
 
 u8 login(u8* password, int password_len){
 
-    u8  status;
+    u8 status;
     u8 msg_buf[MAX_MSG_LEN];
 
     ssize_t bytes_read;

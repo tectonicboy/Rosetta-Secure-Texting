@@ -491,7 +491,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     u32  tempbuf_byte_offset = 0;
     u32  replybuf_byte_offset = 0;
         
-    u8* signature_buf[SIGNATURE_LEN];    
+    u8 signature_buf[SIGNATURE_LEN];    
     
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
     u8* reply_buf = calloc(1, reply_len);

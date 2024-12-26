@@ -1664,6 +1664,8 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
                        ,struct bigint* private_key, uint64_t key_len_bytes
                        )
 {
+    u32 offset = 0;
+
     struct bigint second_btb_outnum;
     struct bigint one;
     struct bigint Q_minus_one;
@@ -1802,7 +1804,7 @@ void Signature_GENERATE(struct bigint* M, struct bigint* Q, struct bigint* Gmont
      * ( (2 * sizeof(struct bigint)) + (2 * bytewidth(Q)) )
      * bytes of memory. No checks performed for performance.
      */
-    uint32_t offset = 0;
+    
     memcpy(signature + offset, &s, sizeof(struct bigint));
     offset += sizeof(struct bigint);
     memcpy(signature + offset, s.bits, 40);
