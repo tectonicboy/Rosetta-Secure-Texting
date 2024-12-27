@@ -258,6 +258,17 @@ ChaCha20, to encrypt the user's private key before storing it on the filesystem:
           to have an encrypted and authenaticated channel over which the user
           can tell the server what name they want for their chatroom, what
           username they want to be known as in the chatroom, etc.
+
+    NOTE: Since this login handshake takes place over several transmissions over
+          the network between the server and the client, this means that the
+          server has to keep alive the very short-lived shared secret and other
+          cryptographic artifacts in a global memory region. Manual locking of
+          this global memory region has been implemented in the Rosetta server
+          to prevent an attacker deliberately starting a login attempt in the
+          middle of another login attempt, thus corrupting the short-term
+          cryptographic artifacts used for the login handshake. The manual lock
+          of this global memory region ensures that two login attempts cannot
+          take place at the same time, mitigating such an attack.
                    
 ================================================================================
 
