@@ -491,7 +491,7 @@ must perform a SPECIAL PROTOCOL for each message sent:
 ================================================================================
 | packetID 30 |  user_ix  |  TXT_LEN   |    AD   |          Signature1         | 
 |=============|===========|============|=========|=============================|
-|  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |            SIG_LEN          |
+|   8 bytes   |  8 bytes  |  8 bytes   | L bytes |            SIG_LEN          |
 --------------------------------------------------------------------------------
 
  AD - Associated Data, of length L bytes: From T = 1 to T = (num_guests - 1):
@@ -499,12 +499,13 @@ must perform a SPECIAL PROTOCOL for each message sent:
 ================================================================================
 | guestID_1 | encr_key_1 | encr_msg_1| ... |guestID_T | encr_key_T | encr_msg_T| 
 |===========|============|===========|=====|==========|============|===========|
-| SMALL_LEN |  X bytes   |  TXT_LEN  | ... |SMALL_LEN |  X bytes   |  TXT_LEN  |
+|  8 bytes  |  X bytes   |  TXT_LEN  | ... | 8 bytes  |  X bytes   |  TXT_LEN  |
 --------------------------------------------------------------------------------
 
  L = (People in Alice's chatroom - 1) * (SMALL_LEN + ONE_TIME_KEY_LEN + TXT_LEN)
+ 
  X = ONE_TIME_KEY_LEN = 32 bytes.
-
+ 
 
 6. Server validates Alice's cryptographic signature, then computes its own 
    cryptographic signature of everything in Alice's packet, including her 
@@ -598,7 +599,7 @@ To compute a Schnorr Signature of something, follow the steps:
 
 3. Compute e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
 
-4. Compute s = (k + (Q - a) * e) mod Q
+4. Compute s = ( k + ((Q - a) × e) ) mod Q
 
 The signature itself is (s,e).
 
@@ -628,6 +629,16 @@ Where to find other algorithms used in the scheme, explained:
 - HMAC     - NIST.FIPS.198-1
 
 ================================================================================
+
+ADDENDUM 2
+
+Notation used in this text.
+
+1. Algorithm{X}(a, b) simply means we want X bytes of OUTPUT from the algorithm.
+
+2. The ^ sign when used in this text means "to the power of", not XOR.
+
+3. Sometimes [ ] are used to surround expressions when too many () are present.
    
    
     
