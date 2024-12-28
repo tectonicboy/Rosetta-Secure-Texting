@@ -14,6 +14,11 @@
 
 #define MAX_BITS 4290000000
 
+/* Get the i-th bit of BigInt n and store it in buffer identified by target. */
+/* Indexed from bit 0 onward. Little-endian byte order.                      */
+#define BIGINT_GET_BIT(n, i, target)                                     \
+target = (*((n).bits + (u32)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0 \
+
 /* Change the printf() output color. */
 void output_red(){ printf("\033[1;31m"); }
 void output_yel(){ printf("\033[1;33m"); }
@@ -27,31 +32,29 @@ typedef struct bigint{
 } bigint;
 
 /* First constructor - from a u32. */
-void bigint_create ( bigint* const  num
-                    ,const u32 bitsize
-                    ,const u32 initial)
-{
-    if( (bitsize % 0x08) || (bitsize < 0x40) || (bitsize > MAX_BITS) ){
+void bigint_create (bigint* const num, const u32 bitsize, const u32 initial){
+
+    if( (bitsize % 8) || (bitsize < 64) || (bitsize > MAX_BITS) ){
         printf("[ERR] Bigint: Invalid bitsize of new BigInt. (from uint32)\n");
         return;
     }    
     
     num->size_bits = bitsize;
-    num->bits = (u8*)calloc(1, bitsize / 0x08);
-    num->used_bits = 0x00;    
+    num->bits = (u8*)calloc(1, bitsize / 8);
+    num->used_bits = 0;    
     
-    for(u32 i = 0x00; i < 0x20; ++i){
-        if ( (initial << i) & 0x80000000 ){ 
-            num->used_bits = 0x20 - i;  
+    for(u32 i = 0; i < 32; ++i){
+        if ( (initial << i) & (unsigned int)2147483648U ){ 
+            num->used_bits = 32 - i;  
             break;  
         }    
     }   
     
     num->free_bits = (bitsize - num->used_bits);
     
-    for(u32 i = 0x00; i < 0x20; ++i){
-        if ( (initial >> (32 - i) & 0x01 )){ 
-            ( *((u32*)(num->bits) )) |=  0x01 << (32 - i);
+    for(u32 i = 0; i < 32; ++i){
+        if ( (initial >> (32 - i) & 1 )){ 
+            ( *((u32*)(num->bits) )) |=  1 << (32 - i);
         }
     } 
 }
@@ -62,28 +65,28 @@ void bigint_create_from_string(bigint* const     num
                               ,const char* const initial
                               ,const u32         strlen)
 {
-    u32 bitcounter = 0
-            ,last_byte_ix;
-            
+    u32 bitcounter = 0;
+    u32 last_byte_ix;
     const u32 i_looper = strlen / 8;
             
-    u8  breakflag  = 0;
+    u8 breakflag = 0;
 
     if( 
-        (bitsize % 0x08) || (bitsize < 0x40) || (bitsize > MAX_BITS) 
-                         || (strlen % 0x08   || strlen < 0x40)
+        (bitsize % 8) || (bitsize < 64) || (bitsize > MAX_BITS) 
+                      || (strlen % 8    || strlen < 64)
       )
     {
         printf("[ERR] Bigint: Invalid bitlength of new BigInt (from string)\n");
         return;
     }
+
     if(bitsize < strlen){
         printf("[ERR] Bigint: Initializer bit string is too long.\n");
         return;
     }
     
     num->size_bits = bitsize;
-    num->bits = (u8*)calloc(0x01, bitsize / 0x08);    
+    num->bits = (u8*)calloc(1, bitsize / 8);    
     
     for(int32_t i = (strlen / 8) - 1; i >= 0; --i){
         for(u32 j = 0; j < 8; ++j){
@@ -107,9 +110,9 @@ void bigint_create_from_string(bigint* const     num
     }
            
     for(u32 i = 0; i < i_looper; ++i){
-        for(u32 j = 0x00; j < 0x08; ++j){
+        for(u32 j = 0; j < 8; ++j){
             if ( initial[ (i*8) + j] == '1' ){ 
-                *(num->bits + i) |= 0x01 << (0x07 - j);  
+                *(num->bits + i) |= 1 << (7 - j);  
             }     
         }
     }   
@@ -119,12 +122,12 @@ void bigint_create_from_string(bigint* const     num
     return;
 }
 
-void bigint_remake( bigint* const  num
-                   ,const u32 bitsize
-                   ,const u32 initial)
-{
+void bigint_remake(bigint* const num, const u32 bitsize, const u32 initial){
+
     free(num->bits);
-    bigint_create (num, bitsize, initial);
+
+    bigint_create(num, bitsize, initial);
+
     return;
 }
 
@@ -132,8 +135,8 @@ void bigint_remake( bigint* const  num
 void bigint_get_ascii_bits( const bigint* const num 
                            ,char* const target_buffer)                   
 {
-    u32 bits_to_8 = num->used_bits
-            ,bytes_used;
+    u32 bits_to_8 = num->used_bits;
+    u32 bytes_used;
     
     while(bits_to_8 % 8){ 
         ++bits_to_8; 
@@ -141,30 +144,31 @@ void bigint_get_ascii_bits( const bigint* const num
     
     bytes_used = bits_to_8 / 8;
     
-    memset(target_buffer, 0x00, bytes_used * 8);          
+    memset(target_buffer, 0, bytes_used * 8);          
              
-    for(u32 i = 0x00; i < bytes_used; ++i){
-        for(u8 j = 0x00; j < 0x08; ++j){
-            if ((*((num->bits) + i ) >> (7 - j)) & 0x01){
-                target_buffer[( (i * 0x08) + j )] = 0x31;
+    for(u32 i = 0; i < bytes_used; ++i){
+        for(u8 j = 0; j < 8; ++j){
+            if ((*((num->bits) + i ) >> (7 - j)) & 1){
+                target_buffer[( (i * 8) + j )] = 49;
             }
             else{
-                target_buffer[( (i * 0x08) + j )] = 0x30;
+                target_buffer[( (i * 8) + j )] = 48;
             }
         }
     }
+
     return;
 }
 
 /* Print only the used bits of a BigInt. */
 void bigint_print_bits(const bigint* const n){
 
-    u32 bits_to_8 = n->used_bits
-            ,bytes_used;    
+    u32 bits_to_8 = n->used_bits;
+    u32 bytes_used;    
 
     char* bitstring;
 
-    if( ! n->used_bits ){
+    if( !(n->used_bits) ){
         printf("<ZERO>\n");
         return;
     }
@@ -180,29 +184,32 @@ void bigint_print_bits(const bigint* const n){
     bigint_get_ascii_bits(n, bitstring);
     
     printf("\n\n");
-    for(u32 i = 0; i < bytes_used*8; ++i){
+
+    for(u32 i = 0; i < bytes_used * 8; ++i){
         if( !(i % 8) ){
             printf(" | ");
         }
-        if( !(i % 32) && (i) ){
+        if( (!(i % 32)) && (i) ){
             printf("\n | ");
         }
         printf("%c", bitstring[i]);
     }
+
     printf("\n\n");
     
     free(bitstring); 
+
     return; 
 }
 
 /* Print the big-endian version of the BigInt's bytes. */
 void bigint_print_bits_bigend(const bigint* const n){
 
-    u32 bits_to_8 = n->used_bits
-            ,bytes_used;
+    u32 bits_to_8 = n->used_bits;
+    u32 bytes_used;
             
-    char *bitstring
-        ,*bitstring_bigend;
+    char* bitstring;
+    char* bitstring_bigend;
 
     if( ! n->used_bits ){
         printf("<ZERO>\n");
@@ -227,6 +234,7 @@ void bigint_print_bits_bigend(const bigint* const n){
     }
         
     printf("\n\n");
+
     for(u32 i = 0; i < bytes_used * 8; ++i){
         if( !(i % 8) ){
             printf(" | ");
@@ -236,16 +244,18 @@ void bigint_print_bits_bigend(const bigint* const n){
         }
         printf("%c", bitstring_bigend[i]);
     }
+
     printf("\n\n");
     
     free(bitstring); 
     free(bitstring_bigend);
+
     return; 
 }
 
 /* Switch the endianness of a binary bit string. */
 void bitstring_switch_endian( const char* const old_str
-                             ,const u32    bytes_used
+                             ,const u32         bytes_used
                              ,char* const       new_str)
 {
     for(u32 i = 0; i < bytes_used; ++i){
@@ -253,6 +263,7 @@ void bitstring_switch_endian( const char* const old_str
             new_str[(8 * (bytes_used - (i+1))) + j] = old_str[(8*i) + j];
         }
     } 
+
     return;   
 }
 
@@ -272,6 +283,7 @@ void bigint_print_all_bits(bigint* const n){
 
 /* Print essential information about an existing BigInt. */
 void bigint_print_info(const bigint* const num){
+
     printf("\n\n"
            "*******************************\n"
            "  BIGINT INFO                  \n"
@@ -284,6 +296,7 @@ void bigint_print_info(const bigint* const num){
            ,num->used_bits
            ,num->free_bits
     );
+
     return;
 }
 
@@ -307,11 +320,6 @@ u32 get_used_bits(const u8* const buf, const u32 siz_bytes){
     return used_bits;     
 }
 
-/* Get the i-th bit of BigInt n and store it in buffer identified by target. */
-/* Indexed from bit 0 onward. Little-endian bytes.                             */
-#define BIGINT_GET_BIT(n, i, target)                                          \
-target = (*((n).bits + (u32)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0 \
-
 /* To view the bytes of the DAT files from linux terminal window: */
 /* xxd -b G_raw_bytes.dat                                         */
 bigint* get_BIGINT_from_DAT( const u32    file_bits
@@ -326,7 +334,7 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     big_n_ptr = (bigint*)calloc(1, sizeof(bigint)); 
     bigint_create(big_n_ptr, reserve_bits, 0); 
 
-    if(reserve_bits % 0x08 || reserve_bits < 0x40 || reserve_bits > 4290000000){ 
+    if(reserve_bits % 8 || reserve_bits < 64 || reserve_bits > MAX_BITS){ 
         printf("[ERR] BigInt: get_BIGINT_from_DAT - Invalid reserve_bits\n");
         return big_n_ptr;
     }  
@@ -378,6 +386,7 @@ void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){
     while(file_bytes % 8 != 0){
         ++file_bytes;
     }
+
     file_bytes /= 8;
         
     if( fwrite(num->bits, 1, file_bytes, dat_file) != file_bytes ){
@@ -394,7 +403,7 @@ void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){
 /* Make a BigInt equal to zero. */
 void bigint_nullify(bigint* const num){
 
-    memset(num->bits, 0x00, num->size_bits / 8);
+    memset(num->bits, 0, num->size_bits / 8);
     num->free_bits = num->size_bits;
     num->used_bits = 0;
     
@@ -468,16 +477,20 @@ void bigint_SHIFT_L_by_X(bigint* const n, const u32 amount){
     }
     
     used_bytes = n->used_bits;
-    while(used_bytes % 0x08 != 0x00){ 
+
+    while(used_bytes % 8 != 0){ 
         ++used_bytes; 
     }
-    used_bytes /= 0x08;
+
+    used_bytes /= 8;
       
-    for(u32 x = 0x00; x < amount; ++x){
+    for(u32 x = 0; x < amount; ++x){
         for(int32_t i = used_bytes - 1; i >= 0; --i){
-            *(n->bits + i) = *(n->bits + i) << 0x01; 
-            if(  (i != 0x00)  &&  ((*(n->bits + i - 0x01) >> 0x07) & 0x01)  ){
-                (*(n->bits + i)) |= 0x01;  
+
+            *(n->bits + i) = *(n->bits + i) << 1; 
+
+            if(  (i != 0)  &&  ((*(n->bits + i - 1) >> 7) & 1)  ){
+                (*(n->bits + i)) |= 1;  
             }  
         } 
     } 
@@ -496,16 +509,20 @@ void bigint_SHIFT_R_by_X(bigint* const n, const u32 amount){
     }
     
     used_bytes = n->used_bits;
-    while(used_bytes % 0x08 != 0x00){ 
+
+    while(used_bytes % 8 != 0){ 
         ++used_bytes; 
     }
-    used_bytes /= 0x08;
+
+    used_bytes /= 8;
       
-    for(u32 x = 0x00; x < amount; ++x){
+    for(u32 x = 0; x < amount; ++x){
         for(u32 i = 0; i < used_bytes; ++i){
-            *(n->bits + i) = *(n->bits + i) >> 0x01;
-            if( (i != (used_bytes - 0x01)) && ((*(n->bits + i + 1)) & 0x01) ){ 
-                (*(n->bits + i)) |= (0x01 << 0x07);   
+
+            *(n->bits + i) = *(n->bits + i) >> 1;
+
+            if( (i != (used_bytes - 1)) && ((*(n->bits + i + 1)) & 1) ){ 
+                (*(n->bits + i)) |= (1 << 7);   
             }
         } 
     } 
@@ -523,34 +540,39 @@ u8 bigint_compare2( const bigint* const n1, const bigint* const n2)
 {
     u32 used_bytes;
     
-    bool cond1
-        ,cond2;
+    bool cond1;
+    bool cond2;
 
     if(n1->used_bits > n2->used_bits){
         return 1; 
     }
+
     if(n1->used_bits < n2->used_bits){
         return 3;
     }
 
     used_bytes = n1->used_bits;
-    while(used_bytes % 0x08 != 0x00){ 
+
+    while(used_bytes % 8 != 0){ 
         ++used_bytes; 
     }
-    used_bytes /= 0x08;  
+
+    used_bytes /= 8;  
     
-    for(int32_t i = (used_bytes - 0x01); i >= 0; --i){
+    for(int32_t i = (used_bytes - 1); i >= 0; --i){
         for(int32_t j = 0; j < 8; ++j){
         
-            cond1 = ((*(n1->bits + i) << j) & (0x01 << 0x07));
-            cond2 = ((*(n2->bits + i) << j) & (0x01 << 0x07));
+            cond1 = ((*(n1->bits + i) << j) & (1 << 7));
+            cond2 = ((*(n2->bits + i) << j) & (1 << 7));
             
             if( (cond1) && !(cond2) ){             
                 return 1;            
             }
+
             else if( !(cond1) && (cond2) ){          
                 return 3;            
             }
+
             else{ 
                 continue; 
             }               
@@ -578,15 +600,17 @@ void bigint_equate2(bigint* const n1, const bigint* const n2){
     bigint_nullify(n1);
     
     aux = n2->used_bits;
+
     while(aux % 8 != 0) { 
         ++aux; 
     }
+
     aux /= 8;   
 
     n1->used_bits = n2->used_bits;
     n1->free_bits = n2->free_bits;
     
-    for(u32 i = 0x00; i < aux; ++i){
+    for(u32 i = 0; i < aux; ++i){
         *(n1->bits + i) = *(n2->bits + i);
     }
     
@@ -604,13 +628,13 @@ void bigint_add_fast( const bigint* const n1
                      ,const bigint* const n2
                      ,bigint* const R)
 {
-    u64 A
-            ,B
-            ,C
-            ,i = 0
-            ,carry = 0
-            ,temp_res = 0
-            ,last_bits_bigger;
+    u64 A;
+    u64 B;
+    u64 C;
+    u64 i = 0;
+    u64 carry = 0;
+    u64 temp_res = 0;
+    u64 last_bits_bigger;
     
     u8* more_bits = NULL;
 
@@ -618,7 +642,8 @@ void bigint_add_fast( const bigint* const n1
     
     if( n1->used_bits < n2->used_bits ){ 
         A = n2->used_bits; more_bits = n2->bits;
-       }
+    }
+
     else{ 
         A = n1->used_bits;
         more_bits = n1->bits;
@@ -636,7 +661,11 @@ void bigint_add_fast( const bigint* const n1
  
     C = A;
     B = A % 32;
-    if(B) { A += (32 - B); }
+
+    if(B) { 
+        A += (32 - B); 
+    }
+
     A /= 32;
 
     while(i < (A-1)){
@@ -689,6 +718,7 @@ void bigint_add_fast( const bigint* const n1
                 *(R->bits + ((i+1) * 4) ) |= (u8)1;
             }
     }
+
     else{
         carry = 0;
     }    
@@ -696,6 +726,7 @@ void bigint_add_fast( const bigint* const n1
     if(carry){ 
         R->used_bits = C + 1; 
     }
+
     else{ 
         R->used_bits = C; 
     }
@@ -710,16 +741,15 @@ void bigint_mul_fast( const bigint* const n1
                      ,const bigint* const n2
                      ,bigint* const R)
 {
-
-    u64 A
-            ,B
-            ,AA
-            ,BB
-            ,C
-            ,temp_res = 0
-            ,i
-            ,j
-            ,bit_to_check;
+    u64 A;
+    u64 B;
+    u64 AA;
+    u64 BB;
+    u64 C;
+    u64 temp_res = 0;
+    u64 i;
+    u64 j;
+    u64 bit_to_check;
 
     bigint_nullify(R);
    
@@ -760,10 +790,12 @@ void bigint_mul_fast( const bigint* const n1
     AA /= 32;
        
     for(i = 0; i < A; ++i){
+
         C = 0;
+
         for(j = 0; j < AA; ++j){
             temp_res = 
-                     (u64)(((u32*)R->bits)[i+j]) 
+                     (u64)(((u32*)R->bits)[i + j]) 
                      +
                      C
                      +
@@ -780,20 +812,20 @@ void bigint_mul_fast( const bigint* const n1
              * Replaces the commented line above to fix a GCC warning about
              * type-punned pointers being disallowed from being dereferenced. 
              */
-            memcpy(
-                    ((void*)(&(((u32*)R->bits)[i+j])))
+            memcpy( ((void*)(&(((u32*)R->bits)[i + j])))
                    ,((void*)(&temp_res))
                    ,sizeof(u32)
-                   );
+                  );
             
             C = (u64)*( ((u32*)(&temp_res)) + 1);
         } 
-        ((u32*)R->bits)[i+1+(AA - 1)] = *(((u32*)(&temp_res)) + 1);
+
+        ((u32*)R->bits)[i + 1 + (AA - 1)] = *(((u32*)(&temp_res)) + 1);
     }
 
     R->used_bits = n1->used_bits + n2->used_bits;
     
-    bit_to_check = n1->used_bits + n2->used_bits + 63 - ( (A+AA) * 32 ) ;
+    bit_to_check = n1->used_bits + n2->used_bits + 63 - ( (A + AA) * 32 ) ;
     
     if (!(temp_res & ((u64)1 << bit_to_check) )){
         --R->used_bits;    
@@ -809,14 +841,14 @@ void bigint_pow( const bigint* const n1
                 ,const bigint* const n2
                 ,bigint* const R)
 {
-    bigint n1_used_bits
-          ,R_req_bits
-          ,zero
-          ,one
-          ,R_res_bits
-          ,R_temp
-          ,starter
-          ,starter_temp;
+    bigint n1_used_bits;
+    bigint R_req_bits;
+    bigint zero;
+    bigint one;
+    bigint R_res_bits;
+    bigint R_temp;
+    bigint starter;
+    bigint starter_temp;
 
     bigint_create(&R_temp,       n2->size_bits, 0);
     bigint_create(&starter,      n2->size_bits, 1);
@@ -905,16 +937,16 @@ void bigint_sub2( const bigint* const n1
                  ,bigint* const R)
 {
 
-    u32 bigger_used_bytes
-            ,bit_counter1 = 0
-            ,bit_counter2 = 0
-            ,old_i = 0
-            ,old_j = 0;
+    u32 bigger_used_bytes;
+    u32 bit_counter1 = 0;
+    u32 bit_counter2 = 0;
+    u32 old_i = 0;
+    u32 old_j = 0;
             
     u8 borrowing = 0;
     
-    bigint zero
-          ,n1_copy;   
+    bigint zero;
+    bigint n1_copy;   
 
     bigint_create(&zero, n2->size_bits, 0);   
     bigint_create(&n1_copy, n1->size_bits, 0);
@@ -923,7 +955,6 @@ void bigint_sub2( const bigint* const n1
     
     if( bigint_compare2(n1, n2) == 3){
         printf("[ERR] Bigint: n1 was smaller than n2 in a SUB operation.\n"); 
-        exit(0);
         goto label_ret;  
     }
     
@@ -949,21 +980,23 @@ void bigint_sub2( const bigint* const n1
     bigint_equate2(&n1_copy, n1);
 
     bigger_used_bytes = n1->used_bits; 
-    while(bigger_used_bytes % 0x08 != 0x00){ 
+
+    while(bigger_used_bytes % 8 != 0){ 
         ++bigger_used_bytes; 
     }
-    bigger_used_bytes /= 0x08;
+    
+    bigger_used_bytes /= 8;
      
     for(u32 i = 0; i < bigger_used_bytes; ++i){
         for(u32 j = 0; j < 8; ++j){
 
             if(borrowing){
-                if( !( ((*(n1_copy.bits + i)) >> j) & 0x01 ) ){
-                    (*(n1_copy.bits + i)) |= 0x01 << j;
+                if( !( ((*(n1_copy.bits + i)) >> j) & 1 ) ){
+                    (*(n1_copy.bits + i)) |= 1 << j;
                     continue;    
                 }
                 else{
-                    (*(n1_copy.bits + i)) ^= 0x01 << j; 
+                    (*(n1_copy.bits + i)) ^= 1 << j; 
                     i = old_i;
                     j = old_j;
                     borrowing = 0;
@@ -974,36 +1007,35 @@ void bigint_sub2( const bigint* const n1
             ++bit_counter1;
             
             if(     
-                  ( ((*(n1_copy.bits + i)) >> j) & 0x01 )  
-               && ( ((*(n2->bits + i)) >> j) & 0x01 )  
+                  ( ((*(n1_copy.bits + i)) >> j) & 1 )  
+               && ( ((*(n2->bits + i)) >> j) & 1 )  
               )
-              {
+            {
                 continue;
-              }
+            }
               
             else if(    
-                         ( ((*(n1_copy.bits + i)) >> j) & 0x01 )  
-                     && !( ((*(n2->bits + i)) >> j) & 0x01 )  
+                         ( ((*(n1_copy.bits + i)) >> j) & 1 )  
+                     && !( ((*(n2->bits + i)) >> j) & 1 )  
                    )
-                   {
-                        (*(R->bits + i)) |= 0x01 << j;
-                        bit_counter2 = bit_counter1;
-                        continue;                           
-                   }
+            {
+                (*(R->bits + i)) |= 1 << j;
+                bit_counter2 = bit_counter1;
+                continue;                           
+            }
                    
             else if(
-                        !( ((*(n1_copy.bits + i)) >> j) & 0x01 )  
-                     &&  ( ((*(n2->bits + i)) >> j) & 0x01 )   
+                        !( ((*(n1_copy.bits + i)) >> j) & 1 )  
+                     &&  ( ((*(n2->bits + i)) >> j) & 1 )   
                    )
-                   {
-                        (*(R->bits + i)) |= 0x01 << j;
-                        bit_counter2 = bit_counter1;   
-                                             
-                        borrowing = 1;
-                        old_i = i;
-                        old_j = j;
-                        continue;                     
-                   }
+            {
+                (*(R->bits + i)) |= 1 << j;
+                bit_counter2 = bit_counter1;                     
+                borrowing = 1;
+                old_i = i;
+                old_j = j;
+                continue;                     
+            }
                    
             else{ 
                 continue; 
@@ -1021,8 +1053,9 @@ label_ret:
     return;    
 }
 
-/* Implementation of Algorithm 20.4 "Multiple Precision Division" in Handbook */
-/* of Applied Cryptography.    Using 16-bit limbs to enable u64 storage.    */
+/* Implementation of Algorithm 20.4 "Multiple Precision Division" in Handbook of
+ * Applied Cryptography. Using 16-bit limbs so that u64 storage is sufficient. 
+ */        
 void bigint_div2( const bigint* const A
                  ,const bigint* const B
                  ,bigint* const Res
@@ -1030,11 +1063,11 @@ void bigint_div2( const bigint* const A
 {      
     const u64 num_temps = 19; /* How many temporary BigInts we need. */
     
-    u64 b = (u64)pow(2,16)
-            ,b_squared = b*b
-            ,n
-            ,t
-            ,i;
+    u64 b = (u64)pow(2,16);
+    u64 b_squared = b*b;
+    u64 n;
+    u64 t;
+    u64 i;
     
     bigint big_temps[num_temps];
     
@@ -1067,16 +1100,20 @@ void bigint_div2( const bigint* const A
     bigint_equate2(&(big_temps[2]), B);
 
     n = big_temps[0].used_bits;
+
     while(n % 16){
         ++n;        
     } 
+
     n /= 16;
     --n;
     
     t = big_temps[2].used_bits;
+
     while(t % 16){
         ++t;
     }
+
     t /= 16;
     --t;
 
@@ -1102,7 +1139,8 @@ void bigint_div2( const bigint* const A
     for(i = n; i >= (t+1); --i){
         if(   *( ((u16*)(big_temps[0].bits)) + i ) 
            == *( ((u16*)(big_temps[2].bits)) + t )            
-        ){
+        )
+        {
             /* q_(i-t-1) a limb, also stored as a bigint in big_temps[17]. */
             *( ((u16*)(big_temps[3].bits)) + (i-t-1) ) = (u16)(b - 1);     
             bigint_remake(&(big_temps[17]), A->size_bits, (u32)(b - 1));
@@ -1235,9 +1273,9 @@ void bigint_mod_mul( bigint** nums
                     ,const u32 how_many
                     ,bigint* const R)
 {
-    bigint div_res
-          ,rem
-          ,mul_res;
+    bigint div_res;
+    bigint rem;
+    bigint mul_res;
                  
     u8 compare_res;
 
@@ -1287,17 +1325,21 @@ void bigint_mod_pow( const bigint* const N
                     ,const bigint* const M
                     ,bigint* const R)
 {
-    bigint_nullify(R);
-
-    bigint aux1
-          ,aux2
-          ,two
-          ,div_res
-          ,one
-          ,zero
-          ,*arr2 = NULL;
-          
+    bigint   aux1;
+    bigint   aux2;
+    bigint   two;
+    bigint   div_res;
+    bigint   one;
+    bigint   zero;
+    bigint*  arr2     = NULL;
     bigint** arr_ptrs = NULL;
+        
+    u32* arr1 = NULL;
+    u32  c1 = 0;
+    u32  P_used_bytes = P->used_bits;
+    u32  arr1_curr_ind = 0;
+        
+    bigint_nullify(R);
 
     bigint_create(&aux1, M->size_bits, 1);
     bigint_create(&aux2, M->size_bits, 1);
@@ -1305,13 +1347,6 @@ void bigint_mod_pow( const bigint* const N
     bigint_create(&one,  M->size_bits, 1);
     bigint_create(&zero, M->size_bits, 0);
     bigint_create(&div_res, M->size_bits, 1);
-    
-    
-    u32 *arr1 = NULL
-        ,c1 = 0
-        ,P_used_bytes = P->used_bits
-        ,arr1_curr_ind = 0;
-        ;
 
     arr2     = (bigint*) calloc(1, c1 * sizeof(bigint));
     arr_ptrs = (bigint**)calloc(1, c1 * sizeof(bigint*));
@@ -1320,11 +1355,12 @@ void bigint_mod_pow( const bigint* const N
     while(P_used_bytes % 8) { 
         ++P_used_bytes; 
     }
+
     P_used_bytes /= 8;
     
     for(u32 i = 0; i < P_used_bytes; ++i){
         for(u32 j = 0; j < 8; ++j){
-            if( ( (*(P->bits + i)) >> j) & 0x01){
+            if( ( (*(P->bits + i)) >> j) & 1){
                 arr1[arr1_curr_ind] = (i * 8) + j;
                 ++arr1_curr_ind;
                 ++c1;
@@ -1375,6 +1411,7 @@ void bigint_mod_pow( const bigint* const N
     }
 
     arr1_curr_ind = 0;  
+
     bigint_div2(N, M, &div_res, &aux1);
 
     /* The long loop */
@@ -1425,28 +1462,28 @@ label_ret:
 /* Returns 1 if the big number is prime, or 0 otherwise. */
 u8 Rabin_Miller(const bigint* const N, const u32 passes){
     
-    bigint N_minus_one
-          ,zero
-          ,one
-          ,two
-          ,M
-          ,B0
-          ,Bi_prev
-          ,Bi
-          ,div_res
-          ,rem
-          ,aux1
-          ,*As;
+    bigint  N_minus_one;
+    bigint  zero;
+    bigint  one;
+    bigint  two;
+    bigint  M;
+    bigint  B0;
+    bigint  Bi_prev;
+    bigint  Bi;
+    bigint  div_res;
+    bigint  rem;
+    bigint  aux1;
+    bigint* As;
     
-    u32 K = 0
-            ,A_val = 2
-            ,curr_A_ind = 0
-            ,prime_votes = 0;
+    u32 K = 0;
+    u32 A_val = 2;
+    u32 curr_A_ind = 0;
+    u32 prime_votes = 0;
     
-    u8 K_flag = 1
-           ,ret = 0
-           ,lab_b0_flag = 0
-           ,lab_ret_flag = 0;
+    u8 K_flag = 1;
+    u8 ret = 0;
+    u8 lab_b0_flag = 0;
+    u8 lab_ret_flag = 0;
     
     bigint_create(&N_minus_one, N->size_bits, 0);
     bigint_create(&one,         N->size_bits, 1);
