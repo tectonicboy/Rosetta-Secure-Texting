@@ -1,29 +1,15 @@
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <math.h>
-#include <unistd.h>
 #include <pthread.h>
-#include <immintrin.h> /* for _mulx_u64      */
-#include <adxintrin.h> /* for _addcarryx_u64 */
-
+#include <immintrin.h> /* for _mulx_u64()      */
+#include <adxintrin.h> /* for _addcarryx_u64() */
 #include "bigint.h"
+#include <time.h> /* for basic performance measurements */
 
-#include <time.h> /* for performance testing. */
+/* Constants used in the implementation of Montgomery Modular Multiplication. */
+#define MONT_LIMB_SIZ 8                   /* Bytes in a Montgomery-space limb */
+#define MONT_L        48                  /* Number of limbs in DH modulus M. */
+#define MONT_MU       5519087143809977509 /* Multiplicative inverse of M.     */ 
 
-/* Rotation constants for BLAKE2b */
-#define R1 32
-#define R2 24
-#define R3 16
-#define R4 63
-
-/* Montgomery Modular Multiplication constants. */
-#define MONT_LIMB_SIZ 8                   /* Bytes in a Montgomery space limb */
-#define MONT_L        48                  /* Number of limbs in DH modulus M  */
-#define MONT_MU       5519087143809977509 /* Modular inverse of DH modulus M  */ 
-
-/* These simplify pointer arithmetic for access to Argon2's memory matrix B. */
+/* These simplify pointer arithmetic to access Argon2's memory matrix B[][].  */
 typedef struct block{
     uint8_t block_data[1024];
 } block_t;
@@ -31,42 +17,47 @@ typedef struct block{
 typedef struct block_64{
     uint8_t block_data[64]; 
 } block64_t;
-        
-/* Parameters of Argon2
- * 
- * Every user of Argon2 should initialize an instance of this structure
- * and pass it to Argon2_MAIN(), which will, on its own, initialize
- * H_0 based on fields of this struct, and proceed with Argon2 operation.
- */
+
+/* Parameters to Argon2. */
 struct Argon2_parms{
     uint64_t p;  /* Paralellism - how many threads to use. 1   to (2^24) - 1 */
-    uint64_t T;  /* Output Tag's desired length in bytes.  4   to (2^32) - 1 */
-    uint64_t m;  /* Memory usage - kikibytes to use.       8*p to (2^32) - 1 */
+    uint64_t T;  /* How many bytes of output we want.      4   to (2^32) - 1 */
+    uint64_t m;  /* Memory usage in kibibytes, as per RFC. 8*p to (2^32) - 1 */
     uint64_t t;  /* Number of passes Argon2 should do.     1   to (2^32) - 1 */
     uint64_t v;  /* Version number.                        It is always 0x13 */
     uint64_t y;  /* Type of Argon2 algorithm.              0x02 for Argon2id */ 
     
-    uint8_t* P;  /* Password plaintext to hash. */
-    uint8_t* S;  /* Salt.                       */
-    uint8_t* K;  /* OPTIONAL secret value.      */
-    uint8_t* X;  /* OPTIONAL associated data.   */
+    uint8_t* P;  /* Input password used as the hashing KEY. */
+    uint8_t* S;  /* Input salt.                             */
+    uint8_t* K;  /* OPTIONAL secret value.                  */
+    uint8_t* X;  /* OPTIONAL associated data.               */
     
-    uint64_t len_P; /* Length of password plaintext in bytes. <= (2^32) - 1  */
-    uint64_t len_S; /* Length of Salt in bytes.               <= (2^32) - 1  */                    
+    uint64_t len_P; /* Length of input password in bytes.     <= (2^32) - 1  */
+    uint64_t len_S; /* Length of input salt in bytes.         <= (2^32) - 1  */                    
     uint64_t len_K; /* Length of secret value in bytes.       <= (2^32) - 1  */
     uint64_t len_X; /* Length of associated data in bytes.    <= (2^32) - 1  */   
 }; 
 
-/* Initialization vector of constants for BLAKE2b */
-const uint64_t IV[8] = {
+/* Offsets into the input memory buffer for Argon2's multithreading function. */
+#define OFFSET_r  (sizeof(block_t*) + (0 * sizeof(uint64_t)))
+#define OFFSET_l  (sizeof(block_t*) + (1 * sizeof(uint64_t)))
+#define OFFSET_sl (sizeof(block_t*) + (2 * sizeof(uint64_t)))
+#define OFFSET_md (sizeof(block_t*) + (3 * sizeof(uint64_t)))
+#define OFFSET_t  (sizeof(block_t*) + (4 * sizeof(uint64_t)))
+#define OFFSET_y  (sizeof(block_t*) + (5 * sizeof(uint64_t)))
+#define OFFSET_p  (sizeof(block_t*) + (6 * sizeof(uint64_t)))
+#define OFFSET_q  (sizeof(block_t*) + (7 * sizeof(uint64_t)))
+
+/* Initialization vector of constants for BLAKE2b. Defined in the RFC spec. */
+const uint64_t BLAKE2B_IV[8] = {
     0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
     0x3C6EF372FE94F82B, 0xA54FF53A5F1D36F1,
     0x510E527FADE682D1, 0x9B05688C2B3E6C1F,
     0x1F83D9ABFB41BD6B, 0x5BE0CD19137E2179
 };
 
-/* Message word permutation constants for BLAKE2b*/
-const uint64_t sigma[12][16] = {
+/* Message word permutation constants for BLAKE2b. Defined in the RFC spec. */
+const uint64_t BLAKE2B_sigma[12][16] = {
     { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
     { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 },
     { 11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4 },
@@ -81,15 +72,11 @@ const uint64_t sigma[12][16] = {
     { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
 };
 
-/* Offsets into the input buffer for the multithreaded function of Argon2. */
-#define OFFSET_r  (sizeof(block_t*) + (0 * sizeof(uint64_t)))
-#define OFFSET_l  (sizeof(block_t*) + (1 * sizeof(uint64_t)))
-#define OFFSET_sl (sizeof(block_t*) + (2 * sizeof(uint64_t)))
-#define OFFSET_md (sizeof(block_t*) + (3 * sizeof(uint64_t)))
-#define OFFSET_t  (sizeof(block_t*) + (4 * sizeof(uint64_t)))
-#define OFFSET_y  (sizeof(block_t*) + (5 * sizeof(uint64_t)))
-#define OFFSET_p  (sizeof(block_t*) + (6 * sizeof(uint64_t)))
-#define OFFSET_q  (sizeof(block_t*) + (7 * sizeof(uint64_t)))
+/* Rotation constants for BLAKE2b. Defined in the RFC spec. */
+#define R1 32
+#define R2 24
+#define R3 16
+#define R4 63
 
 /* Bitwise rolling means shifts but the erased bits go back to the start. */
 void uint32_roll_left(uint32_t* n, uint32_t roll_amount){
@@ -366,13 +353,13 @@ void BLAKE2B_G(u64* v, u64 a, u64 b, u64 c ,u64 d, u64 x, u64 y){
     
 void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
 
-    __builtin_prefetch(sigma);
+    __builtin_prefetch(BLAKE2B_sigma);
 
     uint64_t v[16];
     uint64_t s[16];
     
     memcpy(v, h, 8 * sizeof(uint64_t));
-    memcpy(v + 8, IV, 8 * sizeof(uint64_t));
+    memcpy(v + 8, BLAKE2B_IV, 8 * sizeof(uint64_t));
     
     /* NOTE: Usually, t is a 128-bit unsigned integer. The second
      *       64 bits are used if the input message has more than 
@@ -389,7 +376,7 @@ void BLAKE2B_F(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
     }
     
     for(uint8_t i = 0; i < 12; ++i){
-        memcpy(s, (sigma[i % 12]), (16*sizeof(uint64_t)));
+        memcpy(s, (BLAKE2B_sigma[i % 12]), (16*sizeof(uint64_t)));
 
         BLAKE2B_G(v, 0, 4, 8,  12, m[s[0]], m[s[1]]);
         BLAKE2B_G(v, 1, 5, 9,  13, m[s[2]], m[s[3]]);
@@ -422,7 +409,7 @@ void BLAKE2B(uint64_t** d, uint64_t ll, uint64_t kk,
 {
     uint64_t h[8];
 
-    memcpy(h, IV, 8 * sizeof(uint64_t));
+    memcpy(h, BLAKE2B_IV, 8 * sizeof(uint64_t));
 
     h[0] ^= 0x01010000 ^ (kk << 8) ^ nn;
 
