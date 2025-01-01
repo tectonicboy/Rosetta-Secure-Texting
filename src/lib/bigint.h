@@ -453,7 +453,7 @@ void bigint_AND2( const bigint* const n1
     }
     
     if(res->size_bits < smaller){
-        printf("[ERR] BIGINT: Not enough bits to place the result of AND in.\n");
+        printf("[ERR] BIGINT: Not enough bits for result of bitwise AND.\n");
         return;
     }
     

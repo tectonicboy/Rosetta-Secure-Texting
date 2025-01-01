@@ -1798,20 +1798,16 @@ void Signature_GENERATE(bigint* M, bigint* Q, bigint* Gmont
     return;
 }
 
-/*
- *  To verify against public key A and whatever was signed, the receiver:
+/* To verify against public key A and whatever was signed, the receiver:
  *
- *    0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
+ *  0. checks that 0 <= s < Q, and that e has the expected bitwidth (that of Q).
+ *  1. Computes the prehash PH as in step 0. above.
+ *  2. Computes R = (G^s * A^e) mod M.
+ *  3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
+ *     Check that this is equal to e. If it is, validation passed. 
+ *     In any other circumstance, the validation fails.
  *
- *    1. Computes the prehash PH as in step 0. above.
- *
- *    2. Computes R = (G^s * A^e) mod M.
- *
- *    3. Computes BLAKE2B{64}(R||PH), truncated to bitwidth of Q. 
- *       Check that this is equal to e. If it is, validation passed. 
- *        In any other circumstance, the validation fails.
- *
- *    RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
+ *   RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
  *
  */
 uint8_t Signature_VALIDATE( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
