@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -1503,7 +1502,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     for(u64 i = 0; i < num_current_guests; ++i){
 
         /* Reflect the new guest slot in the global guest slots bitmask. */
-        roommate_slots_bitmask |= BITMASK_BIT_AT(next_free_roommate_slot); 
+        roommate_slots_bitmask |= BITMASK_BIT_ON_AT(next_free_roommate_slot); 
 
         /* Pointer arithmetic to get to the right guest slot in message's AD. */
         /* No need to dereference the obtained pointer, we're using memcpy(). */
@@ -1676,8 +1675,8 @@ u8 process_msg_21(u8* msg){
      */ 
 
     /* Reflect the new guest slot in the global guest slots bitmask. */
-    roommate_slots_bitmask     |= BITMASK_BIT_AT(next_free_roommate_slot); 
-    roommate_key_usage_bitmask |= BITMASK_BIT_AT(next_free_roommate_slot); 
+    roommate_slots_bitmask     |= BITMASK_BIT_ON_AT(next_free_roommate_slot); 
+    roommate_key_usage_bitmask |= BITMASK_BIT_ON_AT(next_free_roommate_slot); 
 
     guest_ix = next_free_roommate_slot;
 
@@ -1832,7 +1831,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
 
     /* Construct the Associated Data within the payload. */
     for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
-        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
+        if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
 
             /* Place this guest's userid. */
             memcpy(
@@ -1844,7 +1843,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
             AD_write_offset += SMALL_FIELD_LEN;
             
             /* Decide whether to encrypt with session key KAB or with KBA. */
-            if( roommate_key_usage_bitmask & BITMASK_BIT_AT(i) ){
+            if( roommate_key_usage_bitmask & BITMASK_BIT_ON_AT(i) ){
                 chacha_key = (u32*)(roommates[i].guest_KAB);
             }
             else{
@@ -2038,7 +2037,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     /* Find the index of the guest with this userID. */
     for(u64 i = 0; i <= num_roommates - 2; ++i){
-        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
+        if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
             
             /* if userIDs match. */
             if(strncmp( roommates[i].guest_user_id
@@ -2134,7 +2133,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     /* Decide whether to encrypt with session key KAB or with KBA. */
-    if( roommate_key_usage_bitmask & BITMASK_BIT_AT(sender_ix) ){
+    if( roommate_key_usage_bitmask & BITMASK_BIT_ON_AT(sender_ix) ){
         chacha_key = (u32*)(roommates[sender_ix].guest_KAB);
     }
     else{
@@ -2343,7 +2342,7 @@ u8 process_msg_50(u8* payload){
 
     /* Find the index of the guest with this userID. */
     for(u64 i = 0; i <= num_roommates - 2; ++i){
-        if( roommate_slots_bitmask & BITMASK_BIT_AT(i) ){
+        if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
             
             /* if userID matches the one in payload */
             if(strncmp( roommates[i].guest_user_id
@@ -2375,9 +2374,9 @@ u8 process_msg_50(u8* payload){
         next_free_roommate_slot = sender_ix;
     }
 
-    /* Make sure we deallocate any memory pointed to by pointers contained
-     * in the struct itself or by pointers in an object that's part of the
-     * struct BEFORE we zero out the descriptor itself.
+    /* Make sure we deallocate any heap memory pointed to by pointers contained
+     * in the descriptor struct or by pointers in an object which is itself part
+     * of the descriptor struct, BEFORE we zero out the descriptor itself.
      */
     memset(roommates[sender_ix].guest_user_id, 0, SMALL_FIELD_LEN);
     free(roommates[sender_ix].guest_pubkey.bits);
@@ -2386,11 +2385,11 @@ u8 process_msg_50(u8* payload){
     free(roommates[sender_ix].guest_KAB);
     free(roommates[sender_ix].guest_Nonce);
 
-    /* Now zero out the descriptor without the risk of memory leaks. */
+    /* Now zero out the descriptor itself without the risk of memory leaks. */
     memset(&(roommates[sender_ix]), 0, sizeof(struct roommate));
 
-    roommate_slots_bitmask     &= ~(BITMASK_BIT_AT(sender_ix));
-    roommate_key_usage_bitmask &= ~(BITMASK_BIT_AT(sender_ix));
+    roommate_slots_bitmask     &= ~(BITMASK_BIT_ON_AT(sender_ix));
+    roommate_key_usage_bitmask &= ~(BITMASK_BIT_ON_AT(sender_ix));
 
     --num_roommates;
 
@@ -2428,7 +2427,7 @@ u8 construct_msg_50(void){
          * in the struct itself or by pointers in an object that's part of the
          * struct BEFORE we zero out the descriptor itself.
          */
-        if(roommate_slots_bitmask & BITMASK_BIT_AT(i)){
+        if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i)){
             memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
             free(roommates[i].guest_pubkey.bits);
             free(roommates[i].guest_pubkey_mont.bits);
@@ -2517,7 +2516,7 @@ u8 process_msg_51(u8* payload){
          * in the struct itself or by pointers in an object that's part of the
          * struct BEFORE we zero out the descriptor itself.
          */
-        if(roommate_slots_bitmask & BITMASK_BIT_AT(i)){
+        if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i)){
             memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
             free(roommates[i].guest_pubkey.bits);
             free(roommates[i].guest_pubkey_mont.bits);

@@ -1,9 +1,9 @@
-#include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #include "../lib/coreutil.h"
 
@@ -57,17 +57,11 @@ struct chatroom{
 
 /* Bitmasks telling the server which client and room slots are currently free. 
  *
- * Avoid the ambiguity raised by questions like "which room is this user in?"
- * about the notion of not being in any room at all, by letting global index [0]
- * mean exactly that - for example, a room_ix of [0] in a client structure would
- * mean that the client is not in any room right now. Therefore begin populating
- * users and chatrooms at index 1 globally.
- *
- * Thus, set leftmost bit of the leftmost byte to 1 by initializing them to 128. 
- * Assumes little endian byte order. Results in leftmost byte = 1000 0000.    
+ * Begin populating room slots and user slots at index [1]. Reserve [0] for 
+ * meaning that the user is not in any room at all.
  */
-u64 users_status_bitmask = 128; 
-u64 rooms_status_bitmask = 128;
+u64 users_status_bitmask = 0;
+u64 rooms_status_bitmask = 0;
 
 /* Bitmask telling the server which socket file descriptors are free to be
  * used to accept a new connection to a client machine and begin its recv() loop
@@ -105,10 +99,10 @@ struct connected_client clients[MAX_CLIENTS];
 struct chatroom rooms[MAX_CHATROOMS];
 
 /* Linux Sockets API related globals. */
-int port = SERVER_PORT
-   ,listening_socket
-   ,optval1 = 1
-   ,optval2 = 2;
+int port = SERVER_PORT;
+int listening_socket;
+int optval1 = 1;
+int optval2 = 2;
 
 int client_socket_fd[MAX_CLIENTS];
 struct sockaddr_in client_addresses[MAX_CLIENTS];  
@@ -129,11 +123,19 @@ pthread_t client_thread_ids[MAX_CLIENTS];
  */
 u8* client_payload_buffer_ptrs[MAX_CLIENTS]; 
 
-struct bigint *M, *Q, *G, *Gm, server_privkey_bigint, *server_pubkey_bigint;
+bigint* M;  /* Diffie-Hellman prime modulus M.              */
+bigint* Q;  /* Diffie-Hellman prime exactly dividing (M-1). */
+bigint* G;  /* Diffie-Hellman generator.                    */
+bigint* Gm; /* Montgomery Form of G.                        */
+bigint* server_pubkey_bigint;
+bigint  server_privkey_bigint;
+
 struct sockaddr_in servaddr;
 
-/* First thing done when we start the server - initialize it. */
+/* First thing done when we start the Rosetta server - initialize it. */
 u32 self_init(){
+
+    FILE* privkey_dat;
 
     for(socklen_t i = 0; i < MAX_CLIENTS; ++i){
         clientLens[i] = sizeof(struct sockaddr_in);
@@ -142,10 +144,12 @@ u32 self_init(){
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
 
+    /* Initialize the server address structure. */
     servaddr.sin_family      = AF_INET;
     servaddr.sin_port        = htons(port);
     servaddr.sin_addr.s_addr = INADDR_ANY;
-                                                        
+
+    /* Obtain the file descriptor for the listen()ing socket. */                                                    
     if( (listening_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("[ERR] Server: Could not open server socket. Aborting.\n");
         return 1;
@@ -158,16 +162,10 @@ u32 self_init(){
     setsockopt(
           listening_socket, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
     );
-                      
-    if( 
-        (
-         bind(
-            listening_socket
-           ,(struct sockaddr*)&servaddr
-           ,sizeof(servaddr)
-        )
-      ) == -1
-    )
+            
+    if( (bind(listening_socket, (struct sockaddr*)&servaddr, sizeof(servaddr))) 
+        == -1
+      )
     {
         printf("[ERR] Server: Bind() returned -1.\n");
         
@@ -177,16 +175,17 @@ u32 self_init(){
         }
     }
        
+    /* Put the listen()ing socket in a state of listening for connections. */
     if( (listen(listening_socket, MAX_SOCK_QUEUE)) == -1){
-        printf("[ERR] Server: couldn't begin listening. Aborting.\n");
+        printf("[ERR] Server: couldn't begin listen()ing. Aborting.\n");
         return 1;
     }
     
-    /*  Server will use its private key to compute Schnorr signatures of 
-     *  everything it transmits, so all users can verify it with the server's
-     *  public key they already have by default for authenticity.
+    /*  Server will use its private key to compute cryptographic signatures of 
+     *  everything it transmits, so all users can authenticate it using the
+     *  server's long-term public key they already have at install time.
      */
-    FILE* privkey_dat = fopen("../bin/server_privkey.dat", "r");
+    privkey_dat = fopen("../bin/server_privkey.dat", "r");
     
     if(!privkey_dat){
         printf("[ERR] Server: couldn't open private key DAT file. Aborting.\n");
@@ -263,7 +262,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
            && (memcmp(pubkey_buf,(clients[i].client_pubkey).bits,pubkey_siz)==0)
           )
         {
-            printf("\n[ERR] Server: PubKey already exists.\n\n");
+            printf("\n[ERR] Server: PubKey already exists for user[%lu]\n", i);
             return 1;
         }
     }
@@ -292,6 +291,12 @@ void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
         printf("[ERR] Server: userix[%lu] reached pend_msgs limit!\n", user_ix);
     }
     
+    /* num_pending_msgs conveniently doubles as a way to tell which pending
+     * msg slot is the next free one for each user. If that user has 0 pending
+     * msgs, fill the [0] slot. If they have 1 pending message, fill out the
+     * second slot, which is [1], etc.
+     */
+
     /* Proceed to add the pending message to the user's list of them. */
     memcpy( clients[user_ix].pending_msgs[clients[user_ix].num_pending_msgs]
            ,data
@@ -344,7 +349,7 @@ void remove_user_from_room(u64 sender_ix){
             }
         }
         
-        /* Server bookkeeping - a guest left the chatroom they were in. */
+        /* Server bookkeeping - a guest has left the chatroom they were in. */
         
         clients[sender_ix].room_ix = 0;
         clients[sender_ix].num_pending_msgs = 0;
@@ -474,30 +479,25 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 --------------------------------------------------------------------------------
 
 */
-//__attribute__ ((always_inline)) 
-//inline
 void process_msg_00(u8* msg_buf, u32 sock_ix){
 
     bigint  zero;
     bigint  Am; 
-       
     bigint* A_s;
     bigint  b_s;
     bigint* B_s;
     bigint  X_s;
             
-    u8* Y_s;
-    
     u32  tempbuf_byte_offset = 0;
     u32  replybuf_byte_offset = 0;
         
-    u8 signature_buf[SIGNATURE_LEN];    
-    
-    u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
-    u8* reply_buf = calloc(1, reply_len);
-    
     u64 PACKET_ID02 = PACKET_ID_02;
+    u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
+
+    u8* reply_buf = calloc(1, reply_len);
+    u8  signature_buf[SIGNATURE_LEN]; 
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
+    u8* Y_s;
 
     memset(signature_buf, 0, SIGNATURE_LEN);
 
@@ -742,8 +742,6 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-//__attribute__ ((always_inline)) 
-//inline
 void process_msg_01(u8* msg_buf, u32 sock_ix){
 
     u64 handshake_buf_key_offset;
@@ -1113,8 +1111,6 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-//__attribute__ ((always_inline)) 
-//inline
 void process_msg_10(u8* msg_buf, u32 sock_ix){
         
     u8 nonce[LONG_NONCE_LEN];
@@ -1123,10 +1119,9 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     u8 recv_K[ONE_TIME_KEY_LEN];
     u8 send_K[ONE_TIME_KEY_LEN];
     u8 room_user_ID_buf[2 * SMALL_FIELD_LEN];
-
     u8* reply_buf = NULL;
+
     u64 reply_len;
-        
     u64 user_ix;
     u64 PACKET_ID11    = PACKET_ID_11;
     u64 PACKET_ID10    = PACKET_ID_10;
@@ -1317,7 +1312,6 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     rooms[next_free_room_ix].owner_ix = user_ix;
     rooms[next_free_room_ix].room_id = *((u64*)room_user_ID_buf);
     
-
     clients[user_ix].room_ix = next_free_room_ix;
     
     memcpy( clients[user_ix].user_id
@@ -1377,44 +1371,38 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-//__attribute__ ((always_inline)) 
-//inline
 void process_msg_20(u8* msg_buf, u32 sock_ix){
 
     FILE* ran_file = NULL;
 
-    /* static, known at compile time. */
     const u64 buf_type_21_len = 
           (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN + PUBKEY_LEN;
-                              
-    u8 buf_type_21[buf_type_21_len];
-    u8 room_user_ID_buf[2 * SMALL_FIELD_LEN];
-    u8 KAB[SESSION_KEY_LEN];
-    u8 KBA[SESSION_KEY_LEN];
-    u8 recv_K[ONE_TIME_KEY_LEN];
-    u8 send_K[ONE_TIME_KEY_LEN];
-    u8 type21_encrypted_part[SMALL_FIELD_LEN + PUBKEY_LEN];
 
-    u64 user_ixs_in_room[MAX_CLIENTS];
-
-    u64 buf_ixs_pubkeys_write_offset;
-    
-    /* unknown at compile time. */
-    u8* buf_ixs_pubkeys = NULL;
-    u64 buf_ixs_pubkeys_len;
-    u8* reply_buf = NULL;
-    u64 reply_len;
-      
-    u8 room_found;
-    
-    u64 send_type21_encr_part_offset = SMALL_FIELD_LEN + ONE_TIME_KEY_LEN;
-    u64 send_type20_AD_offset = ((2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN);
-    u64 num_users_in_room = 0;
-    u64 next_free_room_users_ix = 0;
-    u64 encrypted_roomID_offset = ((2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN);
     u64 user_ix;
     u64 room_ix;
     u64 send_type20_signed_len;
+    u64 user_ixs_in_room[MAX_CLIENTS];
+    u64 buf_ixs_pubkeys_write_offset;
+    u64 buf_ixs_pubkeys_len;
+    u64 reply_len;
+    u64 send_type21_encr_part_offset = SMALL_FIELD_LEN + ONE_TIME_KEY_LEN;
+    u64 send_type20_AD_offset        = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+    u64 num_users_in_room            = 0;
+    u64 next_free_room_users_ix      = 0;
+    u64 encrypted_roomID_offset      = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
+    u64 sign_offset                  = ONE_TIME_KEY_LEN + (4 * SMALL_FIELD_LEN);
+    u64 signed_len                   = sign_offset;
+                              
+    u8  buf_type_21[buf_type_21_len];
+    u8  room_user_ID_buf[2 * SMALL_FIELD_LEN];
+    u8  KAB[SESSION_KEY_LEN];
+    u8  KBA[SESSION_KEY_LEN];
+    u8  recv_K[ONE_TIME_KEY_LEN];
+    u8  send_K[ONE_TIME_KEY_LEN];
+    u8  type21_encrypted_part[SMALL_FIELD_LEN + PUBKEY_LEN];
+    u8* buf_ixs_pubkeys = NULL;
+    u8* reply_buf = NULL;
+    u8  room_found;
     
     size_t ret_val;
        
@@ -1422,9 +1410,6 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     bigint one;
     bigint aux1;
         
-    u64 sign_offset = ONE_TIME_KEY_LEN + (4 * SMALL_FIELD_LEN);
-    u64 signed_len  = sign_offset;
-
     user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
 
     /* Early initializations and heap allocations. */
@@ -1896,7 +1881,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         /* Compute the signature itself of everything so far.*/
         
         Signature_GENERATE
-             (M, Q, Gm, buf_type_21
+        (     M, Q, Gm, buf_type_21
              ,buf_type_21_len - SIGNATURE_LEN
              ,buf_type_21 + (buf_type_21_len - SIGNATURE_LEN)
              ,&server_privkey_bigint
@@ -1955,16 +1940,16 @@ label_cleanup:
  X = ONE_TIME_KEY_LEN
 
 */
-//__attribute__ ((always_inline)) 
-//inline
 void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
 {
     u64 next_free_receivers_ix = 0;
-    char userid[SMALL_FIELD_LEN];
-    u8 *reply_buf = NULL;
     u64 reply_len = packet_siz + SIGNATURE_LEN;
     u64 signed_len = (packet_siz - SIGNATURE_LEN);
     u64 *receiver_ixs = NULL;
+
+    char userid[SMALL_FIELD_LEN];
+
+    u8 *reply_buf = NULL;
 
     memset(userid, 0, SMALL_FIELD_LEN);
 
@@ -2049,16 +2034,14 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-//__attribute__ ((always_inline)) 
-//inline
 void process_msg_40(u8* msg_buf, u32 sock_ix){
         
     u8 *reply_buf = NULL;
+
     u64 reply_len;
     u64 reply_write_offset = 0;
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len = sign_offset;
-    
     u64 poller_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
@@ -2189,14 +2172,14 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
   
 label_cleanup:
 
-    if(reply_buf){free(reply_buf);}
+    if(reply_buf){
+        free(reply_buf);
+    }
     
     return;
 }
 
-/* Client decided to leave the chatroom they're currently in. */
-//__attribute__ ((always_inline)) 
-//inline
+/* A client decided to leave the chatroom they're currently in. */
 void process_msg_50(u8* msg_buf){
     
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
@@ -2217,9 +2200,7 @@ void process_msg_50(u8* msg_buf){
     return;
 }
 
-/* Client decided to log off Rosetta. */
-//__attribute__ ((always_inline)) 
-//inline
+/* A client decided to log off Rosetta. */
 void process_msg_60(u8* msg_buf){
   
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
@@ -2262,17 +2243,20 @@ void process_msg_60(u8* msg_buf){
  *      - A client decides to exit the chat room they're in.
  *      - A client decides to log off Rosetta.
  */
-
 u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
 
     printf("?? identifier entering?? \n");
 
-    u64  transmission_type = 0;
-    s64  expected_siz = 0;
-    u64  found_user_ix;
+    u64 transmission_type = 0;
+    u64 found_user_ix;
     u64 text_msg_len;
-    u32  ret_val = 0;
+
+    s64 expected_siz = 0;
+
+    u32 ret_val = 0;
+
     char *msg_type_str = calloc(1, 3);
+
     printf("?? right before printing socket[sock_ix]  \n");    
     printf("[OK]  Server: Entered packet identifier for socket[%u]\n", sock_ix);
 
@@ -2451,8 +2435,8 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
     
     }
     
-    /* Also do something in case it was a bad unrecognized transmission!    */
-    /* Just say FUCK YOU to whoever sent it and maybe tried hacking us.     */
+    /* Also do something in case it was a bad unrecognized transmission.  */
+    /* Just say FUCK YOU to whoever sent it and perhaps tried hacking us. */
     default:{
         printf("[WAR] Server: No valid packet type found in request.\n\n");
         /* Send the reply back to the client. */
@@ -2601,9 +2585,10 @@ void* check_for_lost_connections(){
 void* start_new_client_thread(void* ix_ptr){
 
     u8*  client_msg_buf;
-    s64  bytes_read; 
-    u32  status;
 
+    s64  bytes_read; 
+
+    u32 status;
     u32 ix = *((u32*)ix_ptr);
 
     pthread_mutex_lock(&mutex);
@@ -2622,24 +2607,22 @@ void* start_new_client_thread(void* ix_ptr){
 
     memset(client_msg_buf, 0, MAX_MSG_LEN);
 
-    
-
     while(1){
 printf("?? 6\n");
         
 printf("?? 7\n");
-        /* Block on this recv call since clients always commence a transmission. */
+        /* Block on this recv call, waiting for a client's request. */
         bytes_read = recv(client_socket_fd[ix], client_msg_buf, MAX_MSG_LEN, 0);
         printf("?? 8\n");
         if(bytes_read == -1 || bytes_read < 8){
-            printf( "[ERR] Server: Couldn't recv() or msg too short, client[%u]\n\n"
+            printf( "[ERR] Server: Couldn't recv() or too short, client[%u]\n\n"
                 ,ix
             );
-            perror("recv() failed, errno was set");
+            perror("recv() failed, errno was set to");
         }
         else{
-            printf( "[OK]  Server: Read %ld bytes from a request by client[%u]\n\n" 
-                ,bytes_read, ix
+            printf("[OK]  Server: Read %ld bytes from request by client[%u]\n\n" 
+                  ,bytes_read, ix
             );
         }
         printf("?? 1\n");
@@ -2713,7 +2696,7 @@ int main(){
             perror("accept() failed, errno was set");
             continue;
         }
-                printf("[OK] Server: Passed accept()! Received a new connection!\n\n");
+                printf("[OK] Server: Passed accept! Received a new conn!\n\n");
 
         pthread_mutex_lock(&mutex);
 
