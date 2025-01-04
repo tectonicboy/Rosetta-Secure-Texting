@@ -565,11 +565,12 @@ label_cleanup:
 */  
 u8 process_msg_00(u8* msg_buf){
 
-    u8 status = 1;
-
     u64 handshake_buf_key_offset;
     u64 handshake_buf_nonce_offset;
-    
+    const u64 B = 64;
+    const u64 L = 128;
+    const u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
+
     u32 tempbuf_write_offset;
     u32 shared_secret_read_offset;
     u32 HMAC_reply_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
@@ -579,10 +580,8 @@ u8 process_msg_00(u8* msg_buf){
     bigint  B_sM;
     bigint  zero;
     bigint *a_s = (bigint*)(temp_handshake_buf);
-            
-    const u64 B = 64;
-    const u64 L = 128;
-    
+
+    u8 status = 1;    
     u8 K0[B];
     u8 ipad[B];
     u8 opad[B];
@@ -591,23 +590,20 @@ u8 process_msg_00(u8* msg_buf){
     u8 last_BLAKE2B_input[B + L];
     u8 K0_XOR_ipad[B];
     u8 K0_XOR_opad[B];
-    
-    const u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
     u8 reply_buf[reply_len];
-
     u8 auth_status;
     u8 auth_buf[INIT_AUTH_LEN + SIGNATURE_LEN];
 
-    memset(K0, 0, B);
-    memset(ipad, 0, B);
-    memset(opad, 0, B);
-    memset(K0_XOR_ipad_TEXT, 0, B + PUBKEY_LEN);
-    memset(BLAKE2B_output, 0, L);   
-    memset(last_BLAKE2B_input, 0, B + L);
-    memset(K0_XOR_ipad, 0, B);
-    memset(K0_XOR_opad, 0, B);
-    memset(reply_buf, 0, reply_len);
-    memset(auth_buf, 0, INIT_AUTH_LEN + SIGNATURE_LEN);
+    memset(K0,                  0, B);
+    memset(ipad,                0, B);
+    memset(opad,                0, B);
+    memset(K0_XOR_ipad_TEXT,    0, B + PUBKEY_LEN);
+    memset(BLAKE2B_output,      0, L);   
+    memset(last_BLAKE2B_input,  0, B + L);
+    memset(K0_XOR_ipad,         0, B);
+    memset(K0_XOR_opad,         0, B);
+    memset(reply_buf,           0, reply_len);
+    memset(auth_buf,            0, INIT_AUTH_LEN + SIGNATURE_LEN);
 
     /* Grab the server's short-term public key from the transmission.        */
     /* Another bigint construction by hand, ugly!! Find time for a function. */
@@ -1986,7 +1982,6 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
      */
 
     const u64 text_len  = *((u64*)(payload + (2 * SMALL_FIELD_LEN)));
-
     u64 AD_slot_len;
     u64 AD_len;
     u64 our_AD_slot = MAX_CLIENTS + 1;
@@ -1999,14 +1994,13 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     u32* chacha_key;
 
     char temp_user_id[SMALL_FIELD_LEN];
-
     const char* GUI_string_helper = ": ";
 
     u8* AD_pointer = payload + (3 * SMALL_FIELD_LEN);
     u8* our_K_pointer;
     u8* our_msg_pointer;
-    u8* decrypted_msg = NULL;
-    u8* decrypted_key = NULL;
+    u8* decrypted_msg = (u8*)calloc(1, text_len);
+    u8* decrypted_key = (u8*)calloc(1, ONE_TIME_KEY_LEN);
     u8  status = 1;
 
     bigint *recv_e = NULL;
@@ -2015,9 +2009,11 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     bigint  one;
     bigint  aux1;
 
-    one.bits     = NULL;
-    aux1.bits    = NULL;
-    guest_nonce_bigint.bits = NULL;
+    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+
+    guest_nonce_bigint.bits = 
+    (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     memset(temp_user_id, 0, SMALL_FIELD_LEN);
 
@@ -2027,7 +2023,6 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
         printf("              Obtained message length: %lu\n\n", text_len);
         status = 0;
         goto label_cleanup;
-
     }
 
     AD_slot_len  = SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_len;
@@ -2126,12 +2121,6 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     /* Extract the encrypted key and message from our slot in associated data */
 
-    decrypted_msg = (u8*)calloc(1, text_len);
-    decrypted_key = (u8*)calloc(1, ONE_TIME_KEY_LEN);
-
-    guest_nonce_bigint.bits = 
-    (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
-
     /* Decide whether to encrypt with session key KAB or with KBA. */
     if( roommate_key_usage_bitmask & BITMASK_BIT_ON_AT(sender_ix) ){
         chacha_key = (u32*)(roommates[sender_ix].guest_KAB);
@@ -2157,8 +2146,6 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     guest_nonce_bigint.free_bits = 
         MAX_BIGINT_SIZ - guest_nonce_bigint.used_bits;
 
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* Increment nonce as many times as counter says for this guest. */
     for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter; ++j){
@@ -2211,13 +2198,19 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
 label_cleanup:
 
-    if(recv_s != NULL)                  { free(recv_s->bits);           }
-    if(recv_e != NULL)                  { free(recv_e->bits);           }
-    if(guest_nonce_bigint.bits != NULL) { free(guest_nonce_bigint.bits);}
-    if(one.bits != NULL)                { free(one.bits);               }
-    if(aux1.bits != NULL)               { free(aux1.bits);              }    
-    if(decrypted_msg != NULL)           { free(decrypted_msg);          }
-    if(decrypted_key != NULL)           { free(decrypted_key);          }
+    if(recv_s != NULL) { 
+        free(recv_s->bits);           
+    }
+
+    if(recv_e != NULL) { 
+        free(recv_e->bits);           
+    }
+
+    free(guest_nonce_bigint.bits);
+    free(one.bits);
+    free(aux1.bits);
+    free(decrypted_msg);
+    free(decrypted_key);
 
     return status;
 }
@@ -2776,7 +2769,7 @@ label_cleanup:
     free(A_longterm);
     free(temp_privkey.bits);
 
-    system("rm temp_privkey_DAT");
+    system("rm temp_privkey_DAT\0");
 
     if(ranfile){ 
         fclose(ranfile);   
