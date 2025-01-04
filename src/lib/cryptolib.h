@@ -866,7 +866,7 @@ void* argon2_transform_segment(void* thread_input){
     block_t*  G_input_one;
     block_t*  G_input_two;
     block_t*  G_output;
-    block_t   old_block[sizeof(block_t)];
+    block_t   old_block;
     block_t*  J1J2blockpool = (block_t*)calloc(1, num_blocks * (1024));   
     
     u8 Z_buf[6 * sizeof(uint64_t)];
@@ -992,13 +992,13 @@ label_further_passes:
          * block that was there before G() overwrote it. XORing it with its old
          * contents is the NEW NEW block that will ultimately reside there.
          */
-        memcpy(old_block, G_output, sizeof(block_t));
+        memcpy(&old_block, G_output, sizeof(block_t));
       
         Argon2_G((u8*)G_input_one, (u8*)G_input_two, (u8*)G_output); 
                 
         /* XOR the result of G() with the old block. This is now the new block*/
         for(size_t xr = 0; xr < 128; ++xr){
-            ((uint64_t*)G_output)[xr] ^= ((uint64_t*)old_block)[xr];
+            ((uint64_t*)G_output)[xr] ^= ((uint64_t*)(&old_block))[xr];
         }  
 
         /* If at first slice (sl=0), we will do 1 cycle less of threaded loop */
@@ -1024,13 +1024,13 @@ label_further_passes:
          * block that was there before G() overwrote it. XORing it with its old
          * contents is the NEW NEW block that will ultimately reside there.
          */
-        memcpy(old_block, G_output, sizeof(block_t));
+        memcpy(&old_block, G_output, sizeof(block_t));
         
         Argon2_G((u8*)G_input_one, (u8*)G_input_two, (u8*)G_output); 
         
         /* XOR the result of G() with the old block. This is now the new block*/
         for(size_t xr = 0; xr < 128; ++xr){
-            ((u64*)G_output)[xr] ^= ((u64*)old_block)[xr];
+            ((u64*)G_output)[xr] ^= ((u64*)(&old_block))[xr];
         }  
         
         ++computed_blocks;           
@@ -1374,7 +1374,7 @@ label_start_pass:
     printf("\n\n");     
     */
     Argon2_H_dash(final_block_C, output_tag, parms->T, 1024);
- 
+
     /* Cleanup. */    
     for(uint32_t i = 0; i < parms->p; ++i){
         free(thread_inputs[i]); 
@@ -1551,29 +1551,26 @@ void Get_Mont_Form(bigint* src, bigint* target, bigint* M){
     bigint beta;
     bigint two_L;
     bigint aux;
-    
-    bigint_create(&two,       M->size_bits, 2 );                    
+
+    bigint_create(&two,       M->size_bits, 2 );  
     bigint_create(&sixtyfour, M->size_bits, 64);
     bigint_create(&beta,      M->size_bits, 0 );
     bigint_create(&aux,       M->size_bits, 0 );
     bigint_create(&two_L,     M->size_bits, 2 * MONT_L );
-      
     bigint_nullify(target);
-      
+
     /* beta = 2^64 for 64-bit Montgomery limbs. */
     bigint_pow(&two, &sixtyfour, &beta);
-    
+
     /* aux = beta^(2*L) mod M */
     bigint_mod_pow(&beta, &two_L, M, &aux);
 
     /* Now generate the source's Montgomery form. */
     Montgomery_MUL(&aux, src, M, target);
-    
-    /*
+
     target->used_bits = get_used_bits(target->bits, (uint32_t)(M->size_bits/8));
     target->free_bits = target->size_bits - target->used_bits;
-    */   
-
+    
     printf("[OK] Cryptolib: Montgomery Form computed successfully.\n");
 
     /* Cleanup. */
@@ -1635,7 +1632,7 @@ void MONT_POW_modM(bigint* B, bigint* P, bigint* M, bigint* R){
     
     Montgomery_MUL(&one, R, M, &R_1);
     bigint_div2(&R_1, M, &div_res, R);    
-    
+
     free(X.bits); 
     free(Y.bits); 
     free(R_1.bits);

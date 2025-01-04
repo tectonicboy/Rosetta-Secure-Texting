@@ -1075,9 +1075,6 @@ void bigint_div2( const bigint* const A
         bigint_create(&(big_temps[i]), A->size_bits, 0);
     }
 
-    bigint_equate2(&(big_temps[0]), A);
-    bigint_equate2(&(big_temps[2]), B);
-
     /* Quickly check if A or B are zero. */
     if(bigint_compare2(B, &(big_temps[0])) == 2){
         printf("\n\n[ERR] BIGINT - Division by ZERO.\n\nOPERAND 1:\n");
@@ -1098,7 +1095,10 @@ void bigint_div2( const bigint* const A
         bigint_equate2(Rem, A);
         return;
     }
-    
+
+    bigint_equate2(&(big_temps[0]), A);
+    bigint_equate2(&(big_temps[2]), B);
+
     n = big_temps[0].used_bits;
 
     while(n % 16){
@@ -1339,12 +1339,14 @@ void bigint_mod_pow( const bigint* const N
     u32  P_used_bytes = P->used_bits;
     u32  arr1_curr_ind = 0;
 
+    arr1 = (u32*)calloc(1, P->used_bits * (sizeof(u32)));
+
     while(P_used_bytes % 8) { 
         ++P_used_bytes; 
     }
 
     P_used_bytes /= 8;
-    
+
     for(u32 i = 0; i < P_used_bytes; ++i){
         for(u32 j = 0; j < 8; ++j){
             if( ( (*(P->bits + i)) >> j) & 1){
@@ -1366,8 +1368,7 @@ void bigint_mod_pow( const bigint* const N
 
     arr2     = (bigint*) calloc(1, c1 * sizeof(bigint));
     arr_ptrs = (bigint**)calloc(1, c1 * sizeof(bigint*));
-    arr1     = (u32*)    calloc(1, P->used_bits * (sizeof(u32)));
-   
+
     for(u32 i = 0; i < c1; ++i){
         bigint_create(&(arr2[i]), M->size_bits, 1); 
         arr_ptrs[i] = &arr2[i];
@@ -1416,28 +1417,29 @@ void bigint_mod_pow( const bigint* const N
 
     /* The long loop */
     for(u32 i = 0; i < P->used_bits; ++i){   
+
         /*
         printf("[BigInt] - Long loop in MOD_POW moved  i = %u to %u"
                " (power's used bits).\n"
                , i, P->used_bits
                ); 
-        */     
+        */
+
         if( i == arr1[arr1_curr_ind] ){
             bigint_equate2( arr_ptrs[arr1_curr_ind], &aux1);
             ++arr1_curr_ind;
         }
-        
+
         bigint_pow(&aux1, &two, &aux2);
         bigint_div2(&aux2, M, &div_res, &aux1);  
     }  
-     
+
     if(c1 == 1){
         bigint_equate2(R, arr_ptrs[0]);
         goto label_ret;
     }
 
     bigint_mod_mul(arr_ptrs, M, c1, R);
-    
 label_ret:
 
     for(u32 i = 0; i < c1; ++i){
@@ -1447,14 +1449,13 @@ label_ret:
     free(arr2);
     free(arr_ptrs);  
     free(arr1); 
-    
     free(aux1.bits);
     free(aux2.bits);
     free(div_res.bits);
     free(zero.bits);
     free(one.bits);
     free(two.bits);
-    
+
     return;
 }
 

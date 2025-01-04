@@ -69,7 +69,16 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
 
         goto label_cleanup;
     }
-        
+    
+    printf("[DEBUG] coreutil: Read %lu bytes from privkeyfile:\n", bytes_read);
+    for(u64 i = 0; i < bytes_read; ++i){
+        printf("%u ", privkey_buf[i]);
+        if(i % 16 == 0 && i > 15){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     privkey_bigint.bits = privkey_buf;
     privkey_bigint.size_bits = resbits;
     privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
@@ -79,7 +88,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     bigint_create(R, M->size_bits, 0);
     
     MONT_POW_modM(Gm, &privkey_bigint, M, R); 
-    
+
 label_cleanup:
 
     if(privkey_dat != NULL){
@@ -89,7 +98,7 @@ label_cleanup:
     free(privkey_buf);
     free(M);
     free(Gm);
-    
+
     return R;    
 }
 

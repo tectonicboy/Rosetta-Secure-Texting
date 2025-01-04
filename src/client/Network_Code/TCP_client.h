@@ -184,6 +184,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 u8 self_init(u8* password, int password_len){
 
     const u32 chacha_key_len = 32;
+    u32 pw_bytes_for_zeroing = PASSWORD_BUF_SIZ - password_len;
 
     u8 status = 1;
     u8 saved_nonce[LONG_NONCE_LEN];
@@ -198,7 +199,11 @@ u8 self_init(u8* password, int password_len){
 
     FILE* savefile = NULL;
 
+    bigint* calculated_A = NULL;
+
     struct Argon2_parms prms;
+
+    memset(&prms, 0, sizeof(struct Argon2_parms));
 
     /* Initialize data structures for maintaining global state & bookkeeping. */
     memset(roommates,           0, roommates_arr_siz * sizeof(struct roommate));
@@ -207,7 +212,7 @@ u8 self_init(u8* password, int password_len){
 
     /* Load user's public key. Decrypt and load user's private key. */
 
-    savefile = fopen("../bin/saved.dat", "r"); 
+    savefile = fopen("../bin/user_save.dat", "r"); 
     
     if(savefile == NULL){
         printf("[ERR] Client: couldn't open the user's save file. Aborting.\n");
@@ -257,12 +262,8 @@ u8 self_init(u8* password, int password_len){
              
     /* Zero-extend the password to 16 bytes including a null terminator.   */
     /* Len does not include the null terminator already placed by the GUI. */
-    if(password_len != (PASSWORD_BUF_SIZ - 1)){
-        memset(
-            password + (password_len + 1)
-            ,0
-            ,(PASSWORD_BUF_SIZ - (password_len + 1))
-        );
+    if(pw_bytes_for_zeroing > 0){
+        memset(password + password_len, 0, pw_bytes_for_zeroing);
     }
 
     prms.P = password;
@@ -284,7 +285,36 @@ u8 self_init(u8* password, int password_len){
     prms.len_S = (ARGON_STRING_LEN + 64); /* Length of the Salt parameter     */
     prms.len_K = 0;                       /* unused here, so set length to 0  */
     prms.len_X = 0;                       /* unused here, so set length to 0  */
-            
+
+    printf("[DEBUG] Client: Before calling argon2 in LOGIN, parms:\n");
+    printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
+
+    for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
+        printf("%03u ", *(((u8*)(&prms)) + i) );
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("Password buffer of len %lu:\n", prms.len_P);
+    for(u32 i = 0; i < prms.len_P; ++i){
+        printf("%03u ", prms.P[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("Salt buffer of len %lu:\n", prms.len_S);
+    for(u32 i = 0; i < prms.len_S; ++i){
+        printf("%03u ", prms.S[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     Argon2_MAIN(&prms, argon2_output_tag);
 
     /* Let V be the leftmost 32 (chacha_key_len) bytes of Argon2's output hash.
@@ -292,7 +322,7 @@ u8 self_init(u8* password, int password_len){
      * (from user's save file) to decrypt the user's saved private key.
      */
     memcpy(V, argon2_output_tag, chacha_key_len);
-
+    
     /* Decrypt the saved private key. */
     CHACHA20( saved_privkey                       /* text - private key  */
              ,PRIVKEY_LEN                         /* text_len in bytes   */
@@ -314,6 +344,35 @@ u8 self_init(u8* password, int password_len){
     own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN); 
     own_pubkey.free_bits = MAX_BIGINT_SIZ - own_pubkey.used_bits;   
 
+    printf("[OK] Client: Checking decrypted private key...\n");
+
+    /* Compute a public key with that private key and M, Q, G. If it's the same
+     * as the public key stored on the filesystem, the private key was 
+     * decrypted successfully, with the original correct password.
+     */
+
+    save_BIGINT_to_DAT("temp_priv.dat", &own_privkey);
+    calculated_A = gen_pub_key(PRIVKEY_LEN, "temp_priv.dat", MAX_BIGINT_SIZ);
+
+    printf("[DEBUG] Client: Calculated_A:\n");
+    bigint_print_info(calculated_A);
+    bigint_print_bits(calculated_A);
+
+    printf("\n[DEBUG] Client: Saved A:\n");
+    bigint_print_info(&own_pubkey);
+    bigint_print_bits(&own_pubkey);
+
+    /* Now compared the calculated and the saved public key. */
+    if(bigint_compare2(calculated_A, &own_pubkey) != 2){
+        printf("[ERR] Client: Password did NOT lead to correct privkey.\n\n");
+        status = 0;
+        system("rm temp_priv.dat");
+        goto label_cleanup;
+    }
+    else{
+        printf("[OK]  Client: Password unlocked the private key correctly!\n");
+        system("rm temp_priv.dat");
+    }
     /* Load other BigInts needed for the cryptography to work and be secure. */
     
     /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */                        
@@ -362,12 +421,9 @@ u8 self_init(u8* password, int password_len){
         goto label_cleanup;
     }
 
-
     /* Initialize the shared secret with the server. */   
     bigint_create(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);  
     bigint_create(&server_shared_secret, MAX_BIGINT_SIZ, 0);    
-
-    printf("[DEBUG] Client: Start Get_Mont_Form() for server pubkey.\n\n");
 
     Get_Mont_Form(server_pubkey, &server_pubkey_mont, M);
     
@@ -428,6 +484,11 @@ u8 self_init(u8* password, int password_len){
 label_cleanup:
 
     fclose(savefile);
+
+    if(calculated_A != NULL){
+        free(calculated_A->bits);
+        free(calculated_A);
+    }
 
     return status;
 }
@@ -505,11 +566,19 @@ u8 construct_msg_00(void){
 
     memcpy(temp_handshake_buf, &temp_privkey, sizeof(bigint));
 
+    printf("[DEBUG] Client: a_s was generated in construct_msg_00:\n\n");
+    bigint_print_info(&temp_privkey);
+    bigint_print_bits(&temp_privkey);
+
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
     save_BIGINT_to_DAT("temp_privkey_DAT.dat", &temp_privkey);
   
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_BIGINT_SIZ);
     
+    printf("[DEBUG] Client: A_s was generated in construct_msg_00:\n\n");
+    bigint_print_info(A_s);
+    bigint_print_bits(A_s);
+
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
    
@@ -521,25 +590,16 @@ u8 construct_msg_00(void){
     
     memcpy(msg_buf + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-    */
+
     /* Send the packet. */
-    if(send(own_socket_fd, msg_buf, msg_len, 0) == -1){
+    if(send(own_socket_fd, msg_buf, msg_len, 0) != msg_len){
         printf("[ERR] Client: Couldn't send initial login transmission.\n");
         printf("[ERR]         Aborting Login...\n\n");
         status = 0;
         goto label_cleanup;
     }
     
-    printf("[OK] Client: MSG_00 sent. Server should get %lu bytes.\n", msg_len);
+    printf("[OK]  Client: MSG_00 sent. Server should get %lu bytes\n", msg_len);
 
 label_cleanup:
 
@@ -622,7 +682,7 @@ u8 process_msg_00(u8* msg_buf){
      *
      *       KAB_s = X_s[0  .. 31 ]
      *       KBA_s = X_s[32 .. 63 ]
-     *       Y_s   = X_s[64 .. 95 ]
+     *       Y_s   = X_s[64 .. 95 ]construct_msg_00
      *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
      */
     
@@ -2598,6 +2658,7 @@ label_cleanup:
 u8 reg(u8* password, int password_len){
 
     const u32 chacha_key_len = 32;
+    u32 pw_bytes_for_zeroing = PASSWORD_BUF_SIZ - password_len;
 
     const u64 argon2_len_Salt = ARGON_STRING_LEN + 64;
     u64 save_offset = 0;
@@ -2628,6 +2689,8 @@ u8 reg(u8* password, int password_len){
 
     temp_privkey.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
 
+    memset(&prms, 0, sizeof(struct Argon2_parms));
+
     printf("[OK]  TCP_Client obtained user's register password from GUI!\n");
     printf("      password_len = %d\n", password_len);
     printf("      password: %s\n\n", password);
@@ -2644,10 +2707,10 @@ u8 reg(u8* password, int password_len){
     temp_privkey.used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
     temp_privkey.free_bits = MAX_BIGINT_SIZ - temp_privkey.used_bits;
 
-    save_BIGINT_to_DAT("temp_privkey_DAT\0", &temp_privkey);
+    save_BIGINT_to_DAT("temp_privkey.dat", &temp_privkey);
 
     /* A = G^a mod M */
-    A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
+    A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
 
     /* Registration step 2: Use the password as a secret key in Argon2 hashing
      *                      algorithm, whose output hash we use as a 
@@ -2666,12 +2729,8 @@ u8 reg(u8* password, int password_len){
              
     /* Zero-extend the password to 16 bytes including a null terminator.   */
     /* Len does not include the null terminator already placed by the GUI. */
-    if(password_len != (PASSWORD_BUF_SIZ - 1)){
-        memset(
-            password + (password_len + 1)
-            ,0
-            ,(PASSWORD_BUF_SIZ - (password_len + 1))
-        );
+    if(pw_bytes_for_zeroing > 0){
+        memset(password + password_len, 0, pw_bytes_for_zeroing);
     }
 
     prms.P = password;
@@ -2702,6 +2761,35 @@ u8 reg(u8* password, int password_len){
     prms.len_K = 0;         /* unused here, so set length to 0               */
     prms.len_X = 0;         /* unused here, so set length to 0               */
             
+    printf("[DEBUG] Client: Before calling argon2 in REGISTER, parms:\n");
+    printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
+
+    for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
+        printf("%03u ", *(((u8*)(&prms)) + i) );
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("Password buffer of len %lu:\n", prms.len_P);
+    for(u32 i = 0; i < prms.len_P; ++i){
+        printf("%03u ", prms.P[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("Salt buffer of len %lu:\n", prms.len_S);
+    for(u32 i = 0; i < prms.len_S; ++i){
+        printf("%03u ", prms.S[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     Argon2_MAIN(&prms, argon2_output_tag);
 
     /* Registration step 3: Let V be the leftmost 32 bytes of Argon2's hash.
@@ -2769,7 +2857,7 @@ label_cleanup:
     free(A_longterm);
     free(temp_privkey.bits);
 
-    system("rm temp_privkey_DAT\0");
+    system("rm temp_privkey.dat");
 
     if(ranfile){ 
         fclose(ranfile);   
@@ -2785,7 +2873,7 @@ label_cleanup:
 u8 login(u8* password, int password_len){
 
     u8 status;
-    u8 msg_buf[MAX_MSG_LEN];
+    u8 msg_buf[MAX_TXT_LEN];
 
     ssize_t bytes_read;
 
@@ -2857,11 +2945,11 @@ u8 login(u8* password, int password_len){
      * Confusing, maybe restructure the design here when I find time.
      */
 
-    memset(msg_buf, 0, MAX_MSG_LEN);
+    memset(msg_buf, 0, MAX_TXT_LEN);
 
     printf("[DEBUG] Before recv for reply to msg_00\n");
 
-    bytes_read = recv(own_socket_fd, msg_buf, MAX_MSG_LEN, 0);
+    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
 
     printf("[DEBUG] After recv for reply to msg_00\n");
 
@@ -2879,21 +2967,38 @@ u8 login(u8* password, int password_len){
     }
     */
 
-    if( *((u64*)msg_buf) != PACKET_ID_00 ){
+    if(     (*((u64*)msg_buf) != PACKET_ID_02)
+        &&  (*((u64*)msg_buf) != PACKET_ID_00) )
+    {
         printf("[ERR] Client: Unexpected reply by the server to msg_00\n\n");
         return 0;
     }
 
-    /* Has a connect() call in it too. */
-    process_msg_00(msg_buf);
+    if((*((u64*)msg_buf) == PACKET_ID_00)){
 
-    printf("[OK]  Client: Sent msg_01 to server.\n\n");
+        if ((status = process_msg_00(msg_buf)) != 1){
+            printf("[ERR] Client: process_msg_00 failed. Abort login.\n\n");
+            return 0;
+        }
 
-    memset(msg_buf, 0, MAX_MSG_LEN);
+        printf("[OK]  Client: Sent msg_01 to server.\n\n");
+    }
+    else{
+        printf("[OK]  Client: Server told us to try login later.\n\n");
+
+        if ((status = process_msg_02(msg_buf)) != 1){
+            printf("[ERR] Client: process_msg_02 failed. Abort login.\n\n");
+            return 0;
+        }
+
+        status = 3;
+    }
+
+    memset(msg_buf, 0, MAX_TXT_LEN);
 
     printf("[DEBUG] Before recv for reply to msg_01\n");
 
-    bytes_read = recv(own_socket_fd, msg_buf, MAX_MSG_LEN, 0);
+    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
 
     printf("[DEBUG] After recv for reply to msg_01\n");
 

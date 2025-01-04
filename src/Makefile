@@ -78,6 +78,18 @@ client: client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp
 	`wx-config --cxxflags --libs` -o ../bin/tcp_client $(CFLAGS) \
 	-lm -pthread -O2 -march=native
 
+client_asan: client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp
+	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp      \
+	`wx-config --cxxflags --libs` -o ../bin/tcp_client_asan $(CFLAGS) \
+	-lm -pthread -O2 -march=native 								      \
+	-fsanitize=address -static-libasan -g -fstack-usage
+
+server_asan: server/TCP_server.c
+	gcc server/TCP_server.c -o ../bin/tcp_server_asan -march=native -lm \
+	-pthread -O2 $(CFLAGS)										        \
+	-fsanitize=address -static-libasan -g -fstack-usage
+
 clean:
-	rm ../bin/Client ../bin/TCP_server
+	rm ../bin/tcp_client ../bin/tcp_server ../bin/tcp_server_asan \
+	../bin/tcp_client_asan ../bin/*.su ../bin/*.out
  

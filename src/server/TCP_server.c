@@ -565,14 +565,18 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
 
     memcpy(A_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
-    
+
     A_s->size_bits = MAX_BIGINT_SIZ;
     
     A_s->used_bits = get_used_bits(msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
                      
     A_s->free_bits = A_s->size_bits - A_s->used_bits;
     
-    
+    printf("[DEBUG] Server: Copied over client's short-term pubkey's bits:\n");
+    printf("                (Before Get_Mong_Form) Its info and ALL bits:\n\n");
+    bigint_print_info(A_s);
+    bigint_print_all_bits(A_s);
+
     /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
     
     /* A "check non zero" function in the BigInt library would also be useful */
@@ -2341,7 +2345,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         break;
     }
     /* A client wants to send a text message to everyone else in the chatroom */
-    case(PACKET_ID_30):{
+        case(PACKET_ID_30):{
         printf("[OK]  Server: Found a matching packet_ID = 30\n\n");
         strncpy(msg_type_str, "30\0", 3);
         
