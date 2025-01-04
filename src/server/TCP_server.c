@@ -485,7 +485,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     bigint  Am; 
     bigint* A_s;
     bigint  b_s;
-    bigint* B_s;
+    bigint* B_s = NULL;
     bigint  X_s;
             
     u32  tempbuf_byte_offset = 0;
@@ -724,8 +724,12 @@ label_cleanup:
     free(zero.bits);
     free(Am.bits);
     free(reply_buf);
-    free(X_s->bits);
-    free(B_s);
+    free(X_s.bits);
+
+    if(B_s != NULL){
+        free(B_s);
+    }
+
     system("rm temp_privkey.dat");
   
     return;
