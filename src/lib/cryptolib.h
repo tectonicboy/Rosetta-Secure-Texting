@@ -739,9 +739,9 @@ void argon2_initJ1J2_blockpool_for2i(u8* Z, block_t* blocks, u64 num_blocks){
                
     /* Remember, Argon2 G() takes two 1024-byte blocks and outputs one block. */
     u8 G_inner_input_2[1024]; /* 2nd arg. of inner G() call.  */
-    u8 G_inner_output[1024];  /* outout   of inner G() call,  */
+
+    u8 G_inner_output[1024];  /* outout of inner G() call,    */
                               /* which is input to outer G(). */
-    u8 G_outer_output[1024];  /* Output of outer call to G(). */
 
     memset(zero1024, 0, 1024);
     memset(zero968,  0, 968 ); 
@@ -840,19 +840,6 @@ uint64_t Argon2_getLZ(uint64_t r, uint64_t sl,  uint64_t cur_lane,
  */
 void* argon2_transform_segment(void* thread_input){
    
-    /* The first thing in the thread's input buffer
-     * is a pointer to an array of pointers, each pointing to the start of 
-     * the respective lane in the working memory matrix B[][].
-     *
-     * First ever actual necessary use of a triple pointer. Wow.
-     */
-    block_t** B = *((block_t***)(thread_input));
-    block_t*  G_input_one;
-    block_t*  G_input_two;
-    block_t*  G_output;
-    block_t   old_block[sizeof(block_t)];
-    block_t*  J1J2blockpool = (block_t*)calloc(1, num_blocks * (1024));   
-
     u64 J_1 = 0;
     u64 J_2 = 0;
     u64 z_ix;
@@ -868,6 +855,19 @@ void* argon2_transform_segment(void* thread_input){
     u64 p        = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_p  ));
     u64 md       = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_md ));
     u64 num_blocks = ceil((double)q / (double)(128 * 4));
+
+    /* The first thing in the thread's input buffer
+     * is a pointer to an array of pointers, each pointing to the start of 
+     * the respective lane in the working memory matrix B[][].
+     *
+     * First ever actual necessary use of a triple pointer. Wow.
+     */
+    block_t** B = *((block_t***)(thread_input));
+    block_t*  G_input_one;
+    block_t*  G_input_two;
+    block_t*  G_output;
+    block_t   old_block[sizeof(block_t)];
+    block_t*  J1J2blockpool = (block_t*)calloc(1, num_blocks * (1024));   
     
     u8 Z_buf[6 * sizeof(uint64_t)];
     
@@ -1690,9 +1690,6 @@ void Signature_GENERATE(bigint* M, bigint* Q, bigint* Gmont
     u8* second_btb_inbuf;
     u8* R_with_prehash;
     u8 third_btb_outbuf[64];
-
-    /* e has the same bitwidth as Q, the prime that evenly divides (M-1). */
-    u8 e_buf[40]; 
 
     bigint_create(&second_btb_outnum, M->size_bits, 0);
     bigint_create(&Q_minus_one,       M->size_bits, 0);

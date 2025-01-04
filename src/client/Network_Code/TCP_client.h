@@ -7,7 +7,7 @@
 
 #include "../../lib/coreutil.h"
 
-#define BITMASK_BIT_AT(X) (1ULL << (63ULL - ((X))))
+#define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
 #define SERVER_PORT      54746
 #define PRIVKEY_LEN      40   
@@ -2000,7 +2000,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     u8* our_K_pointer;
     u8* our_msg_pointer;
     u8* decrypted_msg = (u8*)calloc(1, text_len);
-    u8* decrypted_key = (u8*)calloc(1, ONE_TIME_KEY_LEN);
+    u8  decrypted_key[ONE_TIME_KEY_LEN];
     u8  status = 1;
 
     bigint *recv_e = NULL;
@@ -2015,7 +2015,8 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
     guest_nonce_bigint.bits = 
     (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
-    memset(temp_user_id, 0, SMALL_FIELD_LEN);
+    memset(decrypted_key, 0, ONE_TIME_KEY_LEN);
+    memset(temp_user_id,  0, SMALL_FIELD_LEN);
 
     if(text_len < 1 || text_len > MAX_TXT_LEN) {
 
@@ -2210,7 +2211,6 @@ label_cleanup:
     free(one.bits);
     free(aux1.bits);
     free(decrypted_msg);
-    free(decrypted_key);
 
     return status;
 }
@@ -2639,12 +2639,12 @@ u8 reg(u8* password, int password_len){
 
     /* Interface generating a pub_key still needs priv_key in a file. TODO.  */
     /* Putting it in a file needs it in the form of bigint object. Make one. */
-    memcpy(temp_privkey->bits, privkey_buf, PRIVKEY_LEN);
-    temp_privkey->size_bits = MAX_BIGINT_SIZ;
-    temp_privkey->used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
-    temp_privkey->free_bits = MAX_BIGINT_SIZ - temp_privkey->used_bits;
+    memcpy(temp_privkey.bits, privkey_buf, PRIVKEY_LEN);
+    temp_privkey.size_bits = MAX_BIGINT_SIZ;
+    temp_privkey.used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
+    temp_privkey.free_bits = MAX_BIGINT_SIZ - temp_privkey.used_bits;
 
-    save_BIGINT_to_DAT("temp_privkey_DAT\0", temp_privkey);
+    save_BIGINT_to_DAT("temp_privkey_DAT\0", &temp_privkey);
 
     /* A = G^a mod M */
     A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT\0", MAX_BIGINT_SIZ);
@@ -2720,7 +2720,7 @@ u8 reg(u8* password, int password_len){
         goto label_cleanup;
     }   
 
-    CHACHA20( temp_privkey->bits                  /* text - private key  */
+    CHACHA20( temp_privkey.bits                  /* text - private key  */
              ,PRIVKEY_LEN                         /* text_len in bytes   */
              ,(u32*)chacha_nonce_buf              /* Nonce ptr           */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32)) /* nonceLen in uint32s */

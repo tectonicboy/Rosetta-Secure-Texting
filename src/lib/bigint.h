@@ -1071,6 +1071,13 @@ void bigint_div2( const bigint* const A
     
     bigint big_temps[num_temps];
     
+    for(i = 0; i < num_temps; ++i){
+        bigint_create(&(big_temps[i]), A->size_bits, 0);
+    }
+
+    bigint_equate2(&(big_temps[0]), A);
+    bigint_equate2(&(big_temps[2]), B);
+
     /* Quickly check if A or B are zero. */
     if(bigint_compare2(B, &(big_temps[0])) == 2){
         printf("\n\n[ERR] BIGINT - Division by ZERO.\n\nOPERAND 1:\n");
@@ -1092,13 +1099,6 @@ void bigint_div2( const bigint* const A
         return;
     }
     
-    for(i = 0; i < num_temps; ++i){
-        bigint_create(&(big_temps[i]), A->size_bits, 0);
-    }
-
-    bigint_equate2(&(big_temps[0]), A);
-    bigint_equate2(&(big_temps[2]), B);
-
     n = big_temps[0].used_bits;
 
     while(n % 16){
@@ -1338,19 +1338,6 @@ void bigint_mod_pow( const bigint* const N
     u32  c1 = 0;
     u32  P_used_bytes = P->used_bits;
     u32  arr1_curr_ind = 0;
-        
-    bigint_nullify(R);
-
-    bigint_create(&aux1, M->size_bits, 1);
-    bigint_create(&aux2, M->size_bits, 1);
-    bigint_create(&two,  M->size_bits, 2);
-    bigint_create(&one,  M->size_bits, 1);
-    bigint_create(&zero, M->size_bits, 0);
-    bigint_create(&div_res, M->size_bits, 1);
-
-    arr2     = (bigint*) calloc(1, c1 * sizeof(bigint));
-    arr_ptrs = (bigint**)calloc(1, c1 * sizeof(bigint*));
-    arr1     = (u32*)    calloc(1, P->used_bits * (sizeof(u32)));
 
     while(P_used_bytes % 8) { 
         ++P_used_bytes; 
@@ -1367,6 +1354,19 @@ void bigint_mod_pow( const bigint* const N
             }     
         }
     }
+
+    bigint_nullify(R);
+
+    bigint_create(&aux1,    M->size_bits, 1);
+    bigint_create(&aux2,    M->size_bits, 1);
+    bigint_create(&two,     M->size_bits, 2);
+    bigint_create(&one,     M->size_bits, 1);
+    bigint_create(&zero,    M->size_bits, 0);
+    bigint_create(&div_res, M->size_bits, 1);
+
+    arr2     = (bigint*) calloc(1, c1 * sizeof(bigint));
+    arr_ptrs = (bigint**)calloc(1, c1 * sizeof(bigint*));
+    arr1     = (u32*)    calloc(1, P->used_bits * (sizeof(u32)));
    
     for(u32 i = 0; i < c1; ++i){
         bigint_create(&(arr2[i]), M->size_bits, 1); 

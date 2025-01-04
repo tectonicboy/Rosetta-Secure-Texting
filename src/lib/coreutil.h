@@ -70,15 +70,15 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
         goto label_cleanup;
     }
         
-    privkey_bigint->bits = privkey_buf;
-    privkey_bigint->size_bits = resbits;
-    privkey_bigint->used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
-    privkey_bigint->free_bits = 
-            privkey_bigint->size_bits - privkey_bigint->used_bits;
+    privkey_bigint.bits = privkey_buf;
+    privkey_bigint.size_bits = resbits;
+    privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
+    privkey_bigint.free_bits = 
+            privkey_bigint.size_bits - privkey_bigint.used_bits;
                 
     bigint_create(R, M->size_bits, 0);
     
-    MONT_POW_modM(Gm, privkey_bigint, M, R); 
+    MONT_POW_modM(Gm, &privkey_bigint, M, R); 
     
 label_cleanup:
 
