@@ -153,7 +153,17 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
            ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
            ,PRIVKEY_LEN
     );
-       
+
+    printf("[DEBUG] Client: s and e received by server (before validate):\n\n");
+
+    printf("[DEBUG] Client: received s:\n");
+    bigint_print_info(recv_s);
+    bigint_print_bits(recv_s);
+
+    printf("[DEBUG] Client: received e:\n");
+    bigint_print_info(recv_e);
+    bigint_print_bits(recv_e);
+
     /* Verify the sender's cryptographic signature. */
     status = Signature_VALIDATE(
         Gm, &server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
@@ -248,6 +258,48 @@ u8 self_init(u8* password, int password_len){
         status = 0;
         goto label_cleanup;
     }
+
+    printf("[DEBUG] Client: LOGIN stuff from savefile after reading it:\n\n");
+
+    printf("[DEBUG] Client: Nonce 16 bytes:\n");
+
+    for(u32 i = 0; i < LONG_NONCE_LEN; ++i){
+        printf("%03u ", saved_nonce[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("[DEBUG] Client: Encrypted privkey 40 bytes:\n");
+
+    for(u32 i = 0; i < PRIVKEY_LEN; ++i){
+        printf("%03u ", saved_privkey[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("[DEBUG] Client: Plaintext pubkey 384 bytes:\n");
+
+    for(u32 i = 0; i < PUBKEY_LEN; ++i){
+        printf("%03u ", saved_pubkey[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("[DEBUG] Client: Argon Salt String 8 bytes:\n");
+
+        for(u32 i = 0; i < ARGON_STRING_LEN; ++i){
+        printf("%03u ", saved_string[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
 
     /* Now decrypt the saved private key. Argon2, then ChaCha20. */
 
@@ -604,7 +656,6 @@ u8 construct_msg_00(void){
 label_cleanup:
 
     system("rm temp_privkey_DAT.dat");
-    free(temp_privkey.bits);
     free(A_s);
 
     return status;
@@ -707,10 +758,14 @@ u8 process_msg_00(u8* msg_buf){
         status = 0;
         goto label_cleanup;
     }     
-    printf("?? 1 \n");
+
     /* X_s = B_s^a_s mod M */
     MONT_POW_modM(&B_sM, a_s, M, &X_s);
-     printf("?? 2 \n");
+
+    printf("[DEBUG] Client: X_s computed on Client side:\n");
+    bigint_print_info(&X_s);
+    bigint_print_bits(&X_s);
+
     /* Construct a special buffer containing Y_s concatenated with the received
      * signature, because the signature validating interface needs it that way
      * because that's how most use cases of it have their buffers structured -
@@ -721,22 +776,32 @@ u8 process_msg_00(u8* msg_buf){
            ,X_s.bits + (2 * SESSION_KEY_LEN)
            ,INIT_AUTH_LEN
           );
-     printf("?? 3 \n");
+
     memcpy( auth_buf + INIT_AUTH_LEN
            ,msg_buf  + (SMALL_FIELD_LEN + PUBKEY_LEN)
            ,SIGNATURE_LEN
           );
     
-     printf("?? 4 \n");
+    printf("[DEBUG] Client: Y_s on which we VERIFY server's signature:\n");
+    printf("[DEBUG] Client: Y_s of length 32 bytes:\n");
+
+    for(u32 i = 0; i < INIT_AUTH_LEN; ++i){
+        printf("%03u ", auth_buf[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");  
+
     /* Validate the signature of the unused part of the shared secret, Y_s. */
     auth_status = authenticate_server(auth_buf, INIT_AUTH_LEN, INIT_AUTH_LEN);
-     printf("?? 5\n");
+
     if(auth_status != 1){
         printf("[ERR] Client: Invalid signature in process_msg_00. Drop.\n\n");
         status = 0;
         goto label_cleanup;           
     }
-     printf("?? 6 \n");
+
     /* Transport the 2 symmetric keys, server's one-time public key and the 
      * 2 cryptographic artifacts (N, Y) to the designated locked memory region.
      */
@@ -746,7 +811,7 @@ u8 process_msg_00(u8* msg_buf){
     
     /* Key B_s */
     memcpy(temp_handshake_buf + tempbuf_write_offset, &B_s, sizeof(bigint));
-     printf("?? 7 \n");
+
     tempbuf_write_offset += sizeof(bigint);
 
     handshake_memory_region_state = 2;
@@ -847,41 +912,121 @@ u8 process_msg_00(u8* msg_buf){
      */    
        
     /* Step 3 of HMAC construction: HMAC key (KAB) 0-extended to B bytes. */
-    memcpy( K0 + (B - SESSION_KEY_LEN)
+    memcpy( K0
            ,temp_handshake_buf + (3 * sizeof(bigint))
            ,SESSION_KEY_LEN
           ); 
-    
+
+    printf("[DEBUG] Client: HMAC Step 3 produced K0: 64 bytes:\n");
+
+    for(u32 i = 0; i < B; ++i){
+        printf("%03u ", K0[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Step 4 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_ipad[i] = (K0[i] ^ ipad[i]);
     }       
-       
+
+    printf("[DEBUG] Client: HMAC Step 4 produced K0_XOR_ipad: 64 bytes:\n");
+
+    for(u32 i = 0; i < B; ++i){
+        printf("%03u ", K0_XOR_ipad[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* step 5 of HMAC construction */
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
     memcpy(K0_XOR_ipad_TEXT + B, reply_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
+    printf("[DEBUG] Client: HMAC Step 5 produced K0_XOR_ipad_TEXT: 448 bytes:\n");
+
+    for(u32 i = 0; i < B + PUBKEY_LEN; ++i){
+        printf("%03u ", K0_XOR_ipad_TEXT[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* step 6 of HMAC construction */
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
     BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);       
+
+    printf("[DEBUG] Client: HMAC Step 6 produced BLAKE2B_output: 128 bytes:\n");
+
+    for(u32 i = 0; i < L; ++i){
+        printf("%03u ", BLAKE2B_output[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
 
     /* Step 7 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_opad[i] = (K0[i] ^ opad[i]);
     }   
     
+    printf("[DEBUG] Client: HMAC Step 7 produced K0_XOR_opad: 64 bytes:\n");
+
+    for(u32 i = 0; i < B; ++i){
+        printf("%03u ", K0_XOR_opad[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Step 8 of HMAC construction */
     /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
     /* B + L bytes total length */
     memcpy(last_BLAKE2B_input + 0, K0_XOR_opad,    B);
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);    
     
+   printf("[DEBUG] Client: HMAC Step 8 produced last_BLAKE2B_input: 192 bytes:\n");
+
+    for(u32 i = 0; i < B + L; ++i){
+        printf("%03u ", last_BLAKE2B_input[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Step 9 of HMAC construction */ 
     /* Call BLAKE2B on the combined buffer in step 8. */
     BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
-    
+
+   printf("[DEBUG] Client: HMAC Step 9 produced BLAKE2B_output: 128 bytes:\n");
+
+    for(u32 i = 0; i < L; ++i){
+        printf("%03u ", BLAKE2B_output[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
     memcpy(reply_buf + HMAC_reply_offset, BLAKE2B_output, HMAC_TRUNC_BYTES);
+
+    printf("[DEBUG] Client: Placed these 8 bytes of HMAC in packet:\n\n");
+
+    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
+        printf("%03u ", BLAKE2B_output[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");  
 
 /*  Now send the reply back to the Rosetta server:
 
@@ -2741,8 +2886,12 @@ u8 reg(u8* password, int password_len){
 
     ranfile = fopen("/dev/urandom", "r");
 
-    if( (!ranfile) || (fread(argon2_salt_string, 1, 8, ranfile) != 8) ){
-        printf("[ERR] Client: Reg failed to read urandom. Alert GUI.\n\n");
+    if(   (!ranfile) 
+       || (fread(argon2_salt_string, 1, ARGON_STRING_LEN, ranfile) 
+          != ARGON_STRING_LEN) 
+      )
+    {
+        printf("[ERR] Client: Reg failed to read urandom for salt string.\n\n");
         status = 0;
         goto label_cleanup;
     }
@@ -2751,8 +2900,8 @@ u8 reg(u8* password, int password_len){
     BLAKE2B_INIT(A_longterm->bits, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
 
     /* Now construct the complete Salt parameter with the two components. */
-    memcpy(Salt,     argon2_salt_string,  8);
-    memcpy(Salt + 8, b2b_pubkey_output,  64);
+    memcpy(Salt,     argon2_salt_string,  ARGON_STRING_LEN);
+    memcpy(Salt + ARGON_STRING_LEN, b2b_pubkey_output,  64);
 
     prms.S = Salt;
 
@@ -2784,7 +2933,7 @@ u8 reg(u8* password, int password_len){
     printf("Salt buffer of len %lu:\n", prms.len_S);
     for(u32 i = 0; i < prms.len_S; ++i){
         printf("%03u ", prms.S[i]);
-        if(((i+1) % 8 == 0) && i > 6){
+        if(((i+1) % 8 == 0) && i >= 7){
             printf("\n");
         }
     }
@@ -2848,6 +2997,23 @@ u8 reg(u8* password, int password_len){
     save_offset += PUBKEY_LEN;
 
     memcpy(user_save_buf + save_offset, argon2_salt_string, 8);
+
+    printf("[DEBUG] REG: save file buf (siz = %lu bytes) before writing it:\n\n"
+           ,save_len
+    );
+
+    for(u64 i = 0; i < save_len; ++i){
+        printf("%03u ", user_save_buf[i]);
+        if(((i+1) % 8 == 0) && i >= 7){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+    printf("[DEBUG] REG: It has 4 parts that are placed like so:\n\n");
+    printf("[DEBUG] REG: ChaCha20  Nonce  : size = 16  bytes.\n");
+    printf("[DEBUG] REG: Encrypted privkey: size = 40  bytes.\n");
+    printf("[DEBUG] REG: Plaintext pubkey : size = 384 bytes.\n");
+    printf("[DEBUG] REG: Argon Salt String: size = 8   bytes.\n\n");
 
     fwrite(user_save_buf, 1, save_len, user_save);
 

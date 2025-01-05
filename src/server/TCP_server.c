@@ -630,7 +630,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     b_s.used_bits = get_used_bits(b_s.bits, PRIVKEY_LEN);
     b_s.free_bits = b_s.size_bits - b_s.used_bits;
     
-    memset(temp_handshake_buf + sizeof(bigint), 0,    sizeof(bigint));
+    memset(temp_handshake_buf + sizeof(bigint), 0,    PRIVKEY_LEN);
     memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
 
     /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
@@ -646,6 +646,10 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     
     MONT_POW_modM(&Am, &b_s, M, &X_s);
     
+    printf("[DEBUG] Server: X_s computed on Server side:\n");
+    bigint_print_info(&X_s);
+    bigint_print_bits(&X_s);
+
     /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
     tempbuf_byte_offset = 3 * sizeof(bigint);
     
@@ -677,11 +681,26 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
            ,SHORT_NONCE_LEN
     );
    
+    printf("[DEBUG] Server: Y_s on which we COMPUTE signature:\n");
+    printf("[DEBUG] Server: Y_s size 32 bytes:\n");
+
+    for(u32 i = 0; i < INIT_AUTH_LEN; ++i){
+        printf("%03u ", Y_s[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("[DEBUG] Server: Calling Signature_GENERATE now.\n\n");
+
     /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
     Signature_GENERATE( M, Q, Gm, Y_s, INIT_AUTH_LEN, signature_buf
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
-                  
+
+
+
     /* Server sends in the clear (B_s, SB) to the client. */
     
     /* Find time to change the signature generation to only place the actual
@@ -811,42 +830,140 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     
     /* Length of K is less than B so append 0s to it until it's long enough. */
     /* This was done during K0's initialization. Now place the actual key.    */
-    memcpy( K0 + (B - SESSION_KEY_LEN)
+    memcpy( K0
            ,temp_handshake_buf + (3 * sizeof(bigint))
            ,SESSION_KEY_LEN
           );
+
+    printf("[DEBUG] Server: HMAC Step 3 produced K0:\n");
+
+    for(u32 i = 0; i < B; ++i){
+        printf("%03u ", K0[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
 
     /* Step 4 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_ipad[i] = (K0[i] ^ ipad[i]);
     }
     
+    printf("[DEBUG] Server: HMAC Step 4 produced K0_XOR_ipad: 64 bytes:\n");
+
+    for(u32 i = 0; i < B; ++i){
+        printf("%03u ", K0_XOR_ipad[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* step 5 of HMAC construction */
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
     memcpy(K0_XOR_ipad_TEXT + B, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
+    printf("[DEBUG] Server: HMAC Step 5 produced K0_XOR_ipad_TEXT: 448 bytes:\n");
+
+    for(u32 i = 0; i < B + PUBKEY_LEN; ++i){
+        printf("%03u ", K0_XOR_ipad_TEXT[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* step 6 of HMAC construction */
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
     BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
     
+    printf("[DEBUG] Server: HMAC Step 6 produced BLAKE2B_output: 128 bytes:\n");
+
+    for(u32 i = 0; i < L; ++i){
+        printf("%03u ", BLAKE2B_output[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Step 7 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_opad[i] = (K0[i] ^ opad[i]);
     }
     
+   printf("[DEBUG] Server: HMAC Step 7 produced K0_XOR_opad: 64 bytes:\n");
+
+    for(u32 i = 0; i < B; ++i){
+        printf("%03u ", K0_XOR_opad[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Step 8 of HMAC construction */
     /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
     /* B + L bytes total length */
     memcpy(last_BLAKE2B_input + 0, K0_XOR_opad,    B);
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
     
+   printf("[DEBUG] Server: HMAC Step 8 produced last_BLAKE2B_input: 192 bytes:\n");
+
+    for(u32 i = 0; i < B + L; ++i){
+        printf("%03u ", last_BLAKE2B_input[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Step 9 of HMAC construction */ 
     /* Call BLAKE2B on the combined buffer in step 8. */
     BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
     
+   printf("[DEBUG] Server: HMAC Step 9 produced BLAKE2B_output: 128 bytes:\n");
+
+    for(u32 i = 0; i < L; ++i){
+        printf("%03u ", BLAKE2B_output[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
     memcpy(HMAC_output, BLAKE2B_output, HMAC_TRUNC_BYTES);
     
+    printf("[DEBUG] Server: Produced these 8 bytes of HMAC:\n");
+
+    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
+        printf("%03u ", BLAKE2B_output[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");  
+
+    printf("[DEBUG] Server: (1) To be checked against received HMAC 8 bytes\n");
+
+    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
+        printf("%03u ", msg_buf[recv_HMAC_offset + i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
+    printf("[DEBUG] Server: (2) To be checked against received HMAC 8 bytes\n");
+
+    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
+        printf("%03u ", (msg_buf + recv_HMAC_offset)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
     /* Now compare calculated HMAC with the HMAC the client sent us */
     for(u64 i = 0; i < HMAC_TRUNC_BYTES; ++i){
         if(HMAC_output[i] != msg_buf[recv_HMAC_offset + i]){
@@ -1099,7 +1216,7 @@ label_cleanup:
 
     temp_handshake_memory_region_isLocked = 0;     
 
-    printf("[OK]  Client: Handshake memory region has been released!\n\n");
+    printf("[OK]  Server: Handshake memory region has been released!\n\n");
     
     if(reply_buf){
         free(reply_buf);

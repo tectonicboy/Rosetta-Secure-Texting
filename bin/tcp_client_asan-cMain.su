@@ -176,28 +176,28 @@ client/GUI_Code/../Network_Code/../../lib/coreutil.h:4:6:void gen_priv_key(uint3
 client/GUI_Code/../Network_Code/../../lib/coreutil.h:35:16:bigint* gen_pub_key(uint32_t, const char*, uint32_t)	208	static
 client/GUI_Code/../Network_Code/../../lib/coreutil.h:114:6:bool check_pubkey_form(bigint*, bigint*, bigint*)	400	static
 client/GUI_Code/../Network_Code/TCP_client.h:130:4:uint8_t authenticate_server(uint8_t*, uint64_t, uint64_t)	96	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:184:4:uint8_t self_init(uint8_t*, int)	1376	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:496:6:void release_handshake_memory_region()	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:537:4:uint8_t construct_msg_00()	656	static
-client/GUI_Code/../Network_Code/TCP_client.h:626:4:uint8_t process_msg_00(uint8_t*)	2544	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:947:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1014:4:uint8_t process_msg_02(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1045:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1193:4:uint8_t process_msg_11(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1227:4:uint8_t process_msg_10(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1266:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1443:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1653:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1832:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2030:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t)	544	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2292:4:uint8_t construct_msg_40()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2348:4:uint8_t process_msg_40(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:2381:4:uint8_t process_msg_50(uint8_t*)	80	static
-client/GUI_Code/../Network_Code/TCP_client.h:2468:4:uint8_t construct_msg_50()	352	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2553:4:uint8_t process_msg_51(uint8_t*)	48	static
-client/GUI_Code/../Network_Code/TCP_client.h:2610:4:uint8_t construct_msg_60()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2658:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2873:4:uint8_t login(uint8_t*, int)	1264	static
+client/GUI_Code/../Network_Code/TCP_client.h:184:4:uint8_t self_init(uint8_t*, int)	1392	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:538:6:void release_handshake_memory_region()	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:579:4:uint8_t construct_msg_00()	656	static
+client/GUI_Code/../Network_Code/TCP_client.h:668:4:uint8_t process_msg_00(uint8_t*)	2544	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:989:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1056:4:uint8_t process_msg_02(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1087:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1235:4:uint8_t process_msg_11(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1269:4:uint8_t process_msg_10(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1308:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1485:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1695:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1874:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2072:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t)	544	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2334:4:uint8_t construct_msg_40()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2390:4:uint8_t process_msg_40(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:2423:4:uint8_t process_msg_50(uint8_t*)	80	static
+client/GUI_Code/../Network_Code/TCP_client.h:2510:4:uint8_t construct_msg_50()	352	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2595:4:uint8_t process_msg_51(uint8_t*)	48	static
+client/GUI_Code/../Network_Code/TCP_client.h:2652:4:uint8_t construct_msg_60()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2700:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2936:4:uint8_t login(uint8_t*, int)	1264	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = char]	32	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = wchar_t]	32	static
 /usr/local/include/wx-3.2/wx/string.h:1212:3:wxString::wxString(const char*)	224	static
