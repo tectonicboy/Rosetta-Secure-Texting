@@ -774,7 +774,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     u64 handshake_buf_key_offset;
     u64 handshake_buf_nonce_offset;
     const u64 B = 64;
-    const u64 L = 128;
+    const u64 L = 64;
     u64 PACKET_ID02 = PACKET_ID_02;
     u64 PACKET_ID01 = PACKET_ID_01; 
     u64 recv_HMAC_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
@@ -821,7 +821,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
      *  ipad = buffer of the 0x36 byte repeated B=64 times
      *  K    = key KAB_s
      *  K_0  = K after pre-processing to form a B=64-byte key.
-     *  L    = output block size in bytes of BLAKE2B = 128
+     *  L    = output block size in bytes of BLAKE2B = 64
      *  opad = buffer of the 0x5c byte repeated B=64 times
      *  text = A_x
      */ 
@@ -878,7 +878,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
     BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
     
-    printf("[DEBUG] Server: HMAC Step 6 produced BLAKE2B_output: 128 bytes:\n");
+    printf("[DEBUG] Server: HMAC Step 6 produced BLAKE2B_output: 64 bytes:\n");
 
     for(u32 i = 0; i < L; ++i){
         printf("%03u ", BLAKE2B_output[i]);
@@ -923,7 +923,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     /* Call BLAKE2B on the combined buffer in step 8. */
     BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
     
-   printf("[DEBUG] Server: HMAC Step 9 produced BLAKE2B_output: 128 bytes:\n");
+   printf("[DEBUG] Server: HMAC Step 9 produced BLAKE2B_output: 64 bytes:\n");
 
     for(u32 i = 0; i < L; ++i){
         printf("%03u ", BLAKE2B_output[i]);

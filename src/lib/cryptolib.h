@@ -505,7 +505,7 @@ void BLAKE2B_INIT(u8* m, u64 ll, u64 kk, u64 nn, u8* rr){
     }
     
     free(data_blocks);
-    
+
     return;
 }
     

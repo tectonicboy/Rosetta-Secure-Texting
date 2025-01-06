@@ -679,7 +679,7 @@ u8 process_msg_00(u8* msg_buf){
     u64 handshake_buf_key_offset;
     u64 handshake_buf_nonce_offset;
     const u64 B = 64;
-    const u64 L = 128;
+    const u64 L = 64;
     const u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
 
     u32 tempbuf_write_offset;
@@ -906,7 +906,7 @@ u8 process_msg_00(u8* msg_buf){
      *  ipad = buffer of the 0x36 byte repeated B=64 times
      *  K    = key KAB_s
      *  K_0  = K after pre-processing to form a B=64-byte key.
-     *  L    = output block size in bytes of BLAKE2B = 128
+     *  L    = output block size in bytes of BLAKE2B = 64
      *  opad = buffer of the 0x5c byte repeated B=64 times
      *  text = A_x
      */    
@@ -960,7 +960,7 @@ u8 process_msg_00(u8* msg_buf){
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
     BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);       
 
-    printf("[DEBUG] Client: HMAC Step 6 produced BLAKE2B_output: 128 bytes:\n");
+    printf("[DEBUG] Client: HMAC Step 6 produced BLAKE2B_output: 64 bytes:\n");
 
     for(u32 i = 0; i < L; ++i){
         printf("%03u ", BLAKE2B_output[i]);
@@ -1005,7 +1005,7 @@ u8 process_msg_00(u8* msg_buf){
     /* Call BLAKE2B on the combined buffer in step 8. */
     BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
 
-   printf("[DEBUG] Client: HMAC Step 9 produced BLAKE2B_output: 128 bytes:\n");
+   printf("[DEBUG] Client: HMAC Step 9 produced BLAKE2B_output: 64 bytes:\n");
 
     for(u32 i = 0; i < L; ++i){
         printf("%03u ", BLAKE2B_output[i]);
