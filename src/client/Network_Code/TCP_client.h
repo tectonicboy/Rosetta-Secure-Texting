@@ -639,18 +639,14 @@ u8 construct_msg_00(void){
 
     memcpy(temp_handshake_buf, &temp_privkey, sizeof(bigint));
 
-    printf("[DEBUG] Client: a_s was generated in construct_msg_00:\n\n");
-    bigint_print_info(&temp_privkey);
-    bigint_print_bits(&temp_privkey);
+
 
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
     save_BIGINT_to_DAT("temp_privkey_DAT.dat", &temp_privkey);
   
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_BIGINT_SIZ);
     
-    printf("[DEBUG] Client: A_s was generated in construct_msg_00:\n\n");
-    bigint_print_info(A_s);
-    bigint_print_bits(A_s);
+
 
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
@@ -783,10 +779,6 @@ u8 process_msg_00(u8* msg_buf){
     /* X_s = B_s^a_s mod M */
     MONT_POW_modM(&B_sM, a_s, M, &X_s);
 
-    printf("[DEBUG] Client: X_s computed on Client side:\n");
-    bigint_print_info(&X_s);
-    bigint_print_bits(&X_s);
-
     /* Construct a special buffer containing Y_s concatenated with the received
      * signature, because the signature validating interface needs it that way
      * because that's how most use cases of it have their buffers structured -
@@ -803,17 +795,6 @@ u8 process_msg_00(u8* msg_buf){
            ,SIGNATURE_LEN
           );
     
-    printf("[DEBUG] Client: Y_s on which we VERIFY server's signature:\n");
-    printf("[DEBUG] Client: Y_s of length 32 bytes:\n");
-
-    for(u32 i = 0; i < INIT_AUTH_LEN; ++i){
-        printf("%03u ", auth_buf[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");  
-
     /* Validate the signature of the unused part of the shared secret, Y_s. */
     auth_status = authenticate_server(auth_buf, INIT_AUTH_LEN, INIT_AUTH_LEN);
 
@@ -884,6 +865,10 @@ u8 process_msg_00(u8* msg_buf){
                                                             
     handshake_buf_key_offset = 3 * sizeof(bigint);
     
+    printf("[DEBUG] Client: Real public key before encrypting it:\n");
+    bigint_print_info(&own_pubkey);
+    bigint_print_bits(&own_pubkey);
+
     /* Passed parameters to this call to ChaCha20:
      *
      *  1. INPUT TEXT   : Client's long-term public key unencrypted
@@ -902,7 +887,34 @@ u8 process_msg_00(u8* msg_buf){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))
              ,reply_buf + SMALL_FIELD_LEN
             );
-             printf("?? 12 \n");
+
+    printf("[DEBUG] Client: ChaCha to encrypt client's long-term pubkey:\n");
+    printf("RESULTED IN: client's encrypted pubkey:\n");
+
+    for(u64 i = 0; i < PUBKEY_LEN; ++i){
+        printf("%03u ", (reply_buf + SMALL_FIELD_LEN)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
+    printf("input SHORT nonce was:\n");
+
+    for(u64 i = 0; i < SHORT_NONCE_LEN; ++i){
+        printf("%03u ", (temp_handshake_buf + handshake_buf_nonce_offset)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
+    printf("Input chacha key of SESSION_KEY_LEN was:\n");
+
+    for(u64 i = 0; i < SESSION_KEY_LEN; ++i){
+        printf("%03u ", (temp_handshake_buf + handshake_buf_key_offset)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
 
     /* Increment the Nonce to not reuse it when decrypting our user index.  */
     /* It's not a BigInt in there but just increment to leftmost 64 bits.   */
@@ -1058,16 +1070,16 @@ u8 process_msg_00(u8* msg_buf){
 --------------------------------------------------------------------------------
 
 */
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
+
+    printf("[DEBUG] Client: Printing msg_01 of length %lu BYTES:\n", reply_len);
+
+    for(u64 i = 0; i < reply_len; ++i){
+        printf("%03u ", (reply_buf)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
     }
-    */
+
     if(send(own_socket_fd, reply_buf, reply_len, 0) == -1){
         printf("[ERR] Client: Couldn't send second login transmission.\n");
         printf("[ERR]         Aborting Login...\n\n");
@@ -1306,15 +1318,22 @@ u8 construct_msg_10( unsigned char* requested_userid
     *((u64*)(send_buf + SMALL_FIELD_LEN)) = own_ix;
     
     /* Now calculate a cryptographic signature of the whole packet's payload. */
-    
-    printf("[DEBUG] Client: construct_msg_10: Calling SIG_GEN w/ Q>privkey!\n");
-    printf("[DEBUG] Client: construct_msg_10: passing Q:\n");
-    bigint_print_info(Q);
-    bigint_print_bits(Q);
-    printf("[DEBUG] Client: construct_msg_10: passing privkey:\n");
-    bigint_print_info(&own_privkey);
-    bigint_print_bits(&own_privkey);
 
+    printf("[DEBUG] Client: Calling signature_generate with:\n");
+
+    printf("[DEBUG] Server: signed things of length %lu:\n", signed_len);
+
+    for(u64 i = 0; i < signed_len; ++i){
+        printf("%03u ", *(send_buf + i) );
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
+    printf("Also, client's real long-term public key:\n");
+    bigint_print_info(&own_pubkey);
+    bigint_print_bits(&own_pubkey);
 
     Signature_GENERATE( M, Q, Gm, send_buf, signed_len
                        ,(send_buf + signed_len)

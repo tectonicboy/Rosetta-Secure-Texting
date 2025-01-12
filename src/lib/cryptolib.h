@@ -256,11 +256,16 @@ void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
     u32       i;
     u32       j; 
     u32       counter_len = 16 - (key_len + nonce_len + 4);
-    u32       last_txt_block_len = (txt_len % 64);
+    u32       last_txt_block_len;
     u32**     outputs = NULL;
     u32*      counter = NULL;
     u32       full_txt_blocks = 0;
+
+    u8 have_last_block = 0;
     
+    printf("[DEBUG] Cryptolib: Num of matrices in chacha20:%u\n", num_matrices);
+    printf("[DEBUG] Cryptolib: For txt_len %u bytes.\n", txt_len);
+
     /* This sum can be either 16 or 15. 16 means no space for Counter,
      * 15 means one uint32 space for counter. 
      * 64-bit counters or bigger are unsupported.
@@ -292,13 +297,23 @@ void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
         } 
     }
 
-    if(num_matrices == 1 && last_txt_block_len == 0){
-        full_txt_blocks = 1;
+    if(txt_len < 64){
+        have_last_block = 1;
+        last_txt_block_len = txt_len;
+        full_txt_blocks = 0;
     }
     else{
-        full_txt_blocks = num_matrices - 1;
+        if(txt_len % 64 == 0){
+            have_last_block = 0;
+            full_txt_blocks = num_matrices;
+        }
+        else{
+            have_last_block = 1;
+            last_txt_block_len = txt_len % 64;
+            full_txt_blocks = num_matrices - 1;
+        }
     }
-    
+
     for(i = 0; i < full_txt_blocks; ++i){
         for(j = 0; j < 64; ++j){
             cyphertext[(64 * i) + j] 
@@ -308,7 +323,7 @@ void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
         }      
     }
     
-    if(last_txt_block_len){
+    if(have_last_block){
         for(j = 0; j < last_txt_block_len; ++j){
             cyphertext[(64 * full_txt_blocks) + j] 
              = plaintext[(64 * full_txt_blocks) + j] 

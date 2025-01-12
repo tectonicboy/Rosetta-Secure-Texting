@@ -456,6 +456,20 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
            ,PRIVKEY_LEN
     );
        
+    printf("[DEBUG] Server: Calling signature_validate with:\n");
+    printf("[DEBUG] Server: client's pubkeyMONT:\n");
+    bigint_print_info(&(clients[client_ix].client_pubkey_mont));
+    bigint_print_bits(&(clients[client_ix].client_pubkey_mont));
+    printf("[DEBUG] Server: and signed things of length %lu:\n", signed_len);
+
+    for(u64 i = 0; i < signed_len; ++i){
+        printf("%03u ", *(signed_ptr + i) );
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+
     /* Verify the sender's cryptographic signature. */
     ret = Signature_VALIDATE(
                      Gm, &(clients[client_ix].client_pubkey_mont)
@@ -808,6 +822,17 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     memset(opad, 0x5c, B);
     memset(ipad, 0x36, B);
     
+    printf("[DEBUG] Server: Printing received msg_01 of length %u bytes:\n",
+            SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES
+    );
+
+    for(u64 i = 0; i < SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES; ++i){
+        printf("%03u ", (msg_buf)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
     /*  Use what's already in the locked memory region to compute HMAC and 
      *  to decrypt the user's long-term public key
      *
@@ -985,6 +1010,34 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
 
     handshake_buf_key_offset =  3 * sizeof(bigint);
     
+    printf("[DEBUG] Server: ChaCha to decrypt client's long-term pubkey:\n");
+    printf("input text: client's encrypted pubkey:\n");
+
+    for(u64 i = 0; i < PUBKEY_LEN; ++i){
+        printf("%03u ", (msg_buf + SMALL_FIELD_LEN)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
+    printf("input SHORT nonce:\n");
+
+    for(u64 i = 0; i < SHORT_NONCE_LEN; ++i){
+        printf("%03u ", (temp_handshake_buf + handshake_buf_nonce_offset)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
+    printf("Input chacha key of SESSION_KEY_LEN:\n");
+
+    for(u64 i = 0; i < SESSION_KEY_LEN; ++i){
+        printf("%03u ", (temp_handshake_buf + handshake_buf_key_offset)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
     /* Passed parameters to this call to ChaCha20:
      *
      *  1. INPUT TEXT   : Client's encrypted long-term public key.
@@ -1004,6 +1057,8 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
             ,client_pubkey_buf
             );
     
+    printf("Resulted in this real client's public key:\n");
+
     /* Increment the Nonce to not reuse it when encrypting the user's index. */        
     ++(*((u64*)(temp_handshake_buf + handshake_buf_nonce_offset)));  
          
@@ -1114,6 +1169,21 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     (clients[next_free_user_ix].client_pubkey).free_bits
     = MAX_BIGINT_SIZ - (clients[next_free_user_ix].client_pubkey).used_bits;
     
+    printf("[DEBUG] Server: obtained client's real public key from chacha20\n");
+
+    bigint_print_info(&(clients[next_free_user_ix].client_pubkey));
+    bigint_print_bits(&(clients[next_free_user_ix].client_pubkey));
+    printf("\n\n ALL BITS of the client's real public key:\n\n");
+    bigint_print_all_bits(&(clients[next_free_user_ix].client_pubkey));
+    printf("\n ALSO the decrypted pubkey bits placed in pubkey_buf:\n");
+
+    for(u64 i = 0; i < PUBKEY_LEN; ++i){
+        printf("%03u ", (client_pubkey_buf)[i]);
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+
     /* Calculate the Montgomery Form of the client's long-term public key. */ 
     bigint_create( &(clients[next_free_user_ix].client_pubkey_mont)
                   ,MAX_BIGINT_SIZ
@@ -1462,15 +1532,12 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     
     /* Transmit the server's ROOM CREATION OK reply back to the client. */    
     if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't send Login-OK message.\n");
+        printf("[ERR] Server: Couldn't send RoomCreation-OK message.\n");
         goto label_cleanup;
     }
     else{
-        printf("[OK]  Server: Told client Login went OK, sent their index.\n");
+        printf("[OK]  Server: Told client room creation went OK!\n");
     }
-    
-    printf("\n\n[OK]  Server: SUCCESS - Permitted a user in Rosetta!!\n\n");
-
 
 label_cleanup:
 
