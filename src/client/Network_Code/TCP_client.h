@@ -104,7 +104,6 @@ const int port = SERVER_PORT;
 
 int own_socket_fd = -1;
 const int optval1 = 1;
-const int optval2 = 2;
 
 
 const socklen_t server_addr_len = sizeof(struct sockaddr_in);
@@ -220,7 +219,7 @@ u8 self_init(u8* password, int password_len){
     memset(own_privkey_buf,     0, PRIVKEY_LEN);
     memset(temp_handshake_buf,  0, TEMP_BUF_SIZ);
 
-    /* Load user's public key. Decrypt and load user's private key. */
+    /* Load user's public key, decrypt and load user's private key. */
 
     savefile = fopen("../bin/user_save.dat", "r"); 
     
@@ -258,8 +257,6 @@ u8 self_init(u8* password, int password_len){
         status = 0;
         goto label_cleanup;
     }
-
-    printf("[DEBUG] Client: LOGIN stuff from savefile after reading it:\n\n");
 
     printf("[DEBUG] Client: Nonce 16 bytes:\n");
 
@@ -301,7 +298,7 @@ u8 self_init(u8* password, int password_len){
     }
     printf("\n\n");
 
-    /* Now decrypt the saved private key. Argon2, then ChaCha20. */
+    /* Now decrypt the saved private key. Call Argon2, then call ChaCha20. */
 
     /* Fill in the parameters to Argon2. */
 
@@ -370,7 +367,7 @@ u8 self_init(u8* password, int password_len){
     Argon2_MAIN(&prms, argon2_output_tag);
 
     /* Let V be the leftmost 32 (chacha_key_len) bytes of Argon2's output hash.
-     * Use V as a key in ChaCha20, along with a pseudorandom 16-byte Nonce 
+     * Use V as a key in ChaCha20, along with the saved 16-byte Nonce 
      * (from user's save file) to decrypt the user's saved private key.
      */
     memcpy(V, argon2_output_tag, chacha_key_len);
@@ -404,26 +401,19 @@ u8 self_init(u8* password, int password_len){
      */
 
     save_BIGINT_to_DAT("temp_priv.dat", &own_privkey);
+
     calculated_A = gen_pub_key(PRIVKEY_LEN, "temp_priv.dat", MAX_BIGINT_SIZ);
 
-    printf("[DEBUG] Client: Calculated_A:\n");
-    bigint_print_info(calculated_A);
-    bigint_print_bits(calculated_A);
+    system("rm temp_priv.dat");
 
-    printf("\n[DEBUG] Client: Saved A:\n");
-    bigint_print_info(&own_pubkey);
-    bigint_print_bits(&own_pubkey);
-
-    /* Now compared the calculated and the saved public key. */
+    /* Now compare the calculated and the saved public keys. */
     if(bigint_compare2(calculated_A, &own_pubkey) != 2){
         printf("[ERR] Client: Password did NOT lead to correct privkey.\n\n");
         status = 0;
-        system("rm temp_priv.dat");
         goto label_cleanup;
     }
     else{
         printf("[OK]  Client: Password unlocked the private key correctly!\n");
-        system("rm temp_priv.dat");
     }
     /* Load other BigInts needed for the cryptography to work and be secure. */
     
@@ -479,12 +469,8 @@ u8 self_init(u8* password, int password_len){
 
     Get_Mont_Form(server_pubkey, &server_pubkey_mont, M);
     
-    printf("[DEBUG] Client: Start MONT_POW() for session shared secret.\n\n");
-
     MONT_POW_modM(&server_pubkey_mont, &own_privkey, M, &server_shared_secret);
   
-    printf("[DEBUG] Client: Finished with the 2 calls!\n\n");
-
     /* Initialize the pair of bidirectional session keys (KBA, KAB) w/ server */
     
     /*  On client's side: 
@@ -532,6 +518,41 @@ u8 self_init(u8* password, int password_len){
         status = 0;
         goto label_cleanup; 
     } 
+
+    /* Initialize the socket before the connect() call. */
+    own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if(own_socket_fd == -1) {
+        printf("[ERR] Client: socket() failed. Terminating.\n");
+        perror("errno:");
+        return 0;
+    }
+
+    if(
+        setsockopt(
+           own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval1, sizeof(optval1)
+        ) 
+        != 0
+    )
+    {
+        printf("[ERR] Client: set socket option failed.\n\n");
+    }
+
+    printf("[OK]  Client: Socket file descriptor obtained!\n");
+
+    /* Connect to the Rosetta server. */
+    
+    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
+        == -1 
+      )
+    {
+        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
+        perror("connect() failed, errno: ");
+        return 0;
+    }
+    
+    printf("[OK]  Client: Connect() call finished, won't be re-attempted.\n");
+
     
 label_cleanup:
 
@@ -1286,6 +1307,15 @@ u8 construct_msg_10( unsigned char* requested_userid
     
     /* Now calculate a cryptographic signature of the whole packet's payload. */
     
+    printf("[DEBUG] Client: construct_msg_10: Calling SIG_GEN w/ Q>privkey!\n");
+    printf("[DEBUG] Client: construct_msg_10: passing Q:\n");
+    bigint_print_info(Q);
+    bigint_print_bits(Q);
+    printf("[DEBUG] Client: construct_msg_10: passing privkey:\n");
+    bigint_print_info(&own_privkey);
+    bigint_print_bits(&own_privkey);
+
+
     Signature_GENERATE( M, Q, Gm, send_buf, signed_len
                        ,(send_buf + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
@@ -3056,45 +3086,7 @@ u8 login(u8* password, int password_len){
      * and shared secret that get destroyed right after this login handshake.
      */
 
-    /* Initialize the our own socket before the connect() call. */
-    own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    
-    if(own_socket_fd == -1) {
-        printf("[ERR] Client: Own TCP socket init failed. Terminating.\n");
-        return 0;
-    }
-    /*
-    setsockopt(
-          own_socket_fd, SOL_SOCKET, SO_REUSEPORT, &optval1, sizeof(optval1)
-    );  
-    */
-    if(
-        setsockopt(
-           own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
-        ) 
-        != 0
-    )
-    {
-        printf("[ERR] Client: set socket option failed.\n\n");
-    }
-
-    printf("[OK]  Client: Socket initialized, and won't be closed.\n");
-
-    /* Connect to the Rosetta server. */
-    
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
-        == -1 
-      )
-    {
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        return 0;
-    }
-    
-    printf("[OK]  Client: Connect() call finished, won't be re-attempted.\n");
-
-    /* Contains a connect() and send() call. A server reply is then expected. */
+    /* Contains a send() call. A server reply is then expected. */
     if( (status = construct_msg_00()) != 1){
         printf("[ERR] Client: Sender of msg_00 failed. Aborting login.\n\n");
         return 0;
@@ -3102,22 +3094,9 @@ u8 login(u8* password, int password_len){
 
     printf("[OK]  Client: Sent msg_00 to server.\n\n");
 
-    /* Capture the reply to msg_00 with a recv(), then close() the socket
-     * because the server closes all connections after its first reply.
-     *
-     * process_msg_00() also constructs msg_01, so it has a connect() and send()
-     * call in it too, even though it's not a construct_msg_XX function. 
-     * 
-     * Confusing, maybe restructure the design here when I find time.
-     */
-
     memset(msg_buf, 0, MAX_TXT_LEN);
 
-    printf("[DEBUG] Before recv for reply to msg_00\n");
-
     bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
-
-    printf("[DEBUG] After recv for reply to msg_00\n");
 
     if(bytes_read == -1){
         printf("[ERR] Client: Couldn't receive a reply to msg_00.\n\n");
@@ -3125,13 +3104,6 @@ u8 login(u8* password, int password_len){
     }
 
     printf("[OK]  Client: Received reply to msg_00: %lu bytes.\n", bytes_read);
-
-    /*
-    if( (conn_stopper_status = shutdown(own_socket_fd, SHUT_RDWR)) != 0){
-        printf("[ERR] Client: Couldn't shut down connection after msg_00.\n\n");
-        return 0;
-    }
-    */
 
     if(     (*((u64*)msg_buf) != PACKET_ID_02)
         &&  (*((u64*)msg_buf) != PACKET_ID_00) )
@@ -3142,6 +3114,7 @@ u8 login(u8* password, int password_len){
 
     if((*((u64*)msg_buf) == PACKET_ID_00)){
 
+        /* This sends msg_01, then a reply to that is expected. */
         if ((status = process_msg_00(msg_buf)) != 1){
             printf("[ERR] Client: process_msg_00 failed. Abort login.\n\n");
             return 0;
@@ -3162,11 +3135,7 @@ u8 login(u8* password, int password_len){
 
     memset(msg_buf, 0, MAX_TXT_LEN);
 
-    printf("[DEBUG] Before recv for reply to msg_01\n");
-
     bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
-
-    printf("[DEBUG] After recv for reply to msg_01\n");
 
     if(bytes_read == -1){
         printf("[ERR] Client: Couldn't receive a reply to msg_01.\n\n");
@@ -3205,6 +3174,82 @@ u8 login(u8* password, int password_len){
     }
 
     printf("\n\n\n******** LOGIN COMPLETED *********\n\n\n");
+
+    return status;
+}
+
+u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
+                     unsigned char* userid, int userid_len
+                    )
+{
+    u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
+    u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len; 
+
+    u8 status;
+    u8 msg_buf[MAX_TXT_LEN];
+
+    ssize_t bytes_read;
+
+    /* Zero-extend the userID to 8 bytes including a null terminator.       */
+    /* Len does not include the null terminator already placed by the GUI.  */
+    if(userid_bytes_for_zeroing > 0){
+        memset(userid + userid_len, 0, userid_bytes_for_zeroing);
+    }
+
+    /* Do the same for roomID.   */
+    if(roomid_bytes_for_zeroing > 0){
+        memset(roomid + roomid_len, 0, roomid_bytes_for_zeroing);
+    }
+
+    /* Send a request to the Rosetta server to create a new chatroom. */
+
+    /* Expected replies: msg_10=OK, msg_11=NoSpace. */
+    status = construct_msg_10(userid, roomid);
+
+    /* Capture the server's reply. */
+
+    memset(msg_buf, 0, MAX_TXT_LEN);
+
+    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
+
+    if(bytes_read == -1){
+        printf("[ERR] Client: Couldn't recv() a reply to msg_10.\n\n");
+        perror("errno = ");
+        return 0;
+    }
+
+    printf("[OK]  Client: Received reply to msg_10: %lu bytes.\n", bytes_read);
+
+    if( *((u64*)msg_buf) == PACKET_ID_10 ){
+
+        printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
+
+        if ((status = process_msg_10(msg_buf)) != 1){
+            printf("[ERR] Client: process_msg_10 failed.\n\n");
+            return 0;
+        }
+
+        status = 2;
+    }
+
+    else if( *((u64*)msg_buf) == PACKET_ID_11 ){
+
+        printf("[OK]  Client: Rosetta told us to try later, it's full!\n\n");
+
+        if ((status = process_msg_11(msg_buf)) != 1){
+            printf("[ERR] Client: process_msg_11 failed.\n\n");
+            return 0;
+        }
+
+        status = 3;
+    }
+
+    else{
+        printf("[ERR] Client: Unexpected reply by the server to msg_10.\n\n");
+        status = 0;
+    }
+
+    printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
 
     return status;
 }

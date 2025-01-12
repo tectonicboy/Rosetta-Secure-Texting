@@ -83,17 +83,21 @@
 /usr/local/include/wx-3.2/wx/mdi.h:104:18:virtual void wxMDIParentFrameBase::ArrangeIcons()	8	static
 client/GUI_Code/cMain.cpp:9:1:virtual const wxEventTable* cMain::GetEventTable() const	8	static
 client/GUI_Code/cMain.cpp:9:1:virtual wxEventHashTable& cMain::GetEventHashTable() const	8	static
-client/GUI_Code/cMain.cpp:234:6:void cMain::BtnClickLogin(wxCommandEvent&)	32	static
-client/GUI_Code/cMain.cpp:325:6:void cMain::BtnClickRegister(wxCommandEvent&)	32	static
+client/GUI_Code/cMain.cpp:334:6:void cMain::BtnClickLogin(wxCommandEvent&)	32	static
+client/GUI_Code/cMain.cpp:436:6:void cMain::BtnClickRegister(wxCommandEvent&)	32	static
+client/GUI_Code/cMain.cpp:540:6:void cMain::BtnClickMakeRoom(wxCommandEvent&)	32	static
+client/GUI_Code/cMain.cpp:559:6:void cMain::BtnClickJoinRoom(wxCommandEvent&)	32	static
+client/GUI_Code/cMain.cpp:578:6:void cMain::BtnClickJoinRoomGo(wxCommandEvent&)	8	static
 /usr/local/include/wx-3.2/wx/event.h:454:27:wxEvtHandler* wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::GetEvtHandler() const [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
 /usr/local/include/wx-3.2/wx/event.h:457:29:void (wxEvtHandler::* wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::GetEvtMethod() const)(wxEvent&) [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
-client/GUI_Code/cMain.cpp:229:1:cMain::~cMain()	16	static
-client/GUI_Code/cMain.cpp:229:1:virtual cMain::~cMain()	16	static
+client/GUI_Code/cMain.cpp:330:1:cMain::~cMain()	16	static
+client/GUI_Code/cMain.cpp:330:1:virtual cMain::~cMain()	16	static
 /usr/local/include/wx-3.2/wx/window.h:1127:18:virtual bool wxWindowBase::HasCapture() const	16	static
 /usr/local/include/wx-3.2/wx/window.h:955:18:virtual void wxWindowBase::SetAcceleratorTable(const wxAcceleratorTable&)	8	static
 /usr/local/include/wx-3.2/wx/window.h:757:18:virtual bool wxWindowBase::CanBeFocused() const	16	static
 /usr/local/include/wx-3.2/wx/window.h:531:20:virtual wxSize wxWindowBase::GetBestVirtualSize() const	208	static
 /usr/local/include/wx-3.2/wx/window.h:217:18:virtual void wxWindowBase::SetName(const wxString&)	8	static
+client/GUI_Code/cMain.cpp:536:6:void cMain::BtnClickQuit(wxCommandEvent&)	16	static
 /usr/local/include/wx-3.2/wx/mdi.h:392:27:virtual wxMDIClientWindow* wxMDIParentFrameBase::OnCreateClient()	32	static
 /usr/local/include/wx-3.2/wx/event.h:258:7:wxObjectEventFunctor::~wxObjectEventFunctor()	16	static
 /usr/local/include/wx-3.2/wx/event.h:258:7:virtual wxObjectEventFunctor::~wxObjectEventFunctor()	16	static
@@ -105,14 +109,16 @@ client/GUI_Code/cMain.cpp:229:1:virtual cMain::~cMain()	16	static
 /usr/local/include/wx-3.2/wx/event.h:267:18:virtual bool wxObjectEventFunctor::IsMatching(const wxEventFunctor&) const	176	static
 client/GUI_Code/../Network_Code/../../lib/bigint.h:35:6:0(bigint*, uint32_t, uint32_t)	32	static
 /usr/local/include/wx-3.2/wx/event.h:422:18:void wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::operator()(wxEvtHandler*, wxEvent&) [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
+client/GUI_Code/cMain.cpp:715:6:void cMain::BtnClickLeaveTheRoom(wxCommandEvent&)	8	static
 /usr/local/include/wx-3.2/wx/event.h:439:18:bool wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::IsMatching(const wxEventFunctor&) const [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	176	static
 /usr/local/include/wx-3.2/wx/mdi.h:397:13:virtual bool wxMDIParentFrameBase::TryBefore(wxEvent&)	32	static
+client/GUI_Code/cMain.cpp:709:6:void cMain::BtnClickCloseYourRoom(wxCommandEvent&)	8	static
+client/GUI_Code/cMain.cpp:9:1:void __tcf_0(void*)	32	static
 /usr/local/include/wx-3.2/wx/window.h:489:20:virtual wxSize wxWindowBase::GetMinClientSize() const	160	static
 /usr/local/include/wx-3.2/wx/window.h:491:20:virtual wxSize wxWindowBase::GetMaxClientSize() const	160	static
-client/GUI_Code/cMain.cpp:9:1:void __tcf_0(void*)	32	static
 /usr/include/c++/12/bits/basic_string.tcc:217:7:void std::__cxx11::basic_string<_CharT, _Traits, _Alloc>::_M_construct(_InIterator, _InIterator, std::forward_iterator_tag) [with _FwdIterator = const wchar_t*; _CharT = wchar_t; _Traits = std::char_traits<wchar_t>; _Alloc = std::allocator<wchar_t>]	192	static
-/usr/local/include/wx-3.2/wx/gtk/toplevel.h:72:22:virtual wxString wxTopLevelWindowGTK::GetTitle() const	240	static
 /usr/local/include/wx-3.2/wx/window.h:218:22:virtual wxString wxWindowBase::GetName() const	240	static
+/usr/local/include/wx-3.2/wx/gtk/toplevel.h:72:22:virtual wxString wxTopLevelWindowGTK::GetTitle() const	240	static
 /usr/local/include/wx-3.2/wx/string.h:301:24:wxString::~wxString()	16	static
 /usr/local/include/wx-3.2/wx/event.h:3471:5:wxEventTableEntryBase::wxEventTableEntryBase(int, int, wxEventFunctor*, wxObject*)	16	static
 /usr/local/include/wx-3.2/wx/gtk/anybutton.h:17:24:wxAnyButton::~wxAnyButton()	32	static
@@ -170,42 +176,46 @@ client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1046:6:void Argon2_MAIN(Ar
 client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1411:6:void Montgomery_MUL(bigint*, bigint*, bigint*, bigint*)	432	static
 client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1547:6:void Get_Mont_Form(bigint*, bigint*, bigint*)	496	static
 client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1602:6:void MONT_POW_modM(bigint*, bigint*, bigint*, bigint*)	464	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1660:6:void Signature_GENERATE(bigint*, bigint*, bigint*, uint8_t*, uint64_t, uint8_t*, bigint*, uint64_t)	1264	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1807:9:uint8_t Signature_VALIDATE(bigint*, bigint*, bigint*, bigint*, bigint*, bigint*, uint8_t*, uint32_t)	720	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1660:6:void Signature_GENERATE(bigint*, bigint*, bigint*, uint8_t*, uint64_t, uint8_t*, bigint*, uint64_t)	1296	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1817:9:uint8_t Signature_VALIDATE(bigint*, bigint*, bigint*, bigint*, bigint*, bigint*, uint8_t*, uint32_t)	720	static
 client/GUI_Code/../Network_Code/../../lib/coreutil.h:4:6:void gen_priv_key(uint32_t, uint8_t*)	48	static
-client/GUI_Code/../Network_Code/../../lib/coreutil.h:35:16:bigint* gen_pub_key(uint32_t, const char*, uint32_t)	208	static
-client/GUI_Code/../Network_Code/../../lib/coreutil.h:114:6:bool check_pubkey_form(bigint*, bigint*, bigint*)	400	static
-client/GUI_Code/../Network_Code/TCP_client.h:130:4:uint8_t authenticate_server(uint8_t*, uint64_t, uint64_t)	96	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:184:4:uint8_t self_init(uint8_t*, int)	1392	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:538:6:void release_handshake_memory_region()	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:579:4:uint8_t construct_msg_00()	656	static
-client/GUI_Code/../Network_Code/TCP_client.h:668:4:uint8_t process_msg_00(uint8_t*)	2544	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:989:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1056:4:uint8_t process_msg_02(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1087:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1235:4:uint8_t process_msg_11(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1269:4:uint8_t process_msg_10(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1308:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1485:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1695:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1874:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2072:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t)	544	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2334:4:uint8_t construct_msg_40()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2390:4:uint8_t process_msg_40(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:2423:4:uint8_t process_msg_50(uint8_t*)	80	static
-client/GUI_Code/../Network_Code/TCP_client.h:2510:4:uint8_t construct_msg_50()	352	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2595:4:uint8_t process_msg_51(uint8_t*)	48	static
-client/GUI_Code/../Network_Code/TCP_client.h:2652:4:uint8_t construct_msg_60()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2700:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2936:4:uint8_t login(uint8_t*, int)	1264	static
+client/GUI_Code/../Network_Code/../../lib/coreutil.h:38:16:bigint* gen_pub_key(uint32_t, const char*, uint32_t)	208	static
+client/GUI_Code/../Network_Code/../../lib/coreutil.h:117:6:bool check_pubkey_form(bigint*, bigint*, bigint*)	400	static
+client/GUI_Code/../Network_Code/TCP_client.h:129:4:uint8_t authenticate_server(uint8_t*, uint64_t, uint64_t)	64	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:193:4:uint8_t self_init(uint8_t*, int)	1392	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:569:6:void release_handshake_memory_region()	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:610:4:uint8_t construct_msg_00()	656	static
+client/GUI_Code/../Network_Code/TCP_client.h:698:4:uint8_t process_msg_00(uint8_t*)	2432	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1113:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1180:4:uint8_t process_msg_02(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1211:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1368:4:uint8_t process_msg_11(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1402:4:uint8_t process_msg_10(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1441:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1618:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1828:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2007:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2205:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t)	544	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2467:4:uint8_t construct_msg_40()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2523:4:uint8_t process_msg_40(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:2556:4:uint8_t process_msg_50(uint8_t*)	80	static
+client/GUI_Code/../Network_Code/TCP_client.h:2643:4:uint8_t construct_msg_50()	352	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2728:4:uint8_t process_msg_51(uint8_t*)	48	static
+client/GUI_Code/../Network_Code/TCP_client.h:2785:4:uint8_t construct_msg_60()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2833:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:3069:4:uint8_t login(uint8_t*, int)	1248	static
+client/GUI_Code/../Network_Code/TCP_client.h:3181:4:uint8_t make_new_chatroom(unsigned char*, int, unsigned char*, int)	1264	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = char]	32	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = wchar_t]	32	static
 /usr/local/include/wx-3.2/wx/string.h:1212:3:wxString::wxString(const char*)	224	static
-client/GUI_Code/cMain.cpp:19:1:cMain::cMain()	2960	dynamic,bounded
-client/GUI_Code/cMain.cpp:307:6:void cMain::BtnClickLoginBack(wxCommandEvent&)	304	static
-client/GUI_Code/cMain.cpp:404:6:void cMain::BtnClickRegBack(wxCommandEvent&)	304	static
-client/GUI_Code/cMain.cpp:250:6:void cMain::BtnClickLoginGo(wxCommandEvent&)	1152	static
-client/GUI_Code/cMain.cpp:339:6:void cMain::BtnClickRegGo(wxCommandEvent&)	1152	static
-client/GUI_Code/cMain.cpp:420:1:cpp)	48	static
-client/GUI_Code/cMain.cpp:420:1:_sub_D_00099_0	8	static
-client/GUI_Code/cMain.cpp:420:1:_sub_I_00099_1	16	static
+client/GUI_Code/cMain.cpp:28:1:cMain::cMain()	5440	dynamic,bounded
+client/GUI_Code/cMain.cpp:417:6:void cMain::BtnClickLoginBack(wxCommandEvent&)	304	static
+client/GUI_Code/cMain.cpp:517:6:void cMain::BtnClickRegBack(wxCommandEvent&)	304	static
+client/GUI_Code/cMain.cpp:584:6:void cMain::BtnClickJoinRoomBack(wxCommandEvent&)	400	static
+client/GUI_Code/cMain.cpp:686:6:void cMain::BtnClickMakeRoomBack(wxCommandEvent&)	400	static
+client/GUI_Code/cMain.cpp:351:6:void cMain::BtnClickLoginGo(wxCommandEvent&)	1136	static
+client/GUI_Code/cMain.cpp:451:6:void cMain::BtnClickRegGo(wxCommandEvent&)	1136	static
+client/GUI_Code/cMain.cpp:607:6:void cMain::BtnClickMakeRoomGo(wxCommandEvent&)	1440	static
+client/GUI_Code/cMain.cpp:718:1:cpp)	48	static
+client/GUI_Code/cMain.cpp:718:1:_sub_D_00099_0	8	static
+client/GUI_Code/cMain.cpp:718:1:_sub_I_00099_1	16	static

@@ -36,8 +36,8 @@ u8 temp_handshake_memory_region_isLocked = 0;
 
 struct connected_client{
     char user_id[SMALL_FIELD_LEN];
-    u32  room_ix;
-    u32  num_pending_msgs;
+    u64  room_ix;
+    u64  num_pending_msgs;
     u64  pending_msg_sizes[MAX_PEND_MSGS];
     u8*  pending_msgs[MAX_PEND_MSGS];
     u64  nonce_counter;
@@ -50,7 +50,7 @@ struct connected_client{
 };
 
 struct chatroom{
-    u32 num_people;
+    u64 num_people;
     u64 owner_ix;
     u64 room_id;
 };
@@ -68,10 +68,10 @@ u64 rooms_status_bitmask = 0;
  * thread function which it will be stuck on until they exit Rosetta.
  */
 u64 socket_status_bitmask = 0;
-u32 next_free_socket_ix = 0;
+u64 next_free_socket_ix = 0;
 
-u32 next_free_user_ix = 1;
-u32 next_free_room_ix = 1;
+u64 next_free_user_ix = 1;
+u64 next_free_room_ix = 1;
 
 u8 server_privkey[PRIVKEY_LEN];
 
@@ -133,7 +133,7 @@ bigint  server_privkey_bigint;
 struct sockaddr_in servaddr;
 
 /* First thing done when we start the Rosetta server - initialize it. */
-u32 self_init(){
+u64 self_init(){
 
     FILE* privkey_dat;
 
@@ -479,7 +479,7 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 --------------------------------------------------------------------------------
 
 */
-void process_msg_00(u8* msg_buf, u32 sock_ix){
+void process_msg_00(u8* msg_buf, u64 sock_ix){
 
     bigint  zero;
     bigint  Am; 
@@ -488,8 +488,8 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     bigint* B_s = NULL;
     bigint  X_s;
             
-    u32  tempbuf_byte_offset = 0;
-    u32  replybuf_byte_offset = 0;
+    u64  tempbuf_byte_offset = 0;
+    u64  replybuf_byte_offset = 0;
         
     u64 PACKET_ID02 = PACKET_ID_02;
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
@@ -684,7 +684,7 @@ void process_msg_00(u8* msg_buf, u32 sock_ix){
     printf("[DEBUG] Server: Y_s on which we COMPUTE signature:\n");
     printf("[DEBUG] Server: Y_s size 32 bytes:\n");
 
-    for(u32 i = 0; i < INIT_AUTH_LEN; ++i){
+    for(u64 i = 0; i < INIT_AUTH_LEN; ++i){
         printf("%03u ", Y_s[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -769,7 +769,7 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-void process_msg_01(u8* msg_buf, u32 sock_ix){
+void process_msg_01(u8* msg_buf, u64 sock_ix){
 
     u64 handshake_buf_key_offset;
     u64 handshake_buf_nonce_offset;
@@ -837,7 +837,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
 
     printf("[DEBUG] Server: HMAC Step 3 produced K0:\n");
 
-    for(u32 i = 0; i < B; ++i){
+    for(u64 i = 0; i < B; ++i){
         printf("%03u ", K0[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -852,7 +852,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     
     printf("[DEBUG] Server: HMAC Step 4 produced K0_XOR_ipad: 64 bytes:\n");
 
-    for(u32 i = 0; i < B; ++i){
+    for(u64 i = 0; i < B; ++i){
         printf("%03u ", K0_XOR_ipad[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -866,7 +866,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     
     printf("[DEBUG] Server: HMAC Step 5 produced K0_XOR_ipad_TEXT: 448 bytes:\n");
 
-    for(u32 i = 0; i < B + PUBKEY_LEN; ++i){
+    for(u64 i = 0; i < B + PUBKEY_LEN; ++i){
         printf("%03u ", K0_XOR_ipad_TEXT[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -880,7 +880,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     
     printf("[DEBUG] Server: HMAC Step 6 produced BLAKE2B_output: 64 bytes:\n");
 
-    for(u32 i = 0; i < L; ++i){
+    for(u64 i = 0; i < L; ++i){
         printf("%03u ", BLAKE2B_output[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -895,7 +895,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     
    printf("[DEBUG] Server: HMAC Step 7 produced K0_XOR_opad: 64 bytes:\n");
 
-    for(u32 i = 0; i < B; ++i){
+    for(u64 i = 0; i < B; ++i){
         printf("%03u ", K0_XOR_opad[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -911,7 +911,7 @@ void process_msg_01(u8* msg_buf, u32 sock_ix){
     
    printf("[DEBUG] Server: HMAC Step 8 produced last_BLAKE2B_input: 192 bytes:\n");
 
-    for(u32 i = 0; i < B + L; ++i){
+    for(u64 i = 0; i < B + L; ++i){
         printf("%03u ", last_BLAKE2B_input[i]);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
@@ -1453,7 +1453,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     ++next_free_room_ix;
     
     while(next_free_room_ix < MAX_CHATROOMS){
-        if(!(rooms_status_bitmask & (1ULL<<(63ULL - next_free_room_ix))))
+        if(!(rooms_status_bitmask & (1ULL << (63ULL - next_free_room_ix))))
         {
             break;
         }
@@ -1609,7 +1609,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
      * - Use that nonce in the call to ChaCha20 that gets us the one-use key K
      * - Increment the nonce
      * - Implement the rest of the response:
-     *      - Use K in another ChaCha20 call with nonce+1 to get room_ID
+     *      - Use K in another ChaCha20 call with nonce+1 to get roomID + userID
      *      - Increment the nonce again, save it.
      *      - If enough space for a new room, create it.
      *      - Do any required server bookkeeping for global arrays and indices.
@@ -1648,9 +1648,9 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter);
    
-    /* Use the incremented nonce in the other call to chacha to get room_id */
+    /* Use the incremented nonce in the other call to chacha for user+roomID. */
    
-    CHACHA20( msg_buf + encrypted_roomID_offset    /* text: encrypted room_ID */
+    CHACHA20( msg_buf + encrypted_roomID_offset    /* text: encr room+user_ID */
              ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -2429,7 +2429,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
     /* A client wants to create a new chatroom of their own. */
     case(PACKET_ID_10):{
         printf("[OK]  Server: Found a matching packet_ID = 10\n\n");
-        expected_siz = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
+        expected_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
         
         strncpy(msg_type_str, "10\0", 3);
         
@@ -2447,7 +2447,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
     /* A client wants to join an existing chatroom. */
     case(PACKET_ID_20):{
         printf("[OK]  Server: Found a matching packet_ID = 20\n\n");
-        expected_siz = (3 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
+        expected_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
         
         strncpy(msg_type_str, "20\0", 3);
         

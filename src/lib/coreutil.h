@@ -24,6 +24,9 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
         return;
     }
     
+    /* Set the most significant bit to 0 - make sure it's always less than Q. */
+    *(buf + (len_bytes - 1)) &= ~ (1 << 7);
+
     printf("[OK] utilities: Generated a %u-byte private key!\n\n", len_bytes);
 
     fclose(ran);
