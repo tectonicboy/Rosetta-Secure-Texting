@@ -68,7 +68,7 @@ u64 rooms_status_bitmask = 0;
  * thread function which it will be stuck on until they exit Rosetta.
  */
 u64 socket_status_bitmask = 0;
-u64 next_free_socket_ix = 0;
+u64 next_free_socket_ix = 1;
 
 u64 next_free_user_ix = 1;
 u64 next_free_room_ix = 1;
@@ -313,12 +313,13 @@ void remove_user_from_room(u64 sender_ix){
 
     u8* reply_buf;
     u64 reply_len;
+    u64 saved_room_ix = clients[sender_ix].room_ix;
 
     /* If it's not the owner, just tell the others that the person has left. */
     if(sender_ix != rooms[clients[sender_ix].room_ix].owner_ix){
     
         /* Construct the message and send it to everyone else in the chatroom.*/
-        reply_len = SMALL_FIELD_LEN + 8 + SIGNATURE_LEN;
+        reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
         *((u64*)(reply_buf)) = PACKET_ID_50;
@@ -350,7 +351,8 @@ void remove_user_from_room(u64 sender_ix){
         }
         
         /* Server bookkeeping - a guest has left the chatroom they were in. */
-        
+        /* In this case, simply decrement the number of guests in the room. */
+        rooms[clients[sender_ix].room_ix].num_people -= 1;
         clients[sender_ix].room_ix = 0;
         clients[sender_ix].num_pending_msgs = 0;
         
@@ -358,13 +360,11 @@ void remove_user_from_room(u64 sender_ix){
             memset(clients[sender_ix].pending_msgs[i], 0, MAX_MSG_LEN);
             clients[sender_ix].pending_msg_sizes[i] = 0;
         }
-        
-        /* In this case, simply decrement the number of guests in the room. */
-        rooms[clients[sender_ix].room_ix].num_people -= 1;
     }
     
     /* if it WAS the room owner, boot everyone else from the chatroom as well */
     else{
+        printf("Removing OWNER of room[%lu]!\n", clients[sender_ix].room_ix);
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
@@ -383,11 +383,11 @@ void remove_user_from_room(u64 sender_ix){
                && 
                  (clients[i].room_ix == clients[sender_ix].room_ix))
             {
-                add_pending_msg(i, reply_len, reply_buf);
-                
-                printf("[OK]  Server: Added pending message to user[%lu] that\n"
+                printf("[OK]  Server: Adding pending MSG to user[%lu] that\n"
                        "              they've been booted from the room.\n", i
                       );   
+
+                add_pending_msg(i, reply_len, reply_buf);
             }
         }
         
@@ -395,10 +395,18 @@ void remove_user_from_room(u64 sender_ix){
         rooms_status_bitmask &= ~(1ULL << (63ULL - clients[sender_ix].room_ix));
         
         /* Bookkeeping - a room owner closed their chatroom. Boot everyone. */
+
+        /* In this case, nullify the entire room's descriptor structure. */
+        rooms[clients[sender_ix].room_ix].num_people = 0;
+        rooms[clients[sender_ix].room_ix].owner_ix   = 0;
+        rooms[clients[sender_ix].room_ix].room_id    = 0;
+
+        printf("Got to last loop in remove_user_FROM_ROOM()!\n");
+
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
         
-            if(clients[i].room_ix == clients[sender_ix].room_ix) {
-            
+            if(clients[i].room_ix == saved_room_ix) {
+
                 clients[i].room_ix = 0;
                 clients[i].num_pending_msgs = 0;
                 
@@ -408,11 +416,6 @@ void remove_user_from_room(u64 sender_ix){
                 }  
             }
         }
-        
-        /* In this case, nullify the entire room's descriptor structure. */
-        rooms[clients[sender_ix].room_ix].num_people = 0;
-        rooms[clients[sender_ix].room_ix].owner_ix   = 0;
-        rooms[clients[sender_ix].room_ix].room_id    = 0;
     }
     
     free(reply_buf);
@@ -2664,7 +2667,7 @@ label_cleanup:
     return ret_val;
 }
 
-void remove_inactive_user(u64 removing_user_ix){
+void remove_user(u64 removing_user_ix){
     
     int status;
 
@@ -2676,7 +2679,23 @@ void remove_inactive_user(u64 removing_user_ix){
     }
     
     /* Clear the user's descriptor, free their global user index slot. */
+    /* But first free calloc()'d stuff during user creation!           */
+
+    for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
+        free(clients[removing_user_ix].pending_msgs[i]);
+    }
+    
+    /* Deallocate the bits buffer of the client's long-term public key. */
+    free(clients[removing_user_ix].client_pubkey.bits); 
+    
+    /* Deallocate the bits buffer of the their public key's Montgomery form. */ 
+    free(clients[removing_user_ix].client_pubkey_mont.bits);      
+    
+    /* Deallocate the bits buffer holding our shared secret with this client. */
+    free(clients[removing_user_ix].shared_secret.bits);
+
     memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
+
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
 
     status = pthread_cancel(client_thread_ids[removing_user_ix]);
@@ -2688,7 +2707,7 @@ void remove_inactive_user(u64 removing_user_ix){
         printf("[ERR] Server: Couldn't stop quitting client's recv thread.\n\n");
     }
 
-    status = close(client_socket_fd[next_free_socket_ix]);
+    status = close(client_socket_fd[removing_user_ix]);
 
     if(status != 0){
         printf("[ERR] Server: Couldn't close quitting client's socket.\n\n");
@@ -2711,11 +2730,15 @@ void* check_for_lost_connections(){
 
     while(1){
     
-        sleep(10); /* Check for lost connections every 10 seconds. */
+        sleep(5); /* Check for lost connections every 10 seconds. */
 
         pthread_mutex_lock(&mutex);
        
         curr_time = clock();
+
+        printf( "\n[OK] Server: Detector of lost connections STARTED: %s\n"
+               ,ctime(&curr_time)
+        );
         
         //printf("[OK]  Server: Checker for lost connections started!\n");
         
@@ -2730,14 +2753,20 @@ void* check_for_lost_connections(){
                 &&
                 (clients[i].room_ix != 0)
                 &&
-               ((curr_time - clients[i].time_last_polled) > 10)
+               (difftime(curr_time, clients[i].time_last_polled) > 20.0)
               )
             {
                 printf("[ERR] Server: Caught an inactive connected client!\n"
-                       "              Removing them from the server.\n\n"
-                      );
+                       "              Removing them from the server:\n"
+                       "              user_slot_bitmask_ix: [%lu]\n"
+                       "              this_user's_room_ix : [%lu]\n"
+                       "              Time since last poll: %lf seconds\n\n"
+                       ,i
+                       ,clients[i].room_ix
+                       ,difftime(curr_time, clients[i].time_last_polled)
+                );
                       
-                remove_inactive_user(i);
+                remove_user(i);
             }
         } 
         
@@ -2768,7 +2797,11 @@ void* check_for_lost_connections(){
             temp_handshake_memory_region_isLocked = 0;               
         }
         
-        //printf("[OK]  Server: Checker for lost connections finished!\n\n\n"); 
+        curr_time = clock();
+
+        printf( "\n[OK] Server: Detector of lost connections ENDED: %s\n"
+               ,ctime(&curr_time)
+        );
         
         pthread_mutex_unlock(&mutex);
     }
@@ -2800,12 +2833,10 @@ void* start_new_client_thread(void* ix_ptr){
     memset(client_msg_buf, 0, MAX_MSG_LEN);
 
     while(1){
-printf("?? 6\n");
-        
-printf("?? 7\n");
+
         /* Block on this recv call, waiting for a client's request. */
         bytes_read = recv(client_socket_fd[ix], client_msg_buf, MAX_MSG_LEN, 0);
-        printf("?? 8\n");
+
         if(bytes_read == -1 || bytes_read < 8){
             printf( "[ERR] Server: Couldn't recv() or too short, client[%u]\n\n"
                 ,ix
@@ -2817,23 +2848,23 @@ printf("?? 7\n");
                   ,bytes_read, ix
             );
         }
-        printf("?? 1\n");
+
         pthread_mutex_lock(&mutex);
-printf("?? 2\n");
+
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
-printf("?? 3\n");
+
         if(status){
             printf("\n\n****** WARNING ******\n\n"
                     "Error while processing a received "
                     "transmission, look at log to find it.\n"
             );    
         }   
-printf("?? 4\n");
+
 
         memset(client_msg_buf, 0, bytes_read);
 
         pthread_mutex_unlock(&mutex); 
-        printf("?? 5\n");
+
     }
 }
 

@@ -3270,6 +3270,22 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
     printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
 
+    /* Here is one of 2 possible places to start polling. So start it.
+     * Basically an infinite loop in a separate running thread that sends a 
+     * polling request to the Rosetta server every 0.2 seconds or so, asking for
+     * info about undisplayed messages by others, a room participant having left
+     * the chatroom or the owner of the chatroom having deleted it, etc.
+     * 
+     * Ideally the vastly most common case of there not being anything for us
+     * to receive shouldn't need to lock the GUI thread (for too long).
+     */
+
+    /* ALSO, here is one of 2 possible places where GUI renders the graphics
+     * for the messages sub-window and "exit room" button. Render them.
+     */
+    
+    
+
     return status;
 }
 
