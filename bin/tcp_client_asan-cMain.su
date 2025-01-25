@@ -90,6 +90,7 @@ client/GUI_Code/cMain.cpp:559:6:void cMain::BtnClickJoinRoom(wxCommandEvent&)	32
 client/GUI_Code/cMain.cpp:578:6:void cMain::BtnClickJoinRoomGo(wxCommandEvent&)	8	static
 /usr/local/include/wx-3.2/wx/event.h:454:27:wxEvtHandler* wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::GetEvtHandler() const [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
 /usr/local/include/wx-3.2/wx/event.h:457:29:void (wxEvtHandler::* wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::GetEvtMethod() const)(wxEvent&) [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
+client/GUI_Code/cMain.cpp:536:6:void cMain::BtnClickQuit(wxCommandEvent&)	16	static
 client/GUI_Code/cMain.cpp:330:1:cMain::~cMain()	16	static
 client/GUI_Code/cMain.cpp:330:1:virtual cMain::~cMain()	16	static
 /usr/local/include/wx-3.2/wx/window.h:1127:18:virtual bool wxWindowBase::HasCapture() const	16	static
@@ -97,7 +98,6 @@ client/GUI_Code/cMain.cpp:330:1:virtual cMain::~cMain()	16	static
 /usr/local/include/wx-3.2/wx/window.h:757:18:virtual bool wxWindowBase::CanBeFocused() const	16	static
 /usr/local/include/wx-3.2/wx/window.h:531:20:virtual wxSize wxWindowBase::GetBestVirtualSize() const	208	static
 /usr/local/include/wx-3.2/wx/window.h:217:18:virtual void wxWindowBase::SetName(const wxString&)	8	static
-client/GUI_Code/cMain.cpp:536:6:void cMain::BtnClickQuit(wxCommandEvent&)	16	static
 /usr/local/include/wx-3.2/wx/mdi.h:392:27:virtual wxMDIClientWindow* wxMDIParentFrameBase::OnCreateClient()	32	static
 /usr/local/include/wx-3.2/wx/event.h:258:7:wxObjectEventFunctor::~wxObjectEventFunctor()	16	static
 /usr/local/include/wx-3.2/wx/event.h:258:7:virtual wxObjectEventFunctor::~wxObjectEventFunctor()	16	static
@@ -117,8 +117,8 @@ client/GUI_Code/cMain.cpp:9:1:void __tcf_0(void*)	32	static
 /usr/local/include/wx-3.2/wx/window.h:489:20:virtual wxSize wxWindowBase::GetMinClientSize() const	160	static
 /usr/local/include/wx-3.2/wx/window.h:491:20:virtual wxSize wxWindowBase::GetMaxClientSize() const	160	static
 /usr/include/c++/12/bits/basic_string.tcc:217:7:void std::__cxx11::basic_string<_CharT, _Traits, _Alloc>::_M_construct(_InIterator, _InIterator, std::forward_iterator_tag) [with _FwdIterator = const wchar_t*; _CharT = wchar_t; _Traits = std::char_traits<wchar_t>; _Alloc = std::allocator<wchar_t>]	192	static
-/usr/local/include/wx-3.2/wx/gtk/toplevel.h:72:22:virtual wxString wxTopLevelWindowGTK::GetTitle() const	240	static
 /usr/local/include/wx-3.2/wx/window.h:218:22:virtual wxString wxWindowBase::GetName() const	240	static
+/usr/local/include/wx-3.2/wx/gtk/toplevel.h:72:22:virtual wxString wxTopLevelWindowGTK::GetTitle() const	240	static
 /usr/local/include/wx-3.2/wx/string.h:301:24:wxString::~wxString()	16	static
 /usr/local/include/wx-3.2/wx/event.h:3471:5:wxEventTableEntryBase::wxEventTableEntryBase(int, int, wxEventFunctor*, wxObject*)	16	static
 /usr/local/include/wx-3.2/wx/gtk/anybutton.h:17:24:wxAnyButton::~wxAnyButton()	32	static
@@ -161,50 +161,52 @@ client/GUI_Code/../Network_Code/../../lib/cryptolib.h:138:6:void CHACHA_QROUND(u
 client/GUI_Code/../Network_Code/../../lib/cryptolib.h:158:6:void CHACHA_INNER(uint32_t*)	16	static
 client/GUI_Code/../Network_Code/../../lib/cryptolib.h:180:6:void CHACHA_BLOCK_FUNC(uint32_t*, uint8_t, uint32_t*, uint8_t, uint32_t*, uint8_t, uint32_t*)	336	static
 client/GUI_Code/../Network_Code/../../lib/cryptolib.h:249:6:void CHACHA20(uint8_t*, uint32_t, uint32_t*, uint8_t, uint32_t*, uint8_t, uint8_t*)	160	dynamic,bounded
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:353:6:void BLAKE2B_G(uint64_t*, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)	16	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:374:6:void BLAKE2B_F(uint64_t*, uint64_t*, uint64_t, uint8_t)	496	dynamic,bounded
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:426:6:void BLAKE2B(uint64_t**, uint64_t, uint64_t, uint64_t, uint64_t, uint8_t*)	256	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:481:6:void BLAKE2B_INIT(uint8_t*, uint64_t, uint64_t, uint64_t, uint8_t*)	96	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:537:6:void Argon2_GB(uint64_t*, uint64_t*, uint64_t*, uint64_t*)	16	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:585:6:void Argon2_P(uint8_t*)	368	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:618:6:void Argon2_G(uint8_t*, uint8_t*, uint8_t*)	4736	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:689:6:void Argon2_H_dash(uint8_t*, uint8_t*, uint32_t, uint64_t)	96	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:745:6:void argon2_initJ1J2_blockpool_for2i(uint8_t*, block_t*, uint64_t)	4720	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:856:7:void* argon2_transform_segment(void*)	1472	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:793:10:uint64_t Argon2_getLZ(uint64_t, uint64_t, uint64_t, uint64_t, uint32_t, uint32_t, uint64_t, uint64_t, uint64_t)	8	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1061:6:void Argon2_MAIN(Argon2_parms*, uint8_t*)	1648	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1426:6:void Montgomery_MUL(bigint*, bigint*, bigint*, bigint*)	432	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1562:6:void Get_Mont_Form(bigint*, bigint*, bigint*)	496	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1617:6:void MONT_POW_modM(bigint*, bigint*, bigint*, bigint*)	464	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1675:6:void Signature_GENERATE(bigint*, bigint*, bigint*, uint8_t*, uint64_t, uint8_t*, bigint*, uint64_t)	1296	static
-client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1832:9:uint8_t Signature_VALIDATE(bigint*, bigint*, bigint*, bigint*, bigint*, bigint*, uint8_t*, uint32_t)	720	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:350:6:void BLAKE2B_G(uint64_t*, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)	16	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:371:6:void BLAKE2B_F(uint64_t*, uint64_t*, uint64_t, uint8_t)	496	dynamic,bounded
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:423:6:void BLAKE2B(uint64_t**, uint64_t, uint64_t, uint64_t, uint64_t, uint8_t*)	256	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:478:6:void BLAKE2B_INIT(uint8_t*, uint64_t, uint64_t, uint64_t, uint8_t*)	96	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:534:6:void Argon2_GB(uint64_t*, uint64_t*, uint64_t*, uint64_t*)	16	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:582:6:void Argon2_P(uint8_t*)	368	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:615:6:void Argon2_G(uint8_t*, uint8_t*, uint8_t*)	4736	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:686:6:void Argon2_H_dash(uint8_t*, uint8_t*, uint32_t, uint64_t)	96	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:742:6:void argon2_initJ1J2_blockpool_for2i(uint8_t*, block_t*, uint64_t)	4720	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:853:7:void* argon2_transform_segment(void*)	1472	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:790:10:uint64_t Argon2_getLZ(uint64_t, uint64_t, uint64_t, uint64_t, uint32_t, uint32_t, uint64_t, uint64_t, uint64_t)	8	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1058:6:void Argon2_MAIN(Argon2_parms*, uint8_t*)	1648	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1423:6:void Montgomery_MUL(bigint*, bigint*, bigint*, bigint*)	432	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1559:6:void Get_Mont_Form(bigint*, bigint*, bigint*)	496	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1614:6:void MONT_POW_modM(bigint*, bigint*, bigint*, bigint*)	464	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1672:6:void Signature_GENERATE(bigint*, bigint*, bigint*, uint8_t*, uint64_t, uint8_t*, bigint*, uint64_t)	1264	static
+client/GUI_Code/../Network_Code/../../lib/cryptolib.h:1819:9:uint8_t Signature_VALIDATE(bigint*, bigint*, bigint*, bigint*, bigint*, bigint*, uint8_t*, uint32_t)	720	static
 client/GUI_Code/../Network_Code/../../lib/coreutil.h:4:6:void gen_priv_key(uint32_t, uint8_t*)	48	static
 client/GUI_Code/../Network_Code/../../lib/coreutil.h:38:16:bigint* gen_pub_key(uint32_t, const char*, uint32_t)	208	static
 client/GUI_Code/../Network_Code/../../lib/coreutil.h:117:6:bool check_pubkey_form(bigint*, bigint*, bigint*)	400	static
-client/GUI_Code/../Network_Code/TCP_client.h:129:4:uint8_t authenticate_server(uint8_t*, uint64_t, uint64_t)	64	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:193:4:uint8_t self_init(uint8_t*, int)	1392	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:569:6:void release_handshake_memory_region()	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:610:4:uint8_t construct_msg_00()	656	static
-client/GUI_Code/../Network_Code/TCP_client.h:694:4:uint8_t process_msg_00(uint8_t*)	2432	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1125:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1192:4:uint8_t process_msg_02(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1223:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1387:4:uint8_t process_msg_11(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1421:4:uint8_t process_msg_10(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1460:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1637:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1847:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2026:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2224:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t)	544	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2486:4:uint8_t construct_msg_40()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2542:4:uint8_t process_msg_40(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:2575:4:uint8_t process_msg_50(uint8_t*)	80	static
-client/GUI_Code/../Network_Code/TCP_client.h:2662:4:uint8_t construct_msg_50()	352	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2747:4:uint8_t process_msg_51(uint8_t*)	48	static
-client/GUI_Code/../Network_Code/TCP_client.h:2804:4:uint8_t construct_msg_60()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2852:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:3088:4:uint8_t login(uint8_t*, int)	1248	static
-client/GUI_Code/../Network_Code/TCP_client.h:3200:4:uint8_t make_new_chatroom(unsigned char*, int, unsigned char*, int)	1264	static
+client/GUI_Code/../Network_Code/TCP_client.h:130:4:uint8_t authenticate_server(uint8_t*, uint64_t, uint64_t)	64	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:194:4:uint8_t self_init(uint8_t*, int)	1392	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:570:6:void release_handshake_memory_region()	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:611:4:uint8_t construct_msg_00()	656	static
+client/GUI_Code/../Network_Code/TCP_client.h:695:4:uint8_t process_msg_00(uint8_t*)	2432	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1126:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1193:4:uint8_t process_msg_02(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1224:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1388:4:uint8_t process_msg_11(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1422:4:uint8_t process_msg_10(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1461:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1638:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1848:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2027:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2225:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t*)	560	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2487:4:uint8_t construct_msg_40()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2543:4:uint8_t process_msg_40(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:2576:4:uint8_t process_msg_50(uint8_t*)	80	static
+client/GUI_Code/../Network_Code/TCP_client.h:2663:4:uint8_t construct_msg_50()	352	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2748:4:uint8_t process_msg_51(uint8_t*)	48	static
+client/GUI_Code/../Network_Code/TCP_client.h:2853:7:void* begin_polling(void*)	1376	static
+client/GUI_Code/../Network_Code/TCP_client.h:2805:4:uint8_t construct_msg_60()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2992:6:void start_polling_thread()	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:3003:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:3239:4:uint8_t login(uint8_t*, int)	1248	static
+client/GUI_Code/../Network_Code/TCP_client.h:3351:4:uint8_t make_new_chatroom(unsigned char*, int, unsigned char*, int)	1264	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = char]	32	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = wchar_t]	32	static
 /usr/local/include/wx-3.2/wx/string.h:1212:3:wxString::wxString(const char*)	224	static

@@ -2299,7 +2299,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         reply_write_offset = 2 * SMALL_FIELD_LEN;
         
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
-            reply_len += clients[poller_ix].pending_msg_sizes[i] + 8;    
+         reply_len += clients[poller_ix].pending_msg_sizes[i] + SMALL_FIELD_LEN;    
         } 
          
         reply_buf = calloc(1, reply_len);

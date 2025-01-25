@@ -30,6 +30,7 @@
 #define HMAC_TRUNC_BYTES 8
 #define ARGON_STRING_LEN 8
 #define ARGON_HASH_LEN   64
+#define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
 u8 temp_handshake_memory_region_isLocked = 0;
@@ -189,7 +190,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 
 /* Attempt to establish a connection with the Rosetta server. */
 
-/* Initialize polling mutex and start the poller thread function. */
+/* Initialize polling mutex. */
 u8 self_init(u8* password, int password_len){
 
     const u32 chacha_key_len = 32;
@@ -2221,7 +2222,7 @@ label_cleanup:
  X = ONE_TIME_KEY_LEN
 
 */
-u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
+u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
 
     /* Order of operations here:
      *  - Read in the text message's length from 3rd small field. Verify it.
@@ -2442,9 +2443,9 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64 result_chars){
 
     /* Displayed name format in GUI is always "xxxxNAME: MSG"            */
     /* Always 8 chars space for username and max_txt_len for msg, 1 row. */
-    result_chars = SMALL_FIELD_LEN + 2 + text_len;
+    *result_chars = SMALL_FIELD_LEN + 2 + text_len;
 
-    memset(name_with_msg_string, 0, result_chars);
+    memset(name_with_msg_string, 0, MESSAGE_LINE_LEN);
 
     /* Construct the string with name and message to be displayed on the GUI. */
     memcpy(name_with_msg_string, payload + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
@@ -2847,6 +2848,156 @@ label_cleanup:
     /* No function cleanup yet. Keep the label for completeness. */
 
     return status; 
+}
+
+void* begin_polling(void* input){
+
+    /* Construct the poll packet only once, and keep sending it. */
+    
+    u8  ret;
+    u8  text_message_line[MESSAGE_LINE_LEN];
+    u8* received_buf = (u8*)calloc(1, MAX_MSG_LEN);
+
+    u64 curr_msg_type = 0;
+    u64 pending_messages = 0;
+    u64 read_ix = 0;
+    u64 block_len;
+    u64 obtained_text_message_line_len = 0;
+    u64 curr_msg_len;
+
+    int64_t bytes_read;
+
+    struct timespec ts;
+    ts.tv_sec  = 0;
+    ts.tv_nsec = 200000000; /* 200,000,000 nanoseconds = 0.2 seconds */
+
+    for(;;){
+
+        nanosleep(&ts, NULL);
+
+        printf("[OK] Client: Sending a poll request to the server!\n");
+
+        ret = construct_msg_40();
+
+        if(ret != 1){
+            printf("[ERR] Client: Sending of poll packet failed! Read logs!\n");
+            goto loop_cleanup;
+        }
+
+        /* Wait for server to tell us if there's anything for us unreceived. */
+        bytes_read = recv(own_socket_fd, received_buf, MAX_MSG_LEN, 0);
+
+        if( bytes_read == -1 
+            || 
+            bytes_read < (int64_t)(SIGNATURE_LEN + SMALL_FIELD_LEN)
+          )
+        {
+            printf( "[ERR] Client: Failed to receive server's poll reply!\n\n");
+            goto loop_cleanup;
+        }
+
+        /* Call the appropriate function depending on server's response. */
+        if( *((u64*)(received_buf)) == PACKET_ID_40 ){
+            printf("[OK] Client: Server said nothing new after polling.\n\n");
+            process_msg_40(received_buf);
+        }
+/*
+
+ One or more pending messages were found for the polling client.
+ Send them all at once.
+ 
+ Server ----> Client
+  
+================================================================================
+| packetID 41 |     T     |    L_1    | MSG1 |...|    L_T    | MSG_T|  Signat  |
+|=============|===========|===========|======|===|===========|======|==========|
+|  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L_1  |...| SMALL_LEN |  L_T | SIG_LEN  |
+--------------------------------------------------------------------------------
+
+*/   
+        else if ( *((u64*)(received_buf)) == PACKET_ID_41 ) {
+            
+            pending_messages = *((u64*)(received_buf + SMALL_FIELD_LEN));
+
+            read_ix = 2 * SMALL_FIELD_LEN;
+
+            /* At end, read_ix = how many bytes a signature was computed on. */
+            for(u64 i = 0; i < pending_messages; ++i){
+                block_len = *((u64*)(received_buf + read_ix));
+                read_ix += block_len + SMALL_FIELD_LEN;
+            }
+
+            /* Verify the cryptographic signature now. */
+            ret = authenticate_server(received_buf, read_ix, read_ix); 
+
+            if(ret != 1){
+                printf("[ERR] Client: Bad signature in polling reply.\n\n");   
+                goto loop_cleanup;      
+            }   
+
+            /* Start at first message contents. */
+            read_ix = 3 * SMALL_FIELD_LEN;
+            
+            /* Valid pending message types: 50, 51, 21, 30 */
+
+            /* packet_ID and signature are valid - process each pending MSG. */
+            for(u64 i = 0; i < pending_messages; ++i){
+
+                curr_msg_type = *((u64*)(received_buf + read_ix));
+
+                curr_msg_len = 
+                            *((u64*)(received_buf + read_ix - SMALL_FIELD_LEN));
+
+                if(curr_msg_type == PACKET_ID_50){
+                    process_msg_50(received_buf + read_ix);
+                    read_ix += SMALL_FIELD_LEN + curr_msg_len;
+                    continue;
+                }
+                else if(curr_msg_type == PACKET_ID_51){
+                    process_msg_51(received_buf + read_ix);
+                    read_ix += SMALL_FIELD_LEN + curr_msg_len;
+                    continue;
+                }
+                else if(curr_msg_type == PACKET_ID_21){
+                    process_msg_21(received_buf + read_ix);
+                    read_ix += SMALL_FIELD_LEN + curr_msg_len;
+                    continue;
+                }
+                else if(curr_msg_type == PACKET_ID_30){
+                    process_msg_30( received_buf + read_ix
+                                   ,text_message_line
+                                   ,&obtained_text_message_line_len
+                                  );
+
+                    /* Tell GUI to display the message with obtained length. */
+                    /* TODO */
+
+                    read_ix += SMALL_FIELD_LEN + curr_msg_len;
+                    continue;
+                }
+            }
+        }
+        else{
+            printf("[ERR] Client: Strange reply by server to poll request.\n");
+        }
+
+loop_cleanup:
+
+        memset(received_buf, 0, MAX_MSG_LEN);
+    }
+
+    return NULL; 
+}
+
+void start_polling_thread(){
+
+    /* Start the thread function which sends poll packets to the Rosetta server
+     * in an infinite loop and processes the several different answer packets.
+     */
+    if( (pthread_create(&poller_threadID, NULL, &begin_polling, NULL)) != 0){
+        printf("[ERR] Client: pthread_create failed for polling function.\n\n");
+        exit(1);
+    }
 }
 
 u8 reg(u8* password, int password_len){
@@ -3260,12 +3411,12 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
             return 0;
         }
 
-        status = 3;
+        return 3;
     }
 
     else{
         printf("[ERR] Client: Unexpected reply by the server to msg_10.\n\n");
-        status = 0;
+        return 0;
     }
 
     printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
@@ -3284,7 +3435,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
      * for the messages sub-window and "exit room" button. Render them.
      */
     
-    
+    start_polling_thread();
 
     return status;
 }
