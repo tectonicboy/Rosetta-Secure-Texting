@@ -262,9 +262,6 @@ void CHACHA20( uint8_t*  plaintext, uint32_t txt_len
     u32       full_txt_blocks = 0;
 
     u8 have_last_block = 0;
-    
-    printf("[DEBUG] Cryptolib: Num of matrices in chacha20:%u\n", num_matrices);
-    printf("[DEBUG] Cryptolib: For txt_len %u bytes.\n", txt_len);
 
     /* This sum can be either 16 or 15. 16 means no space for Counter,
      * 15 means one uint32 space for counter. 
@@ -1780,16 +1777,6 @@ void Signature_GENERATE(bigint* M, bigint* Q, bigint* Gmont
      * bytes of memory. No checks performed for performance.
      */
     
-    printf("[DEBUG] Cryptolib: SIG_GEN computed s and e:\n\n");
-
-    printf("[DEBUG] Cryptolib: computed s:\n");
-    bigint_print_info(&s);
-    bigint_print_bits(&s);
-
-    printf("[DEBUG] Cryptolib: computed e:\n");
-    bigint_print_info(&e);
-    bigint_print_bits(&e);
-
     memcpy(signature + offset, &s, sizeof(bigint));
     offset += sizeof(bigint);
     memcpy(signature + offset, s.bits, 40);
