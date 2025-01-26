@@ -459,8 +459,9 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
            ,PRIVKEY_LEN
     );
        
+    /*
     printf("[DEBUG] Server: Calling signature_validate with:\n");
-    printf("[DEBUG] Server: client's pubkeyMONT:\n");
+    printf("[DEBUG] Server: client[%lu]'s pubkeyMONT:\n", client_ix);
     bigint_print_info(&(clients[client_ix].client_pubkey_mont));
     bigint_print_bits(&(clients[client_ix].client_pubkey_mont));
     printf("[DEBUG] Server: and signed things of length %lu:\n", signed_len);
@@ -472,7 +473,8 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
         }
     }
     printf("\n\n");
-
+    */
+   
     /* Verify the sender's cryptographic signature. */
     ret = Signature_VALIDATE(
                      Gm, &(clients[client_ix].client_pubkey_mont)
@@ -2238,6 +2240,8 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len = sign_offset;
     u64 poller_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+
+    printf("[DEBUG] Server: poller_ix in process_msg_40: %lu\n\n", poller_ix);
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) != 1 ){
@@ -2736,10 +2740,8 @@ void* check_for_lost_connections(){
        
         curr_time = clock();
 
-        printf( "\n[OK] Server: Detector of lost connections STARTED: %s\n"
-               ,ctime(&curr_time)
-        );
-        
+        printf("\n[OK] Server: Detector of lost connections STARTED!\n\n");
+
         //printf("[OK]  Server: Checker for lost connections started!\n");
         
         /* Go over all user slots, for every connected client, check the last 
@@ -2748,22 +2750,28 @@ void* check_for_lost_connections(){
          * and any chatrooms they were guests in or the owner of.
          */      
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            
+            printf( "[DEBUG] Server: Client[%lu] polled %f seconds ago!\n"
+                   ,i
+                   ,( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC)
+                  );
+
             if( 
                (users_status_bitmask & (1ULL << (63ULL - i))) 
                 &&
                 (clients[i].room_ix != 0)
                 &&
-               (difftime(curr_time, clients[i].time_last_polled) > 20.0)
-              )
+               (( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC) > 20.0)
+            )
             {
                 printf("[ERR] Server: Caught an inactive connected client!\n"
                        "              Removing them from the server:\n"
                        "              user_slot_bitmask_ix: [%lu]\n"
                        "              this_user's_room_ix : [%lu]\n"
-                       "              Time since last poll: %lf seconds\n\n"
+                       "              Time since last poll: %f seconds\n\n"
                        ,i
                        ,clients[i].room_ix
-                       ,difftime(curr_time, clients[i].time_last_polled)
+                       ,( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC)
                 );
                       
                 remove_user(i);

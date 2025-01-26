@@ -154,6 +154,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
            ,PRIVKEY_LEN
     );
 
+    /*
     printf("[DEBUG] Client: s and e received by server (before validate):\n\n");
 
     printf("[DEBUG] Client: received s:\n");
@@ -163,6 +164,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
     printf("[DEBUG] Client: received e:\n");
     bigint_print_info(recv_e);
     bigint_print_bits(recv_e);
+    */
 
     /* Verify the sender's cryptographic signature. */
     status = Signature_VALIDATE(
@@ -1160,7 +1162,7 @@ u8 process_msg_01(u8* msg){
     
     printf("[OK]  Client: Server told us Login was successful!\n");
     printf("              Tell GUI to tell user the good news!\n\n");   
-      
+    printf("[OK]  Client: Server told us our user index is: %lu\n\n", own_ix);
 label_cleanup:            
  
     release_handshake_memory_region();
@@ -2494,8 +2496,9 @@ u8 construct_msg_40(void){
     memset(payload, 0, payload_len);
 
     *((u64*)(payload)) = PACKET_ID_40;
+    *((u64*)(payload + SMALL_FIELD_LEN)) = own_ix;
 
-    memcpy((payload + SMALL_FIELD_LEN), own_user_id, SMALL_FIELD_LEN);
+    //memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
     Signature_GENERATE( 
