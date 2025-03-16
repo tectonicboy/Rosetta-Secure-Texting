@@ -2751,11 +2751,6 @@ void* check_for_lost_connections(){
          */      
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
             
-            printf( "[DEBUG] Server: Client[%lu] polled %f seconds ago!\n"
-                   ,i
-                   ,( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC)
-                  );
-
             if( 
                (users_status_bitmask & (1ULL << (63ULL - i))) 
                 &&

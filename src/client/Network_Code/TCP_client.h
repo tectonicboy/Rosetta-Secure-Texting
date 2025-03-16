@@ -510,7 +510,7 @@ u8 self_init(u8* password, int password_len){
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
 
     servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("192.168.8.21");
+    servaddr.sin_addr.s_addr = inet_addr("212.104.117.187");
     servaddr.sin_port        = htons(port);
      
     /* Initialize the mutex that will be used to prevent the main thread and
@@ -1345,16 +1345,6 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     /* Ready to send the constructed packet to the Rosetta server now. */
 
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-*/
     if(send(own_socket_fd, send_buf, send_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 10.\n");
         printf("              Which is the request to create a new room\n");
@@ -1566,16 +1556,6 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Ready to send the constructed packet to the Rosetta server now. */
 
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-*/
     if(send(own_socket_fd, send_buf, send_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 20.\n");
         printf("              Which is the request to join an existing room\n");
@@ -3443,8 +3423,93 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     return status;
 }
 
+u8 join_chatroom(unsigned char* roomid, int roomid_len,
+                 unsigned char* userid, int userid_len
+                )
+{
+    u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
+    u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
+    u64 msg_len;
 
+    u8 status;
+    u8 msg_buf[MAX_TXT_LEN];
 
+    ssize_t bytes_read;
+    
+    /* Zero-extend the userID to 8 bytes including a null terminator.       */
+    /* Len does not include the null terminator already placed by the GUI.  */
+    if(userid_bytes_for_zeroing > 0){
+        memset(userid + userid_len, 0, userid_bytes_for_zeroing);
+    }
+
+    /* Do the same for roomID.   */
+    if(roomid_bytes_for_zeroing > 0){
+        memset(roomid + roomid_len, 0, roomid_bytes_for_zeroing);
+    }
+
+    /* Send a request to the Rosetta server to create a new chatroom. */
+
+    /* Expected reply: msg_20=OK */
+    status = construct_msg_20(userid, roomid);
+
+    /* bad msg_20 construction. abort. */
+    if(status != 1){
+        return 0;
+    }
+
+    /* Capture the server's reply. */
+    memset(msg_buf, 0, MAX_TXT_LEN);
+
+    printf("Waiting for the server to reply with PACKET_ID = 20.\n");
+
+    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
+
+    if(bytes_read == -1){
+        printf("[ERR] Client: Couldn't recv() a reply to msg_20.\n\n");
+        perror("errno = ");
+        return 0;
+    }
+
+    printf("[OK]  Client: Received reply to msg_20: %lu bytes.\n", bytes_read);
+
+    if( *((u64*)msg_buf) == PACKET_ID_20 ){
+
+        printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
+
+        msg_len = bytes_read;
+
+        if ((status = process_msg_20(msg_buf, msg_len)) != 1){
+            printf("[ERR] Client: process_msg_20 failed.\n\n");
+            return 0;
+        }
+    }
+
+    else{
+        printf("[ERR] Client: Unexpected reply by the server to msg_20.\n\n");
+        /* return BAD */
+        return 0;
+    }
+
+    printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");
+
+    /* Here is one of 2 possible places to start polling. So start it.
+     * Basically an infinite loop in a separate running thread that sends a
+     * polling request to the Rosetta server every 0.2 seconds or so, asking for
+     * info about undisplayed messages by others, a room participant having left
+     * the chatroom or the owner of the chatroom having deleted it, etc.
+     *
+     * Ideally the vastly most common case of there not being anything for us
+     * to receive shouldn't need to lock the GUI thread (for too long).
+     */
+
+    /* ALSO, here is one of 2 possible places where GUI renders the graphics
+     * for the messages sub-window and "exit room" button. Render them.
+     */
+
+    start_polling_thread();
+
+    return 1;
+}
 
 
 

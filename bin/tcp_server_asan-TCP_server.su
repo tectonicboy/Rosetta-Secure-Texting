@@ -70,9 +70,9 @@ server/TCP_server.c:2234:6:process_msg_40	112	dynamic,bounded
 server/TCP_server.c:2382:6:process_msg_50	16	static
 server/TCP_server.c:2403:6:process_msg_60	16	static
 server/TCP_server.c:2445:5:identify_new_transmission	160	static
-server/TCP_server.c:2818:7:start_new_client_thread	80	static
+server/TCP_server.c:2813:7:start_new_client_thread	80	static
 server/TCP_server.c:2674:6:remove_user	48	static
 server/TCP_server.c:2731:7:check_for_lost_connections	128	static
-server/TCP_server.c:2879:5:main	144	static
-server/TCP_server.c:2964:1:_sub_D_00099_0	8	static
-server/TCP_server.c:2964:1:_sub_I_00099_1	16	static
+server/TCP_server.c:2874:5:main	144	static
+server/TCP_server.c:2959:1:_sub_D_00099_0	8	static
+server/TCP_server.c:2959:1:_sub_I_00099_1	16	static

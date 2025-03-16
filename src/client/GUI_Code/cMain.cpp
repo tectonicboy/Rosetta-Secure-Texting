@@ -577,8 +577,67 @@ void cMain::BtnClickJoinRoom(wxCommandEvent &evt){
 
 void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
 
+    uint8_t joinroom_status = 1;
 
+    uint8_t userid[SMALL_FIELD_LEN];
+    uint8_t roomid[SMALL_FIELD_LEN];
 
+    int userid_len;
+    int roomid_len;
+
+    wxString roomid_as_wxstring = "";
+    wxString userid_as_wxstring = "";
+
+    info_msg_box->Hide();
+
+    roomid_as_wxstring = roomid_input->GetValue();
+    userid_as_wxstring = userid_input->GetValue();
+
+    roomid_len = roomid_as_wxstring.Length();
+    userid_len = userid_as_wxstring.Length();
+
+    printf("[DEBUG] WX: Joining room : Obtained roomid_len=%d, userid_len=%d\n"
+           ,roomid_len, userid_len
+          );
+
+    if(roomid_len > 7 || roomid_len < 2 || userid_len > 7 || userid_len < 2){
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Bad: Enter 2 to 7 characters for each field.");
+        info_msg_box->Show();
+
+        /* End the event. */
+        evt.Skip();
+        return;
+    }
+    
+    strncpy( (char*)roomid
+            ,(const char*)roomid_as_wxstring.mb_str(wxConvUTF8)
+            ,roomid_len
+    );
+
+    strncpy( (char*)userid
+            ,(const char*)userid_as_wxstring.mb_str(wxConvUTF8)
+            ,userid_len
+    );
+
+    joinroom_status = join_chatroom(roomid, roomid_len, userid, userid_len);
+
+    if(joinroom_status == 0){
+        /* Add code to render 'could not login rosetta' msg on user's screen. */
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Error. Room joining failed unexpectedly.");
+        info_msg_box->Show();
+    }
+    else{
+        /* Add code to render OK msg and buttons to send chat / exit room. */
+        /* And to hide the rendering of the room create/join stuff. */
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Success! You've now joined the chatroom!");
+        info_msg_box->Show();
+    }
+
+    /* End the event. */
+    evt.Skip();
 }
 
 void cMain::BtnClickJoinRoomBack(wxCommandEvent &evt){

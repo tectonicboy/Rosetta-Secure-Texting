@@ -87,7 +87,7 @@ client/GUI_Code/cMain.cpp:334:6:void cMain::BtnClickLogin(wxCommandEvent&)	32	st
 client/GUI_Code/cMain.cpp:436:6:void cMain::BtnClickRegister(wxCommandEvent&)	32	static
 client/GUI_Code/cMain.cpp:540:6:void cMain::BtnClickMakeRoom(wxCommandEvent&)	32	static
 client/GUI_Code/cMain.cpp:559:6:void cMain::BtnClickJoinRoom(wxCommandEvent&)	32	static
-client/GUI_Code/cMain.cpp:578:6:void cMain::BtnClickJoinRoomGo(wxCommandEvent&)	8	static
+client/GUI_Code/cMain.cpp:768:6:void cMain::BtnClickCloseYourRoom(wxCommandEvent&)	8	static
 /usr/local/include/wx-3.2/wx/event.h:454:27:wxEvtHandler* wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::GetEvtHandler() const [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
 /usr/local/include/wx-3.2/wx/event.h:457:29:void (wxEvtHandler::* wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::GetEvtMethod() const)(wxEvent&) [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
 client/GUI_Code/cMain.cpp:536:6:void cMain::BtnClickQuit(wxCommandEvent&)	16	static
@@ -108,11 +108,11 @@ client/GUI_Code/cMain.cpp:330:1:virtual cMain::~cMain()	16	static
 /usr/local/include/wx-3.2/wx/thread.h:658:7:virtual wxThreadHelperThread::~wxThreadHelperThread()	16	static
 /usr/local/include/wx-3.2/wx/event.h:267:18:virtual bool wxObjectEventFunctor::IsMatching(const wxEventFunctor&) const	176	static
 client/GUI_Code/../Network_Code/../../lib/bigint.h:35:6:0(bigint*, uint32_t, uint32_t)	32	static
+client/GUI_Code/../Network_Code/TCP_client.h:2975:6:void start_polling_thread()	16	static
 /usr/local/include/wx-3.2/wx/event.h:422:18:void wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::operator()(wxEvtHandler*, wxEvent&) [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	16	static
-client/GUI_Code/cMain.cpp:715:6:void cMain::BtnClickLeaveTheRoom(wxCommandEvent&)	8	static
 /usr/local/include/wx-3.2/wx/event.h:439:18:bool wxEventFunctorMethod<EventTag, Class, EventArg, EventHandler>::IsMatching(const wxEventFunctor&) const [with EventTag = wxEventTypeTag<wxCommandEvent>; Class = wxEvtHandler; EventArg = wxEvent; EventHandler = wxEvtHandler]	176	static
 /usr/local/include/wx-3.2/wx/mdi.h:397:13:virtual bool wxMDIParentFrameBase::TryBefore(wxEvent&)	32	static
-client/GUI_Code/cMain.cpp:709:6:void cMain::BtnClickCloseYourRoom(wxCommandEvent&)	8	static
+client/GUI_Code/cMain.cpp:774:6:void cMain::BtnClickLeaveTheRoom(wxCommandEvent&)	8	static
 client/GUI_Code/cMain.cpp:9:1:void __tcf_0(void*)	32	static
 /usr/local/include/wx-3.2/wx/window.h:489:20:virtual wxSize wxWindowBase::GetMinClientSize() const	160	static
 /usr/local/include/wx-3.2/wx/window.h:491:20:virtual wxSize wxWindowBase::GetMaxClientSize() const	160	static
@@ -189,35 +189,37 @@ client/GUI_Code/../Network_Code/TCP_client.h:697:4:uint8_t process_msg_00(uint8_
 client/GUI_Code/../Network_Code/TCP_client.h:1128:4:uint8_t process_msg_01(uint8_t*)	48	dynamic,bounded
 client/GUI_Code/../Network_Code/TCP_client.h:1195:4:uint8_t process_msg_02(uint8_t*)	16	static
 client/GUI_Code/../Network_Code/TCP_client.h:1226:4:uint8_t construct_msg_10(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1390:4:uint8_t process_msg_11(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1424:4:uint8_t process_msg_10(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:1463:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1640:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:1850:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2029:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2227:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t*)	560	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2489:4:uint8_t construct_msg_40()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2546:4:uint8_t process_msg_40(uint8_t*)	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:2579:4:uint8_t process_msg_50(uint8_t*)	80	static
-client/GUI_Code/../Network_Code/TCP_client.h:2666:4:uint8_t construct_msg_50()	352	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2751:4:uint8_t process_msg_51(uint8_t*)	48	static
-client/GUI_Code/../Network_Code/TCP_client.h:2856:7:void* begin_polling(void*)	1376	static
-client/GUI_Code/../Network_Code/TCP_client.h:2808:4:uint8_t construct_msg_60()	320	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:2995:6:void start_polling_thread()	16	static
-client/GUI_Code/../Network_Code/TCP_client.h:3006:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
-client/GUI_Code/../Network_Code/TCP_client.h:3242:4:uint8_t login(uint8_t*, int)	1248	static
-client/GUI_Code/../Network_Code/TCP_client.h:3354:4:uint8_t make_new_chatroom(unsigned char*, int, unsigned char*, int)	1264	static
+client/GUI_Code/../Network_Code/TCP_client.h:1380:4:uint8_t process_msg_11(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1414:4:uint8_t process_msg_10(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:1453:4:uint8_t construct_msg_20(unsigned char*, unsigned char*)	640	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1620:4:uint8_t process_msg_20(uint8_t*, uint64_t)	448	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:1830:4:uint8_t process_msg_21(uint8_t*)	896	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2009:4:uint8_t construct_msg_30(unsigned char*, uint64_t)	496	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2207:4:uint8_t process_msg_30(uint8_t*, uint8_t*, uint64_t*)	560	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2469:4:uint8_t construct_msg_40()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2526:4:uint8_t process_msg_40(uint8_t*)	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:2559:4:uint8_t process_msg_50(uint8_t*)	80	static
+client/GUI_Code/../Network_Code/TCP_client.h:2646:4:uint8_t construct_msg_50()	352	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2731:4:uint8_t process_msg_51(uint8_t*)	48	static
+client/GUI_Code/../Network_Code/TCP_client.h:2836:7:void* begin_polling(void*)	1376	static
+client/GUI_Code/../Network_Code/TCP_client.h:2788:4:uint8_t construct_msg_60()	320	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:2975:6:void start_polling_thread()	16	static
+client/GUI_Code/../Network_Code/TCP_client.h:2986:4:uint8_t reg(uint8_t*, int)	1520	dynamic,bounded
+client/GUI_Code/../Network_Code/TCP_client.h:3222:4:uint8_t login(uint8_t*, int)	1248	static
+client/GUI_Code/../Network_Code/TCP_client.h:3334:4:uint8_t make_new_chatroom(unsigned char*, int, unsigned char*, int)	1264	static
+client/GUI_Code/../Network_Code/TCP_client.h:3426:4:uint8_t join_chatroom(unsigned char*, int, unsigned char*, int)	1264	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = char]	32	static
 /usr/local/include/wx-3.2/wx/buffer.h:202:10:void wxScopedCharTypeBuffer<T>::DecRef() [with T = wchar_t]	32	static
 /usr/local/include/wx-3.2/wx/string.h:1212:3:wxString::wxString(const char*)	224	static
 client/GUI_Code/cMain.cpp:28:1:cMain::cMain()	5440	dynamic,bounded
 client/GUI_Code/cMain.cpp:417:6:void cMain::BtnClickLoginBack(wxCommandEvent&)	304	static
 client/GUI_Code/cMain.cpp:517:6:void cMain::BtnClickRegBack(wxCommandEvent&)	304	static
-client/GUI_Code/cMain.cpp:584:6:void cMain::BtnClickJoinRoomBack(wxCommandEvent&)	400	static
-client/GUI_Code/cMain.cpp:686:6:void cMain::BtnClickMakeRoomBack(wxCommandEvent&)	400	static
+client/GUI_Code/cMain.cpp:643:6:void cMain::BtnClickJoinRoomBack(wxCommandEvent&)	400	static
+client/GUI_Code/cMain.cpp:745:6:void cMain::BtnClickMakeRoomBack(wxCommandEvent&)	400	static
 client/GUI_Code/cMain.cpp:351:6:void cMain::BtnClickLoginGo(wxCommandEvent&)	1136	static
 client/GUI_Code/cMain.cpp:451:6:void cMain::BtnClickRegGo(wxCommandEvent&)	1136	static
-client/GUI_Code/cMain.cpp:607:6:void cMain::BtnClickMakeRoomGo(wxCommandEvent&)	1440	static
-client/GUI_Code/cMain.cpp:718:1:cpp)	48	static
-client/GUI_Code/cMain.cpp:718:1:_sub_D_00099_0	8	static
-client/GUI_Code/cMain.cpp:718:1:_sub_I_00099_1	16	static
+client/GUI_Code/cMain.cpp:578:6:void cMain::BtnClickJoinRoomGo(wxCommandEvent&)	1120	static
+client/GUI_Code/cMain.cpp:666:6:void cMain::BtnClickMakeRoomGo(wxCommandEvent&)	1440	static
+client/GUI_Code/cMain.cpp:777:1:cpp)	48	static
+client/GUI_Code/cMain.cpp:777:1:_sub_D_00099_0	8	static
+client/GUI_Code/cMain.cpp:777:1:_sub_I_00099_1	16	static
