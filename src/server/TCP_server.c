@@ -2740,7 +2740,7 @@ void* check_for_lost_connections(){
        
         curr_time = clock();
 
-        printf("\n[OK] Server: Detector of lost connections STARTED!\n\n");
+        //printf("\n[OK] Server: Detector of lost connections STARTED!\n\n");
 
         //printf("[OK]  Server: Checker for lost connections started!\n");
         
@@ -2801,11 +2801,11 @@ void* check_for_lost_connections(){
         }
         
         curr_time = clock();
-
+        /*
         printf( "\n[OK] Server: Detector of lost connections ENDED: %s\n"
                ,ctime(&curr_time)
         );
-        
+        */
         pthread_mutex_unlock(&mutex);
     }
 }

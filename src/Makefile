@@ -23,6 +23,7 @@ CFLAGS += -Wwrite-strings
 CFLAGS += -Wno-unused-function
 CFLAGS += -Wno-aggregate-return
 
+.PHONY: server server_asan client client_asan
 
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
 	server server_gen_priv_key server_gen_pub_key
