@@ -33,6 +33,8 @@
 #define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
+#define SERVER_IP_ADDR "192.168.8.21"
+
 u8 temp_handshake_memory_region_isLocked = 0;
 
 struct roommate{
@@ -510,7 +512,7 @@ u8 self_init(u8* password, int password_len){
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
 
     servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("212.104.117.187");
+    servaddr.sin_addr.s_addr = inet_addr(SERVER_IP_ADDR);
     servaddr.sin_port        = htons(port);
      
     /* Initialize the mutex that will be used to prevent the main thread and
