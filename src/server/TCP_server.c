@@ -2635,18 +2635,22 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
     }
     
     /* Also do something in case it was a bad unrecognized transmission.  */
-    /* Just say FUCK YOU to whoever sent it and perhaps tried hacking us. */
+    
     default:{
+        
         printf("[WAR] Server: No valid packet type found in request.\n\n");
         /* Send the reply back to the client. */
+        /*
         if(send(client_socket_fd[sock_ix], "fuck you", 8, 0) == -1){
             printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
             ret_val = 1;
             goto label_error;
         }
+        
         else{
             printf("[OK]  Server: Replied to a bad transmission.\n");
-        }    
+        }
+        */    
     }
     
     } /* end switch */
@@ -2845,6 +2849,8 @@ void* start_new_client_thread(void* ix_ptr){
                 ,ix
             );
             perror("recv() failed, errno was set to");
+            memset(client_msg_buf, 0, MAX_MSG_LEN);
+            continue;
         }
         else{
             printf("[OK]  Server: Read %ld bytes from request by client[%u]\n\n" 
