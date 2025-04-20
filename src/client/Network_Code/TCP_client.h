@@ -33,7 +33,7 @@
 #define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
-#define SERVER_IP_ADDR "192.168.8.21"
+#define SERVER_IP_ADDR "192.168.0.112"
 
 u8 temp_handshake_memory_region_isLocked = 0;
 
@@ -3159,6 +3159,17 @@ u8 reg(u8* password, int password_len){
      *                      May decide to also encrypt the long-term public
      *                      key in the future, but for now only private key.
      */
+    
+    char save_file_name[10];
+    
+    strncpy(save_file_name, "user_save", 9);
+
+    FILE* num_regs = fopen("../bin/num_regs.dat", "r");
+
+    u8 curr_regs;
+
+    fread(&curr_regs, 1, 1, num_regs);
+
     user_save = fopen("../bin/user_save.dat", "w");
 
     if(!user_save){
