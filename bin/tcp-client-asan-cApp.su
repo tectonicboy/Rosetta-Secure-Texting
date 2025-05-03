@@ -1,0 +1,123 @@
+/usr/local/include/wx-3.2/wx/thread.h:622:18:virtual void wxThread::OnDelete()	8	static
+/usr/local/include/wx-3.2/wx/thread.h:626:18:virtual void wxThread::OnKill()	8	static
+/usr/local/include/wx-3.2/wx/thread.h:631:18:virtual void wxThread::OnExit()	8	static
+/usr/local/include/wx-3.2/wx/event.h:281:27:virtual wxEvtHandler* wxObjectEventFunctor::GetEvtHandler() const	16	static
+/usr/local/include/wx-3.2/wx/event.h:284:29:virtual void (wxEvtHandler::* wxObjectEventFunctor::GetEvtMethod() const)(wxEvent&)	16	static
+/usr/local/include/wx-3.2/wx/event.h:3651:18:virtual void wxEvtHandler::SetNextHandler(wxEvtHandler*)	16	static
+/usr/local/include/wx-3.2/wx/event.h:3652:18:virtual void wxEvtHandler::SetPreviousHandler(wxEvtHandler*)	16	static
+/usr/local/include/wx-3.2/wx/event.h:3713:18:virtual void wxEvtHandler::AddPendingEvent(const wxEvent&)	32	static
+/usr/local/include/wx-3.2/wx/event.h:4033:18:virtual bool wxEvtHandler::OnDynamicBind(wxDynamicEventTableEntry&)	8	static
+/usr/local/include/wx-3.2/wx/event.h:4109:13:virtual void wxObjectEventFunctor::operator()(wxEvtHandler*, wxEvent&)	16	static
+/usr/local/include/wx-3.2/wx/app.h:93:18:virtual bool wxAppConsoleBase::CallOnInit()	16	static
+/usr/local/include/wx-3.2/wx/app.h:113:18:virtual void wxAppConsoleBase::OnEventLoopEnter(wxEventLoopBase*)	8	static
+/usr/local/include/wx-3.2/wx/app.h:121:18:virtual void wxAppConsoleBase::OnEventLoopExit(wxEventLoopBase*)	8	static
+/usr/local/include/wx-3.2/wx/app.h:134:18:virtual void wxAppConsoleBase::OnFatalException()	8	static
+/usr/local/include/wx-3.2/wx/app.h:615:18:virtual bool wxAppBase::UsesEventLoop() const	8	static
+/usr/local/include/wx-3.2/wx/app.h:622:18:virtual bool wxAppBase::IsActive() const	16	static
+/usr/local/include/wx-3.2/wx/app.h:656:18:virtual bool wxAppBase::SetDisplayMode(const wxVideoMode&)	8	static
+/usr/local/include/wx-3.2/wx/app.h:667:18:virtual void wxAppBase::SetPrintMode(int)	8	static
+/usr/local/include/wx-3.2/wx/app.h:694:18:virtual bool wxAppBase::IsGUI() const	8	static
+/usr/local/include/wx-3.2/wx/gtk/app.h:52:19:virtual void* wxApp::GetXVisualInfo()	8	static
+/usr/local/include/wx-3.2/wx/window.h:242:18:virtual void wxWindowBase::SetId(wxWindowID)	16	static
+/usr/local/include/wx-3.2/wx/window.h:450:18:virtual void wxWindowBase::SetSizeHints(int, int, int, int, int, int)	16	static
+/usr/local/include/wx-3.2/wx/window.h:477:18:virtual void wxWindowBase::SetMinClientSize(const wxSize&)	144	static
+/usr/local/include/wx-3.2/wx/window.h:479:18:virtual void wxWindowBase::SetMaxClientSize(const wxSize&)	144	static
+/usr/local/include/wx-3.2/wx/window.h:485:20:virtual wxSize wxWindowBase::GetMinSize() const	96	static
+/usr/local/include/wx-3.2/wx/window.h:486:20:virtual wxSize wxWindowBase::GetMaxSize() const	96	static
+/usr/local/include/wx-3.2/wx/window.h:590:18:virtual bool wxWindowBase::BeginRepositioningChildren()	8	static
+/usr/local/include/wx-3.2/wx/window.h:591:18:virtual void wxWindowBase::EndRepositioningChildren()	8	static
+/usr/local/include/wx-3.2/wx/window.h:634:18:virtual bool wxWindowBase::ShowWithEffect(wxShowEffect, unsigned int)	16	static
+/usr/local/include/wx-3.2/wx/window.h:640:18:virtual bool wxWindowBase::HideWithEffect(wxShowEffect, unsigned int)	16	static
+/usr/local/include/wx-3.2/wx/window.h:665:18:virtual bool wxWindowBase::IsThisEnabled() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:674:18:virtual long int wxWindowBase::GetWindowStyleFlag() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:690:18:virtual void wxWindowBase::SetExtraStyle(long int)	16	static
+/usr/local/include/wx-3.2/wx/window.h:703:18:virtual void wxWindowBase::SetThemeEnabled(bool)	16	static
+/usr/local/include/wx-3.2/wx/window.h:704:18:virtual bool wxWindowBase::GetThemeEnabled() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:714:18:virtual void wxWindowBase::SetFocusFromKbd()	16	static
+/usr/local/include/wx-3.2/wx/window.h:733:18:virtual bool wxWindowBase::AcceptsFocus() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:739:18:virtual bool wxWindowBase::AcceptsFocusRecursively() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:744:18:virtual bool wxWindowBase::AcceptsFocusFromKeyboard() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:778:18:virtual void wxWindowBase::EnableVisibleFocus(bool)	8	static
+/usr/local/include/wx-3.2/wx/window.h:936:26:virtual wxValidator* wxWindowBase::GetValidator()	16	static
+/usr/local/include/wx-3.2/wx/window.h:982:18:virtual void wxWindowBase::WXAdjustFontToOwnPPI(wxFont&) const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1167:18:virtual void wxWindowBase::PrepareDC(wxDC&)	8	static
+/usr/local/include/wx-3.2/wx/window.h:1263:18:virtual bool wxWindowBase::HasTransparentBackground()	8	static
+/usr/local/include/wx-3.2/wx/window.h:1383:18:virtual bool wxWindowBase::HasMultiplePages() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1424:18:virtual void wxWindowBase::AlwaysShowScrollbars(bool, bool)	8	static
+/usr/local/include/wx-3.2/wx/window.h:1431:18:virtual bool wxWindowBase::IsScrollbarAlwaysShown(int) const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1505:27:virtual wxDropTarget* wxWindowBase::GetDropTarget() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:1632:18:virtual void wxWindowBase::AssociateHandle(WXWidget)	8	static
+/usr/local/include/wx-3.2/wx/window.h:1634:18:virtual void wxWindowBase::DissociateHandle()	8	static
+/usr/local/include/wx-3.2/wx/window.h:1662:18:virtual bool wxWindowBase::ShouldInheritColours() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1666:18:virtual bool wxWindowBase::CanBeOutsideClientArea() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1670:18:virtual bool wxWindowBase::CanApplyThemeBorder() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1675:23:virtual wxWindow* wxWindowBase::GetMainWindowOfCompositeControl()	8	static
+/usr/local/include/wx-3.2/wx/window.h:1697:32:virtual const wxTextEntry* wxWindowBase::WXGetTextEntry() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1871:22:virtual wxBorder wxWindowBase::GetDefaultBorderForControl() const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1935:20:virtual wxSize wxWindowBase::DoGetBestClientSize() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:1940:17:virtual int wxWindowBase::DoGetBestClientHeight(int) const	8	static
+/usr/local/include/wx-3.2/wx/window.h:1942:17:virtual int wxWindowBase::DoGetBestClientWidth(int) const	8	static
+/usr/local/include/wx-3.2/wx/gtk/window.h:141:22:virtual GtkWidget* wxWindow::GetHandle() const	16	static
+/usr/local/include/wx-3.2/wx/gtk/window.h:225:18:virtual bool wxWindow::GTKNeedsToFilterSameWindowFocus() const	8	static
+/usr/local/include/wx-3.2/wx/gtk/window.h:263:18:virtual bool wxWindow::GTKIsTransparentForMouse() const	8	static
+/usr/local/include/wx-3.2/wx/gtk/window.h:473:18:virtual bool wxWindow::GTKNeedsParent() const	16	static
+/usr/local/include/wx-3.2/wx/nonownedwnd.h:64:18:virtual void wxNonOwnedWindowBase::AdjustForParentClientOrigin(int&, int&, int) const	8	static
+/usr/local/include/wx-3.2/wx/nonownedwnd.h:71:18:virtual void wxNonOwnedWindowBase::InheritAttributes()	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:174:18:virtual bool wxTopLevelWindowBase::EnableFullScreenView(bool, long int)	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:192:33:virtual wxContentProtection wxTopLevelWindowBase::GetContentProtection() const	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:194:18:virtual bool wxTopLevelWindowBase::SetContentProtection(wxContentProtection)	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:204:18:virtual bool wxTopLevelWindowBase::EnableMaximizeButton(bool)	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:205:18:virtual bool wxTopLevelWindowBase::EnableMinimizeButton(bool)	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:221:18:virtual bool wxTopLevelWindowBase::ShouldPreventAppExit() const	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:288:18:virtual bool wxTopLevelWindowBase::IsTopLevel() const	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:290:18:virtual bool wxTopLevelWindowBase::IsVisible() const	16	static
+/usr/local/include/wx-3.2/wx/toplevel.h:314:18:virtual void wxTopLevelWindowBase::OSXSetModified(bool)	16	static
+/usr/local/include/wx-3.2/wx/toplevel.h:315:18:virtual bool wxTopLevelWindowBase::OSXIsModified() const	16	static
+/usr/local/include/wx-3.2/wx/toplevel.h:317:18:virtual void wxTopLevelWindowBase::SetRepresentedFilename(const wxString&)	8	static
+/usr/local/include/wx-3.2/wx/toplevel.h:330:18:virtual void wxTopLevelWindowBase::DoGetScreenPosition(int*, int*) const	16	static
+/usr/local/include/wx-3.2/wx/gtk/toplevel.h:59:18:virtual bool wxTopLevelWindowGTK::IsFullScreen() const	16	static
+/usr/local/include/wx-3.2/wx/gtk/toplevel.h:74:18:virtual void wxTopLevelWindowGTK::SetLabel(const wxString&)	16	static
+/usr/local/include/wx-3.2/wx/gtk/toplevel.h:75:22:virtual wxString wxTopLevelWindowGTK::GetLabel() const	16	static
+/usr/local/include/wx-3.2/wx/frame.h:85:24:virtual wxMenuBar* wxFrameBase::GetMenuBar() const	16	static
+/usr/local/include/wx-3.2/wx/frame.h:119:26:virtual wxStatusBar* wxFrameBase::GetStatusBar() const	16	static
+/usr/local/include/wx-3.2/wx/frame.h:149:24:virtual wxToolBar* wxFrameBase::GetToolBar() const	16	static
+/usr/local/include/wx-3.2/wx/frame.h:182:18:virtual bool wxFrameBase::IsClientAreaChild(const wxWindow*) const	16	static
+/usr/local/include/wx-3.2/wx/frame.h:200:18:virtual void wxFrameBase::PositionMenuBar()	8	static
+/usr/local/include/wx-3.2/wx/frame.h:230:18:virtual void wxFrameBase::PositionStatusBar()	8	static
+/usr/local/include/wx-3.2/wx/frame.h:246:18:virtual void wxFrameBase::PositionToolBar()	8	static
+/usr/local/include/wx-3.2/wx/gtk/frame.h:51:13:virtual wxPoint wxFrame::GetClientAreaOrigin() const	96	static
+/usr/local/include/wx-3.2/wx/mdi.h:67:30:virtual wxMDIChildFrame* wxMDIParentFrameBase::GetActiveChild() const	16	static
+/usr/local/include/wx-3.2/wx/mdi.h:69:18:virtual void wxMDIParentFrameBase::SetActiveChild(wxMDIChildFrame*)	16	static
+/usr/local/include/wx-3.2/wx/mdi.h:88:18:virtual void wxMDIParentFrameBase::SetWindowMenu(wxMenu*)	32	static
+/usr/local/include/wx-3.2/wx/mdi.h:102:18:virtual void wxMDIParentFrameBase::Cascade()	8	static
+/usr/local/include/wx-3.2/wx/mdi.h:103:18:virtual void wxMDIParentFrameBase::Tile(wxOrientation)	8	static
+/usr/local/include/wx-3.2/wx/mdi.h:104:18:virtual void wxMDIParentFrameBase::ArrangeIcons()	8	static
+client/GUI_Code/cApp.cpp:3:1:wxAppConsole* wxCreateApp()	32	static
+client/GUI_Code/cApp.cpp:10:1:cApp::~cApp()	16	static
+client/GUI_Code/cApp.cpp:10:1:virtual cApp::~cApp()	16	static
+client/GUI_Code/cApp.cpp:14:6:virtual bool cApp::OnInit()	32	static
+/usr/local/include/wx-3.2/wx/window.h:217:18:virtual void wxWindowBase::SetName(const wxString&)	8	static
+/usr/local/include/wx-3.2/wx/mdi.h:392:27:virtual wxMDIClientWindow* wxMDIParentFrameBase::OnCreateClient()	32	static
+/usr/local/include/wx-3.2/wx/window.h:1127:18:virtual bool wxWindowBase::HasCapture() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:955:18:virtual void wxWindowBase::SetAcceleratorTable(const wxAcceleratorTable&)	8	static
+/usr/local/include/wx-3.2/wx/window.h:757:18:virtual bool wxWindowBase::CanBeFocused() const	16	static
+/usr/local/include/wx-3.2/wx/window.h:531:20:virtual wxSize wxWindowBase::GetBestVirtualSize() const	208	static
+/usr/local/include/wx-3.2/wx/event.h:258:7:wxObjectEventFunctor::~wxObjectEventFunctor()	16	static
+/usr/local/include/wx-3.2/wx/event.h:258:7:virtual wxObjectEventFunctor::~wxObjectEventFunctor()	16	static
+/usr/local/include/wx-3.2/wx/thread.h:761:14:virtual void* wxThreadHelperThread::Entry()	144	static
+/usr/local/include/wx-3.2/wx/thread.h:658:7:wxThreadHelperThread::~wxThreadHelperThread()	16	static
+/usr/local/include/wx-3.2/wx/thread.h:658:7:virtual wxThreadHelperThread::~wxThreadHelperThread()	16	static
+/usr/local/include/wx-3.2/wx/event.h:267:18:virtual bool wxObjectEventFunctor::IsMatching(const wxEventFunctor&) const	176	static
+/usr/local/include/wx-3.2/wx/mdi.h:397:13:virtual bool wxMDIParentFrameBase::TryBefore(wxEvent&)	32	static
+/usr/local/include/wx-3.2/wx/window.h:491:20:virtual wxSize wxWindowBase::GetMaxClientSize() const	160	static
+/usr/local/include/wx-3.2/wx/window.h:489:20:virtual wxSize wxWindowBase::GetMinClientSize() const	160	static
+client/GUI_Code/cApp.h:11:5:virtual void cApp::_ZThn88_N4cAppD1Ev()	16	static
+client/GUI_Code/cApp.h:11:5:virtual void cApp::_ZThn88_N4cAppD0Ev()	16	static
+/usr/local/include/wx-3.2/wx/gtk/toplevel.h:72:22:virtual wxString wxTopLevelWindowGTK::GetTitle() const	240	static
+/usr/local/include/wx-3.2/wx/window.h:218:22:virtual wxString wxWindowBase::GetName() const	240	static
+client/GUI_Code/cApp.cpp:3:1:int main(int, char**)	128	static
+client/GUI_Code/cApp.cpp:3:1:cApp& wxGetApp()	16	static
+client/GUI_Code/cApp.cpp:5:1:cApp::cApp()	16	static
+client/GUI_Code/cApp.cpp:21:1:cpp)	16	static
+client/GUI_Code/cApp.cpp:21:1:_sub_D_00099_0	8	static
+client/GUI_Code/cApp.cpp:21:1:_sub_I_00099_1	16	static

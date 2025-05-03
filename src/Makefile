@@ -59,8 +59,8 @@ test_argon2: tests/Simple_Tests/test_argon2.c
 	-pthread -O2 $(CFLAGS)
 
 
-server: server/TCP_server.c
-	gcc server/TCP_server.c -o ../bin/tcp_server -march=native -lm \
+server:
+	gcc server/rosetta-tcp-server.c -o ../bin/tcp-server -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 
@@ -74,23 +74,23 @@ server_gen_pub_key: server/server_gen_pub_key.c
 	-march=native -lm -pthread -O2 $(CFLAGS)
 	
 
-client: client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp
+client:
 	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp \
-	`wx-config --cxxflags --libs` -o ../bin/tcp_client $(CFLAGS) \
+	`wx-config --cxxflags --libs` -o ../bin/tcp-client $(CFLAGS) \
 	-lm -pthread -O2 -march=native
 
-client_asan: client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp
+client_asan:
 	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp      \
-	`wx-config --cxxflags --libs` -o ../bin/tcp_client_asan $(CFLAGS) \
+	`wx-config --cxxflags --libs` -o ../bin/tcp-client-asan $(CFLAGS) \
 	-lm -pthread -O2 -march=native 								      \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
-server_asan: server/TCP_server.c
-	gcc server/TCP_server.c -o ../bin/tcp_server_asan -march=native -lm \
+server_asan:
+	gcc server/rosetta-tcp-server.c -o ../bin/tcp-server_asan -march=native -lm \
 	-pthread -O2 $(CFLAGS)										        \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
 clean:
-	rm ../bin/tcp_client ../bin/tcp_server ../bin/tcp_server_asan \
-	../bin/tcp_client_asan ../bin/*.su ../bin/*.out
+	rm ../bin/tcp-client ../bin/tcp-server ../bin/tcp-server_asan \
+	../bin/tcp-client_asan ../bin/*.su ../bin/*.out
  
