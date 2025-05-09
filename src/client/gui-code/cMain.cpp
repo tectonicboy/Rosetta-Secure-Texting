@@ -1,5 +1,5 @@
 #include "cMain.h"
-#include "../Network_Code/client-primary-functions.h"
+#include "../network-code/client-primary-functions.h"
 
 /* Implement what the Event Table is.
  *
