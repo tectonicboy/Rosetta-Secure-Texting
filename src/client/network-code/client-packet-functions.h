@@ -9,15 +9,18 @@
 --------------------------------------------------------------------------------
 
 */
-u8 construct_msg_00(void){
+u8 construct_msg_00(u8* msg_buf, u64* msg_len){
 
     bigint* A_s;
     bigint temp_privkey;
 
-    u8 status = 1;
+    u8 status = 0;
     
-    const u64 msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
-    u8 msg_buf[msg_len];
+    *msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
+    
+    msg_buf = calloc(1, *msg_len);
+
+    /* Manual construction of a BigInt - UGLY!! Add to the Library when time. */
 
     temp_privkey.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
 
@@ -42,14 +45,11 @@ u8 construct_msg_00(void){
     memcpy(temp_handshake_buf, &temp_privkey, sizeof(bigint));
 
 
-
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
     save_BIGINT_to_DAT("temp_privkey_DAT.dat", &temp_privkey);
   
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_BIGINT_SIZ);
     
-
-
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
    
@@ -61,17 +61,10 @@ u8 construct_msg_00(void){
     
     memcpy(msg_buf + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
+    printf("[OK]  Client: MSG_00 constructed: %lu bytes\n", *msg_len);
 
-    /* Send the packet. */
-    if(send(own_socket_fd, msg_buf, msg_len, 0) != msg_len){
-        printf("[ERR] Client: Couldn't send initial login transmission.\n");
-        printf("[ERR]         Aborting Login...\n\n");
-        status = 0;
-        goto label_cleanup;
-    }
-    
-    printf("[OK]  Client: MSG_00 sent. Server should get %lu bytes\n", msg_len);
-
+/* Unused for now, but on error from a library call, set STATUS + jump here. */
+/* For now the code path just naturally reaches this cleanup code.           */
 label_cleanup:
 
     system("rm temp_privkey_DAT.dat");

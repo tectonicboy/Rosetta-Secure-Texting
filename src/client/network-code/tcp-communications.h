@@ -70,8 +70,20 @@ u8 send_to_tcp_server(u8* msg_buf, u64 msg_len){
     bytes_sent = send(own_socket_fd, msg_buf, msg_len, 0);
 
     if(bytes_sent != msg_len){
-       return 2; 
+       return 1; 
     }
 
-    return 1;
+    return 0;
+}
+
+u8 grab_servers_reply(u8* reply_buf, u64* reply_len, u64 expected_len){
+ 
+    *reply_len = recv(own_socket_fd, reply_buf, expected_len, 0);
+     
+    if(*reply_len == -1){
+        printf("\n[ERR] Client: Couldn't receive a reply to msg_00.\n\n");
+        return 1;
+    }
+
+    return 0;
 }

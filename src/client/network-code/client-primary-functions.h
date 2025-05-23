@@ -1,8 +1,3 @@
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <errno.h>
 
 #include "../../lib/coreutil.h"
@@ -33,7 +28,22 @@
 #define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
-#define SERVER_IP_ADDR "192.168.0.112"
+
+/* This function pointer determines whether to communicate through Unix Domain
+ * sockets or through TCP sockets. A separate function handles these methods of
+ * communication. The former is for the Rosetta Testing Framework and the latter
+ * is for running the real messaging system.
+ *
+ * The Rosetta Testing Framework simulates people texting each other by spawning
+ * processes within the same operating system and having them talk to the server
+ * with interprocess communications over Unix Domain sockets instead of TCP.
+ * Everything else, including GUI, remains exactly the same as the real system.
+ *
+ * The client initialization routine sets this function pointer accordingly
+ * depending on which one we are currently running.
+ */
+
+uint8_t (*send_payload)(uint8_t*, uint64_t);
 
 u8 temp_handshake_memory_region_isLocked = 0;
 
@@ -102,17 +112,6 @@ u8 *KAB, *KBA;
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
 u8 temp_handshake_buf[TEMP_BUF_SIZ];
 
-/* Linux Sockets API related globals. */
-const int port = SERVER_PORT;
-
-int own_socket_fd = -1;
-const int optval1 = 1;
-
-
-const socklen_t server_addr_len = sizeof(struct sockaddr_in);
-
-struct sockaddr_in servaddr;
-
 /* List of packet ID magic constats for legitimate recognized packet types. */
 #define PACKET_ID_00 0xAD0084FF0CC25B0E
 #define PACKET_ID_01 0xE7D09F1FEFEA708B
@@ -179,6 +178,10 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
     return status; 
 }
 
+
+#include "client-packet-functions.h"
+
+
 /* Do everything that can be done before we construct message_00 to begin 
  * the login handshake protocol to securely transport our long-term public key
  * to the server so it can also compute the same DH shared secret that we did,
@@ -216,6 +219,8 @@ u8 self_init(u8* password, int password_len){
     bigint* calculated_A = NULL;
 
     struct Argon2_parms prms;
+
+    send_payload = send_to_tcp_server;
 
     memset(&prms, 0, sizeof(struct Argon2_parms));
 
@@ -570,8 +575,6 @@ label_cleanup:
 
     return status;
 }
-
-#include "client-packet-functions.h"
 
 void* begin_polling(void* input){
 
@@ -962,10 +965,14 @@ label_cleanup:
 
 u8 login(u8* password, int password_len){
 
-    u8 status;
-    u8 msg_buf[MAX_TXT_LEN];
+    u8  status;
+    u8* msg_buf;
+    u8  reply_buf[MAX_TXT_LEN];
+    
+    u64 msg_len;
 
-    ssize_t bytes_read;
+    ssize_t reply_len;
+
 
     status = self_init(password, password_len);
 
@@ -980,36 +987,41 @@ u8 login(u8* password, int password_len){
      * and shared secret that get destroyed right after this login handshake.
      */
 
-    /* Contains a send() call. A server reply is then expected. */
-    if( (status = construct_msg_00()) != 1){
-        printf("[ERR] Client: Sender of msg_00 failed. Aborting login.\n\n");
-        return 0;
+    status = construct_msg_00(msg_buf, &msg_len);
+
+    if(status){
+        printf(\n"[ERR] Client: Couldn't construct MSG_00 for Login. Abort.\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Constructed MSG_00: %lu bytes\n", msg_len);
+
+    status = send_payload(msg_buf, msg_len);
+
+    if(status){
+        printf("\n[ERR] Client: Couldn't send MSG_00 for Login. Abort.\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Transmitted MSG_00 to the Rosetta server.\n");
+
+    status = grab_servers_reply(reply_buf, &reply_len);
+
+    if(status){
+        printf("\n[ERR] Client: Couldn't receive MSG_00 reply by server.\n\n");
     }
 
-    printf("[OK]  Client: Sent msg_00 to server.\n\n");
+    printf("[OK]  Client: Received reply to MSG_00: %lu bytes.\n", reply_len);
 
-    memset(msg_buf, 0, MAX_TXT_LEN);
-
-    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
-
-    if(bytes_read == -1){
-        printf("[ERR] Client: Couldn't receive a reply to msg_00.\n\n");
-        return 0;
-    }
-
-    printf("[OK]  Client: Received reply to msg_00: %lu bytes.\n", bytes_read);
-
-    if(     (*((u64*)msg_buf) != PACKET_ID_02)
-        &&  (*((u64*)msg_buf) != PACKET_ID_00) )
+    if(     (*((u64*)reply_buf) != PACKET_ID_02)
+        &&  (*((u64*)reply_buf) != PACKET_ID_00) )
     {
         printf("[ERR] Client: Unexpected reply by the server to msg_00\n\n");
         return 0;
     }
 
-    if((*((u64*)msg_buf) == PACKET_ID_00)){
+    if((*((u64*)reply_buf) == PACKET_ID_00)){
 
         /* This sends msg_01, then a reply to that is expected. */
-        if ((status = process_msg_00(msg_buf)) != 1){
+        if ((status = process_msg_00(reply_buf)) != 1){
             printf("[ERR] Client: process_msg_00 failed. Abort login.\n\n");
             return 0;
         }
