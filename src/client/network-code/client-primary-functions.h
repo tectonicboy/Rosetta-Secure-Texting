@@ -5,7 +5,7 @@
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
 #define SERVER_PORT      54746
-#define PRIVKEY_LEN      40   
+#define PRIVKEY_LEN      40
 #define PUBKEY_LEN       384
 #define MAX_CLIENTS      64
 #define MAX_PEND_MSGS    64
@@ -14,7 +14,7 @@
 #define MAX_TXT_LEN      1024
 #define MAX_SOCK_QUEUE   1024
 #define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8 
+#define SMALL_FIELD_LEN  8
 #define TEMP_BUF_SIZ     16384
 #define SESSION_KEY_LEN  32
 #define ONE_TIME_KEY_LEN 32
@@ -51,9 +51,9 @@ struct roommate{
     char   guest_user_id[SMALL_FIELD_LEN];
     bigint guest_pubkey;
     bigint guest_pubkey_mont;
-    u8*    guest_KBA;   
+    u8*    guest_KBA;
     u8*    guest_KAB;
-    u8*    guest_Nonce; 
+    u8*    guest_Nonce;
     u64    guest_nonce_counter;
 };
 
@@ -66,13 +66,13 @@ u64 num_roommates = 0;
 
 /* Bit i = 1 means client slot [i] in the global descriptor array of structures
  *           is currently in use by a connected client and unavailable.
- *           Currently only bits 0 to 62 can be used. 
+ *           Currently only bits 0 to 62 can be used.
  */
 u64 roommate_slots_bitmask = 0;
 
 /* Bit i = 1 means we use session key KAB to send stuff to the i-th client and
  *           session key KBA to receive stuff from them. 0 means the opposite.
- *           Only usable if the i-th global descriptor is currently in use. 
+ *           Only usable if the i-th global descriptor is currently in use.
  */
 u64 roommate_key_usage_bitmask = 0;
 
@@ -132,24 +132,24 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 
     bigint *recv_e;
     bigint *recv_s;
-    
+
     u64 s_offset = sign_offset;
     u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
-   
-    u8 status; 
-    
+
+    u8 status;
+
     /* Reconstruct the sender's signature as the two BigInts that make it up. */
     recv_s = (bigint*)(signed_ptr + s_offset);
-    recv_e = (bigint*)(signed_ptr + e_offset);    
-    
+    recv_e = (bigint*)(signed_ptr + e_offset);
+
     recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
     recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
- 
+
     memcpy( recv_s->bits
            ,signed_ptr + (sign_offset + sizeof(bigint))
            ,PRIVKEY_LEN
     );
-    
+
     memcpy( recv_e->bits
            ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
            ,PRIVKEY_LEN
@@ -175,14 +175,14 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
     free(recv_s->bits);
     free(recv_e->bits);
 
-    return status; 
+    return status;
 }
 
 
 #include "client-packet-functions.h"
 
 
-/* Do everything that can be done before we construct message_00 to begin 
+/* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
  * to the server so it can also compute the same DH shared secret that we did,
  * thus establishing a secure and authenticated communication channel with it.
@@ -231,13 +231,13 @@ u8 self_init(u8* password, int password_len){
 
     /* Load user's public key, decrypt and load user's private key. */
 
-    savefile = fopen("../bin/user_save.dat", "r"); 
-    
+    savefile = fopen("../bin/user_save.dat", "r");
+
     if(savefile == NULL){
         printf("[ERR] Client: couldn't open the user's save file. Aborting.\n");
         return 0;
-    }       
-    
+    }
+
     /* Read savefile in the same order that Registration writes it in. */
 
     /* First is Nonce for decrypting the saved private key. */
@@ -314,11 +314,11 @@ u8 self_init(u8* password, int password_len){
 
     prms.p = 4;                 /* How many threads to use.             */
     prms.T = ARGON_HASH_LEN;    /* How many bytes of output we want.    */
-    prms.m = 2097000;           /* How many kibibytes of memory to use. */  
+    prms.m = 2097000;           /* How many kibibytes of memory to use. */
     prms.t = 1;                 /* How many passes Argon2 should do.    */
     prms.v = 0x13;              /* Constant in Argon2 spec.             */
     prms.y = 0x02;              /* Constant in Argon2 spec.             */
-             
+
     /* Zero-extend the password to 16 bytes including a null terminator.   */
     /* Len does not include the null terminator already placed by the GUI. */
     if(pw_bytes_for_zeroing > 0){
@@ -329,7 +329,7 @@ u8 self_init(u8* password, int password_len){
 
     /* Now construct Argon2 Salt parameter. We already have 1st part here     */
     /* Salt = saved_string || BLAKE2B{64}(client's saved long-term public key)*/
-    
+
     /* Call Blake2b to get the second part of the Salt parameter. */
     BLAKE2B_INIT(saved_pubkey, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
 
@@ -377,11 +377,11 @@ u8 self_init(u8* password, int password_len){
     Argon2_MAIN(&prms, argon2_output_tag);
 
     /* Let V be the leftmost 32 (chacha_key_len) bytes of Argon2's output hash.
-     * Use V as a key in ChaCha20, along with the saved 16-byte Nonce 
+     * Use V as a key in ChaCha20, along with the saved 16-byte Nonce
      * (from user's save file) to decrypt the user's saved private key.
      */
     memcpy(V, argon2_output_tag, chacha_key_len);
-    
+
     /* Decrypt the saved private key. */
     CHACHA20( saved_privkey                       /* text - private key  */
              ,PRIVKEY_LEN                         /* text_len in bytes   */
@@ -390,23 +390,23 @@ u8 self_init(u8* password, int password_len){
              ,(u32*)V                             /* chacha Key ptr      */
              ,(u32)(chacha_key_len / sizeof(u32)) /* Key_len in uint32s  */
              ,decrypted_privkey_buf               /* output buffer ptr   */
-            );   
+            );
 
     /* Initialize the global BigInts storing user's public and private keys. */
     bigint_create(&own_privkey, MAX_BIGINT_SIZ, 0);
-    memcpy(own_privkey.bits, decrypted_privkey_buf, PRIVKEY_LEN);     
-    own_privkey.used_bits = get_used_bits(decrypted_privkey_buf, PRIVKEY_LEN); 
-    own_privkey.free_bits = MAX_BIGINT_SIZ - own_privkey.used_bits;   
+    memcpy(own_privkey.bits, decrypted_privkey_buf, PRIVKEY_LEN);
+    own_privkey.used_bits = get_used_bits(decrypted_privkey_buf, PRIVKEY_LEN);
+    own_privkey.free_bits = MAX_BIGINT_SIZ - own_privkey.used_bits;
 
     bigint_create(&own_pubkey, MAX_BIGINT_SIZ, 0);
-    memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);     
-    own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN); 
-    own_pubkey.free_bits = MAX_BIGINT_SIZ - own_pubkey.used_bits;   
+    memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);
+    own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN);
+    own_pubkey.free_bits = MAX_BIGINT_SIZ - own_pubkey.used_bits;
 
     printf("[OK] Client: Checking decrypted private key...\n");
 
     /* Compute a public key with that private key and M, Q, G. If it's the same
-     * as the public key stored on the filesystem, the private key was 
+     * as the public key stored on the filesystem, the private key was
      * decrypted successfully, with the original correct password.
      */
 
@@ -426,8 +426,8 @@ u8 self_init(u8* password, int password_len){
         printf("[OK]  Client: Password unlocked the private key correctly!\n");
     }
     /* Load other BigInts needed for the cryptography to work and be secure. */
-    
-    /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */                        
+
+    /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */
     M = get_BIGINT_from_DAT(3072, "../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
 
     if(M == NULL){
@@ -464,7 +464,7 @@ u8 self_init(u8* password, int password_len){
     }
 
     /* Grab the server's public key. */
-    server_pubkey = 
+    server_pubkey =
     get_BIGINT_from_DAT(3072, "../bin/server_pubkey.dat", 3071, MAX_BIGINT_SIZ);
 
     if(server_pubkey == NULL){
@@ -473,17 +473,17 @@ u8 self_init(u8* password, int password_len){
         goto label_cleanup;
     }
 
-    /* Initialize the shared secret with the server. */   
-    bigint_create(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);  
-    bigint_create(&server_shared_secret, MAX_BIGINT_SIZ, 0);    
+    /* Initialize the shared secret with the server. */
+    bigint_create(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);
+    bigint_create(&server_shared_secret, MAX_BIGINT_SIZ, 0);
 
     Get_Mont_Form(server_pubkey, &server_pubkey_mont, M);
-    
+
     MONT_POW_modM(&server_pubkey_mont, &own_privkey, M, &server_shared_secret);
-  
+
     /* Initialize the pair of bidirectional session keys (KBA, KAB) w/ server */
-    
-    /*  On client's side: 
+
+    /*  On client's side:
      *       - KAB = least significant 32 bytes of shared secret
      *       - KBA = next 32 bytes of shared secret
      *       - swap KBA with KAB if A < B  (our and server's public keys)
@@ -491,23 +491,23 @@ u8 self_init(u8* password, int password_len){
 
     /* if A < B */
     if( (bigint_compare2(&own_pubkey, server_pubkey)) == 3){
-        KAB = server_shared_secret.bits + SESSION_KEY_LEN; 
+        KAB = server_shared_secret.bits + SESSION_KEY_LEN;
         KBA = server_shared_secret.bits;
     }
     else{
         KAB = server_shared_secret.bits;
         KBA = server_shared_secret.bits + SESSION_KEY_LEN;
-    }    
+    }
 
     /* calloc() needs it in bytes, MAX_BIGINT_SIZ is in bits, so divide by 8. */
-    nonce_bigint.bits = 
+    nonce_bigint.bits =
     (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
-    
+
     memcpy( nonce_bigint.bits
            ,server_shared_secret.bits + (2 * SESSION_KEY_LEN)
            ,LONG_NONCE_LEN
-          ); 
-          
+          );
+
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
     nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
@@ -519,19 +519,19 @@ u8 self_init(u8* password, int password_len){
     servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr(SERVER_IP_ADDR);
     servaddr.sin_port        = htons(port);
-     
+
     /* Initialize the mutex that will be used to prevent the main thread and
      * the poller thread from writing/reading the same data in parallel.
      */
-    if (pthread_mutex_init(&mutex, NULL) != 0) { 
-        printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
+    if (pthread_mutex_init(&mutex, NULL) != 0) {
+        printf("[ERR] Server: Mutex could not be initialized. Aborting.\n");
         status = 0;
-        goto label_cleanup; 
-    } 
+        goto label_cleanup;
+    }
 
     /* Initialize the socket before the connect() call. */
     own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    
+
     if(own_socket_fd == -1) {
         printf("[ERR] Client: socket() failed. Terminating.\n");
         perror("errno:");
@@ -541,7 +541,7 @@ u8 self_init(u8* password, int password_len){
     if(
         setsockopt(
            own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval1, sizeof(optval1)
-        ) 
+        )
         != 0
     )
     {
@@ -551,19 +551,19 @@ u8 self_init(u8* password, int password_len){
     printf("[OK]  Client: Socket file descriptor obtained!\n");
 
     /* Connect to the Rosetta server. */
-    
+
     if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
-        == -1 
+        == -1
       )
     {
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
         perror("connect() failed, errno: ");
         return 0;
     }
-    
+
     printf("[OK]  Client: Connect() call finished, won't be re-attempted.\n");
 
-    
+
 label_cleanup:
 
     fclose(savefile);
@@ -579,7 +579,7 @@ label_cleanup:
 void* begin_polling(void* input){
 
     /* Construct the poll packet only once, and keep sending it. */
-    
+
     u8  ret;
     u8  text_message_line[MESSAGE_LINE_LEN];
     u8* received_buf = (u8*)calloc(1, MAX_MSG_LEN);
@@ -613,8 +613,8 @@ void* begin_polling(void* input){
         /* Wait for server to tell us if there's anything for us unreceived. */
         bytes_read = recv(own_socket_fd, received_buf, MAX_MSG_LEN, 0);
 
-        if( bytes_read == -1 
-            || 
+        if( bytes_read == -1
+            ||
             bytes_read < (int64_t)(SIGNATURE_LEN + SMALL_FIELD_LEN)
           )
         {
@@ -631,18 +631,18 @@ void* begin_polling(void* input){
 
  One or more pending messages were found for the polling client.
  Send them all at once.
- 
+
  Server ----> Client
-  
+
 ================================================================================
 | packetID 41 |     T     |    L_1    | MSG1 |...|    L_T    | MSG_T|  Signat  |
 |=============|===========|===========|======|===|===========|======|==========|
 |  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L_1  |...| SMALL_LEN |  L_T | SIG_LEN  |
 --------------------------------------------------------------------------------
 
-*/   
+*/
         else if ( *((u64*)(received_buf)) == PACKET_ID_41 ) {
-            
+
             pending_messages = *((u64*)(received_buf + SMALL_FIELD_LEN));
 
             read_ix = 2 * SMALL_FIELD_LEN;
@@ -654,16 +654,16 @@ void* begin_polling(void* input){
             }
 
             /* Verify the cryptographic signature now. */
-            ret = authenticate_server(received_buf, read_ix, read_ix); 
+            ret = authenticate_server(received_buf, read_ix, read_ix);
 
             if(ret != 1){
-                printf("[ERR] Client: Bad signature in polling reply.\n\n");   
-                goto loop_cleanup;      
-            }   
+                printf("[ERR] Client: Bad signature in polling reply.\n\n");
+                goto loop_cleanup;
+            }
 
             /* Start at first message contents. */
             read_ix = 3 * SMALL_FIELD_LEN;
-            
+
             /* Valid pending message types: 50, 51, 21, 30 */
 
             /* packet_ID and signature are valid - process each pending MSG. */
@@ -671,7 +671,7 @@ void* begin_polling(void* input){
 
                 curr_msg_type = *((u64*)(received_buf + read_ix));
 
-                curr_msg_len = 
+                curr_msg_len =
                             *((u64*)(received_buf + read_ix - SMALL_FIELD_LEN));
 
                 if(curr_msg_type == PACKET_ID_50){
@@ -712,7 +712,7 @@ loop_cleanup:
         memset(received_buf, 0, MAX_MSG_LEN);
     }
 
-    return NULL; 
+    return NULL;
 }
 
 void start_polling_thread(){
@@ -733,7 +733,7 @@ u8 reg(u8* password, int password_len){
 
     const u64 argon2_len_Salt = ARGON_STRING_LEN + 64;
     u64 save_offset = 0;
-    const u64 save_len = 
+    const u64 save_len =
     ARGON_STRING_LEN + PUBKEY_LEN + PRIVKEY_LEN + LONG_NONCE_LEN;
 
     u8 status = 1;
@@ -784,20 +784,20 @@ u8 reg(u8* password, int password_len){
     A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
 
     /* Registration step 2: Use the password as a secret key in Argon2 hashing
-     *                      algorithm, whose output hash we use as a 
-     *                      cryptographic key in another hashing algorith, 
+     *                      algorithm, whose output hash we use as a
+     *                      cryptographic key in another hashing algorith,
      *                      ChaCha20, to encrypt the user's private key.
      */
-        
+
     /* Fill in the parameters to Argon2. */
 
     prms.p = 4;                 /* How many threads to use.             */
     prms.T = ARGON_HASH_LEN;    /* How many bytes of output we want.    */
-    prms.m = 2097000;           /* How many kibibytes of memory to use. */  
+    prms.m = 2097000;           /* How many kibibytes of memory to use. */
     prms.t = 1;                 /* How many passes Argon2 should do.    */
     prms.v = 0x13;              /* Constant in Argon2 spec.             */
     prms.y = 0x02;              /* Constant in Argon2 spec.             */
-             
+
     /* Zero-extend the password to 16 bytes including a null terminator.   */
     /* Len does not include the null terminator already placed by the GUI. */
     if(pw_bytes_for_zeroing > 0){
@@ -812,9 +812,9 @@ u8 reg(u8* password, int password_len){
 
     ranfile = fopen("/dev/urandom", "r");
 
-    if(   (!ranfile) 
-       || (fread(argon2_salt_string, 1, ARGON_STRING_LEN, ranfile) 
-          != ARGON_STRING_LEN) 
+    if(   (!ranfile)
+       || (fread(argon2_salt_string, 1, ARGON_STRING_LEN, ranfile)
+          != ARGON_STRING_LEN)
       )
     {
         printf("[ERR] Client: Reg failed to read urandom for salt string.\n\n");
@@ -835,7 +835,7 @@ u8 reg(u8* password, int password_len){
     prms.len_S = (8 + 64);  /* 8-byte string plus 64-byte output of blake2b. */
     prms.len_K = 0;         /* unused here, so set length to 0               */
     prms.len_X = 0;         /* unused here, so set length to 0               */
-            
+
     printf("[DEBUG] Client: Before calling argon2 in REGISTER, parms:\n");
     printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
 
@@ -868,7 +868,7 @@ u8 reg(u8* password, int password_len){
     Argon2_MAIN(&prms, argon2_output_tag);
 
     /* Registration step 3: Let V be the leftmost 32 bytes of Argon2's hash.
-     *                      Use V as a key in ChaCha20, along with a 
+     *                      Use V as a key in ChaCha20, along with a
      *                      randomly-generated 16-byte Nonce (no counter)
      *                      to encrypt the private key.
      */
@@ -881,7 +881,7 @@ u8 reg(u8* password, int password_len){
         printf("[ERR] Client: Reg failed to read urandom. Alert GUI.\n\n");
         status = 0;
         goto label_cleanup;
-    }   
+    }
 
     CHACHA20( temp_privkey.bits                  /* text - private key  */
              ,PRIVKEY_LEN                         /* text_len in bytes   */
@@ -890,23 +890,23 @@ u8 reg(u8* password, int password_len){
              ,(u32*)V                             /* chacha Key ptr      */
              ,(u32)(chacha_key_len / sizeof(u32)) /* Key_len in uint32s  */
              ,encrypted_privkey_buf               /* output buffer ptr   */
-            );   
+            );
 
-    /* Registration step 4: Save on the client's filesystem the necessary 
+    /* Registration step 4: Save on the client's filesystem the necessary
      *                      cryptographic artifacts for a secure login:
      *                      ChaCha20 Nonce, Argon2 Salt string only, long-term
      *                      public key and long-term encrypted private key.
-     *                      
+     *
      *                      May decide to also encrypt the long-term public
      *                      key in the future, but for now only private key.
      */
-    
+
     user_save = fopen("../bin/user_save.dat", "w");
 
     if(!user_save){
         printf("[ERR] Client: Reg failed to open user_save. Alert GUI.\n\n");
         status = 0;
-        goto label_cleanup;      
+        goto label_cleanup;
     }
 
     /* Prepare a buffer containing all the stuff to be saved for easy write. */
@@ -952,12 +952,12 @@ label_cleanup:
 
     system("rm temp_privkey.dat");
 
-    if(ranfile){ 
-        fclose(ranfile);   
+    if(ranfile){
+        fclose(ranfile);
     }
 
-    if(user_save){ 
-        fclose(user_save); 
+    if(user_save){
+        fclose(user_save);
     }
 
     return status;
@@ -966,11 +966,11 @@ label_cleanup:
 u8 login(u8* password, int password_len){
 
     u8  status;
-    u8* msg_buf;
+    u8* msg_buf = NULL;
     u8  reply_buf[MAX_TXT_LEN];
-    
-    u64 msg_len;
 
+    u64*    reply_type_ptr = reply_buf;
+    u64     msg_len;
     ssize_t reply_len;
 
 
@@ -978,7 +978,7 @@ u8 login(u8* password, int password_len){
 
     if(status != 1){
         printf("[ERR] Client: Core initialization failed. Aborting login.\n\n");
-        return 0;
+        goto label_cleanup;
     }
 
     /* Begin the login handshake to transport our long-term public key in a
@@ -1007,68 +1007,97 @@ u8 login(u8* password, int password_len){
 
     if(status){
         printf("\n[ERR] Client: Couldn't receive MSG_00 reply by server.\n\n");
+        goto label_cleanup;
     }
-
     printf("[OK]  Client: Received reply to MSG_00: %lu bytes.\n", reply_len);
 
-    if(     (*((u64*)reply_buf) != PACKET_ID_02)
-        &&  (*((u64*)reply_buf) != PACKET_ID_00) )
-    {
+    if(*reply_type_ptr != PACKET_ID_02 && *reply_type_ptr != PACKET_ID_00){
         printf("[ERR] Client: Unexpected reply by the server to msg_00\n\n");
-        return 0;
+        goto label_cleanup;
     }
 
-    if((*((u64*)reply_buf) == PACKET_ID_00)){
+    /*------------------------------------------------------------------------*/
 
-        /* This sends msg_01, then a reply to that is expected. */
-        if ((status = process_msg_00(reply_buf)) != 1){
+    if(*reply_type_ptr == PACKET_ID_00){
+
+        /* Do not free the memory area pointed to by msg_buf just yet, as
+         * process_msg_00 is a continued transmission, the second one in the
+         * login handshake. It, on its own, will reallocate the buffer.
+         */
+
+        /* This processes msg_00 AND constructs msg_01. */
+
+        status = process_msg_00(reply_buf, msg_buf, &msg_len);
+
+        if(status){
             printf("[ERR] Client: process_msg_00 failed. Abort login.\n\n");
-            return 0;
+            goto label_cleanup;
+        }
+        printf("[OK]  Client: REPLY to MSG_00 is valid. Constructed MSG_01!\n");
+
+/*  Now send the reply back to the Rosetta server:
+
+================================================================================
+|  packet ID 01   | Client's encrypted long-term PubKey |  HMAC authenticator  |
+|=================|=====================================|======================|
+| SMALL_FIELD_LEN |             PUBKEY_LEN              |   HMAC_TRUNC_BYTES   |
+--------------------------------------------------------------------------------
+
+*/
+        status = send_payload(msg_buf, msg_len);
+
+        if(status){
+            printf("[ERR] Client: Sending MSG_01 failed.");
+            goto label_cleanup;
         }
 
-        printf("[OK]  Client: Sent msg_01 to server.\n\n");
+        printf("[OK]  Client: Sent MSG_01 to server.\n\n");
     }
     else{
         printf("[OK]  Client: Server told us to try login later.\n\n");
 
-        if ((status = process_msg_02(msg_buf)) != 1){
+        status = process_msg_02(reply_buf);
+
+        if (status){
             printf("[ERR] Client: process_msg_02 failed. Abort login.\n\n");
-            return 0;
+            goto label_cleanup;
         }
 
         status = 3;
     }
 
-    memset(msg_buf, 0, MAX_TXT_LEN);
+    memset(reply_buf, 0, MAX_TXT_LEN);
 
-    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
+    status = grab_servers_reply(reply_buf, &reply_len);
 
-    if(bytes_read == -1){
+    if(status){
         printf("[ERR] Client: Couldn't receive a reply to msg_01.\n\n");
-        return 0;
+        goto label_cleanup;
     }
 
     printf("[OK]  Client: Received reply to msg_01: %lu bytes.\n", bytes_read);
 
-    if( *((u64*)msg_buf) == PACKET_ID_01 ){
+    if(*reply_type_ptr == PACKET_ID_01){
 
         printf("[OK]  Client: Rosetta server told us login succeeded!\n\n");
 
-        if ((status = process_msg_01(msg_buf)) != 1){
+        status = process_msg_01(reply_buf);
+
+        if (status){
             printf("[ERR] Client: process_msg_01 failed. Abort login.\n\n");
-            return 0;
+            goto label_cleanup;
         }
 
         status = 2;
     }
 
-    else if( *((u64*)msg_buf) == PACKET_ID_02 ){
+    else if(*reply_type_ptr == PACKET_ID_02){
 
         printf("[OK]  Client: Rosetta server told us to try later, full!\n\n");
 
         if ((status = process_msg_02(msg_buf)) != 1){
             printf("[ERR] Client: process_msg_02 failed. Abort login.\n\n");
-            return 0;
+            goto label_cleanup;
         }
 
         status = 3;
@@ -1081,6 +1110,12 @@ u8 login(u8* password, int password_len){
 
     printf("\n\n\n******** LOGIN COMPLETED *********\n\n\n");
 
+label_cleanup:
+
+    if(msg_buf){
+        free(msg_buf);
+    }
+
     return status;
 }
 
@@ -1089,7 +1124,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
                     )
 {
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
-    u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len; 
+    u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
 
     u8 status;
     u8 msg_buf[MAX_TXT_LEN];
@@ -1158,11 +1193,11 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
 
     /* Here is one of 2 possible places to start polling. So start it.
-     * Basically an infinite loop in a separate running thread that sends a 
+     * Basically an infinite loop in a separate running thread that sends a
      * polling request to the Rosetta server every 0.2 seconds or so, asking for
      * info about undisplayed messages by others, a room participant having left
      * the chatroom or the owner of the chatroom having deleted it, etc.
-     * 
+     *
      * Ideally the vastly most common case of there not being anything for us
      * to receive shouldn't need to lock the GUI thread (for too long).
      */
@@ -1170,7 +1205,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     /* ALSO, here is one of 2 possible places where GUI renders the graphics
      * for the messages sub-window and "exit room" button. Render them.
      */
-    
+
     start_polling_thread();
 
     return status;
@@ -1188,7 +1223,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     u8 msg_buf[MAX_TXT_LEN];
 
     ssize_t bytes_read;
-    
+
     /* Zero-extend the userID to 8 bytes including a null terminator.       */
     /* Len does not include the null terminator already placed by the GUI.  */
     if(userid_bytes_for_zeroing > 0){
@@ -1263,26 +1298,3 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 
     return 1;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
