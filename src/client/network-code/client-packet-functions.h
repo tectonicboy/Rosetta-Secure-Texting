@@ -162,7 +162,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
         ||
           ((bigint_compare2(M, &B_s)) != 1)
         //||
-        // (check_pubkey_form(&B_sM, M, Q) == 0)
+        // (check_pubkey_form(&B_sM, M, Q) == 1)
       )
     {
         printf("[ERR] Client: Server's short-term public key is invalid.\n");
@@ -195,7 +195,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
     /* Validate the signature of the unused part of the shared secret, Y_s. */
     auth_status = authenticate_server(auth_buf, INIT_AUTH_LEN, INIT_AUTH_LEN);
 
-    if(auth_status != 1){
+    if(auth_status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_00. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -391,7 +391,7 @@ u8 process_msg_01(u8* msg){
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, (2 * SMALL_FIELD_LEN));
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_01. Drop.\n");
         printf("              Tell GUI to tell user login went badly.\n\n");
         status = 0;
@@ -480,7 +480,7 @@ u8 process_msg_02(u8* msg){
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_02. Drop.\n\n");
         status = 0;
     }
@@ -691,7 +691,7 @@ u8 process_msg_11(u8* msg){
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_11. Drop.\n");
         printf("              Telling GUI to tell user something's wrong.\n\n");
         status = 0;
@@ -725,7 +725,7 @@ u8 process_msg_10(u8* msg){
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_10. Drop.\n");
         printf("              Telling GUI to tell user something's wrong.\n\n");
         status = 0;
@@ -981,7 +981,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     status =
        authenticate_server(msg, recv_type20_signed_len, recv_type20_signed_len);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_20. Drop.\n");
         printf("              Tell GUI to tell user to try join again.\n\n");
         status = 0;
@@ -1161,7 +1161,7 @@ u8 process_msg_21(u8* msg){
 
     status = authenticate_server(msg, signed_len, signed_len);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_21. Drop.\n");
         status = 0;
         goto label_cleanup;
@@ -1599,7 +1599,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
 
     status = authenticate_server(payload, sign2_offset, sign2_offset);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid server signature in process_msg_30.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1634,7 +1634,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
                     ,(payload + sign1_offset), sign1_offset
     );
 
-    if(status != 1) {
+    if(status == 1) {
         printf("[ERR] Client: Invalid sender signature in msg_30 Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1833,7 +1833,7 @@ u8 process_msg_40(u8* payload){
     /* Verify the server's signature first. */
     status = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_40. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -1868,7 +1868,7 @@ u8 process_msg_50(u8* payload){
     /* Verify the server's signature first. */
     status = authenticate_server(payload, 2 * SMALL_FIELD_LEN, 2 * SMALL_FIELD_LEN);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_50. Drop.\n\n");
         status = 0;
         goto label_cleanup;
@@ -2038,7 +2038,7 @@ u8 process_msg_51(u8* payload){
     /* Verify the server's signature first. */
     status = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status != 1){
+    if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_51. Drop.\n\n");
         status = 0;
         goto label_cleanup;

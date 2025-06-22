@@ -1813,7 +1813,7 @@ void Signature_GENERATE(bigint* M, bigint* Q, bigint* Gmont
  *     Check that this is equal to e. If it is, validation passed. 
  *     In any other circumstance, the validation fails.
  *
- *   RETURNS: 1 if signature is valid for this message, 0 for invalid signature.
+ *   RETURNS: 0 if signature is valid for this message, 1 for invalid signature.
  *
  */
 uint8_t Signature_VALIDATE( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
@@ -1823,7 +1823,7 @@ uint8_t Signature_VALIDATE( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     u64       R_used_bytes;
     u64       len_Rused_PH;
 
-    u8  retval = 1;    
+    u8  retval = 0;    
     u8  prehash[prehash_len];   
     u8* R_with_prehash = NULL;
     u8  blake2b_outbuf[64];
@@ -1846,6 +1846,7 @@ uint8_t Signature_VALIDATE( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
     if(bigint_compare2(s, Q) != 3){
         printf("[WARN] Cryptolib: sig_validate: input s != input Q.\n");
+	retval = 1;
         goto label_cleanup;        
     }
 
@@ -1897,7 +1898,7 @@ uint8_t Signature_VALIDATE( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
         bigint_print_info(&val_e);
         bigint_print_bits(&val_e);
         
-        retval = 0;
+        retval = 1;
     }
  
 label_cleanup:

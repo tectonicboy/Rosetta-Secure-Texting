@@ -120,7 +120,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
         || 
           ((bigint_compare2(M, A_s)) != 1)
         //||
-        //  (check_pubkey_form(&Am, M, Q) == 0) 
+        //  (check_pubkey_form(&Am, M, Q) == 1) 
       )
     {
         printf("[ERR] Server: Client's short-term public key is invalid.\n");
@@ -874,7 +874,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
+    if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) == 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
@@ -1141,7 +1141,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) != 1){
+    if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) == 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
@@ -1667,7 +1667,7 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     reply_buf  = calloc(1, reply_len);
 
     /* Verify the sender's cryptographic signature. */
-    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1){
+    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
@@ -1755,7 +1755,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
     printf("[DEBUG] Server: poller_ix in process_msg_40: %lu\n\n", poller_ix);
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) != 1 ){
+    if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         goto label_cleanup;       
     }
@@ -1897,7 +1897,7 @@ void process_msg_50(u8* msg_buf){
     u64 sender_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
+    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         return;      
     }
@@ -1918,7 +1918,7 @@ void process_msg_60(u8* msg_buf){
     u64 sender_ix   = *((u64*)(msg_buf + SMALL_FIELD_LEN));
     
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) != 1 ){
+    if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         return;     
     }

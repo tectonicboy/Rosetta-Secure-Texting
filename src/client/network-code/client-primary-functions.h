@@ -656,7 +656,7 @@ void* begin_polling(void* input){
             /* Verify the cryptographic signature now. */
             ret = authenticate_server(received_buf, read_ix, read_ix);
 
-            if(ret != 1){
+            if(ret == 1){
                 printf("[ERR] Client: Bad signature in polling reply.\n\n");
                 goto loop_cleanup;
             }

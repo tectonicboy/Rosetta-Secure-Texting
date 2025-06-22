@@ -121,7 +121,7 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
     bigint div_rem;
     bigint mod_pow_res;
           
-    bool ret = 1;
+    bool ret = 0;
     
     bigint_create(&M_over_Q,    12800, 0);
     bigint_create(&one,         12800, 1);
@@ -134,7 +134,7 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
     
     if(bigint_compare2(&mod_pow_res, &one) != 2){
         printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
-        ret = 0;
+        ret = 1;
     }
     
     free(M_over_Q.bits);

@@ -122,7 +122,7 @@ int main(){
     printf("Time taken for Sig_VAL: %lf sec.\n\n", total_time_sec);
     
     
-    if( ! isValid ){
+    if(isValid == 1){
         printf("Valid Signature: NO\n");
     }
     else{
