@@ -31,7 +31,7 @@ uint8_t init_tcp_conn_with_server(){
     if(own_socket_fd == -1) {
         printf("[ERR] Client: socket() failed. Terminating.\n");
         perror("errno:");
-        return 2;
+        return 1;
     }
 
     if(
@@ -42,7 +42,7 @@ uint8_t init_tcp_conn_with_server(){
     )
     {
         printf("[ERR] Client: set socket option failed.\n\n");
-        return 2;
+        return 1;
     }
 
     printf("[OK]  Client: Socket file descriptor obtained!\n");
@@ -55,12 +55,12 @@ uint8_t init_tcp_conn_with_server(){
     {
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
         perror("connect() failed, errno: ");
-        return 2;
+        return 1;
     }
 
     printf("[OK]  Client: Successfully connected to the Rosetta server!\n\n");
 
-    return 2;
+    return 0;
 }
 
 u8 send_to_tcp_server(u8* msg_buf, u64 msg_len){

@@ -133,9 +133,11 @@ bigint  server_privkey_bigint;
 struct sockaddr_in servaddr;
 
 /* First thing done when we start the Rosetta server - initialize it. */
-u64 self_init(){
+u8 self_init(){
 
     FILE* privkey_dat;
+
+    u8 status = 0;
 
     for(socklen_t i = 0; i < MAX_CLIENTS; ++i){
         clientLens[i] = sizeof(struct sockaddr_in);
@@ -152,7 +154,8 @@ u64 self_init(){
     /* Obtain the file descriptor for the listen()ing socket. */                                                    
     if( (listening_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("[ERR] Server: Could not open server socket. Aborting.\n");
-        return 1;
+        status = 1;
+	goto label_cleanup;
     }
     
     setsockopt(
@@ -163,22 +166,22 @@ u64 self_init(){
           listening_socket, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
     );
             
-    if( (bind(listening_socket, (struct sockaddr*)&servaddr, sizeof(servaddr))) 
+    if( (bind(listening_socket, (struct sockaddr*)&servaddr, sizeof(servaddr)))
         == -1
+       && 
+        (errno != 13)
       )
     {
-        printf("[ERR] Server: Bind() returned -1.\n");
-        
-        if(errno != 13){
-            printf("[ERR] Server: bind() failed. Errno != 13. Aborting.\n");
-            return 1;
-        }
+        printf("[ERR] Server: bind() failed. Errno != 13. Aborting.\n");
+        status = 1;
+	goto label_cleanup;
     }
        
     /* Put the listen()ing socket in a state of listening for connections. */
     if( (listen(listening_socket, MAX_SOCK_QUEUE)) == -1){
         printf("[ERR] Server: couldn't begin listen()ing. Aborting.\n");
-        return 1;
+        status = 1;
+	goto label_cleanup;
     }
     
     /*  Server will use its private key to compute cryptographic signatures of 
@@ -189,13 +192,14 @@ u64 self_init(){
     
     if(!privkey_dat){
         printf("[ERR] Server: couldn't open private key DAT file. Aborting.\n");
-        return 1;
+        status = 1;
+	goto label_cleanup;
     }
     
     if(fread(server_privkey, 1, PRIVKEY_LEN, privkey_dat) != PRIVKEY_LEN){
         printf("[ERR] Server: couldn't get private key from file. Aborting.\n");
-        fclose(privkey_dat);
-        return 1;
+        status = 1;
+	goto label_cleanup;
     }
     else{
         printf("[OK]  Server: Successfully loaded private key.\n");
@@ -233,24 +237,36 @@ u64 self_init(){
     server_pubkey_bigint = get_BIGINT_from_DAT
         (3072, "../bin/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
     
-    fclose(privkey_dat);
-    
     /* Initialize the mutex that will be used to prevent the main thread and
      * the connection checker thread from getting into a race condition.
      */
-    if (pthread_mutex_init(&mutex, NULL) != 0) { 
+    if(pthread_mutex_init(&mutex, NULL) != 0) { 
         printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
-        return 1; 
+        status = 1;
+        goto label_cleanup;
     } 
     
-    return 0;
+label_cleanup:
+    
+    if(privkey_dat){
+        fclose(privkey_dat);
+    }
+
+    if(status){
+        free(temp_handshake_buf);
+	if(listening_socket){
+            close(listening_socket);
+	}
+    }
+
+    return status;
 }
 
 u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
 
     if(pubkey_siz < 300){
         printf("[ERR] Server: Passed a small PubKey Size: %lu\n", pubkey_siz);
-        return 2;
+        return 1;
     }
 
     /* Client slot has to be taken, clients size has to match, 
@@ -263,7 +279,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
           )
         {
             printf("\n[ERR] Server: PubKey already exists for user[%lu]\n", i);
-            return 1;
+            return 10;
         }
     }
     
@@ -508,7 +524,7 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
  *      - A client decides to exit the chat room they're in.
  *      - A client decides to log off Rosetta.
  */
-u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
+u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
 
     printf("?? identifier entering?? \n");
 
@@ -518,7 +534,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
 
     s64 expected_siz = 0;
 
-    u32 ret_val = 0;
+    u32 status = 0;
 
     char *msg_type_str = calloc(1, 3);
 
@@ -538,7 +554,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         strncpy(msg_type_str, "00\0", 3);
         
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -556,7 +572,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         strncpy(msg_type_str, "01\0", 3); 
         
         if(bytes_read != expected_siz){           
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
     
@@ -574,7 +590,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         strncpy(msg_type_str, "10\0", 3);
         
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -592,7 +608,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         strncpy(msg_type_str, "20\0", 3);
         
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -633,7 +649,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
                        + SIGNATURE_LEN;
                     
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -654,7 +670,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -672,7 +688,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -689,7 +705,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -709,7 +725,7 @@ u32 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
         /*
         if(send(client_socket_fd[sock_ix], "fuck you", 8, 0) == -1){
             printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
-            ret_val = 1;
+            status = 1;
             goto label_error;
         }
         
@@ -738,7 +754,7 @@ label_cleanup:
 
     free(msg_type_str);
     
-    return ret_val;
+    return status;
 }
 
 void remove_user(u64 removing_user_ix){
@@ -994,7 +1010,7 @@ int main(){
             perror("accept() failed, errno was set");
             continue;
         }
-                printf("[OK] Server: Passed accept! Received a new conn!\n\n");
+        printf("[OK] Server: Passed accept! Received a new conn!\n\n");
 
         pthread_mutex_lock(&mutex);
 

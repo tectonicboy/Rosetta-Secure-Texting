@@ -379,13 +379,13 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
 
     login_status = login(password, password_len);
 
-    if(login_status == 0){
+    if(login_status == 1){
         /* Add code to render 'could not login rosetta' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Error. Login failed unexpectedly.");
         info_msg_box->Show();
     }
-    else if(login_status == 3){
+    else if(login_status == 10){
         /* Add code to render 'rosetta is full' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Rosetta is full right now. Try again later.");
@@ -479,7 +479,7 @@ void cMain::BtnClickRegGo(wxCommandEvent &evt){
     register_status = reg(password, password_len);
 
     /* Display error box that something went wrong, try again. */
-    if(register_status == 0){
+    if(register_status){
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Error: Something went wrong. Try again.");
         info_msg_box->Show();
@@ -622,8 +622,8 @@ void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
 
     joinroom_status = join_chatroom(roomid, roomid_len, userid, userid_len);
 
-    if(joinroom_status == 0){
-        /* Add code to render 'could not login rosetta' msg on user's screen. */
+    if(joinroom_status){
+        /* Add code to render 'could not join room' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Error. Room joining failed unexpectedly.");
         info_msg_box->Show();
@@ -717,13 +717,13 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
 
     makeroom_status = make_new_chatroom(roomid, roomid_len, userid, userid_len);
 
-    if(makeroom_status == 0){
+    if(makeroom_status == 1){
         /* Add code to render 'could not login rosetta' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Error. Room creation failed unexpectedly.");
         info_msg_box->Show();
     }
-    else if(makeroom_status == 3){
+    else if(makeroom_status == 10){
         /* Add code to render 'rosetta is full' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Rosetta is full right now. Try again later.");

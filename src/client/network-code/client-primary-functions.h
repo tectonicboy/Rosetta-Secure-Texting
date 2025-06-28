@@ -136,7 +136,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
     u64 s_offset = sign_offset;
     u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
 
-    u8 status;
+    u8 status = 0;
 
     /* Reconstruct the sender's signature as the two BigInts that make it up. */
     recv_s = (bigint*)(signed_ptr + s_offset);
@@ -203,7 +203,7 @@ u8 self_init(u8* password, int password_len){
     const u32 chacha_key_len = 32;
     u32 pw_bytes_for_zeroing = PASSWORD_BUF_SIZ - password_len;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 saved_nonce[LONG_NONCE_LEN];
     u8 saved_string[ARGON_STRING_LEN];
     u8 saved_privkey[PRIVKEY_LEN];
@@ -235,7 +235,8 @@ u8 self_init(u8* password, int password_len){
 
     if(savefile == NULL){
         printf("[ERR] Client: couldn't open the user's save file. Aborting.\n");
-        return 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     /* Read savefile in the same order that Registration writes it in. */
@@ -243,28 +244,28 @@ u8 self_init(u8* password, int password_len){
     /* First is Nonce for decrypting the saved private key. */
     if(fread(saved_nonce, 1, LONG_NONCE_LEN, savefile) != LONG_NONCE_LEN){
         printf("[ERR] Client: couldn't get nonce from savefile[0].\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
     /* Second is the user's long-term private key in encrypted form. */
     if(fread(saved_privkey, 1, PRIVKEY_LEN, savefile) != PRIVKEY_LEN){
         printf("[ERR] Client: couldn't get encr. privkey from savefile[1].\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
     /* Third is the user's long-term public key non-encrypted. */
     if(fread(saved_pubkey, 1, PUBKEY_LEN, savefile) != PUBKEY_LEN){
         printf("[ERR] Client: couldn't get pubkey from savefile[2].\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
     /* Fourth and last is the 8-byte string - part of Argon2 parameter S. */
     if(fread(saved_string, 1, ARGON_STRING_LEN, savefile) != ARGON_STRING_LEN){
         printf("[ERR] Client: couldn't get string from savefile[3].\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -419,7 +420,7 @@ u8 self_init(u8* password, int password_len){
     /* Now compare the calculated and the saved public keys. */
     if(bigint_compare2(calculated_A, &own_pubkey) != 2){
         printf("[ERR] Client: Password did NOT lead to correct privkey.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{
@@ -432,7 +433,7 @@ u8 self_init(u8* password, int password_len){
 
     if(M == NULL){
         printf("[ERR] Client: Failed to get M from DAT file.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -441,7 +442,7 @@ u8 self_init(u8* password, int password_len){
 
     if(Q == NULL){
         printf("[ERR] Client: Failed to get Q from DAT file.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -450,7 +451,7 @@ u8 self_init(u8* password, int password_len){
 
     if(G == NULL){
         printf("[ERR] Client: Failed to get G from DAT file.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -459,7 +460,7 @@ u8 self_init(u8* password, int password_len){
 
     if(Gm == NULL){
         printf("[ERR] Client: Failed to get Gm from DAT file.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -469,7 +470,7 @@ u8 self_init(u8* password, int password_len){
 
     if(server_pubkey == NULL){
         printf("[ERR] Client: Failed to get server pubkey from DAT file.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -525,7 +526,7 @@ u8 self_init(u8* password, int password_len){
      */
     if (pthread_mutex_init(&mutex, NULL) != 0) {
         printf("[ERR] Server: Mutex could not be initialized. Aborting.\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -535,7 +536,8 @@ u8 self_init(u8* password, int password_len){
     if(own_socket_fd == -1) {
         printf("[ERR] Client: socket() failed. Terminating.\n");
         perror("errno:");
-        return 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     if(
@@ -546,6 +548,8 @@ u8 self_init(u8* password, int password_len){
     )
     {
         printf("[ERR] Client: set socket option failed.\n\n");
+	status = 1;
+	goto label_cleanup;
     }
 
     printf("[OK]  Client: Socket file descriptor obtained!\n");
@@ -558,7 +562,8 @@ u8 self_init(u8* password, int password_len){
     {
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
         perror("connect() failed, errno: ");
-        return 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     printf("[OK]  Client: Connect() call finished, won't be re-attempted.\n");
@@ -566,7 +571,10 @@ u8 self_init(u8* password, int password_len){
 
 label_cleanup:
 
-    fclose(savefile);
+
+    if(savefile){
+	    fclose(savefile);
+    }
 
     if(calculated_A != NULL){
         free(calculated_A->bits);
@@ -605,7 +613,7 @@ void* begin_polling(void* input){
 
         ret = construct_msg_40();
 
-        if(ret != 1){
+        if(ret){
             printf("[ERR] Client: Sending of poll packet failed! Read logs!\n");
             goto loop_cleanup;
         }
@@ -675,6 +683,7 @@ void* begin_polling(void* input){
                             *((u64*)(received_buf + read_ix - SMALL_FIELD_LEN));
 
                 if(curr_msg_type == PACKET_ID_50){
+		    
                     process_msg_50(received_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
@@ -736,7 +745,7 @@ u8 reg(u8* password, int password_len){
     const u64 save_len =
     ARGON_STRING_LEN + PUBKEY_LEN + PRIVKEY_LEN + LONG_NONCE_LEN;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 privkey_buf          [PRIVKEY_LEN];
     u8 argon2_salt_string   [ARGON_STRING_LEN];
     u8 b2b_pubkey_output    [64];
@@ -814,11 +823,11 @@ u8 reg(u8* password, int password_len){
 
     if(   (!ranfile)
        || (fread(argon2_salt_string, 1, ARGON_STRING_LEN, ranfile)
-          != ARGON_STRING_LEN)
+            != ARGON_STRING_LEN)
       )
     {
         printf("[ERR] Client: Reg failed to read urandom for salt string.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -879,7 +888,7 @@ u8 reg(u8* password, int password_len){
     /* Get the Nonce. */
     if(fread(chacha_nonce_buf, 1, LONG_NONCE_LEN, ranfile) != LONG_NONCE_LEN){
         printf("[ERR] Client: Reg failed to read urandom. Alert GUI.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -905,7 +914,7 @@ u8 reg(u8* password, int password_len){
 
     if(!user_save){
         printf("[ERR] Client: Reg failed to open user_save. Alert GUI.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -963,9 +972,14 @@ label_cleanup:
     return status;
 }
 
+/* Special return code, other than 0 and 1, here is 10.
+ * It means that the Rosetta server has told us to try logging again later
+ * because there is no more space for any more logged in users right now.
+ */
+
 u8 login(u8* password, int password_len){
 
-    u8  status;
+    u8  status = 0;
     u8* msg_buf = NULL;
     u8  reply_buf[MAX_TXT_LEN];
 
@@ -976,7 +990,7 @@ u8 login(u8* password, int password_len){
 
     status = self_init(password, password_len);
 
-    if(status != 1){
+    if(status){
         printf("[ERR] Client: Core initialization failed. Aborting login.\n\n");
         goto label_cleanup;
     }
@@ -995,6 +1009,8 @@ u8 login(u8* password, int password_len){
     }
     printf("[OK]  Client: Constructed MSG_00: %lu bytes\n", msg_len);
 
+
+
     status = send_payload(msg_buf, msg_len);
 
     if(status){
@@ -1003,6 +1019,8 @@ u8 login(u8* password, int password_len){
     }
     printf("[OK]  Client: Transmitted MSG_00 to the Rosetta server.\n");
 
+
+
     status = grab_servers_reply(reply_buf, &reply_len);
 
     if(status){
@@ -1010,6 +1028,8 @@ u8 login(u8* password, int password_len){
         goto label_cleanup;
     }
     printf("[OK]  Client: Received reply to MSG_00: %lu bytes.\n", reply_len);
+
+
 
     if(*reply_type_ptr != PACKET_ID_02 && *reply_type_ptr != PACKET_ID_00){
         printf("[ERR] Client: Unexpected reply by the server to msg_00\n\n");
@@ -1035,6 +1055,8 @@ u8 login(u8* password, int password_len){
         }
         printf("[OK]  Client: REPLY to MSG_00 is valid. Constructed MSG_01!\n");
 
+
+
 /*  Now send the reply back to the Rosetta server:
 
 ================================================================================
@@ -1050,20 +1072,20 @@ u8 login(u8* password, int password_len){
             printf("[ERR] Client: Sending MSG_01 failed.");
             goto label_cleanup;
         }
-
         printf("[OK]  Client: Sent MSG_01 to server.\n\n");
+
+
     }
     else{
         printf("[OK]  Client: Server told us to try login later.\n\n");
 
         status = process_msg_02(reply_buf);
-
         if (status){
             printf("[ERR] Client: process_msg_02 failed. Abort login.\n\n");
             goto label_cleanup;
         }
-
-        status = 3;
+        status = 10;
+	goto label_cleanup;
     }
 
     memset(reply_buf, 0, MAX_TXT_LEN);
@@ -1087,25 +1109,27 @@ u8 login(u8* password, int password_len){
             printf("[ERR] Client: process_msg_01 failed. Abort login.\n\n");
             goto label_cleanup;
         }
-
-        status = 2;
     }
 
     else if(*reply_type_ptr == PACKET_ID_02){
 
         printf("[OK]  Client: Rosetta server told us to try later, full!\n\n");
 
-        if ((status = process_msg_02(msg_buf)) != 1){
+        status = process_msg_02(msg_buf);
+
+        if (status){
             printf("[ERR] Client: process_msg_02 failed. Abort login.\n\n");
             goto label_cleanup;
         }
 
-        status = 3;
+        status = 10;
+	goto label_cleanup;
     }
 
     else{
         printf("[ERR] Client: Unexpected reply by the server to msg_01.\n\n");
-        status = 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     printf("\n\n\n******** LOGIN COMPLETED *********\n\n\n");
@@ -1126,7 +1150,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
 
-    u8 status;
+    u8 status = 0;
     u8 msg_buf[MAX_TXT_LEN];
 
     ssize_t bytes_read;
@@ -1147,47 +1171,58 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     /* Expected replies: msg_10=OK, msg_11=NoSpace. */
     status = construct_msg_10(userid, roomid);
 
+    if(status){
+        printf("[ERR] Client: Couldn't construct msg_10\n\n");
+	goto label_cleanup;
+    }
+
     /* Capture the server's reply. */
 
     memset(msg_buf, 0, MAX_TXT_LEN);
 
     bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
 
+    /* if(status) { ... }  after saying receive_msg_reply(), not recv(). */
     if(bytes_read == -1){
         printf("[ERR] Client: Couldn't recv() a reply to msg_10.\n\n");
         perror("errno = ");
-        return 0;
+	status = 1;
+        goto label_cleanup;
     }
 
     printf("[OK]  Client: Received reply to msg_10: %lu bytes.\n", bytes_read);
 
     if( *((u64*)msg_buf) == PACKET_ID_10 ){
 
-        printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
+        status = process_msg_10(msg_buf);
 
-        if ((status = process_msg_10(msg_buf)) != 1){
+        if (status){
             printf("[ERR] Client: process_msg_10 failed.\n\n");
-            return 0;
+            goto label_cleanup;
         }
 
-        status = 2;
+        printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
     }
 
     else if( *((u64*)msg_buf) == PACKET_ID_11 ){
 
-        printf("[OK]  Client: Rosetta told us to try later, it's full!\n\n");
+        status = process_msg_11(msg_buf);
 
-        if ((status = process_msg_11(msg_buf)) != 1){
+        if (status){
             printf("[ERR] Client: process_msg_11 failed.\n\n");
-            return 0;
+            goto label_cleanup;
         }
 
-        return 3;
+        printf("[OK]  Client: Rosetta told us: try later, room is full!\n\n");
+
+        status = 10;
+	goto label_cleanup;
     }
 
     else{
         printf("[ERR] Client: Unexpected reply by the server to msg_10.\n\n");
-        return 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
@@ -1208,6 +1243,9 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
     start_polling_thread();
 
+/* Unused for now but still have a label for completeness. */
+label_cleanup:
+
     return status;
 }
 
@@ -1219,7 +1257,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
     u64 msg_len;
 
-    u8 status;
+    u8 status = 0;
     u8 msg_buf[MAX_TXT_LEN];
 
     ssize_t bytes_read;
@@ -1241,8 +1279,9 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     status = construct_msg_20(userid, roomid);
 
     /* bad msg_20 construction. abort. */
-    if(status != 1){
-        return 0;
+    if(status){
+        printf("[ERR] Client: Could not construct msg_20 to join a room!\n\n");
+	goto label_cleanup;
     }
 
     /* Capture the server's reply. */
@@ -1255,27 +1294,30 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     if(bytes_read == -1){
         printf("[ERR] Client: Couldn't recv() a reply to msg_20.\n\n");
         perror("errno = ");
-        return 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     printf("[OK]  Client: Received reply to msg_20: %lu bytes.\n", bytes_read);
 
     if( *((u64*)msg_buf) == PACKET_ID_20 ){
 
-        printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
-
         msg_len = bytes_read;
 
-        if ((status = process_msg_20(msg_buf, msg_len)) != 1){
+        status = process_msg_20(msg_buf, msg_len);
+
+        if (status){
             printf("[ERR] Client: process_msg_20 failed.\n\n");
-            return 0;
+            goto label_cleanup;
         }
+
+	printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
     }
 
     else{
         printf("[ERR] Client: Unexpected reply by the server to msg_20.\n\n");
-        /* return BAD */
-        return 0;
+        status = 1;
+	goto label_cleanup;
     }
 
     printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");
@@ -1296,5 +1338,8 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 
     start_polling_thread();
 
-    return 1;
-}
+/* Unused for now but keep the label for completeness. */
+label_cleanup:
+
+    return status;
+

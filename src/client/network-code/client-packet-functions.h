@@ -103,7 +103,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
     bigint  zero;
     bigint *a_s = (bigint*)(temp_handshake_buf);
 
-    u8 status = 1;
+    u8 status = 0;
     u8 K0[B];
     u8 ipad[B];
     u8 opad[B];
@@ -169,7 +169,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
         printf("              Its info and ALL %u bits:\n\n", B_s.size_bits);
         bigint_print_info(&B_s);
         bigint_print_all_bits(&B_s);
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -197,7 +197,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
 
     if(auth_status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_00. Drop.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -383,7 +383,7 @@ u8 process_msg_01(u8* msg){
     u64 nonce_offset;
     u64 key_offset;
 
-    u8 status = 1;
+    u8 status = 0;
 
     /* Validate the incoming signature with the server's long-term public key
      * on packet_ID_01 (for now... later it will be of the whole payload).
@@ -394,7 +394,7 @@ u8 process_msg_01(u8* msg){
     if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_01. Drop.\n");
         printf("              Tell GUI to tell user login went badly.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -444,7 +444,6 @@ label_cleanup:
 
     printf("[OK]  Client: Handshake memory region has been released!\n\n");
 
-
     return status;
 
 }
@@ -472,7 +471,7 @@ label_cleanup:
 */
 u8 process_msg_02(u8* msg){
 
-    u8 status;
+    u8 status = 0;
 
     /* Validate the incoming signature with the server's long-term public key
      * on packet_ID_02.
@@ -482,7 +481,7 @@ u8 process_msg_02(u8* msg){
 
     if(status == 1){
         printf("[ERR] Client: Invalid signature in process_msg_02. Drop.\n\n");
-        status = 0;
+        goto label_cleanup;
     }
 
     //release_handshake_memory_region();
@@ -511,6 +510,7 @@ u8 process_msg_02(u8* msg){
 
     printf("[OK]  Client: Handshake memory region has been released!\n\n");
 
+label_cleanup:
 
     return status;
 }
@@ -538,7 +538,7 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     FILE* ran_file = NULL;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 send_K[ONE_TIME_KEY_LEN];
     u8 send_buf[send_len];
     u8 roomID_userID[2 * SMALL_FIELD_LEN];
@@ -567,13 +567,13 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     if(!ran_file){
         printf("[ERR] Client: Couldn't open urandom. Abort msg_10 creation.\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
     if( (fread(send_K, 1, ONE_TIME_KEY_LEN, ran_file)) != ONE_TIME_KEY_LEN){
         printf("[ERR] Client: Couldn't read urandom. Abort msg_10 creation.\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -652,7 +652,7 @@ u8 construct_msg_10( unsigned char* requested_userid
         printf("[ERR] Client: Couldn't send constructed packet 10.\n");
         printf("              Which is the request to create a new room\n");
         printf("              Tell GUI to tell the user about this!\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{
@@ -691,10 +691,9 @@ u8 process_msg_11(u8* msg){
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_11. Drop.\n");
         printf("              Telling GUI to tell user something's wrong.\n\n");
-        status = 0;
     }
 
     else{
@@ -725,10 +724,9 @@ u8 process_msg_10(u8* msg){
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_10. Drop.\n");
         printf("              Telling GUI to tell user something's wrong.\n\n");
-        status = 0;
     }
 
     else{
@@ -765,7 +763,7 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     FILE* ran_file = NULL;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 send_K[ONE_TIME_KEY_LEN];
     u8 send_buf[send_len];
     u8 roomID_userID[2 * SMALL_FIELD_LEN];
@@ -794,13 +792,13 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     if(!ran_file){
         printf("[ERR] Client: Couldn't open urandom. Abort msg_20 creation.\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
     if( (fread(send_K, 1, ONE_TIME_KEY_LEN, ran_file)) != ONE_TIME_KEY_LEN){
         printf("[ERR] Client: Couldn't read urandom. Abort msg_20 creation.\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -863,7 +861,7 @@ u8 construct_msg_20( unsigned char* requested_userid
         printf("[ERR] Client: Couldn't send constructed packet 20.\n");
         printf("              Which is the request to join an existing room\n");
         printf("              Tell GUI to tell the user about this!\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{
@@ -929,7 +927,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     /* Makes for better readability in guest descriptor initializing code. */
     bigint* this_pubkey;
 
-    u8  status = 1;
+    u8  status = 0;
     u8  recv_K[ONE_TIME_KEY_LEN];
     u8* buf_decrypted_AD = NULL;
 
@@ -962,7 +960,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     if(recv_type20_AD_len != recv_type20_AD_len_expected){
         printf("[ERR] Client: Invalid field for N in process_msg_20. Drop.\n");
         printf("              Tell GUI to tell user to try join again.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -981,10 +979,9 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     status =
        authenticate_server(msg, recv_type20_signed_len, recv_type20_signed_len);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_20. Drop.\n");
         printf("              Tell GUI to tell user to try join again.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1130,7 +1127,7 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-u8 process_msg_21(u8* msg){
+void process_msg_21(u8* msg){
 
     u64 signed_len;
     u64 new_guest_info_offset = ONE_TIME_KEY_LEN + SMALL_FIELD_LEN;
@@ -1142,7 +1139,7 @@ u8 process_msg_21(u8* msg){
     bigint  temp_shared_secret;
     bigint* this_pubkey;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 recv_K[ONE_TIME_KEY_LEN];
     u8 buf_decrypted_guest_info[new_guest_info_len];
 
@@ -1161,9 +1158,8 @@ u8 process_msg_21(u8* msg){
 
     status = authenticate_server(msg, signed_len, signed_len);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_21. Drop.\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1282,7 +1278,7 @@ label_cleanup:
     free(aux1.bits);
     free(temp_shared_secret.bits);
 
-    return status;
+    return;
 }
 
 /* Send a text message to everyone in our chatroom. Construct the payload.
@@ -1319,7 +1315,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     u8* associated_data = (u8*)calloc(1, L);
     u8* payload = (u8*)calloc(1, payload_len);
     u8  send_K[ONE_TIME_KEY_LEN];
-    u8  status = 1;
+    u8  status = 0;
 
     u32* chacha_key = NULL;
 
@@ -1352,7 +1348,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     if(!ran_file){
         printf("[ERR] Client: Couldn't open urandom in msg 30 constructor.\n");
         printf("              Aborting transmission. Telling GUI system.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -1361,7 +1357,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
     if(ret_val != ONE_TIME_KEY_LEN){
         printf("[ERR] Client: Couldn't read urandom in msg 30 constructor.\n");
         printf("              Aborting transmission. Telling GUI system.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
 
@@ -1446,23 +1442,11 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
                        ,&own_privkey, PRIVKEY_LEN
                       );
 
-    /* Ready to send the constructed packet to the Rosetta server now. */
-
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-*/
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send constructed packet 30.\n");
         printf("              Which is the request to send a text message\n");
         printf("              Tell GUI to tell the user about this!\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{
@@ -1507,7 +1491,7 @@ label_cleanup:
  X = ONE_TIME_KEY_LEN
 
 */
-u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
+void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
 
     /* Order of operations here:
      *  - Read in the text message's length from 3rd small field. Verify it.
@@ -1541,7 +1525,7 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     u8* our_msg_pointer;
     u8* decrypted_msg = (u8*)calloc(1, text_len);
     u8  decrypted_key[ONE_TIME_KEY_LEN];
-    u8  status = 1;
+    u8  status = 0;
 
     bigint *recv_e = NULL;
     bigint *recv_s = NULL;
@@ -1559,10 +1543,8 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     memset(temp_user_id,  0, SMALL_FIELD_LEN);
 
     if(text_len < 1 || text_len > MAX_TXT_LEN) {
-
         printf("[ERR] Client: Text message by a guest is of invalid length.\n");
         printf("              Obtained message length: %lu\n\n", text_len);
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1591,7 +1573,6 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     /* If the sender wasn't found in any global descriptor */
     if(sender_ix == MAX_CLIENTS + 1) {
         printf("[ERR] Client: Couldn't find the message sender. Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1599,9 +1580,8 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
 
     status = authenticate_server(payload, sign2_offset, sign2_offset);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid server signature in process_msg_30.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1634,9 +1614,8 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
                     ,(payload + sign1_offset), sign1_offset
     );
 
-    if(status == 1) {
+    if(status) {
         printf("[ERR] Client: Invalid sender signature in msg_30 Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1654,7 +1633,6 @@ u8 process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     /* If we didn't find our userID in the associated data, drop the message. */
     if(our_AD_slot == (MAX_CLIENTS + 1)) {
         printf("[ERR] Client: Didn't find our message slot in AD. Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1752,7 +1730,7 @@ label_cleanup:
     free(aux1.bits);
     free(decrypted_msg);
 
-    return status;
+    return;
 }
 
 /* Our client is sending a poll request to the Rosetta server to see if there
@@ -1773,7 +1751,7 @@ u8 construct_msg_40(void){
 
     const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 payload[payload_len];
 
     memset(payload, 0, payload_len);
@@ -1789,20 +1767,10 @@ u8 construct_msg_40(void){
         payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
 
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-*/
     /* Transmit our request to the Rosetta server. */
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't poll the server for anything new.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{
@@ -1826,16 +1794,15 @@ label_cleanup:
 | SMALL_FIELD_LEN |                        SIGNATURE_LEN                       |
 --------------------------------------------------------------------------------
 */
-u8 process_msg_40(u8* payload){
+void process_msg_40(u8* payload){
 
     u8 status;
 
     /* Verify the server's signature first. */
     status = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_40. Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1844,7 +1811,7 @@ label_cleanup:
 
     /* No function cleanup for now. Keep the label for completeness. */
 
-    return status;
+    return;
 }
 
 /* The Rosetta server replied to our polling request with information that
@@ -1859,18 +1826,18 @@ label_cleanup:
 | SMALL_FIELD_LEN | SMALL_FIELD_LEN |              SIGNATURE_LEN               |
 --------------------------------------------------------------------------------
 */
-u8 process_msg_50(u8* payload){
+void process_msg_50(u8* payload){
 
     u64 sender_ix = MAX_CLIENTS + 1;
 
     u8 status;
 
     /* Verify the server's signature first. */
-    status = authenticate_server(payload, 2 * SMALL_FIELD_LEN, 2 * SMALL_FIELD_LEN);
+    status = authenticate_server
+	      (payload, 2 * SMALL_FIELD_LEN, 2 * SMALL_FIELD_LEN);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_50. Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1894,7 +1861,6 @@ u8 process_msg_50(u8* payload){
     /* If no guest found with the userID in the payload */
     if(sender_ix == MAX_CLIENTS + 1){
         printf("[ERR] Client: No departed guest found in chatroom. Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -1932,7 +1898,7 @@ label_cleanup:
 
     /* No function cleanup for now. Keep the label for completeness. */
 
-    return status;
+    return;
 }
 
 /* Tell the Rosetta server that the user wants to leave the chatroom.
@@ -1950,7 +1916,7 @@ u8 construct_msg_50(void){
 
     const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 payload[payload_len];
 
     memset(payload, 0, payload_len);
@@ -1992,20 +1958,10 @@ u8 construct_msg_50(void){
         payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
 
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-*/
     /* Transmit our request to the Rosetta server. */
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send request to leave the room.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{
@@ -2031,16 +1987,15 @@ label_cleanup:
 | SMALL_FIELD_LEN |                        SIGNATURE_LEN                       |
 --------------------------------------------------------------------------------
 */
-u8 process_msg_51(u8* payload){
+void process_msg_51(u8* payload){
 
-    u8 status = 1;
+    u8 status = 0;
 
     /* Verify the server's signature first. */
     status = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    if(status == 1){
+    if(status){
         printf("[ERR] Client: Invalid signature in process_msg_51. Drop.\n\n");
-        status = 0;
         goto label_cleanup;
     }
 
@@ -2074,7 +2029,7 @@ label_cleanup:
 
     /* No function cleanup for now. Keep the label for completeness. */
 
-    return status;
+    return;
 }
 
 /* Tell the Rosetta server that the user wants to log off.
@@ -2092,7 +2047,7 @@ u8 construct_msg_60(void){
 
     const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
-    u8 status = 1;
+    u8 status = 0;
     u8 payload[payload_len];
 
     memset(payload, 0, payload_len);
@@ -2109,20 +2064,10 @@ u8 construct_msg_60(void){
 
     own_ix = 0;
 
-    /* Connect to the Rosetta server. */
-    /*
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) ){
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        printf("              ERRNO = %d\n\n", errno);
-        perror("connect() failed, errno was set");
-        status = 0;
-        goto label_cleanup;
-    }
-*/
     /* Transmit our request to the Rosetta server. */
     if(send(own_socket_fd, payload, payload_len, 0) == -1){
         printf("[ERR] Client: Couldn't send request to get logged off.\n\n");
-        status = 0;
+        status = 1;
         goto label_cleanup;
     }
     else{

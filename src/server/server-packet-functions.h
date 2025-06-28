@@ -619,7 +619,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
         goto label_cleanup;
     }
     
-    if( (check_pubkey_exists(client_pubkey_buf, PUBKEY_LEN)) > 0 ){
+    if( (check_pubkey_exists(client_pubkey_buf, PUBKEY_LEN)) != 0){
         printf("[ERR] Server: Obtained login public key already exists.\n");
         printf("\n[OK]  Server: Discarding transmission.\n");
         goto label_cleanup;
