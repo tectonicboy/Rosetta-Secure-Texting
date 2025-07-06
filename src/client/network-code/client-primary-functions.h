@@ -168,7 +168,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
     */
 
     /* Verify the sender's cryptographic signature. */
-    status = Signature_VALIDATE(
+    status = signature_validate(
         Gm, &server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
     );
 
@@ -332,7 +332,7 @@ u8 self_init(u8* password, int password_len){
     /* Salt = saved_string || BLAKE2B{64}(client's saved long-term public key)*/
 
     /* Call Blake2b to get the second part of the Salt parameter. */
-    BLAKE2B_INIT(saved_pubkey, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
+    blake2b_init(saved_pubkey, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
 
     /* Now construct the complete Salt parameter with the 2 components. */
     memcpy(Salt, saved_string, ARGON_STRING_LEN);
@@ -384,7 +384,7 @@ u8 self_init(u8* password, int password_len){
     memcpy(V, argon2_output_tag, chacha_key_len);
 
     /* Decrypt the saved private key. */
-    CHACHA20( saved_privkey                       /* text - private key  */
+    chacha20( saved_privkey                       /* text - private key  */
              ,PRIVKEY_LEN                         /* text_len in bytes   */
              ,(u32*)saved_nonce                   /* Nonce ptr           */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32)) /* nonceLen in uint32s */
@@ -411,7 +411,7 @@ u8 self_init(u8* password, int password_len){
      * decrypted successfully, with the original correct password.
      */
 
-    save_BIGINT_to_DAT("temp_priv.dat", &own_privkey);
+    save_bigint_to_dat("temp_priv.dat", &own_privkey);
 
     calculated_A = gen_pub_key(PRIVKEY_LEN, "temp_priv.dat", MAX_BIGINT_SIZ);
 
@@ -429,7 +429,7 @@ u8 self_init(u8* password, int password_len){
     /* Load other BigInts needed for the cryptography to work and be secure. */
 
     /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */
-    M = get_BIGINT_from_DAT(3072, "../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
+    M = get_bigint_from_dat(3072, "../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
 
     if(M == NULL){
         printf("[ERR] Client: Failed to get M from DAT file.\n\n");
@@ -438,7 +438,7 @@ u8 self_init(u8* password, int password_len){
     }
 
     /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
-    Q = get_BIGINT_from_DAT(320, "../bin/saved_Q.dat", 320,  MAX_BIGINT_SIZ);
+    Q = get_bigint_from_dat(320, "../bin/saved_Q.dat", 320,  MAX_BIGINT_SIZ);
 
     if(Q == NULL){
         printf("[ERR] Client: Failed to get Q from DAT file.\n\n");
@@ -447,7 +447,7 @@ u8 self_init(u8* password, int password_len){
     }
 
     /* Diffie-Hellman generator G = 2^((M-1)/Q) */
-    G = get_BIGINT_from_DAT(3072, "../bin/saved_G.dat", 3071, MAX_BIGINT_SIZ);
+    G = get_bigint_from_dat(3072, "../bin/saved_G.dat", 3071, MAX_BIGINT_SIZ);
 
     if(G == NULL){
         printf("[ERR] Client: Failed to get G from DAT file.\n\n");
@@ -456,7 +456,7 @@ u8 self_init(u8* password, int password_len){
     }
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
-    Gm = get_BIGINT_from_DAT(3072, "../bin/saved_Gm.dat", 3071, MAX_BIGINT_SIZ);
+    Gm = get_bigint_from_dat(3072, "../bin/saved_Gm.dat", 3071, MAX_BIGINT_SIZ);
 
     if(Gm == NULL){
         printf("[ERR] Client: Failed to get Gm from DAT file.\n\n");
@@ -466,7 +466,7 @@ u8 self_init(u8* password, int password_len){
 
     /* Grab the server's public key. */
     server_pubkey =
-    get_BIGINT_from_DAT(3072, "../bin/server_pubkey.dat", 3071, MAX_BIGINT_SIZ);
+    get_bigint_from_dat(3072, "../bin/server_pubkey.dat", 3071, MAX_BIGINT_SIZ);
 
     if(server_pubkey == NULL){
         printf("[ERR] Client: Failed to get server pubkey from DAT file.\n\n");
@@ -478,9 +478,9 @@ u8 self_init(u8* password, int password_len){
     bigint_create(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);
     bigint_create(&server_shared_secret, MAX_BIGINT_SIZ, 0);
 
-    Get_Mont_Form(server_pubkey, &server_pubkey_mont, M);
+    get_mont_form(server_pubkey, &server_pubkey_mont, M);
 
-    MONT_POW_modM(&server_pubkey_mont, &own_privkey, M, &server_shared_secret);
+    mont_pow_mod_m(&server_pubkey_mont, &own_privkey, M, &server_shared_secret);
 
     /* Initialize the pair of bidirectional session keys (KBA, KAB) w/ server */
 
@@ -787,7 +787,7 @@ u8 reg(u8* password, int password_len){
     temp_privkey.used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
     temp_privkey.free_bits = MAX_BIGINT_SIZ - temp_privkey.used_bits;
 
-    save_BIGINT_to_DAT("temp_privkey.dat", &temp_privkey);
+    save_bigint_to_dat("temp_privkey.dat", &temp_privkey);
 
     /* A = G^a mod M */
     A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
@@ -832,7 +832,7 @@ u8 reg(u8* password, int password_len){
     }
 
     /* Call blake2b to get the second component of the salt parameter. */
-    BLAKE2B_INIT(A_longterm->bits, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
+    blake2b_init(A_longterm->bits, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
 
     /* Now construct the complete Salt parameter with the two components. */
     memcpy(Salt,     argon2_salt_string,  ARGON_STRING_LEN);
@@ -892,7 +892,7 @@ u8 reg(u8* password, int password_len){
         goto label_cleanup;
     }
 
-    CHACHA20( temp_privkey.bits                  /* text - private key  */
+    chacha20( temp_privkey.bits                  /* text - private key  */
              ,PRIVKEY_LEN                         /* text_len in bytes   */
              ,(u32*)chacha_nonce_buf              /* Nonce ptr           */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32)) /* nonceLen in uint32s */

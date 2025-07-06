@@ -30,37 +30,37 @@ int main(){
     
     fclose(ran);
 
-    M  = get_BIGINT_from_DAT( 3072
+    M  = get_bigint_from_dat( 3072
                              ,"../saved_nums/saved_M.dat\0"
                              ,3071
                              ,MAX_BIGINT_SIZ
                             ); 
        
-    Q  = get_BIGINT_from_DAT( 320
+    Q  = get_bigint_from_dat( 320
                              ,"../saved_nums/saved_Q.dat\0"
                              ,320
                              ,MAX_BIGINT_SIZ
                             );
                             
-    G  = get_BIGINT_from_DAT( 3072
+    G  = get_bigint_from_dat( 3072
                              ,"../saved_nums/saved_G.dat\0"
                              ,3071
                              ,MAX_BIGINT_SIZ
                             );
 
-    Gm = get_BIGINT_from_DAT( 3072
+    Gm = get_bigint_from_dat( 3072
                              ,"../saved_nums/saved_Gm.dat\0"
                              ,3071
                              ,MAX_BIGINT_SIZ
                             );
    
-    a  = get_BIGINT_from_DAT( 320
+    a  = get_bigint_from_dat( 320
                              ,"../bin/server_privkey.dat\0"
                              ,318
                              ,MAX_BIGINT_SIZ
                             );
 
-    Am = get_BIGINT_from_DAT( 3072
+    Am = get_bigint_from_dat( 3072
                              ,"../bin/server_pubkeymont.dat\0" 
                              ,3071
                              ,MAX_BIGINT_SIZ
@@ -73,7 +73,7 @@ int main(){
     for(uint64_t i = 0; i < 20; ++i){
         time = clock();
         
-        Signature_GENERATE( M, Q, Gm, msg, TEST_DATA_LEN
+        signature_generate( M, Q, Gm, msg, TEST_DATA_LEN
                            ,result_signature, a, PRIVKEY_LEN
                           );
         
@@ -115,7 +115,7 @@ int main(){
     */
     time = clock();
 
-    isValid = Signature_VALIDATE(Gm, Am, M, Q, s, e, msg, TEST_DATA_LEN);
+    isValid = signature_validate(Gm, Am, M, Q, s, e, msg, TEST_DATA_LEN);
     
     time = clock() - time;
     total_time_sec = ((double)time)/CLOCKS_PER_SEC;

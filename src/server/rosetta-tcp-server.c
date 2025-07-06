@@ -219,22 +219,22 @@ u8 self_init(){
     /* Load in other BigInts needed for the cryptography to work. */
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
-    M = get_BIGINT_from_DAT
+    M = get_bigint_from_dat
         (3072, "../bin/saved_M.dat\0", 3071, MAX_BIGINT_SIZ);
     
     /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
-    Q = get_BIGINT_from_DAT
+    Q = get_bigint_from_dat
         (320,  "../bin/saved_Q.dat\0", 320,  MAX_BIGINT_SIZ);
     
     /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
-    G = get_BIGINT_from_DAT
+    G = get_bigint_from_dat
         (3072, "../bin/saved_G.dat\0", 3071, MAX_BIGINT_SIZ);
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
-    Gm = get_BIGINT_from_DAT
+    Gm = get_bigint_from_dat
      (3072, "../bin/saved_Gm.dat\0", 3071, MAX_BIGINT_SIZ);
     
-    server_pubkey_bigint = get_BIGINT_from_DAT
+    server_pubkey_bigint = get_bigint_from_dat
         (3072, "../bin/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
     
     /* Initialize the mutex that will be used to prevent the main thread and
@@ -346,7 +346,7 @@ void remove_user_from_room(u64 sender_ix){
         );
         
         /* Compute a signature so the clients can authenticate the server. */
-        Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+        signature_generate( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
                            ,reply_buf + (reply_len - SIGNATURE_LEN)
                            ,&server_privkey_bigint, PRIVKEY_LEN
         );
@@ -387,7 +387,7 @@ void remove_user_from_room(u64 sender_ix){
         *((u64*)(reply_buf)) = PACKET_ID_51;
         
         /* Compute a signature so the clients can authenticate the server. */
-        Signature_GENERATE( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+        signature_generate( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
                            ,reply_buf + (reply_len - SIGNATURE_LEN)
                            ,&server_privkey_bigint, PRIVKEY_LEN
         );
@@ -492,7 +492,7 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     */
    
     /* Verify the sender's cryptographic signature. */
-    ret = Signature_VALIDATE(
+    ret = signature_validate(
                      Gm, &(clients[client_ix].client_pubkey_mont)
                     ,M, Q, recv_s, recv_e, signed_ptr, signed_len
     ); 
@@ -867,7 +867,7 @@ void* check_for_lost_connections(){
          * login request was sent and before the second login packet could be
          * sent by the client. In this case, the global memory region keeping 
          * the very short-lived shared secret and key pair only used to securely
-         * transport the cl\n\n", bytes_read);he failed login attempt and unlock it from here.
+         * transport the long-term public key and unlock it from here.
          *
          * To defend against such a scenario (be it caused by a real loss of 
          * network connection to the server, or a malicious person deliberately

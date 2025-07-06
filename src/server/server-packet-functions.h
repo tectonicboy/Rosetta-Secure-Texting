@@ -48,7 +48,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
     
         *((u64*)(reply_buf)) = PACKET_ID_02;
         
-        Signature_GENERATE( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
+        signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
                             ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
@@ -114,7 +114,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
     bigint_create(&zero, MAX_BIGINT_SIZ, 0);
     bigint_create(&Am,   MAX_BIGINT_SIZ, 0);
     
-    Get_Mont_Form(A_s, &Am, M);
+    get_mont_form(A_s, &Am, M);
     
     if(   ((bigint_compare2(&zero, A_s)) != 3) 
         || 
@@ -164,7 +164,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
     memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
 
     /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
-    save_BIGINT_to_DAT("temp_privkey.dat", &b_s);
+    save_bigint_to_dat("temp_privkey.dat", &b_s);
   
     B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
     
@@ -174,7 +174,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
    /* X_s = A_s^b_s mod M */
    // X_s = (bigint*)(temp_handshake_buf + (3 * sizeof(bigint)));
     
-    MONT_POW_modM(&Am, &b_s, M, &X_s);
+    mont_pow_mod_m(&Am, &b_s, M, &X_s);
     
     printf("[DEBUG] Server: X_s computed on Server side:\n");
     bigint_print_info(&X_s);
@@ -222,10 +222,10 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
     }
     printf("\n\n");
 
-    printf("[DEBUG] Server: Calling Signature_GENERATE now.\n\n");
+    printf("[DEBUG] Server: Calling signature_generate now.\n\n");
 
     /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
-    Signature_GENERATE( M, Q, Gm, Y_s, INIT_AUTH_LEN, signature_buf
+    signature_generate( M, Q, Gm, Y_s, INIT_AUTH_LEN, signature_buf
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
 
@@ -417,7 +417,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
 
     /* step 6 of HMAC construction */
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
-    BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
+    blake2b_init(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
     
     printf("[DEBUG] Server: HMAC Step 6 produced BLAKE2B_output: 64 bytes:\n");
 
@@ -462,7 +462,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
 
     /* Step 9 of HMAC construction */ 
     /* Call BLAKE2B on the combined buffer in step 8. */
-    BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
+    blake2b_init(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
     
    printf("[DEBUG] Server: HMAC Step 9 produced BLAKE2B_output: 64 bytes:\n");
 
@@ -564,7 +564,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
      *  6. Key_length   : in uint32_t's.
      *  7. Destination  : Pointer to where ChaCha's result should go.
      */
-    CHACHA20(msg_buf + SMALL_FIELD_LEN
+    chacha20(msg_buf + SMALL_FIELD_LEN
             ,PUBKEY_LEN
             ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
             ,(u32)(SHORT_NONCE_LEN / sizeof(u32))       
@@ -593,7 +593,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     
         *((u64*)(reply_buf)) = PACKET_ID_02;
         
-        Signature_GENERATE( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
+        signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
                             ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
@@ -637,7 +637,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     
     handshake_buf_key_offset  = (3 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);
     
-    CHACHA20((u8*)(&next_free_user_ix)
+    chacha20((u8*)(&next_free_user_ix)
              ,SMALL_FIELD_LEN
              ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32))
@@ -647,7 +647,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
              );
              
     /* No need to increment this Nonce because it will be destroyed */
-    Signature_GENERATE( M, Q, Gm, PACKET_ID01_addr, SMALL_FIELD_LEN
+    signature_generate( M, Q, Gm, PACKET_ID01_addr, SMALL_FIELD_LEN
                        ,(reply_buf+ (2 * SMALL_FIELD_LEN))
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
@@ -706,7 +706,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
                   ,0
                  );      
           
-    Get_Mont_Form( &(clients[next_free_user_ix].client_pubkey)
+    get_mont_form( &(clients[next_free_user_ix].client_pubkey)
                   ,&(clients[next_free_user_ix].client_pubkey_mont)
                   ,M
                  );      
@@ -730,7 +730,7 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
                   ,0
                  );
     
-    MONT_POW_modM( &(clients[next_free_user_ix].client_pubkey_mont)
+    mont_pow_mod_m( &(clients[next_free_user_ix].client_pubkey_mont)
                   ,&server_privkey_bigint
                   ,M
                   ,&(clients[next_free_user_ix].shared_secret)
@@ -937,7 +937,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
         bigint_equate2(&nonce_bigint, &aux1);     
     }
     
-    CHACHA20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - key KB           */
+    chacha20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - key KB           */
              ,SESSION_KEY_LEN                      /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_t's */
@@ -952,7 +952,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
    
     /* Now use the decrypted key to decrypt room_ID and user_ID. */
    
-    CHACHA20( msg_buf + room_id_offset             /* text: encr room+user_ID */
+    chacha20( msg_buf + room_id_offset             /* text: encr room+user_ID */
              ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* nonce_len in uint32_t's */
@@ -985,7 +985,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
 
         *((u64*)(reply_buf)) = PACKET_ID11;
 
-        Signature_GENERATE( M, Q, Gm, (u8*)(&PACKET_ID11), SMALL_FIELD_LEN
+        signature_generate( M, Q, Gm, (u8*)(&PACKET_ID11), SMALL_FIELD_LEN
                            ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
@@ -1013,7 +1013,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
            
     *((u64*)(reply_buf)) = PACKET_ID10;
     
-    Signature_GENERATE( M, Q, Gm, (u8*)(&PACKET_ID10), SMALL_FIELD_LEN
+    signature_generate( M, Q, Gm, (u8*)(&PACKET_ID10), SMALL_FIELD_LEN
                        ,(reply_buf + SMALL_FIELD_LEN)
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
@@ -1218,7 +1218,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         bigint_equate2(&nonce_bigint, &aux1);     
     }
     
-    CHACHA20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - one-time key KB  */
+    chacha20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - one-time key KB  */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -1233,7 +1233,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
    
     /* Use the incremented nonce in the other call to chacha for user+roomID. */
    
-    CHACHA20( msg_buf + encrypted_roomID_offset    /* text: encr room+user_ID */
+    chacha20( msg_buf + encrypted_roomID_offset    /* text: encr room+user_ID */
              ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -1342,7 +1342,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     
     /* This function has already fetched and incremented the Nonce enough. */
     
-    CHACHA20( send_K                               /* text: one-time key K    */
+    chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -1383,7 +1383,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     
     /* We need a counter for this ChaCha use, to encrypt big public keys. */
     
-    CHACHA20( buf_ixs_pubkeys                      /* text - room people info */
+    chacha20( buf_ixs_pubkeys                      /* text - room people info */
              ,buf_ixs_pubkeys_len                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* nonce_len in uint32_t's */
@@ -1401,7 +1401,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
                               + ONE_TIME_KEY_LEN 
                               + buf_ixs_pubkeys_len;
     
-    Signature_GENERATE
+    signature_generate
         (M, Q, Gm, reply_buf, send_type20_signed_len
         ,reply_buf + send_type20_signed_len
         ,&server_privkey_bigint, PRIVKEY_LEN);
@@ -1544,7 +1544,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
             bigint_equate2(&nonce_bigint, &aux1);     
         }
 
-        CHACHA20(
+        chacha20(
             send_K                                  /* text - one-time key K  */
            ,ONE_TIME_KEY_LEN                        /* text_len in bytes      */
            ,(u32*)(nonce_bigint.bits)               /* Nonce                  */
@@ -1572,7 +1572,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         );
 
         /* Encrypt it with chacha20, place the result ciphertext in response. */
-        CHACHA20( 
+        chacha20( 
          type21_encrypted_part                      /* text: user_ix + pubkey */
         ,(SMALL_FIELD_LEN + PUBKEY_LEN)             /* text_len in bytes      */
         ,(u32*)(nonce_bigint.bits)                  /* Nonce                  */
@@ -1588,7 +1588,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         /* Final part of TYPE_21 replies - signature itself. */
         /* Compute the signature itself of everything so far.*/
         
-        Signature_GENERATE
+        signature_generate
         (     M, Q, Gm, buf_type_21
              ,buf_type_21_len - SIGNATURE_LEN
              ,buf_type_21 + (buf_type_21_len - SIGNATURE_LEN)
@@ -1695,7 +1695,7 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
      * packet, including the sender's cryptographic signature!
      */
     
-    Signature_GENERATE
+    signature_generate
                     (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
                     ,&server_privkey_bigint, PRIVKEY_LEN
     );
@@ -1774,7 +1774,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         *((u64*)(reply_buf)) = PACKET_ID_40;
         
         /* Compute a cryptographic signature so the client can authenticate us*/
-        Signature_GENERATE
+        signature_generate
              ( M, Q, Gm, reply_buf, SMALL_FIELD_LEN, reply_buf + SMALL_FIELD_LEN
               ,&server_privkey_bigint, PRIVKEY_LEN
         );
@@ -1814,7 +1814,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         reply_write_offset = 2 * SMALL_FIELD_LEN;
         
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
-         reply_len += clients[poller_ix].pending_msg_sizes[i] + SMALL_FIELD_LEN;    
+         reply_len += clients[poller_ix].pending_msg_sizes[i] + SMALL_FIELD_LEN;
         } 
          
         reply_buf = calloc(1, reply_len);
@@ -1848,7 +1848,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         }
 
         /* Compute a cryptographic signature so the client can authenticate us*/
-        Signature_GENERATE
+        signature_generate
                          ( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN, 
                            reply_buf + (reply_len - SIGNATURE_LEN)
                           ,&server_privkey_bigint, PRIVKEY_LEN

@@ -16,7 +16,7 @@ int main(int argc, char* argv[]){
                  ,*M
                  ;
                  
-     M = get_BIGINT_from_DAT( 3072
+     M = get_bigint_from_dat( 3072
                 ,"../saved_nums/M_raw_bytes.dat\0"
                 ,3071
                 ,12800
@@ -51,7 +51,7 @@ int main(int argc, char* argv[]){
           
     printf("\nNow generating Montgomery form of this public key.\n");
     
-    Get_Mont_Form(pubkey_bigint, pubkey_montform, M);
+    get_mont_form(pubkey_bigint, pubkey_montform, M);
     
     
     uint32_t pubkeymont_used_bytes = pubkey_montform->used_bits;

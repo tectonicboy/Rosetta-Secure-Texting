@@ -43,7 +43,7 @@ int main(){
       
     printf("**** PASSING ARGUMENTS TO BLAKE2B:\n");
     printf("ll = %lu\n", b2b_ll);
-    BLAKE2B_INIT(b2b_raw_msg
+    blake2b_init(b2b_raw_msg
                 ,b2b_ll
                 ,b2b_kk
                 ,b2b_nn

@@ -53,8 +53,8 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     
     privkey_dat = fopen(privkey_filename, "r");
     
-    M  = get_BIGINT_from_DAT(3072, "../bin/saved_M.dat\0",  3071, 12800);
-    Gm = get_BIGINT_from_DAT(3072, "../bin/saved_Gm.dat\0", 3071, 12800);
+    M  = get_bigint_from_dat(3072, "../bin/saved_M.dat\0",  3071, 12800);
+    Gm = get_bigint_from_dat(3072, "../bin/saved_Gm.dat\0", 3071, 12800);
 
     if(privkey_dat == NULL){
         printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
@@ -90,7 +90,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
                 
     bigint_create(R, M->size_bits, 0);
     
-    MONT_POW_modM(Gm, &privkey_bigint, M, R); 
+    mont_pow_mod_m(Gm, &privkey_bigint, M, R); 
 
 label_cleanup:
 
@@ -130,7 +130,7 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
        
     bigint_div2(M, Q, &M_over_Q, &div_rem);
     
-    MONT_POW_modM(Km, &M_over_Q, M, &mod_pow_res);
+    mont_pow_mod_m(Km, &M_over_Q, M, &mod_pow_res);
     
     if(bigint_compare2(&mod_pow_res, &one) != 2){
         printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
@@ -144,7 +144,3 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
     
     return ret;
 }
-
-
-
-

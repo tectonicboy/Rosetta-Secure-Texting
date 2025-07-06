@@ -46,7 +46,7 @@ u8 construct_msg_00(u8* msg_buf, u64* msg_len){
 
 
     /* Interface generating a pub_key still needs priv_key in a file. TODO. */
-    save_BIGINT_to_DAT("temp_privkey_DAT.dat", &temp_privkey);
+    save_bigint_to_dat("temp_privkey_DAT.dat", &temp_privkey);
 
     A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_BIGINT_SIZ);
 
@@ -155,7 +155,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
     bigint_create(&zero, MAX_BIGINT_SIZ, 0);
     bigint_create(&B_sM, MAX_BIGINT_SIZ, 0);
 
-    Get_Mont_Form(&B_s, &B_sM, M);
+    get_mont_form(&B_s, &B_sM, M);
 
     /* Check the other side's public key for security flaws and consistency. */
     if(   ((bigint_compare2(&zero, &B_s)) != 3)
@@ -174,7 +174,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
     }
 
     /* X_s = B_s^a_s mod M */
-    MONT_POW_modM(&B_sM, a_s, M, &X_s);
+    mont_pow_mod_m(&B_sM, a_s, M, &X_s);
 
     /* Construct a special buffer containing Y_s concatenated with the received
      * signature, because the signature validating interface needs it that way
@@ -272,7 +272,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
      *  6. Key_length   : in uint32_t's.
      *  7. Destination  : Pointer to correct offset into the reply buffer.
      */
-    CHACHA20( own_pubkey.bits
+    chacha20( own_pubkey.bits
              ,PUBKEY_LEN
              ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32))
@@ -326,7 +326,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
     memcpy(K0_XOR_ipad_TEXT + B, msg_01_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
 
     /* step 6 of HMAC construction: Call BLAKE2B on K0_XOR_ipad_TEXT */
-    BLAKE2B_INIT(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
+    blake2b_init(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
 
     /* Step 7 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
@@ -338,7 +338,7 @@ u8 process_msg_00(u8* received_buf, u8* msg_01_buf, u64* msg_01_len){
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
 
     /* Step 9 of HMAC: Call BLAKE2B on the combined buffer. */
-    BLAKE2B_INIT(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
+    blake2b_init(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
 
     /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
 
@@ -404,7 +404,7 @@ u8 process_msg_01(u8* msg){
 
     key_offset = (3 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);
 
-    CHACHA20( msg + SMALL_FIELD_LEN                    /* text - encrypted ix */
+    chacha20( msg + SMALL_FIELD_LEN                    /* text - encrypted ix */
              ,SMALL_FIELD_LEN                          /* text_len in bytes   */
              ,(u32*)(temp_handshake_buf + nonce_offset)/* Nonce ptr           */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32))     /* nonceLen in uint32s */
@@ -585,7 +585,7 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
 
-    CHACHA20( send_K                               /* text: one-time key K    */
+    chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -606,7 +606,7 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     /* Encrypt the user's requested user_ID and room_ID for their new room. */
 
-    CHACHA20( roomID_userID                        /* text: one-time key K    */
+    chacha20( roomID_userID                        /* text: one-time key K    */
              ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -641,7 +641,7 @@ u8 construct_msg_10( unsigned char* requested_userid
     bigint_print_info(&own_pubkey);
     bigint_print_bits(&own_pubkey);
 
-    Signature_GENERATE( M, Q, Gm, send_buf, signed_len
+    signature_generate( M, Q, Gm, send_buf, signed_len
                        ,(send_buf + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
@@ -810,7 +810,7 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
 
-    CHACHA20( send_K                               /* text: one-time key K    */
+    chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -831,7 +831,7 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Encrypt the user's requested user_ID and room_ID for the joining room. */
 
-    CHACHA20( roomID_userID                        /* text: one-time key K    */
+    chacha20( roomID_userID                        /* text: one-time key K    */
              ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -850,7 +850,7 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
-    Signature_GENERATE( M, Q, Gm, send_buf, signed_len
+    signature_generate( M, Q, Gm, send_buf, signed_len
                        ,(send_buf + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
@@ -995,7 +995,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     }
 
 
-    CHACHA20( (msg + SMALL_FIELD_LEN)              /* text: one-time key K    */
+    chacha20( (msg + SMALL_FIELD_LEN)              /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -1011,7 +1011,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
 
     /* Now use the obtained one-time key K to decrypt the room guests' info. */
 
-    CHACHA20( (msg + recv_type20_AD_offset)        /* text: one-time key K    */
+    chacha20( (msg + recv_type20_AD_offset)        /* text: one-time key K    */
              ,recv_type20_AD_len                   /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* Nonce_len in uint32_t's */
@@ -1062,7 +1062,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         this_pubkey->free_bits =this_pubkey->size_bits - this_pubkey->used_bits;
 
         bigint_create(&(roommates[i].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
-        Get_Mont_Form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
+        get_mont_form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
 
         roommates[i].guest_nonce_counter = 0;
 
@@ -1071,7 +1071,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         /* Now compute a shared secret with the i-th guest to get our pair of
          * bidirectional session keys KAB, KBA and the symmetric ChaCha nonce.
          */
-        MONT_POW_modM(
+        mont_pow_mod_m(
             &(roommates[i].guest_pubkey_mont)
            ,&own_privkey
            ,M
@@ -1173,7 +1173,7 @@ void process_msg_21(u8* msg){
     }
 
     /* DECRYPTING the one time key KC back into K.                            */
-    CHACHA20( (msg + SMALL_FIELD_LEN)              /* text: one-time key KC   */
+    chacha20( (msg + SMALL_FIELD_LEN)              /* text: one-time key KC   */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
@@ -1190,7 +1190,7 @@ void process_msg_21(u8* msg){
     /* Now use the obtained one-time key K to decrypt the room guests' info. */
 
     /* DECRYPTING new guest's information.                                    */
-    CHACHA20( (msg + new_guest_info_offset)        /* text: one-time key K    */
+    chacha20( (msg + new_guest_info_offset)        /* text: one-time key K    */
              ,new_guest_info_len                   /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* Nonce_len in uint32_t's */
@@ -1243,14 +1243,14 @@ void process_msg_21(u8* msg){
     this_pubkey->free_bits = this_pubkey->size_bits - this_pubkey->used_bits;
 
     bigint_create(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
-    Get_Mont_Form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
+    get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
 
     roommates[guest_ix].guest_nonce_counter = 0;
 
     /* Now compute a shared secret with the new guest to get our pair of
      * bidirectional session keys KAB, KBA and the symmetric ChaCha nonce.
      */
-    MONT_POW_modM(
+    mont_pow_mod_m(
         &(roommates[guest_ix].guest_pubkey_mont)
         ,&own_privkey
         ,M
@@ -1412,7 +1412,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
             ++(roommates[i].guest_nonce_counter);
 
             /* Now encrypt and place the text message with K. */
-            CHACHA20(
+            chacha20(
                 text_msg                             /* text - the text msg   */
                ,text_msg_len                         /* text_len in bytes     */
                ,(u32*)(guest_nonce_bigint.bits)      /* Nonce (short)         */
@@ -1437,7 +1437,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64 text_msg_len){
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
-    Signature_GENERATE( M, Q, Gm, payload, signed_len
+    signature_generate( M, Q, Gm, payload, signed_len
                        ,(payload + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
@@ -1608,7 +1608,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     );
 
     /* Verify the sender's cryptographic signature. */
-    status = Signature_VALIDATE(
+    status = signature_validate(
                      Gm, &(roommates[sender_ix].guest_pubkey_mont)
                     ,M, Q, recv_s, recv_e
                     ,(payload + sign1_offset), sign1_offset
@@ -1676,7 +1676,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     our_msg_pointer = our_K_pointer + ONE_TIME_KEY_LEN;
 
     /* Place this guest's encrypted one-time ChaCha key. */
-    CHACHA20(
+    chacha20(
         our_K_pointer                        /* text - recv (encr) K   */
        ,ONE_TIME_KEY_LEN                     /* text_len in bytes      */
        ,(u32*)(guest_nonce_bigint.bits)      /* Nonce (long)           */
@@ -1692,7 +1692,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     bigint_equate2(&guest_nonce_bigint, &aux1);
 
     /* Place this guest's encrypted one-time ChaCha key. */
-    CHACHA20(
+    chacha20(
         our_msg_pointer                       /* text - recv (encr) MSG */
        ,text_len                              /* text_len in bytes      */
        ,(u32*)(guest_nonce_bigint.bits)       /* Nonce (short), counter */
@@ -1762,7 +1762,7 @@ u8 construct_msg_40(void){
     //memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
-    Signature_GENERATE(
+    signature_generate(
         M, Q, Gm, payload, 2 * SMALL_FIELD_LEN,
         payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
@@ -1953,7 +1953,7 @@ u8 construct_msg_50(void){
     memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
-    Signature_GENERATE(
+    signature_generate(
         M, Q, Gm, payload, 2 * SMALL_FIELD_LEN,
         payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
@@ -2057,7 +2057,7 @@ u8 construct_msg_60(void){
     memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
-    Signature_GENERATE(
+    signature_generate(
         M, Q, Gm, payload, 2 * SMALL_FIELD_LEN,
         payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );

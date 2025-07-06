@@ -322,7 +322,7 @@ u32 get_used_bits(const u8* const buf, const u32 siz_bytes){
 
 /* To view the bytes of the DAT files from linux terminal window: */
 /* xxd -b G_raw_bytes.dat                                         */
-bigint* get_BIGINT_from_DAT( const u32    file_bits
+bigint* get_bigint_from_dat( const u32    file_bits
                             ,const char* const fn
                             ,const u32    used_bits
                             ,const u32    reserve_bits)
@@ -335,7 +335,7 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     bigint_create(big_n_ptr, reserve_bits, 0); 
 
     if(reserve_bits % 8 || reserve_bits < 64 || reserve_bits > MAX_BITS){ 
-        printf("[ERR] BigInt: get_BIGINT_from_DAT - Invalid reserve_bits\n");
+        printf("[ERR] BigInt: get_bigint_from_dat - Invalid reserve_bits\n");
         return big_n_ptr;
     }  
     
@@ -371,7 +371,7 @@ bigint* get_BIGINT_from_DAT( const u32    file_bits
     return big_n_ptr;
 }
 
-void save_BIGINT_to_DAT(const char* const fn, const bigint* const num){  
+void save_bigint_to_dat(const char* const fn, const bigint* const num){  
 
     FILE* dat_file;
     u32   file_bytes;
@@ -411,7 +411,7 @@ void bigint_nullify(bigint* const num){
 }
 
 /* Bitwise XOR operation of two BigInts n1 and n2. */
-void bigint_XOR2 ( const bigint* const n1
+void bigint_xor2 ( const bigint* const n1
                   ,const bigint* const n2 
                   ,bigint* const res)
 {
@@ -439,7 +439,7 @@ void bigint_XOR2 ( const bigint* const n1
 }
 
 /* Bitwise AND operation of two BigInts n1 and n2. */
-void bigint_AND2( const bigint* const n1
+void bigint_and2( const bigint* const n1
                  ,const bigint* const n2
                  ,bigint* const res)
 {
@@ -467,7 +467,7 @@ void bigint_AND2( const bigint* const n1
 }
 
 /* Standard bitwise shift to the left of a BigInt by X bits. */
-void bigint_SHIFT_L_by_X(bigint* const n, const u32 amount){
+void bigint_shift_l_by_x(bigint* const n, const u32 amount){
 
     u32 used_bytes;
     
@@ -499,7 +499,7 @@ void bigint_SHIFT_L_by_X(bigint* const n, const u32 amount){
 }
 
 /* Standard bitwise shift to the right of a BigInt by X bits. */
-void bigint_SHIFT_R_by_X(bigint* const n, const u32 amount){
+void bigint_shift_r_by_x(bigint* const n, const u32 amount){
 
     u32 used_bytes;
 
@@ -1163,7 +1163,7 @@ void bigint_div2( const bigint* const A
         
         while(
               (
-                  ( 
+                ( 
                   (
                      ((u64)(*( ((u16*)(big_temps[2].bits)) + t ))) 
                      *
@@ -1179,7 +1179,7 @@ void bigint_div2( const bigint* const A
                 >
                 
               (
-                  ( 
+                ( 
                    ((u64)(*( ((u16*)(big_temps[0].bits)) + i ))) 
                    *
                    b_squared
@@ -1198,7 +1198,7 @@ void bigint_div2( const bigint* const A
             --(*( ((u16*)(big_temps[3].bits)) + (i-t-1) ));
         }
         
-        /* IMPORTANT: Update X's bits before this, as its limbs were altered. 
+        /* IMPORTANT: Update X's bits before this, as its limbs were altered. xx
          * 
          * if( x < q_(i-t-1) * y * b^(i-t-1 ) ) THEN {q_(i-t-1) -= 1;}
          * 
@@ -1461,7 +1461,7 @@ label_ret:
 
 /* Fast algorithm for determining whether a BigInt is prime or not. */
 /* Returns 1 if the big number is prime, or 0 otherwise. */
-u8 Rabin_Miller(const bigint* const N, const u32 passes){
+u8 rabin_miller(const bigint* const N, const u32 passes){
     
     bigint  N_minus_one;
     bigint  zero;

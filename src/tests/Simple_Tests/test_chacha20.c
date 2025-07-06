@@ -51,7 +51,7 @@ int main(){
     char* cyphertext = malloc(msg_len * sizeof(char));
     memset(cyphertext, 0x00, msg_len * sizeof(char));
     
-    CHACHA20(plaintext, msg_len, nonce, nonce_len, key, key_len, cyphertext);
+    chacha20(plaintext, msg_len, nonce, nonce_len, key, key_len, cyphertext);
     
     printf("THE CYPHERTEXT FROM CHACHA:\n");
     
