@@ -586,18 +586,22 @@ label_cleanup:
 
 void* begin_polling(void* input){
 
-    /* Construct the poll packet only once, and keep sending it. */
+    /* TODO? Construct the poll packet only once, and keep sending it. */
 
-    u8  ret;
+    u8  status;
     u8  text_message_line[MESSAGE_LINE_LEN];
-    u8* received_buf = (u8*)calloc(1, MAX_MSG_LEN);
+    u8* reply_buf = [MAX_TXT_LEN];
+    u8* msg_buf;
+    u8  status;
 
-    u64 curr_msg_type = 0;
-    u64 pending_messages = 0;
-    u64 read_ix = 0;
-    u64 block_len;
-    u64 obtained_text_message_line_len = 0;
-    u64 curr_msg_len;
+    u64* reply_type_ptr = (u64*)reply_buf;
+    u64  curr_msg_type = 0;
+    u64  pending_messages = 0;
+    u64  read_ix = 0;
+    u64  block_len;
+    u64  obtained_text_message_line_len = 0;
+    u64  curr_msg_len;
+    u64  msg_len;
 
     int64_t bytes_read;
 
@@ -609,29 +613,26 @@ void* begin_polling(void* input){
 
         nanosleep(&ts, NULL);
 
-        printf("[OK] Client: Sending a poll request to the server!\n");
+        status = construct_msg_40(msg_buf, &msg_len);
 
-        ret = construct_msg_40();
-
-        if(ret){
-            printf("[ERR] Client: Sending of poll packet failed! Read logs!\n");
+        if(status){
+            printf("[ERR] Client: Constructing poll packet_40 failed!\n");
             goto loop_cleanup;
         }
+        printf("[OK]  Client: Constructed poll packet_40.\n");
 
-        /* Wait for server to tell us if there's anything for us unreceived. */
-        bytes_read = recv(own_socket_fd, received_buf, MAX_MSG_LEN, 0);
+        status= send_to_tcp_server(msg_buf, msg_len);
+        
+        if(status){
+            printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
+	    goto loop_cleanup;
+	}
+        printf("[OK]  Client: Sent poll packet_40 to server.\n");
 
-        if( bytes_read == -1
-            ||
-            bytes_read < (int64_t)(SIGNATURE_LEN + SMALL_FIELD_LEN)
-          )
-        {
-            printf( "[ERR] Client: Failed to receive server's poll reply!\n\n");
-            goto loop_cleanup;
-        }
+        grab_servers_reply(reply_buf);
 
         /* Call the appropriate function depending on server's response. */
-        if( *((u64*)(received_buf)) == PACKET_ID_40 ){
+        if( *reply_type_ptr == PACKET_ID_40 ){
             printf("[OK] Client: Server said nothing new after polling.\n\n");
             process_msg_40(received_buf);
         }
@@ -649,7 +650,7 @@ void* begin_polling(void* input){
 --------------------------------------------------------------------------------
 
 */
-        else if ( *((u64*)(received_buf)) == PACKET_ID_41 ) {
+        else if ( *reply_type_ptr == PACKET_ID_41 ) {
 
             pending_messages = *((u64*)(received_buf + SMALL_FIELD_LEN));
 
@@ -1149,9 +1150,13 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 {
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
+    u64 msg_len;
 
     u8 status = 0;
-    u8 msg_buf[MAX_TXT_LEN];
+    u8 msg_buf;
+    u8 reply_buf[MAX_TXT_LEN];
+    
+    u64* reply_type_ptr = reply_buf;
 
     ssize_t bytes_read;
 
@@ -1169,42 +1174,50 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     /* Send a request to the Rosetta server to create a new chatroom. */
 
     /* Expected replies: msg_10=OK, msg_11=NoSpace. */
-    status = construct_msg_10(userid, roomid);
+    status = construct_msg_10(userid, roomid, msg_buf, &msg_len);
 
     if(status){
         printf("[ERR] Client: Couldn't construct msg_10\n\n");
 	goto label_cleanup;
     }
 
-    /* Capture the server's reply. */
+/******************************************************************************/
 
-    memset(msg_buf, 0, MAX_TXT_LEN);
+    status = send_payload(msg_buf, msg_len);
 
-    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
+    if(status){
+        printf("\n[ERR] Client: Couldn't send MSG_10 (make_room). Abort.\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Transmitted MSG_10 to the Rosetta server.\n");
 
-    /* if(status) { ... }  after saying receive_msg_reply(), not recv(). */
-    if(bytes_read == -1){
-        printf("[ERR] Client: Couldn't recv() a reply to msg_10.\n\n");
-        perror("errno = ");
-	status = 1;
+    /* Reply packet has ID either 10 or 11 - OK / no_space_for_new_chatrooms. */
+
+    status = grab_servers_reply(reply_buf, &reply_len);
+
+    if(status){
+        printf("\n[ERR] Client: Couldn't receive MSG_10 reply by server.\n\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
+
+    if(*reply_type_ptr != PACKET_ID_10 && *reply_type_ptr != PACKET_ID_11){
+        printf("[ERR] Client: Unexpected reply by the server to msg_10\n\n");
         goto label_cleanup;
     }
 
-    printf("[OK]  Client: Received reply to msg_10: %lu bytes.\n", bytes_read);
+/******************************************************************************/
 
-    if( *((u64*)msg_buf) == PACKET_ID_10 ){
-
-        status = process_msg_10(msg_buf);
-
+    if( *reply_type_ptr == PACKET_ID_10 ){
+        status = process_msg_10(reply_buf);
         if (status){
             printf("[ERR] Client: process_msg_10 failed.\n\n");
             goto label_cleanup;
         }
-
         printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
     }
 
-    else if( *((u64*)msg_buf) == PACKET_ID_11 ){
+    else{
 
         status = process_msg_11(msg_buf);
 
@@ -1216,12 +1229,6 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
         printf("[OK]  Client: Rosetta told us: try later, room is full!\n\n");
 
         status = 10;
-	goto label_cleanup;
-    }
-
-    else{
-        printf("[ERR] Client: Unexpected reply by the server to msg_10.\n\n");
-        status = 1;
 	goto label_cleanup;
     }
 

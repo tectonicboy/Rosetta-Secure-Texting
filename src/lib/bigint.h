@@ -14,8 +14,8 @@
 
 #define MAX_BITS 4290000000
 
-/* Get the i-th bit of BigInt n and store it in buffer identified by target. */
-/* Indexed from bit 0 onward. Little-endian byte order.                      */
+/* Get the i-th bit of BigInt n and store it in buffer identified by target.  */
+/* Indexed from bit 0 onward. Little-endian byte order.                       */
 #define BIGINT_GET_BIT(n, i, target)                                     \
 target = (*((n).bits + (u32)(((i)-((i) % 8))/8)) & (1<<((i)%8))) ? 1 : 0 \
 

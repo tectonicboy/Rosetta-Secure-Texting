@@ -527,24 +527,28 @@ label_cleanup:
 
 */
 u8 construct_msg_10( unsigned char* requested_userid
-                    ,unsigned char* requested_roomid )
+                    ,unsigned char* requested_roomid 
+		    ,uint8_t*       msg_buf
+		    ,uint64_t*      msg_len
+		    )
 {
     bigint one;
     bigint aux1;
 
     const u64 sendbuf_roomID_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     const u64 signed_len            = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
-    const u64 send_len              = signed_len + SIGNATURE_LEN;
-
+    
     FILE* ran_file = NULL;
 
     u8 status = 0;
+    
     u8 send_K[ONE_TIME_KEY_LEN];
-    u8 send_buf[send_len];
     u8 roomID_userID[2 * SMALL_FIELD_LEN];
 
+    *msg_len = signed_len + SIGNATURE_LEN;
+    msg_buf  = calloc(1, *msg_len);
+
     memset(send_K,        0, ONE_TIME_KEY_LEN);
-    memset(send_buf,      0, send_len);
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
 
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
@@ -591,7 +595,7 @@ u8 construct_msg_10( unsigned char* requested_userid
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
-             ,send_buf + (2 * SMALL_FIELD_LEN)     /* output target buffer    */
+             ,msg_buf + (2 * SMALL_FIELD_LEN)     /* output target buffer    */
             );
 
     /* Maintain nonce's symmetry on both server and client with counters. */
@@ -612,16 +616,16 @@ u8 construct_msg_10( unsigned char* requested_userid
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
-             ,send_buf + sendbuf_roomID_offset     /* output target buffer    */
+             ,msg_buf + sendbuf_roomID_offset     /* output target buffer    */
             );
 
     ++server_nonce_counter;
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
-    *((u64*)(send_buf)) = PACKET_ID_10;
+    *((u64*)(msg_buf)) = PACKET_ID_10;
 
-    *((u64*)(send_buf + SMALL_FIELD_LEN)) = own_ix;
+    *((u64*)(msg_buf + SMALL_FIELD_LEN)) = own_ix;
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
@@ -630,7 +634,7 @@ u8 construct_msg_10( unsigned char* requested_userid
     printf("[DEBUG] Server: signed things of length %lu:\n", signed_len);
 
     for(u64 i = 0; i < signed_len; ++i){
-        printf("%03u ", *(send_buf + i) );
+        printf("%03u ", *(msg_buf + i) );
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
         }
@@ -641,23 +645,10 @@ u8 construct_msg_10( unsigned char* requested_userid
     bigint_print_info(&own_pubkey);
     bigint_print_bits(&own_pubkey);
 
-    signature_generate( M, Q, Gm, send_buf, signed_len
-                       ,(send_buf + signed_len)
+    signature_generate( M, Q, Gm, msg_buf, signed_len
+                       ,(msg_buf + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
-
-    /* Ready to send the constructed packet to the Rosetta server now. */
-
-    if(send(own_socket_fd, send_buf, send_len, 0) == -1){
-        printf("[ERR] Client: Couldn't send constructed packet 10.\n");
-        printf("              Which is the request to create a new room\n");
-        printf("              Tell GUI to tell the user about this!\n\n");
-        status = 1;
-        goto label_cleanup;
-    }
-    else{
-        printf("[OK]  Client: Sent request to create a new chatroom!\n\n");
-    }
 
 label_cleanup:
 
@@ -1747,35 +1738,22 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-u8 construct_msg_40(void){
+u8 construct_msg_40(u8* msg_buf, u64* msg_len){
 
-    const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
     u8 status = 0;
-    u8 payload[payload_len];
+    
+    msg_buf = calloc(1, *msg_len); 
 
-    memset(payload, 0, payload_len);
-
-    *((u64*)(payload)) = PACKET_ID_40;
-    *((u64*)(payload + SMALL_FIELD_LEN)) = own_ix;
-
-    //memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
+    *((u64*)(msg_buf)) = PACKET_ID_40;
+    *((u64*)(msg_buf + SMALL_FIELD_LEN)) = own_ix;
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
     signature_generate(
-        M, Q, Gm, payload, 2 * SMALL_FIELD_LEN,
-        payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
+        M, Q, Gm, msg_buf, 2 * SMALL_FIELD_LEN,
+        msg_buf + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
-
-    /* Transmit our request to the Rosetta server. */
-    if(send(own_socket_fd, payload, payload_len, 0) == -1){
-        printf("[ERR] Client: Couldn't poll the server for anything new.\n\n");
-        status = 1;
-        goto label_cleanup;
-    }
-    else{
-        printf("[OK]  Client: Polled the server for anything new.\n\n");
-    }
 
 label_cleanup:
 
