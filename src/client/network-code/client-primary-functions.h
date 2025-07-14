@@ -633,8 +633,12 @@ void* begin_polling(void* input){
 
         /* Call the appropriate function depending on server's response. */
         if( *reply_type_ptr == PACKET_ID_40 ){
-            printf("[OK] Client: Server said nothing new after polling.\n\n");
-            process_msg_40(received_buf);
+            status = process_msg_40(received_buf);
+	    if(status){
+                printf("[ERR] Client: Packet_40_Reply auth failed!\n");
+		continue;
+	    }
+            printf("[OK]  Client: Server said nothing new after polling.\n\n");
         }
 /*
 
@@ -675,7 +679,7 @@ void* begin_polling(void* input){
 
             /* Valid pending message types: 50, 51, 21, 30 */
 
-            /* packet_ID and signature are valid - process each pending MSG. */
+            /* packet_ID and signature are valid - process each pending MSG.  */
             for(u64 i = 0; i < pending_messages; ++i){
 
                 curr_msg_type = *((u64*)(received_buf + read_ix));
@@ -1152,9 +1156,9 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
     u64 msg_len;
 
-    u8 status = 0;
-    u8 msg_buf;
-    u8 reply_buf[MAX_TXT_LEN];
+    u8  status = 0;
+    u8* msg_buf;
+    u8  reply_buf[MAX_TXT_LEN];
     
     u64* reply_type_ptr = reply_buf;
 
@@ -1263,10 +1267,12 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
     u64 msg_len;
+    u64 reply_len;
 
-    u8 status = 0;
-    u8 msg_buf[MAX_TXT_LEN];
-
+    u8  status = 0;
+    u8  reply_buf[MAX_TXT_LEN];
+    u8* msg_buf; 
+    
     ssize_t bytes_read;
 
     /* Zero-extend the userID to 8 bytes including a null terminator.       */
@@ -1283,7 +1289,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     /* Send a request to the Rosetta server to create a new chatroom. */
 
     /* Expected reply: msg_20=OK */
-    status = construct_msg_20(userid, roomid);
+    status = construct_msg_20(userid, roomid, msg_buf, &msg_len);
 
     /* bad msg_20 construction. abort. */
     if(status){
@@ -1291,27 +1297,36 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 	goto label_cleanup;
     }
 
-    /* Capture the server's reply. */
-    memset(msg_buf, 0, MAX_TXT_LEN);
+/******************************************************************************/
 
-    printf("Waiting for the server to reply with PACKET_ID = 20.\n");
+    status = send_payload(msg_buf, msg_len);
 
-    bytes_read = recv(own_socket_fd, msg_buf, MAX_TXT_LEN, 0);
+    if(status){
+        printf("\n[ERR] Client: Couldn't send MSG_20 (make_room). Abort.\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Sent MSG_20 (make_room) to Rosetta server.\n");
 
-    if(bytes_read == -1){
-        printf("[ERR] Client: Couldn't recv() a reply to msg_20.\n\n");
-        perror("errno = ");
-        status = 1;
-	goto label_cleanup;
+    status = grab_servers_reply(reply_buf, &reply_len);
+
+    if(status){
+        printf("\n[ERR] Client: Couldn't receive MSG_20 reply by server.\n\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Received reply to MSG_20: %lu bytes.\n", reply_len);
+
+    if(*reply_type_ptr != PACKET_ID_10 && *reply_type_ptr != PACKET_ID_11){
+        printf("[ERR] Client: Unexpected reply by the server to MSG_20\n\n");
+        goto label_cleanup;
     }
 
-    printf("[OK]  Client: Received reply to msg_20: %lu bytes.\n", bytes_read);
+/******************************************************************************/
 
-    if( *((u64*)msg_buf) == PACKET_ID_20 ){
+    if( *((u64*)reply_buf) == PACKET_ID_20 ){
 
         msg_len = bytes_read;
 
-        status = process_msg_20(msg_buf, msg_len);
+        status = process_msg_20(reply_buf, reply_len);
 
         if (status){
             printf("[ERR] Client: process_msg_20 failed.\n\n");

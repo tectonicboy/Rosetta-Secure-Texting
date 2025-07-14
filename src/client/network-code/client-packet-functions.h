@@ -743,25 +743,30 @@ u8 process_msg_10(u8* msg){
 */
 
 u8 construct_msg_20( unsigned char* requested_userid
-                    ,unsigned char* requested_roomid )
+                    ,unsigned char* requested_roomid 
+		    ,uint64_t*      msg_len
+		    ,uint8_t*       msg_buf
+		   )
 {
     bigint one;
     bigint aux1;
 
     const u64 sendbuf_roomID_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     const u64 signed_len            = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
-    const u64 send_len              = signed_len + SIGNATURE_LEN;
+    
+    *msg_len = signed_len + SIGNATURE_LEN;
 
     FILE* ran_file = NULL;
 
     u8 status = 0;
     u8 send_K[ONE_TIME_KEY_LEN];
-    u8 send_buf[send_len];
+
     u8 roomID_userID[2 * SMALL_FIELD_LEN];
 
     memset(send_K,        0, ONE_TIME_KEY_LEN);
-    memset(send_buf,      0, send_len);
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
+
+    msg_buf = calloc(1, *msg_len);
 
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
@@ -807,7 +812,7 @@ u8 construct_msg_20( unsigned char* requested_userid
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
-             ,send_buf + (2 * SMALL_FIELD_LEN)     /* output target buffer    */
+             ,msg_buf + (2 * SMALL_FIELD_LEN)      /* output target buffer    */
             );
 
     /* Maintain nonce's symmetry on both server and client with counters. */
@@ -828,50 +833,23 @@ u8 construct_msg_20( unsigned char* requested_userid
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
-             ,send_buf + sendbuf_roomID_offset     /* output target buffer    */
+             ,msg_buf + sendbuf_roomID_offset     /* output target buffer    */
             );
 
     ++server_nonce_counter;
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
-    *((u64*)(send_buf)) = PACKET_ID_10;
+    *((u64*)(msg_buf)) = PACKET_ID_10;
 
-    *((u64*)(send_buf + SMALL_FIELD_LEN)) = own_ix;
+    *((u64*)(msg_buf + SMALL_FIELD_LEN)) = own_ix;
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
-    signature_generate( M, Q, Gm, send_buf, signed_len
-                       ,(send_buf + signed_len)
+    signature_generate( M, Q, Gm, msg_buf, signed_len
+                       ,(msg_buf + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
-
-    /* Ready to send the constructed packet to the Rosetta server now. */
-
-    if(send(own_socket_fd, send_buf, send_len, 0) == -1){
-        printf("[ERR] Client: Couldn't send constructed packet 20.\n");
-        printf("              Which is the request to join an existing room\n");
-        printf("              Tell GUI to tell the user about this!\n\n");
-        status = 1;
-        goto label_cleanup;
-    }
-    else{
-        printf("[OK]  Client: Sent request to join an existing chatroom!\n\n");
-    }
-
-    /* Now the Rosetta server:
-     *
-     *      - Sends us packet_20 with its Associated Data containing 1 or more
-     *        pairs of (guest_user_ID + guest_public_key), enabling us to talk
-     *        in a secure and authenticated fashion to all current room guests.
-     *
-     *        OR
-     *
-     *      - Sends us nothing, which we catch by waiting for X seconds in a
-     *        special reply awaiting thread. While waiting, have the GUI keep
-     *        a "waiting for reply" message displayed somewhere so the user
-     *        doesn't thing Rosetta is bugged or frozen or something.
-     */
 
 label_cleanup:
 
@@ -1772,7 +1750,7 @@ label_cleanup:
 | SMALL_FIELD_LEN |                        SIGNATURE_LEN                       |
 --------------------------------------------------------------------------------
 */
-void process_msg_40(u8* payload){
+u8 process_msg_40(u8* payload){
 
     u8 status;
 
@@ -1789,7 +1767,7 @@ label_cleanup:
 
     /* No function cleanup for now. Keep the label for completeness. */
 
-    return;
+    return status;
 }
 
 /* The Rosetta server replied to our polling request with information that
