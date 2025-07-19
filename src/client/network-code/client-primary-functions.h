@@ -2,6 +2,8 @@
 
 #include "../../lib/coreutil.h"
 
+/******************************************************************************/
+
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
 #define SERVER_PORT      54746
@@ -602,6 +604,7 @@ void* begin_polling(void* input){
     u64  obtained_text_message_line_len = 0;
     u64  curr_msg_len;
     u64  msg_len;
+    u64  reply_len;
 
     int64_t bytes_read;
 
@@ -609,19 +612,19 @@ void* begin_polling(void* input){
     ts.tv_sec  = 0;
     ts.tv_nsec = 200000000; /* 200,000,000 nanoseconds = 0.2 seconds */
 
+    status = construct_msg_40(&msg_buf, &msg_len);
+
+    if(status){
+        printf("[ERR] Client: Constructing poll packet_40 failed!\n");
+        goto exit(1);
+    }
+    printf("[OK]  Client: Constructed poll packet_40.\n");
+
     for(;;){
 
         nanosleep(&ts, NULL);
 
-        status = construct_msg_40(msg_buf, &msg_len);
-
-        if(status){
-            printf("[ERR] Client: Constructing poll packet_40 failed!\n");
-            goto loop_cleanup;
-        }
-        printf("[OK]  Client: Constructed poll packet_40.\n");
-
-        status= send_to_tcp_server(msg_buf, msg_len);
+        status = send_payload(msg_buf, msg_len);
         
         if(status){
             printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
@@ -629,12 +632,14 @@ void* begin_polling(void* input){
 	}
         printf("[OK]  Client: Sent poll packet_40 to server.\n");
 
-        grab_servers_reply(reply_buf);
+        grab_servers_reply(reply_buf, &reply_len);
 
         /* Call the appropriate function depending on server's response. */
         if( *reply_type_ptr == PACKET_ID_40 ){
-            status = process_msg_40(received_buf);
-	    if(status){
+
+      	    status = process_msg_40(received_buf);
+
+    	    if(status){
                 printf("[ERR] Client: Packet_40_Reply auth failed!\n");
 		continue;
 	    }
@@ -984,9 +989,9 @@ label_cleanup:
 
 u8 login(u8* password, int password_len){
 
-    u8  status = 0;
-    u8* msg_buf = NULL;
-    u8  reply_buf[MAX_TXT_LEN];
+    u8   status = 0;
+    u8*  msg_buf = NULL;
+    u8   reply_buf[MAX_TXT_LEN];
 
     u64*    reply_type_ptr = reply_buf;
     u64     msg_len;
@@ -1006,7 +1011,7 @@ u8 login(u8* password, int password_len){
      * and shared secret that get destroyed right after this login handshake.
      */
 
-    status = construct_msg_00(msg_buf, &msg_len);
+    status = construct_msg_00(&msg_buf, &msg_len);
 
     if(status){
         printf(\n"[ERR] Client: Couldn't construct MSG_00 for Login. Abort.\n");
@@ -1052,7 +1057,7 @@ u8 login(u8* password, int password_len){
 
         /* This processes msg_00 AND constructs msg_01. */
 
-        status = process_msg_00(reply_buf, msg_buf, &msg_len);
+        status = process_msg_00(reply_buf, &msg_buf, &msg_len);
 
         if(status){
             printf("[ERR] Client: process_msg_00 failed. Abort login.\n\n");
@@ -1157,7 +1162,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     u64 msg_len;
 
     u8  status = 0;
-    u8* msg_buf;
+    u8* msg_buf = NULL;
     u8  reply_buf[MAX_TXT_LEN];
     
     u64* reply_type_ptr = reply_buf;
@@ -1178,7 +1183,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     /* Send a request to the Rosetta server to create a new chatroom. */
 
     /* Expected replies: msg_10=OK, msg_11=NoSpace. */
-    status = construct_msg_10(userid, roomid, msg_buf, &msg_len);
+    status = construct_msg_10(userid, roomid, &msg_buf, &msg_len);
 
     if(status){
         printf("[ERR] Client: Couldn't construct msg_10\n\n");
@@ -1257,6 +1262,10 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 /* Unused for now but still have a label for completeness. */
 label_cleanup:
 
+    if(msg_buf){    
+        free(msg_buf);
+    }
+
     return status;
 }
 
@@ -1266,7 +1275,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 {
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
-    u64 msg_len;
+    u64 msg_len = NULL;
     u64 reply_len;
 
     u8  status = 0;
@@ -1289,7 +1298,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     /* Send a request to the Rosetta server to create a new chatroom. */
 
     /* Expected reply: msg_20=OK */
-    status = construct_msg_20(userid, roomid, msg_buf, &msg_len);
+    status = construct_msg_20(userid, roomid, &msg_buf, &msg_len);
 
     /* bad msg_20 construction. abort. */
     if(status){
@@ -1311,19 +1320,19 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 
     if(status){
         printf("\n[ERR] Client: Couldn't receive MSG_20 reply by server.\n\n");
-        goto label_cleanup;
+	goto label_cleanup;
     }
     printf("[OK]  Client: Received reply to MSG_20: %lu bytes.\n", reply_len);
 
-    if(*reply_type_ptr != PACKET_ID_10 && *reply_type_ptr != PACKET_ID_11){
+    if(*reply_type_ptr != PACKET_ID_20){
         printf("[ERR] Client: Unexpected reply by the server to MSG_20\n\n");
-        goto label_cleanup;
+        statu = 1;
+      	goto label_cleanup;
     }
 
 /******************************************************************************/
 
-    if( *((u64*)reply_buf) == PACKET_ID_20 ){
-
+    else{
         msg_len = bytes_read;
 
         status = process_msg_20(reply_buf, reply_len);
@@ -1334,12 +1343,6 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
         }
 
 	printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
-    }
-
-    else{
-        printf("[ERR] Client: Unexpected reply by the server to msg_20.\n\n");
-        status = 1;
-	goto label_cleanup;
     }
 
     printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");
@@ -1355,7 +1358,8 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
      */
 
     /* ALSO, here is one of 2 possible places where GUI renders the graphics
-     * for the messages sub-window and "exit room" button. Render them.
+     * for the messages sub-window and "exit room" button. GUI code will 
+     * do that if it sees returned 0 from here.
      */
 
     start_polling_thread();
@@ -1363,5 +1367,49 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 /* Unused for now but keep the label for completeness. */
 label_cleanup:
 
-    return status;
+    if(msg_buf){
+        free(msg_buf);
+    }
 
+    return status;
+}
+
+uint8_t send_text(unsigned char* text, uint64_t text_len){
+
+    u64 msg_len;
+
+    u8  status = 0;
+    u8* msg_buf = NULL;
+
+    /**************************************************************************/
+
+    status = construct_msg_30(text, text_len, &msg_buf, &msg_len);
+
+    if(status){
+        printf("[ERR] Client: Could not construct msg_30 to send a text!\n\n");
+        goto label_cleanup;
+    }
+
+    status = send_payload(msg_buf, msg_len);
+
+    if(status){
+        printf("\n[ERR] Client: Couldn't send MSG_30 (send_text). Abort.\n");
+        goto label_cleanup;
+    }
+    printf("[OK]  Client: Sent MSG_30 (send_text) to Rosetta server.\n");
+
+    /* There is no server reply here. Our own text msg will be sent to us
+     * by the server and detected by the polling thread, just like the
+     * others will detect our new message.
+     */
+
+    /**************************************************************************/
+
+label_cleanup:
+
+    if(msg_buf){
+        free(msg_buf);
+    }
+
+    return status;
+}
