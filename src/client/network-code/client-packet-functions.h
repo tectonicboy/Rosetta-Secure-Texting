@@ -1867,14 +1867,13 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-u8 construct_msg_50(void){
+u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
 
-    const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
     u8 status = 0;
-    u8 payload[payload_len];
-
-    memset(payload, 0, payload_len);
+    
+    *msg_buf = calloc(1, *msg_len);
 
     for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
 
@@ -1903,14 +1902,14 @@ u8 construct_msg_50(void){
 
     memset(own_user_id, 0, SMALL_FIELD_LEN);
 
-    *((u64*)(payload)) = PACKET_ID_50;
+    *((u64*)(*msg_buf)) = PACKET_ID_50;
 
-    memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
+    memcpy(((*msg_buf) + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
     signature_generate(
-        M, Q, Gm, payload, 2 * SMALL_FIELD_LEN,
-        payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
+        M, Q, Gm, *msg_buf, 2 * SMALL_FIELD_LEN,
+        (*msg_buf) + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
 
 label_cleanup:
@@ -1988,23 +1987,22 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-u8 construct_msg_60(void){
-
-    const u64 payload_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+u8 construct_msg_60(uint8_t** msg_buf, uint64_t* msg_len){
 
     u8 status = 0;
-    u8 payload[payload_len];
 
-    memset(payload, 0, payload_len);
+    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
-    *((u64*)(payload)) = PACKET_ID_60;
+    *msg_buf = calloc(1, *msg_len);
 
-    memcpy((payload + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
+    *((u64*)(*msg_buf)) = PACKET_ID_60;
+
+    memcpy(((*msg_buf) + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
     signature_generate(
-        M, Q, Gm, payload, 2 * SMALL_FIELD_LEN,
-        payload + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
+        M, Q, Gm, *msg_buf, 2 * SMALL_FIELD_LEN,
+        (*msg_buf) + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
 
     own_ix = 0;

@@ -1413,3 +1413,77 @@ label_cleanup:
 
     return status;
 }
+
+u8 leave_chatroom(void){
+
+    u64 msg_len;
+
+    u8  status = 0;
+    u8* msg_buf = NULL;
+
+    /**************************************************************************/
+    
+    status = construct_msg_50(&msg_buf, &msg_len);
+    
+    if(status){
+        printf("[ERR] Client: Could not construct msg_50 (exit_room).\n\n");
+	goto label_cleanup;
+    }
+    
+    status = send_payload(msg_buf, msg_len);
+
+    if(status){
+        printf("[ERR] Client: Couldn't send MSG_50 (exit_room). Abort.\n");
+	goto label_cleanup;
+    }
+    printf("[OK]  Client: Sent MSG_50 (exit_room) to Rosetta server.\n");
+
+    /* No server reply here. */
+
+    /**************************************************************************/
+
+label_cleanup:
+
+    if(msg_buf){
+        free(msg_buf);
+    }
+
+    return status;
+}
+
+u8 logout(void){
+    
+    u64 msg_len;
+
+    u8  status = 0;
+    u8* msg_buf = NULL;
+
+    /**************************************************************************/
+    
+    status = construct_msg_60(&msg_buf, &msg_len);
+
+    if(status){
+        printf("[ERR] Client: Could not construct msg_60 (logoff).\n\n");
+	goto label_cleanup;
+    }
+
+    status = send_payload(msg_buf, msg_len);
+
+    if(status){
+        printf("[ERR] Client: Couldn't send MSG_60 (logoff). Abort.\n");
+	goto label_cleanup;
+    }
+    printf("[OK]  Client: Sent MSG_60 (logoff) to Rosetta server.\n");
+
+    /* No server reply here. */
+
+    /**************************************************************************/
+
+label_cleanup:
+
+    if(msg_buf){
+        free(msg_buf);
+    }
+
+    return status;
+}

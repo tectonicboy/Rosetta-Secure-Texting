@@ -16,8 +16,6 @@ const socklen_t server_addr_len = sizeof(struct sockaddr_in);
 
 struct sockaddr_in servaddr;
 
-
-
 uint8_t init_tcp_conn_with_server(){
 
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
