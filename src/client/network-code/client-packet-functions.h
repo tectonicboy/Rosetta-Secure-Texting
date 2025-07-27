@@ -1,3 +1,182 @@
+#define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
+
+#define SERVER_PORT      54746
+#define PRIVKEY_LEN      40
+#define PUBKEY_LEN       384
+#define MAX_CLIENTS      64
+#define MAX_PEND_MSGS    64
+#define MAX_CHATROOMS    64
+#define MAX_MSG_LEN      131072
+#define MAX_TXT_LEN      1024
+#define MAX_SOCK_QUEUE   1024
+#define MAX_BIGINT_SIZ   12800
+#define SMALL_FIELD_LEN  8
+#define TEMP_BUF_SIZ     16384
+#define SESSION_KEY_LEN  32
+#define ONE_TIME_KEY_LEN 32
+#define INIT_AUTH_LEN    32
+#define SHORT_NONCE_LEN  12
+#define LONG_NONCE_LEN   16
+#define PASSWORD_BUF_SIZ 16
+#define HMAC_TRUNC_BYTES 8
+#define ARGON_STRING_LEN 8
+#define ARGON_HASH_LEN   64
+#define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
+#define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
+
+/******************************************************************************/
+
+/* This function pointer determines whether to communicate through Unix Domain
+ * sockets or through TCP sockets. A separate function handles these methods of
+ * communication. The former is for the Rosetta Testing Framework and the latter
+ * is for running the real messaging system.
+ *
+ * The Rosetta Testing Framework simulates people texting each other by spawning
+ * processes within the same operating system and having them talk to the server
+ * with interprocess communications over Unix Domain sockets instead of TCP.
+ * Everything else, including GUI, remains exactly the same as the real system.
+ *
+ * The client initialization routine sets this function pointer accordingly
+ * depending on which one we are currently running.
+ */
+
+uint8_t (*send_payload)(uint8_t*, uint64_t);
+
+u8 temp_handshake_memory_region_isLocked = 0;
+
+struct roommate{
+    char   guest_user_id[SMALL_FIELD_LEN];
+    bigint guest_pubkey;
+    bigint guest_pubkey_mont;
+    u8*    guest_KBA;
+    u8*    guest_KAB;
+    u8*    guest_Nonce;
+    u64    guest_nonce_counter;
+};
+
+#define roommates_arr_siz 63
+
+struct roommate roommates[roommates_arr_siz];
+
+u64 next_free_roommate_slot = 0;
+u64 num_roommates = 0;
+
+/* Bit i = 1 means client slot [i] in the global descriptor array of structures
+ *           is currently in use by a connected client and unavailable.
+ *           Currently only bits 0 to 62 can be used.
+ */
+u64 roommate_slots_bitmask = 0;
+
+/* Bit i = 1 means we use session key KAB to send stuff to the i-th client and
+ *           session key KBA to receive stuff from them. 0 means the opposite.
+ *           Only usable if the i-th global descriptor is currently in use.
+ */
+u64 roommate_key_usage_bitmask = 0;
+
+/* It could be in 2 states of fullness when we clear it, because our login
+ * attempt could be rejected after we send msg_00 OR after we send msg_01.
+ * The two functions that send these messages both fill out the handshake
+ * memory region with different things, including pointers to heap memory,
+ * which is why we need to keep track of what was placed in the handshake
+ * memory region at the point of zeroing it out and releasing it.
+ */
+u8 handshake_memory_region_state = 0;
+
+u64  own_ix = 0;
+char own_user_id[SMALL_FIELD_LEN];
+
+u64 server_nonce_counter = 0;
+
+pthread_mutex_t mutex;
+pthread_t poller_threadID;
+
+u8 own_privkey_buf[PRIVKEY_LEN];
+
+bigint server_shared_secret;
+bigint nonce_bigint;
+bigint *M  = NULL;
+bigint *Q  = NULL;
+bigint *G  = NULL;
+bigint *Gm = NULL;
+bigint *server_pubkey = NULL;
+bigint server_pubkey_mont;
+bigint own_privkey;
+bigint own_pubkey;
+
+/* These are for talking securely to the Rosetta server only. */
+u8 *KAB, *KBA;
+
+/* Memory region holding short-term cryptographic artifacts for Login scheme. */
+u8 temp_handshake_buf[TEMP_BUF_SIZ];
+
+/* List of packet ID magic constats for legitimate recognized packet types. */
+#define PACKET_ID_00 0xAD0084FF0CC25B0E
+#define PACKET_ID_01 0xE7D09F1FEFEA708B
+#define PACKET_ID_02 0x146AAE4D100DAEEA
+#define PACKET_ID_10 0x13C4A44F70842AC1
+#define PACKET_ID_11 0xAEFB70A4A8E610DF
+#define PACKET_ID_20 0x9FF4D1E0EAE100A5
+#define PACKET_ID_21 0x7C8124568ED45F1A
+#define PACKET_ID_30 0x9FFA7475DDC8B11C
+#define PACKET_ID_40 0xCAFB1C01456DF7F0
+#define PACKET_ID_41 0xDC4F771C0B22FDAB
+#define PACKET_ID_50 0x41C20F0BB4E34890
+#define PACKET_ID_51 0x2CC04FBEDA0B5E63
+#define PACKET_ID_60 0x0A7F4E5D330A14DD
+
+
+
+/* Validate a cryptographic signature computed by the Rosetta server. */
+u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
+
+    bigint *recv_e;
+    bigint *recv_s;
+
+    u64 s_offset = sign_offset;
+    u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
+
+    u8 status = 0;
+
+    /* Reconstruct the sender's signature as the two BigInts that make it up. */
+    recv_s = (bigint*)(signed_ptr + s_offset);
+    recv_e = (bigint*)(signed_ptr + e_offset);
+
+    recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+
+    memcpy( recv_s->bits
+           ,signed_ptr + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_LEN
+    );
+
+    memcpy( recv_e->bits
+           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
+           ,PRIVKEY_LEN
+    );
+
+    /*
+    printf("[DEBUG] Client: s and e received by server (before validate):\n\n");
+
+    printf("[DEBUG] Client: received s:\n");
+    bigint_print_info(recv_s);
+    bigint_print_bits(recv_s);
+
+    printf("[DEBUG] Client: received e:\n");
+    bigint_print_info(recv_e);
+    bigint_print_bits(recv_e);
+    */
+
+    /* Verify the sender's cryptographic signature. */
+    status = signature_validate(
+        Gm, &server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
+    );
+
+    free(recv_s->bits);
+    free(recv_e->bits);
+
+    return status;
+}
+
 /* A user requested to be logged in Rosetta:
 
     Client ----> Server
@@ -383,6 +562,8 @@ u8 process_msg_01(u8* msg){
     u64 nonce_offset;
     u64 key_offset;
 
+    bigint* temp_ptr;
+    
     u8 status = 0;
 
     /* Validate the incoming signature with the server's long-term public key
@@ -416,10 +597,10 @@ u8 process_msg_01(u8* msg){
     printf("[OK]  Client: Server told us Login was successful!\n");
     printf("              Tell GUI to tell user the good news!\n\n");
     printf("[OK]  Client: Server told us our user index is: %lu\n\n", own_ix);
+
 label_cleanup:
 
     //release_handshake_memory_region();
-    bigint* temp_ptr;
 
     temp_ptr = (bigint*)temp_handshake_buf;
     free(temp_ptr->bits);
@@ -744,8 +925,8 @@ u8 process_msg_10(u8* msg){
 
 u8 construct_msg_20( unsigned char* requested_userid
                     ,unsigned char* requested_roomid 
-		    ,uint64_t*      msg_len
-		    ,uint8_t**      msg_buf
+                    ,uint8_t**      msg_buf
+		            ,uint64_t*      msg_len
 		   )
 {
     bigint one;
@@ -840,7 +1021,7 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
-    *((u64*)(sg_buf)) = PACKET_ID_10;
+    *((u64*)(msg_buf)) = PACKET_ID_10;
 
     *((u64*)((*msg_buf) + SMALL_FIELD_LEN)) = own_ix;
 
@@ -1278,7 +1459,7 @@ label_cleanup:
 
 */
 u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
-		    uint8_t**       msg_buf,  u64* msg_len
+		    ,uint8_t**       msg_buf,  u64* msg_len
 		   )
 {
     u64 L = num_roommates * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_msg_len);

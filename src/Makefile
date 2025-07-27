@@ -22,6 +22,8 @@ CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
 CFLAGS += -Wno-unused-function
 CFLAGS += -Wno-aggregate-return
+CFLAGS += -Wno-unused-label
+CFLAGS += -Wno-unused-result
 
 .PHONY: server server_asan client client_asan
 

@@ -1,188 +1,8 @@
 #include <errno.h>
 
 #include "../../lib/coreutil.h"
-
-/******************************************************************************/
-
-#define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
-
-#define SERVER_PORT      54746
-#define PRIVKEY_LEN      40
-#define PUBKEY_LEN       384
-#define MAX_CLIENTS      64
-#define MAX_PEND_MSGS    64
-#define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      131072
-#define MAX_TXT_LEN      1024
-#define MAX_SOCK_QUEUE   1024
-#define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8
-#define TEMP_BUF_SIZ     16384
-#define SESSION_KEY_LEN  32
-#define ONE_TIME_KEY_LEN 32
-#define INIT_AUTH_LEN    32
-#define SHORT_NONCE_LEN  12
-#define LONG_NONCE_LEN   16
-#define PASSWORD_BUF_SIZ 16
-#define HMAC_TRUNC_BYTES 8
-#define ARGON_STRING_LEN 8
-#define ARGON_HASH_LEN   64
-#define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
-#define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
-
-
-/* This function pointer determines whether to communicate through Unix Domain
- * sockets or through TCP sockets. A separate function handles these methods of
- * communication. The former is for the Rosetta Testing Framework and the latter
- * is for running the real messaging system.
- *
- * The Rosetta Testing Framework simulates people texting each other by spawning
- * processes within the same operating system and having them talk to the server
- * with interprocess communications over Unix Domain sockets instead of TCP.
- * Everything else, including GUI, remains exactly the same as the real system.
- *
- * The client initialization routine sets this function pointer accordingly
- * depending on which one we are currently running.
- */
-
-uint8_t (*send_payload)(uint8_t*, uint64_t);
-
-u8 temp_handshake_memory_region_isLocked = 0;
-
-struct roommate{
-    char   guest_user_id[SMALL_FIELD_LEN];
-    bigint guest_pubkey;
-    bigint guest_pubkey_mont;
-    u8*    guest_KBA;
-    u8*    guest_KAB;
-    u8*    guest_Nonce;
-    u64    guest_nonce_counter;
-};
-
-#define roommates_arr_siz 63
-
-struct roommate roommates[roommates_arr_siz];
-
-u64 next_free_roommate_slot = 0;
-u64 num_roommates = 0;
-
-/* Bit i = 1 means client slot [i] in the global descriptor array of structures
- *           is currently in use by a connected client and unavailable.
- *           Currently only bits 0 to 62 can be used.
- */
-u64 roommate_slots_bitmask = 0;
-
-/* Bit i = 1 means we use session key KAB to send stuff to the i-th client and
- *           session key KBA to receive stuff from them. 0 means the opposite.
- *           Only usable if the i-th global descriptor is currently in use.
- */
-u64 roommate_key_usage_bitmask = 0;
-
-/* It could be in 2 states of fullness when we clear it, because our login
- * attempt could be rejected after we send msg_00 OR after we send msg_01.
- * The two functions that send these messages both fill out the handshake
- * memory region with different things, including pointers to heap memory,
- * which is why we need to keep track of what was placed in the handshake
- * memory region at the point of zeroing it out and releasing it.
- */
-u8 handshake_memory_region_state = 0;
-
-u64  own_ix = 0;
-char own_user_id[SMALL_FIELD_LEN];
-
-u64 server_nonce_counter = 0;
-
-pthread_mutex_t mutex;
-pthread_t poller_threadID;
-
-u8 own_privkey_buf[PRIVKEY_LEN];
-
-bigint server_shared_secret;
-bigint nonce_bigint;
-bigint *M  = NULL;
-bigint *Q  = NULL;
-bigint *G  = NULL;
-bigint *Gm = NULL;
-bigint *server_pubkey = NULL;
-bigint server_pubkey_mont;
-bigint own_privkey;
-bigint own_pubkey;
-
-/* These are for talking securely to the Rosetta server only. */
-u8 *KAB, *KBA;
-
-/* Memory region holding short-term cryptographic artifacts for Login scheme. */
-u8 temp_handshake_buf[TEMP_BUF_SIZ];
-
-/* List of packet ID magic constats for legitimate recognized packet types. */
-#define PACKET_ID_00 0xAD0084FF0CC25B0E
-#define PACKET_ID_01 0xE7D09F1FEFEA708B
-#define PACKET_ID_02 0x146AAE4D100DAEEA
-#define PACKET_ID_10 0x13C4A44F70842AC1
-#define PACKET_ID_11 0xAEFB70A4A8E610DF
-#define PACKET_ID_20 0x9FF4D1E0EAE100A5
-#define PACKET_ID_21 0x7C8124568ED45F1A
-#define PACKET_ID_30 0x9FFA7475DDC8B11C
-#define PACKET_ID_40 0xCAFB1C01456DF7F0
-#define PACKET_ID_41 0xDC4F771C0B22FDAB
-#define PACKET_ID_50 0x41C20F0BB4E34890
-#define PACKET_ID_51 0x2CC04FBEDA0B5E63
-#define PACKET_ID_60 0x0A7F4E5D330A14DD
-
-/* Validate a cryptographic signature computed by the Rosetta server. */
-u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
-
-    bigint *recv_e;
-    bigint *recv_s;
-
-    u64 s_offset = sign_offset;
-    u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
-
-    u8 status = 0;
-
-    /* Reconstruct the sender's signature as the two BigInts that make it up. */
-    recv_s = (bigint*)(signed_ptr + s_offset);
-    recv_e = (bigint*)(signed_ptr + e_offset);
-
-    recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
-
-    memcpy( recv_s->bits
-           ,signed_ptr + (sign_offset + sizeof(bigint))
-           ,PRIVKEY_LEN
-    );
-
-    memcpy( recv_e->bits
-           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
-           ,PRIVKEY_LEN
-    );
-
-    /*
-    printf("[DEBUG] Client: s and e received by server (before validate):\n\n");
-
-    printf("[DEBUG] Client: received s:\n");
-    bigint_print_info(recv_s);
-    bigint_print_bits(recv_s);
-
-    printf("[DEBUG] Client: received e:\n");
-    bigint_print_info(recv_e);
-    bigint_print_bits(recv_e);
-    */
-
-    /* Verify the sender's cryptographic signature. */
-    status = signature_validate(
-        Gm, &server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
-    );
-
-    free(recv_s->bits);
-    free(recv_e->bits);
-
-    return status;
-}
-
-
 #include "client-packet-functions.h"
-
+#include "tcp-communications.h"
 
 /* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
@@ -200,7 +20,7 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 /* Attempt to establish a connection with the Rosetta server. */
 
 /* Initialize polling mutex. */
-u8 self_init(u8* password, int password_len){
+u8 self_init(u8* password, int password_len, char* save_dir){
 
     const u32 chacha_key_len = 32;
     u32 pw_bytes_for_zeroing = PASSWORD_BUF_SIZ - password_len;
@@ -233,7 +53,7 @@ u8 self_init(u8* password, int password_len){
 
     /* Load user's public key, decrypt and load user's private key. */
 
-    savefile = fopen("../bin/user_save.dat", "r");
+    savefile = fopen(save_dir, "r");
 
     if(savefile == NULL){
         printf("[ERR] Client: couldn't open the user's save file. Aborting.\n");
@@ -590,9 +410,8 @@ void* begin_polling(void* input){
 
     /* TODO? Construct the poll packet only once, and keep sending it. */
 
-    u8  status;
     u8  text_message_line[MESSAGE_LINE_LEN];
-    u8* reply_buf = [MAX_TXT_LEN];
+    u8  reply_buf[MAX_TXT_LEN];
     u8* msg_buf;
     u8  status;
 
@@ -606,8 +425,6 @@ void* begin_polling(void* input){
     u64  msg_len;
     u64  reply_len;
 
-    int64_t bytes_read;
-
     struct timespec ts;
     ts.tv_sec  = 0;
     ts.tv_nsec = 200000000; /* 200,000,000 nanoseconds = 0.2 seconds */
@@ -615,8 +432,8 @@ void* begin_polling(void* input){
     status = construct_msg_40(&msg_buf, &msg_len);
 
     if(status){
-        printf("[ERR] Client: Constructing poll packet_40 failed!\n");
-        goto exit(1);
+        printf("[ERR] Client: (CRIT) Constructing poll packet_40 failed!\n");
+        exit(1);
     }
     printf("[OK]  Client: Constructed poll packet_40.\n");
 
@@ -637,7 +454,7 @@ void* begin_polling(void* input){
         /* Call the appropriate function depending on server's response. */
         if( *reply_type_ptr == PACKET_ID_40 ){
 
-      	    status = process_msg_40(received_buf);
+      	    status = process_msg_40(reply_buf);
 
     	    if(status){
                 printf("[ERR] Client: Packet_40_Reply auth failed!\n");
@@ -661,20 +478,20 @@ void* begin_polling(void* input){
 */
         else if ( *reply_type_ptr == PACKET_ID_41 ) {
 
-            pending_messages = *((u64*)(received_buf + SMALL_FIELD_LEN));
+            pending_messages = *((u64*)(reply_buf + SMALL_FIELD_LEN));
 
             read_ix = 2 * SMALL_FIELD_LEN;
 
             /* At end, read_ix = how many bytes a signature was computed on. */
             for(u64 i = 0; i < pending_messages; ++i){
-                block_len = *((u64*)(received_buf + read_ix));
+                block_len = *((u64*)(reply_buf + read_ix));
                 read_ix += block_len + SMALL_FIELD_LEN;
             }
 
             /* Verify the cryptographic signature now. */
-            ret = authenticate_server(received_buf, read_ix, read_ix);
+            status = authenticate_server(reply_buf, read_ix, read_ix);
 
-            if(ret == 1){
+            if(status == 1){
                 printf("[ERR] Client: Bad signature in polling reply.\n\n");
                 goto loop_cleanup;
             }
@@ -687,29 +504,29 @@ void* begin_polling(void* input){
             /* packet_ID and signature are valid - process each pending MSG.  */
             for(u64 i = 0; i < pending_messages; ++i){
 
-                curr_msg_type = *((u64*)(received_buf + read_ix));
+                curr_msg_type = *((u64*)(reply_buf + read_ix));
 
                 curr_msg_len =
-                            *((u64*)(received_buf + read_ix - SMALL_FIELD_LEN));
+                            *((u64*)(reply_buf + read_ix - SMALL_FIELD_LEN));
 
                 if(curr_msg_type == PACKET_ID_50){
 		    
-                    process_msg_50(received_buf + read_ix);
+                    process_msg_50(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_51){
-                    process_msg_51(received_buf + read_ix);
+                    process_msg_51(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_21){
-                    process_msg_21(received_buf + read_ix);
+                    process_msg_21(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_30){
-                    process_msg_30( received_buf + read_ix
+                    process_msg_30( reply_buf + read_ix
                                    ,text_message_line
                                    ,&obtained_text_message_line_len
                                   );
@@ -728,7 +545,7 @@ void* begin_polling(void* input){
 
 loop_cleanup:
 
-        memset(received_buf, 0, MAX_MSG_LEN);
+        memset(reply_buf, 0, MAX_TXT_LEN);
     }
 
     return NULL;
@@ -745,7 +562,7 @@ void start_polling_thread(){
     }
 }
 
-u8 reg(u8* password, int password_len){
+u8 reg(u8* password, int password_len, char* save_dir){
 
     const u32 chacha_key_len = 32;
     u32 pw_bytes_for_zeroing = PASSWORD_BUF_SIZ - password_len;
@@ -920,7 +737,7 @@ u8 reg(u8* password, int password_len){
      *                      key in the future, but for now only private key.
      */
 
-    user_save = fopen("../bin/user_save.dat", "w");
+    user_save = fopen(save_dir, "w");
 
     if(!user_save){
         printf("[ERR] Client: Reg failed to open user_save. Alert GUI.\n\n");
@@ -987,18 +804,18 @@ label_cleanup:
  * because there is no more space for any more logged in users right now.
  */
 
-u8 login(u8* password, int password_len){
+u8 login(u8* password, int password_len, char* save_dir){
 
     u8   status = 0;
     u8*  msg_buf = NULL;
     u8   reply_buf[MAX_TXT_LEN];
 
-    u64*    reply_type_ptr = reply_buf;
+    u64*    reply_type_ptr = (uint64_t*)reply_buf;
     u64     msg_len;
     ssize_t reply_len;
 
 
-    status = self_init(password, password_len);
+    status = self_init(password, password_len, save_dir);
 
     if(status){
         printf("[ERR] Client: Core initialization failed. Aborting login.\n\n");
@@ -1014,7 +831,7 @@ u8 login(u8* password, int password_len){
     status = construct_msg_00(&msg_buf, &msg_len);
 
     if(status){
-        printf(\n"[ERR] Client: Couldn't construct MSG_00 for Login. Abort.\n");
+        printf("[ERR] Client: Couldn't construct MSG_00 for Login. Abort.\n");
         goto label_cleanup;
     }
     printf("[OK]  Client: Constructed MSG_00: %lu bytes\n", msg_len);
@@ -1024,17 +841,17 @@ u8 login(u8* password, int password_len){
     status = send_payload(msg_buf, msg_len);
 
     if(status){
-        printf("\n[ERR] Client: Couldn't send MSG_00 for Login. Abort.\n");
+        printf("[ERR] Client: Couldn't send MSG_00 for Login. Abort.\n");
         goto label_cleanup;
     }
     printf("[OK]  Client: Transmitted MSG_00 to the Rosetta server.\n");
 
 
 
-    status = grab_servers_reply(reply_buf, &reply_len);
+    status = grab_servers_reply(reply_buf, (uint64_t*)&reply_len);
 
     if(status){
-        printf("\n[ERR] Client: Couldn't receive MSG_00 reply by server.\n\n");
+        printf("[ERR] Client: Couldn't receive MSG_00 reply by server.\n\n");
         goto label_cleanup;
     }
     printf("[OK]  Client: Received reply to MSG_00: %lu bytes.\n", reply_len);
@@ -1100,14 +917,14 @@ u8 login(u8* password, int password_len){
 
     memset(reply_buf, 0, MAX_TXT_LEN);
 
-    status = grab_servers_reply(reply_buf, &reply_len);
+    status = grab_servers_reply(reply_buf, (uint64_t*)&reply_len);
 
     if(status){
         printf("[ERR] Client: Couldn't receive a reply to msg_01.\n\n");
         goto label_cleanup;
     }
 
-    printf("[OK]  Client: Received reply to msg_01: %lu bytes.\n", bytes_read);
+    printf("[OK]  Client: Received reply to msg_01: %u bytes.\n", status);
 
     if(*reply_type_ptr == PACKET_ID_01){
 
@@ -1160,14 +977,14 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
     u64 msg_len;
+    u64 reply_len;
 
     u8  status = 0;
     u8* msg_buf = NULL;
     u8  reply_buf[MAX_TXT_LEN];
     
-    u64* reply_type_ptr = reply_buf;
+    u64* reply_type_ptr = (uint64_t*)reply_buf;
 
-    ssize_t bytes_read;
 
     /* Zero-extend the userID to 8 bytes including a null terminator.       */
     /* Len does not include the null terminator already placed by the GUI.  */
@@ -1273,16 +1090,16 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
                  unsigned char* userid, int userid_len
                 )
 {
-    u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
-    u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
-    u64 msg_len = NULL;
-    u64 reply_len;
-
     u8  status = 0;
     u8  reply_buf[MAX_TXT_LEN];
-    u8* msg_buf; 
-    
-    ssize_t bytes_read;
+    u8* msg_buf = NULL;
+
+    u64  userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
+    u64  roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
+    u64  msg_len;
+    u64  reply_len;
+    u64* reply_type_ptr = (uint64_t*)reply_buf;
+
 
     /* Zero-extend the userID to 8 bytes including a null terminator.       */
     /* Len does not include the null terminator already placed by the GUI.  */
@@ -1326,14 +1143,13 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 
     if(*reply_type_ptr != PACKET_ID_20){
         printf("[ERR] Client: Unexpected reply by the server to MSG_20\n\n");
-        statu = 1;
+        status = 1;
       	goto label_cleanup;
     }
 
 /******************************************************************************/
 
     else{
-        msg_len = bytes_read;
 
         status = process_msg_20(reply_buf, reply_len);
 

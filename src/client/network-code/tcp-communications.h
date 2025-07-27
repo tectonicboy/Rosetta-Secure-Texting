@@ -9,7 +9,7 @@
 #define SERVER_IP_ADDR "192.168.0.112"
 
 const int port = SERVER_PORT;
-const int optval1 = 1
+const int optval1 = 1;
       int own_socket_fd;
 
 const socklen_t server_addr_len = sizeof(struct sockaddr_in);
@@ -67,18 +67,18 @@ u8 send_to_tcp_server(u8* msg_buf, u64 msg_len){
 
     bytes_sent = send(own_socket_fd, msg_buf, msg_len, 0);
 
-    if(bytes_sent != msg_len){
+    if( ((uint64_t)bytes_sent) != msg_len){
        return 1; 
     }
 
     return 0;
 }
 
-u8 grab_servers_reply(u8* reply_buf, u64* reply_len, u64 expected_len){
+u8 grab_servers_reply(u8* reply_buf, u64* reply_len){
  
-    *reply_len = recv(own_socket_fd, reply_buf, expected_len, 0);
+    *reply_len = recv(own_socket_fd, reply_buf, 8192, 0);
      
-    if(*reply_len == -1){
+    if( ((int64_t)(*reply_len)) == -1){
         printf("\n[ERR] Client: Couldn't receive a reply to msg_00.\n\n");
         return 1;
     }

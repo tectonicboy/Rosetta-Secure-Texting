@@ -39,14 +39,14 @@ struct Argon2_parms{
 }; 
 
 /* Offsets into the input memory buffer for Argon2's multithreading function. */
-#define OFFSET_r  (sizeof(block_64t*) + (0 * sizeof(uint64_t)))
-#define OFFSET_l  (sizeof(block_64t*) + (1 * sizeof(uint64_t)))
-#define OFFSET_sl (sizeof(block_64t*) + (2 * sizeof(uint64_t)))
-#define OFFSET_md (sizeof(block_64t*) + (3 * sizeof(uint64_t)))
-#define OFFSET_t  (sizeof(block_64t*) + (4 * sizeof(uint64_t)))
-#define OFFSET_y  (sizeof(block_64t*) + (5 * sizeof(uint64_t)))
-#define OFFSET_p  (sizeof(block_64t*) + (6 * sizeof(uint64_t)))
-#define OFFSET_q  (sizeof(block_64t*) + (7 * sizeof(uint64_t)))
+#define OFFSET_r  (sizeof(block64_t*) + (0 * sizeof(uint64_t)))
+#define OFFSET_l  (sizeof(block64_t*) + (1 * sizeof(uint64_t)))
+#define OFFSET_sl (sizeof(block64_t*) + (2 * sizeof(uint64_t)))
+#define OFFSET_md (sizeof(block64_t*) + (3 * sizeof(uint64_t)))
+#define OFFSET_t  (sizeof(block64_t*) + (4 * sizeof(uint64_t)))
+#define OFFSET_y  (sizeof(block64_t*) + (5 * sizeof(uint64_t)))
+#define OFFSET_p  (sizeof(block64_t*) + (6 * sizeof(uint64_t)))
+#define OFFSET_q  (sizeof(block64_t*) + (7 * sizeof(uint64_t)))
 
 /* Initialization vector of constants for BLAKE2b. Defined in the RFC spec. */
 const uint64_t BLAKE2B_IV[8] = {
@@ -1079,7 +1079,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     /* Input to the generator of H0. */
     u8* H0_input = (u8*)calloc(1, H0_input_len);
 
-    u8  final_block_C[sizeof(block64_t)];
+    u8  final_block_C[sizeof(block1024_t)];
     u8  H0[64];
     u8* working_memory;
     u8  B_init_buf[64 + 4 + 4];
