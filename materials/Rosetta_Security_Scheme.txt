@@ -63,7 +63,22 @@ ChaCha20, to encrypt the user's private key before storing it on the filesystem:
     similarly to how the Rosetta server computes its own pair:
 
     a = pseudorandom in the range [1, Q)
-    
+
+    ^ NOTE FOR THIS FOR FUTURE DEVELOPMENT: simply setting a bit by hand to make
+      a less than Q might not be strong. The private key should be uniform in
+      [1, Q-1]. re-sample or reduce mod Q to ensure uniformity in [1, Q-1].
+      Simple code:
+      do {
+          a = random_256_bit_integer_from_urandom();
+      } while (a <= 0 || a >= Q);
+      Make sure it is constant-time rejection sampling.   
+      Otherwise, this can be exploitable with side-channels.
+ 
+      NOTE 2: Make sure all functions operating on secret data are constant-time
+              and are not leaking timing. Montgomery implementation has some
+              issues with that, with branches on secret data and looping.
+              Chat can give some initial advise, to be verified later.
+
     A = G^a mod M
     
  2. Client protects the private key with Argon2id and ChaCha20:
@@ -99,6 +114,29 @@ ChaCha20, to encrypt the user's private key before storing it on the filesystem:
 --------------------------------------------------------------------------------
 
  3. Lastly, the client has to login:
+
+[ NEW NOTES FOR LOGIN - for future hardening :
+
+ Suggestion:
+
+- Add replay protection — either via:
+
+    - Fresh nonce tied to server time + random salt
+
+    - Or short-lived server session IDs (UUIDs, expiring after 60s)
+
+- Log handshake failures and rate-limit retries to reduce brute-force attacks.
+
+ALSO:
+
+Edge-case: 2 GiB RAM for Argon2 is aggressive. 
+           It’ll cause problems on mobile or low-memory clients.
+
+Suggestion: Detect platform memory at runtime and scale m appropriately. 
+Recommend : minimum of 64 MiB, default 256 MiB+ if 2 GiB is not usable.
+
+
+]
 
     3.0. Client prompts the user to enter their password to login with, checks
          for invalid length, then zero-extends it to 16 bytes. Client loads the
@@ -381,6 +419,43 @@ session-length cryptographic artifacts between each other getting destroyed.
 
 PART III - Sending and receiving chat messages in a chat room.
 
+
+
+[ 
+NEW NOTES for future hardening:
+
+This is all correct per RFC 8439.
+
+Danger zone: You use nonce + counter interaction in two ways:
+
+    - One-time key (K) encryption: you repurpose the counter space
+
+    - Message text encryption: you use nonce + real counter
+
+This is valid but needs careful tracking to prevent nonce reuse in either mode.
+
+If ChaCha20 sees the same key + same nonce, even for different plaintexts,
+that leaks keystream.
+
+ALSO:
+
+ Potential Risk:
+
+Replay attack from a malicious relay or insider: 
+If Carol receives the same AD payload twice (with the same keys),
+she might reprocess the same message.
+
+Suggestion:
+
+Consider adding a message counter or timestamp into what Alice signs and 
+encrypts. This can be client-tracked per peer to avoid replay.
+
+Good: The system design avoids key reuse, 
+      supports forward secrecy (ephemeral keys), and strong authentication.
+]
+
+
+
 Suppose Alice already knows how to talk to Bob, Carol and Fred after having
 joined a chatroom with the three of them. To send them a message, Alice's client
 must perform a SPECIAL PROTOCOL for each message sent:
@@ -566,6 +641,20 @@ must perform a SPECIAL PROTOCOL for each message sent:
 ================================================================================
 
 PART IV - How to compute and validate a cryptographic signature. 
+
+[
+NEW NOTES for future hardening:
+
+ Suggestion:
+
+When you compute k = H(a||PH) mod (Q-1) + 1, this is deterministic. 
+That’s fine if H is strong (BLAKE2b), but it means the signature is 
+deterministic. 
+If a is ever leaked, every message signature becomes predictable.
+
+Optional: Add a random nonce r in k = H(a||PH||r) if you want probabilistic signatures.
+
+]
 
 The cryptographic signatures Rosetta uses are called Schnorr Signatures. They
 were pioneered by a scientist called Claus-Peter Schnorr. Here's how to get one:
