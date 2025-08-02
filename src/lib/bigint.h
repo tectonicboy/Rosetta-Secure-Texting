@@ -43,8 +43,8 @@ void bigint_create (bigint* const num, const u32 bitsize, const u32 initial){
     num->bits = (u8*)calloc(1, bitsize / 8);
     num->used_bits = 0;    
     
-    for(u32 i = 0; i < 32; ++i){
-        if ( (initial << i) & (unsigned int)2147483648U ){ 
+    for(u32 i = 0; i < 32; ++i){ /* most significant bit of u32 set. */
+        if ( (initial << i) & (unsigned int)0x80000000 ){ 
             num->used_bits = 32 - i;  
             break;  
         }    
@@ -53,10 +53,11 @@ void bigint_create (bigint* const num, const u32 bitsize, const u32 initial){
     num->free_bits = (bitsize - num->used_bits);
     
     for(u32 i = 0; i < 32; ++i){
-        if ( (initial >> (32 - i) & 1 )){ 
-            ( *((u32*)(num->bits) )) |=  1 << (32 - i);
+        uint32_t* helper_ptr = (uint32_t*)(num->bits);
+        if( initial & (1 << i) ){
+             (*helper_ptr) |= 1 << i;
         }
-    } 
+    }    
 }
 
 /* Second constructor - from a binary string. Little-endian assumed. */
@@ -1071,6 +1072,12 @@ void bigint_div2( const bigint* const A
     
     bigint big_temps[num_temps];
     
+    printf("big_int lib: div2: info for A  (in A/B): \n");
+    bigint_print_info(A);
+
+    printf("big_int lib: div2: info for B  (in A/B): \n");
+    bigint_print_info(B);
+
     for(i = 0; i < num_temps; ++i){
         bigint_create(&(big_temps[i]), A->size_bits, 0);
     }
@@ -1080,20 +1087,22 @@ void bigint_div2( const bigint* const A
         printf("\n\n[ERR] BIGINT - Division by ZERO.\n\nOPERAND 1:\n");
         bigint_print_info(A);
         bigint_print_bits(A);
-        return;
+        goto label_cleanup;
     }
     
     if(bigint_compare2(A, &(big_temps[0])) == 2){
         bigint_nullify(Res);
         bigint_nullify(Rem);
-        return;
+        printf("div2: ret early. Nullified both Res and Rem.\n");
+        goto label_cleanup;
     }
     
     /* if B > A, return RES=0, REM=A  */
     if(bigint_compare2(A, B) == 3){
         bigint_nullify(Res);
         bigint_equate2(Rem, A);
-        return;
+        printf("div2: ret early. Nullified result, equated remainder to A.");
+        goto label_cleanup;
     }
 
     bigint_equate2(&(big_temps[0]), A);
@@ -1259,7 +1268,9 @@ void bigint_div2( const bigint* const A
     
     bigint_equate2(Rem, &(big_temps[0]));
     bigint_equate2(Res, &(big_temps[3]));
-    
+
+label_cleanup:
+
     for(i = 0; i < num_temps; ++i){
         free(big_temps[i].bits);
     }

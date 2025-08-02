@@ -16,16 +16,17 @@ int main(int argc, char* argv[]){
                  ,*M
                  ;
                  
-     M = get_bigint_from_dat( 3072
-                ,"../saved_nums/M_raw_bytes.dat\0"
-                ,3071
-                ,12800
-                  );
+     M = get_bigint_from_dat
+      ( 3072
+       ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+       ,3071
+       ,12800
+      );
                  
     bigint_create(pubkey_montform, 12800, 0);
     
     pubkey_bigint = 
-             gen_pub_key(privkey_len_bytes, "server_privkey.dat\0", 12800);
+             gen_pub_key(privkey_len_bytes, "server_privkey.dat", 12800);
     
     uint32_t pubkey_used_bytes = pubkey_bigint->used_bits;
     

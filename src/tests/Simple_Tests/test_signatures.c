@@ -30,41 +30,48 @@ int main(){
     
     fclose(ran);
 
-    M  = get_bigint_from_dat( 3072
-                             ,"../saved_nums/saved_M.dat\0"
-                             ,3071
-                             ,MAX_BIGINT_SIZ
-                            ); 
+    M = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     ); 
        
-    Q  = get_bigint_from_dat( 320
-                             ,"../saved_nums/saved_Q.dat\0"
-                             ,320
-                             ,MAX_BIGINT_SIZ
-                            );
+    Q = get_bigint_from_dat
+     ( 320
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Q.dat"
+      ,320
+      ,MAX_BIGINT_SIZ
+     );
                             
-    G  = get_bigint_from_dat( 3072
-                             ,"../saved_nums/saved_G.dat\0"
-                             ,3071
-                             ,MAX_BIGINT_SIZ
-                            );
+    G = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_G.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
 
-    Gm = get_bigint_from_dat( 3072
-                             ,"../saved_nums/saved_Gm.dat\0"
-                             ,3071
-                             ,MAX_BIGINT_SIZ
-                            );
+    Gm = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
    
-    a  = get_bigint_from_dat( 320
-                             ,"../bin/server_privkey.dat\0"
-                             ,318
-                             ,MAX_BIGINT_SIZ
-                            );
+    a = get_bigint_from_dat
+    ( 320
+     ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/server_privkey.dat"
+     ,318
+     ,MAX_BIGINT_SIZ
+    );
 
-    Am = get_bigint_from_dat( 3072
-                             ,"../bin/server_pubkeymont.dat\0" 
-                             ,3071
-                             ,MAX_BIGINT_SIZ
-                            );
+    Am = get_bigint_from_dat
+    ( 3072
+     ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin"
+        "/server_pubkeymont.dat" 
+     ,3071
+     ,MAX_BIGINT_SIZ
+    );
              
     printf("Result of compare(G, a) : %u\n\n", bigint_compare2(G, a));
 

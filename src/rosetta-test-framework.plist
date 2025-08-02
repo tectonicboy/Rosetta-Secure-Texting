@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+ <key>clang_version</key>
+<string>Ubuntu clang version 18.1.3 (1ubuntu1)</string>
+ <key>diagnostics</key>
+ <array>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>1304</integer>
+      <key>col</key><integer>5</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>1304</integer>
+         <key>col</key><integer>19</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1304</integer>
+         <key>col</key><integer>19</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Value stored to &apos;compare_res&apos; is never read</string>
+     <key>message</key>
+     <string>Value stored to &apos;compare_res&apos; is never read</string>
+    </dict>
+   </array>
+   <key>description</key><string>Value stored to &apos;compare_res&apos; is never read</string>
+   <key>category</key><string>Unused code</string>
+   <key>type</key><string>Dead assignment</string>
+   <key>check_name</key><string>deadcode.DeadStores</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>3a62ba82854de433e2f58dfdc2fde680</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>bigint_mod_mul</string>
+  <key>issue_hash_function_offset</key><string>18</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>1304</integer>
+   <key>col</key><integer>5</integer>
+   <key>file</key><integer>0</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>0</key>
+   <array>
+    <integer>1304</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>1316</integer>
+      <key>col</key><integer>14</integer>
+      <key>file</key><integer>0</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>1316</integer>
+         <key>col</key><integer>28</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1316</integer>
+         <key>col</key><integer>57</integer>
+         <key>file</key><integer>0</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Although the value stored to &apos;compare_res&apos; is used in the enclosing expression, the value is never actually read from &apos;compare_res&apos;</string>
+     <key>message</key>
+     <string>Although the value stored to &apos;compare_res&apos; is used in the enclosing expression, the value is never actually read from &apos;compare_res&apos;</string>
+    </dict>
+   </array>
+   <key>description</key><string>Although the value stored to &apos;compare_res&apos; is used in the enclosing expression, the value is never actually read from &apos;compare_res&apos;</string>
+   <key>category</key><string>Unused code</string>
+   <key>type</key><string>Dead nested assignment</string>
+   <key>check_name</key><string>deadcode.DeadStores</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>b1e82c288dfc905997563fde3498a8f5</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>bigint_mod_mul</string>
+  <key>issue_hash_function_offset</key><string>30</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>1316</integer>
+   <key>col</key><integer>14</integer>
+   <key>file</key><integer>0</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>0</key>
+   <array>
+    <integer>1316</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>279</integer>
+      <key>col</key><integer>28</integer>
+      <key>file</key><integer>1</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>279</integer>
+         <key>col</key><integer>28</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>279</integer>
+         <key>col</key><integer>33</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+       <array>
+        <dict>
+         <key>line</key><integer>279</integer>
+         <key>col</key><integer>43</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>279</integer>
+         <key>col</key><integer>57</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+       <array>
+        <dict>
+         <key>line</key><integer>279</integer>
+         <key>col</key><integer>23</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>279</integer>
+         <key>col</key><integer>26</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Result of &apos;calloc&apos; is converted to a pointer of type &apos;uint32_t&apos;, which is incompatible with sizeof operand type &apos;uint8_t&apos;</string>
+     <key>message</key>
+     <string>Result of &apos;calloc&apos; is converted to a pointer of type &apos;uint32_t&apos;, which is incompatible with sizeof operand type &apos;uint8_t&apos;</string>
+    </dict>
+   </array>
+   <key>description</key><string>Result of &apos;calloc&apos; is converted to a pointer of type &apos;uint32_t&apos;, which is incompatible with sizeof operand type &apos;uint8_t&apos;</string>
+   <key>category</key><string>Unix API</string>
+   <key>type</key><string>Allocator sizeof operand mismatch</string>
+   <key>check_name</key><string>unix.MallocSizeof</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>23634fd69d60fd2dfc2b2dc3db859538</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>chacha20</string>
+  <key>issue_hash_function_offset</key><string>25</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>279</integer>
+   <key>col</key><integer>28</integer>
+   <key>file</key><integer>1</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>1</key>
+   <array>
+    <integer>279</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>1162</integer>
+      <key>col</key><integer>27</integer>
+      <key>file</key><integer>1</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>1162</integer>
+         <key>col</key><integer>27</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1162</integer>
+         <key>col</key><integer>32</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+       <array>
+        <dict>
+         <key>line</key><integer>1162</integer>
+         <key>col</key><integer>46</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1162</integer>
+         <key>col</key><integer>62</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+       <array>
+        <dict>
+         <key>line</key><integer>1162</integer>
+         <key>col</key><integer>23</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1162</integer>
+         <key>col</key><integer>25</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Result of &apos;calloc&apos; is converted to a pointer of type &apos;uint8_t&apos;, which is incompatible with sizeof operand type &apos;block64_t&apos;</string>
+     <key>message</key>
+     <string>Result of &apos;calloc&apos; is converted to a pointer of type &apos;uint8_t&apos;, which is incompatible with sizeof operand type &apos;block64_t&apos;</string>
+    </dict>
+   </array>
+   <key>description</key><string>Result of &apos;calloc&apos; is converted to a pointer of type &apos;uint8_t&apos;, which is incompatible with sizeof operand type &apos;block64_t&apos;</string>
+   <key>category</key><string>Unix API</string>
+   <key>type</key><string>Allocator sizeof operand mismatch</string>
+   <key>check_name</key><string>unix.MallocSizeof</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>aba702427e75ec8957a3bba7b2db8978</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>Argon2_MAIN</string>
+  <key>issue_hash_function_offset</key><string>104</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>1162</integer>
+   <key>col</key><integer>27</integer>
+   <key>file</key><integer>1</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>1</key>
+   <array>
+    <integer>1162</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>1216</integer>
+      <key>col</key><integer>5</integer>
+      <key>file</key><integer>1</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>1216</integer>
+         <key>col</key><integer>24</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1216</integer>
+         <key>col</key><integer>24</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Value stored to &apos;thread_in_offset&apos; is never read</string>
+     <key>message</key>
+     <string>Value stored to &apos;thread_in_offset&apos; is never read</string>
+    </dict>
+   </array>
+   <key>description</key><string>Value stored to &apos;thread_in_offset&apos; is never read</string>
+   <key>category</key><string>Unused code</string>
+   <key>type</key><string>Dead assignment</string>
+   <key>check_name</key><string>deadcode.DeadStores</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>cbeb070d568f51f4f9cc7e16abf41f4c</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>Argon2_MAIN</string>
+  <key>issue_hash_function_offset</key><string>158</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>1216</integer>
+   <key>col</key><integer>5</integer>
+   <key>file</key><integer>1</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>1</key>
+   <array>
+    <integer>1216</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>1295</integer>
+      <key>col</key><integer>13</integer>
+      <key>file</key><integer>1</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>1295</integer>
+         <key>col</key><integer>33</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>1295</integer>
+         <key>col</key><integer>43</integer>
+         <key>file</key><integer>1</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Value stored to &apos;thread_in_offset&apos; is never read</string>
+     <key>message</key>
+     <string>Value stored to &apos;thread_in_offset&apos; is never read</string>
+    </dict>
+   </array>
+   <key>description</key><string>Value stored to &apos;thread_in_offset&apos; is never read</string>
+   <key>category</key><string>Unused code</string>
+   <key>type</key><string>Dead increment</string>
+   <key>check_name</key><string>deadcode.DeadStores</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>5bcfcaaf7f1d8c2651dedbb5a0acf0c1</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>Argon2_MAIN</string>
+  <key>issue_hash_function_offset</key><string>237</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>1295</integer>
+   <key>col</key><integer>13</integer>
+   <key>file</key><integer>1</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>1</key>
+   <array>
+    <integer>1295</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>15</integer>
+      <key>col</key><integer>11</integer>
+      <key>file</key><integer>2</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>15</integer>
+         <key>col</key><integer>24</integer>
+         <key>file</key><integer>2</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>15</integer>
+         <key>col</key><integer>59</integer>
+         <key>file</key><integer>2</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Although the value stored to &apos;bytes_read&apos; is used in the enclosing expression, the value is never actually read from &apos;bytes_read&apos;</string>
+     <key>message</key>
+     <string>Although the value stored to &apos;bytes_read&apos; is used in the enclosing expression, the value is never actually read from &apos;bytes_read&apos;</string>
+    </dict>
+   </array>
+   <key>description</key><string>Although the value stored to &apos;bytes_read&apos; is used in the enclosing expression, the value is never actually read from &apos;bytes_read&apos;</string>
+   <key>category</key><string>Unused code</string>
+   <key>type</key><string>Dead nested assignment</string>
+   <key>check_name</key><string>deadcode.DeadStores</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>32dab59c5e81cf49859f5c2169560549</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>gen_priv_key</string>
+  <key>issue_hash_function_offset</key><string>11</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>15</integer>
+   <key>col</key><integer>11</integer>
+   <key>file</key><integer>2</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>2</key>
+   <array>
+    <integer>15</integer>
+   </array>
+  </dict>
+  </dict>
+  <dict>
+   <key>path</key>
+   <array>
+    <dict>
+     <key>kind</key><string>event</string>
+     <key>location</key>
+     <dict>
+      <key>line</key><integer>121</integer>
+      <key>col</key><integer>9</integer>
+      <key>file</key><integer>3</integer>
+     </dict>
+     <key>ranges</key>
+     <array>
+       <array>
+        <dict>
+         <key>line</key><integer>121</integer>
+         <key>col</key><integer>18</integer>
+         <key>file</key><integer>3</integer>
+        </dict>
+        <dict>
+         <key>line</key><integer>121</integer>
+         <key>col</key><integer>18</integer>
+         <key>file</key><integer>3</integer>
+        </dict>
+       </array>
+     </array>
+     <key>depth</key><integer>0</integer>
+     <key>extended_message</key>
+     <string>Value stored to &apos;status&apos; is never read</string>
+     <key>message</key>
+     <string>Value stored to &apos;status&apos; is never read</string>
+    </dict>
+   </array>
+   <key>description</key><string>Value stored to &apos;status&apos; is never read</string>
+   <key>category</key><string>Unused code</string>
+   <key>type</key><string>Dead assignment</string>
+   <key>check_name</key><string>deadcode.DeadStores</string>
+   <!-- This hash is experimental and going to change! -->
+   <key>issue_hash_content_of_line_in_context</key><string>8b18377c65ecb071a5e6ec7d03dcb61b</string>
+  <key>issue_context_kind</key><string>function</string>
+  <key>issue_context</key><string>draw_menu_0</string>
+  <key>issue_hash_function_offset</key><string>96</string>
+  <key>location</key>
+  <dict>
+   <key>line</key><integer>121</integer>
+   <key>col</key><integer>9</integer>
+   <key>file</key><integer>3</integer>
+  </dict>
+  <key>ExecutedLines</key>
+  <dict>
+   <key>3</key>
+   <array>
+    <integer>121</integer>
+   </array>
+  </dict>
+  </dict>
+ </array>
+ <key>files</key>
+ <array>
+  <string>./rosetta-test-framework/../client/network-code/../../lib/bigint.h</string>
+  <string>./rosetta-test-framework/../client/network-code/../../lib/cryptolib.h</string>
+  <string>./rosetta-test-framework/../client/network-code/../../lib/coreutil.h</string>
+  <string>./rosetta-test-framework/rosetta-test-framework.c</string>
+ </array>
+</dict>
+</plist>

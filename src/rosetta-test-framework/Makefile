@@ -1,6 +1,5 @@
-.PHONY: all
+.PHONY: all debug
 
-CFLAGS += -Wpedantic
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Waggregate-return
@@ -20,11 +19,13 @@ CFLAGS += -Wunreachable-code
 CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
-CFLAGS += -Wno-unused-function
-CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
+CFLAGS += -Wstrict-aliasing
 
 all:
-	cc test-control.c -O3 -Wall -Wextra -o rtf \
-	-lm -pthread -march=native $(CFLAGS)
+	gcc rosetta-test-framework.c -O3 -o rtf -lm -pthread $(CFLAGS) -march=native
+
+debug:
+	gcc -g rosetta-test-framework.c -O0 -o debugrtf -lm -pthread \
+	$(CFLAGS) -march=native

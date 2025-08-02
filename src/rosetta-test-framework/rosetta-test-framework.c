@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <termios.h>
 
 /******************************************************************************/
 
@@ -27,21 +28,23 @@ void draw_menu_0(){
     FILE* logo_file = fopen("rtf-logo.txt", "r");
     unsigned char* logo_buf;    
     unsigned int   op_number;
+    unsigned char  savefilename[16] = {'\0'};
+    unsigned char* full_save_dir;
+    const char*    savedir = "/home/hypervisor/tmp/repos/Rosetta-Secure-Texting"
+                             "/src/rosetta-test-framework/test-accounts/"
+                             ;
+    
+    uint8_t pw_buf[16] = {0};
+    uint8_t status = 0;
 
     /* ========================= PART 1: Draw logo ========================== */
 
     fseek(logo_file, 0, SEEK_END);  
-
     bytes = ftell(logo_file);
-
     rewind(logo_file);
-
     logo_buf = calloc(1, bytes + 1);
-
     fread(logo_buf, 1, bytes, logo_file);
-
     logo_buf[bytes] = '\0';
-
     printf("\n\n\n%s\n\n\n\n\n\n\n\n\n\n", logo_buf);
 
     /* ====================== PART 2: Top menu options ====================== */
@@ -73,8 +76,50 @@ label_again:
     printf("\n\nOperation selected: ");
 
     if(op_number == 1){
-        printf("Creating a new test user account.\n");
-        printf("[NOT IMPLEMENTED YET]\n\n");
+        printf("Creating a new test user account.\n\n");
+        printf("Pick a save file name: ");
+        scanf("%s", savefilename);
+        printf( "strlen(filename) = %lu | strlen(savedir) = %lu\n"
+               ,strlen((const char*)savefilename)
+               ,strlen(savedir)
+              );
+
+        full_save_dir = 
+              calloc(1, strlen(savedir) + strlen((const char*)savefilename));
+        
+        memcpy(full_save_dir, savedir, strlen(savedir));
+
+        memcpy( full_save_dir + strlen(savedir)
+               ,savefilename
+               ,strlen((const char*)savefilename)
+              );
+
+        struct termios term;
+        struct termios term_orig;
+
+        tcgetattr(STDIN_FILENO, &term);
+        term_orig = term;
+        term.c_lflag &= ~ECHO; /* Disable terminal echo. */
+        tcsetattr(STDIN_FILENO, TCSANOW, &term);
+
+        printf("Enter a password up to 15 characters: ");
+        
+        /* Read a string of UP TO 15 characters. No more. */
+        scanf("%15s", (char*)pw_buf);
+
+        tcsetattr(STDIN_FILENO, TCSANOW, &term_orig); /* Terminal echo back. */
+
+        /* The call to reg */
+
+        printf("Entered password: %s\n", (char*)pw_buf);                
+ 
+        status = reg(pw_buf, strlen((char*)pw_buf), (char*)full_save_dir);
+
+        if(status){
+            printf("\n[ERR] RTF: Registering a test account failed.\n\n");
+        }
+        status = 0;
+        free(full_save_dir);        
     }
     else if(op_number == 2){
         printf("Starting a test user chat session (login).\n");

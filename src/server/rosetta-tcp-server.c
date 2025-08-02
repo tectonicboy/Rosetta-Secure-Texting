@@ -220,22 +220,42 @@ u8 self_init(){
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
     M = get_bigint_from_dat
-        (3072, "../bin/saved_M.dat\0", 3071, MAX_BIGINT_SIZ);
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
     
     /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
     Q = get_bigint_from_dat
-        (320,  "../bin/saved_Q.dat\0", 320,  MAX_BIGINT_SIZ);
+     ( 320
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Q.dat"
+      ,320
+      ,MAX_BIGINT_SIZ
+     );
     
     /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
     G = get_bigint_from_dat
-        (3072, "../bin/saved_G.dat\0", 3071, MAX_BIGINT_SIZ);
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_G.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_bigint_from_dat
-     (3072, "../bin/saved_Gm.dat\0", 3071, MAX_BIGINT_SIZ);
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
     
     server_pubkey_bigint = get_bigint_from_dat
-        (3072, "../bin/server_pubkey.dat\0", 3071, MAX_BIGINT_SIZ);
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/server_pubkey.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
     
     /* Initialize the mutex that will be used to prevent the main thread and
      * the connection checker thread from getting into a race condition.

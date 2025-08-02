@@ -1,3 +1,5 @@
+/******************************************************************************/
+
 #include <errno.h>
 
 #include "../../lib/coreutil.h"
@@ -251,7 +253,12 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     /* Load other BigInts needed for the cryptography to work and be secure. */
 
     /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */
-    M = get_bigint_from_dat(3072, "../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
+    M = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
 
     if(M == NULL){
         printf("[ERR] Client: Failed to get M from DAT file.\n\n");
@@ -260,7 +267,12 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     }
 
     /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
-    Q = get_bigint_from_dat(320, "../bin/saved_Q.dat", 320,  MAX_BIGINT_SIZ);
+    Q = get_bigint_from_dat
+     ( 320
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Q.dat"
+      ,320
+      ,MAX_BIGINT_SIZ
+     );
 
     if(Q == NULL){
         printf("[ERR] Client: Failed to get Q from DAT file.\n\n");
@@ -269,7 +281,12 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     }
 
     /* Diffie-Hellman generator G = 2^((M-1)/Q) */
-    G = get_bigint_from_dat(3072, "../bin/saved_G.dat", 3071, MAX_BIGINT_SIZ);
+    G = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_G.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
 
     if(G == NULL){
         printf("[ERR] Client: Failed to get G from DAT file.\n\n");
@@ -278,7 +295,12 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     }
 
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
-    Gm = get_bigint_from_dat(3072, "../bin/saved_Gm.dat", 3071, MAX_BIGINT_SIZ);
+    Gm = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
 
     if(Gm == NULL){
         printf("[ERR] Client: Failed to get Gm from DAT file.\n\n");
@@ -287,8 +309,12 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     }
 
     /* Grab the server's public key. */
-    server_pubkey =
-    get_bigint_from_dat(3072, "../bin/server_pubkey.dat", 3071, MAX_BIGINT_SIZ);
+    server_pubkey = get_bigint_from_dat
+     ( 3072
+      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/server_pubkey.dat"
+      ,3071
+      ,MAX_BIGINT_SIZ
+     );
 
     if(server_pubkey == NULL){
         printf("[ERR] Client: Failed to get server pubkey from DAT file.\n\n");
@@ -618,6 +644,11 @@ u8 reg(u8* password, int password_len, char* save_dir){
 
     /* A = G^a mod M */
     A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
+
+    printf("Public key right after generating it w/ gen_pub_key():\n");
+
+    bigint_print_info(A_longterm);
+    bigint_print_all_bits(A_longterm);
 
     /* Registration step 2: Use the password as a secret key in Argon2 hashing
      *                      algorithm, whose output hash we use as a

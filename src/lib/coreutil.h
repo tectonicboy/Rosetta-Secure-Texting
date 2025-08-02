@@ -53,8 +53,27 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     
     privkey_dat = fopen(privkey_filename, "r");
     
-    M  = get_bigint_from_dat(3072, "../bin/saved_M.dat\0",  3071, 12800);
-    Gm = get_bigint_from_dat(3072, "../bin/saved_Gm.dat\0", 3071, 12800);
+    M  = get_bigint_from_dat
+         ( 3072
+          ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+          ,3071
+          ,12800
+         );
+
+    Gm = get_bigint_from_dat
+         ( 3072
+          ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+          ,3071
+          ,12800
+         );
+
+    printf("CORE UTIL gen_pub_key: Gm after reading it from file:\n");
+    bigint_print_info(Gm);
+    bigint_print_bits(Gm);
+
+    printf("CORE UTIL gen_pub_key: M after reading it from file:\n");
+    bigint_print_info(M);
+    bigint_print_bits(M);
 
     if(privkey_dat == NULL){
         printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
@@ -91,6 +110,11 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     bigint_create(R, M->size_bits, 0);
     
     mont_pow_mod_m(Gm, &privkey_bigint, M, R); 
+
+    
+    printf("CORE_UTIL gen_pub_key: R (public key) after mont_pow_mod_m():\n");
+    bigint_print_info(R);
+    bigint_print_bits(R);
 
 label_cleanup:
 

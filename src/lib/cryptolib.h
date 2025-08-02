@@ -1643,7 +1643,8 @@ void mont_pow_mod_m(bigint* B, bigint* P, bigint* M, bigint* R){
     }
     
     montgomery_mul(&one, R, M, &R_1);
-    bigint_div2(&R_1, M, &div_res, R);    
+
+    bigint_div2(&R_1, M, &div_res, R);
 
     free(X.bits); 
     free(Y.bits); 
