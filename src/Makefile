@@ -62,7 +62,7 @@ test_argon2: tests/Simple_Tests/test_argon2.c
 
 
 server:
-	gcc server/rosetta-tcp-server.c -o ../bin/tcp-server -march=native -lm \
+	gcc server/rosetta-server.c -o ../bin/rosetta-server -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 

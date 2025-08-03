@@ -1,13 +1,7 @@
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <errno.h>
 
 #include "../lib/coreutil.h"
 
-#define SERVER_PORT      54746
 #define PRIVKEY_LEN      40   
 #define PUBKEY_LEN       384
 #define MAX_CLIENTS      64
@@ -15,7 +9,6 @@
 #define MAX_CHATROOMS    64
 #define MAX_MSG_LEN      131072
 #define MAX_TXT_LEN      1024
-#define MAX_SOCK_QUEUE   1024
 #define MAX_BIGINT_SIZ   12800
 #define SMALL_FIELD_LEN  8 
 #define TEMP_BUF_SIZ     16384
@@ -29,7 +22,7 @@
 #define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
 /* Memory region for short-term cryptographic artifacts for a login handshake */
-u8* temp_handshake_buf;
+u8* temp_handshake_buf = NULL;
 
 /* Whether the login handshake memory region is currently locked or not. */
 u8 temp_handshake_memory_region_isLocked = 0;
@@ -98,16 +91,6 @@ struct connected_client clients[MAX_CLIENTS];
 
 struct chatroom rooms[MAX_CHATROOMS];
 
-/* Linux Sockets API related globals. */
-int port = SERVER_PORT;
-int listening_socket;
-int optval1 = 1;
-int optval2 = 2;
-
-int client_socket_fd[MAX_CLIENTS];
-struct sockaddr_in client_addresses[MAX_CLIENTS];  
-socklen_t clientLens[MAX_CLIENTS];
-
 /* Create thread_id's for every client machine's recv() loop thread. */
 pthread_t client_thread_ids[MAX_CLIENTS];
 
@@ -130,7 +113,26 @@ bigint* Gm; /* Montgomery Form of G.                        */
 bigint* server_pubkey_bigint;
 bigint  server_privkey_bigint;
 
-struct sockaddr_in servaddr;
+
+#include "server-packet-functions.h"
+#include "server-tcp-communications.h"
+#include "server-ipc-communications.h"
+
+
+/* This function pointer tells the server whether to communicate through
+ * Unix Domain sockets, or through Internet sockets. If the server was started
+ * by the Rosetta Testing Framework, communication with test clients (that are
+ * emulated as local OS processes instead of real people texting on the system)
+ * is done via local unix interprocess communications (AF_UNIX sockets). If the
+ * server is to be run normally for real Rosetta users to tune in to chatrooms
+ * and text each other, Internet sockets are employed for communication.
+ *
+ * These two methods of communication need different initialization code.
+ * A command-line argument determines whether the server was started by the
+ * testing framework or for the real system, and this in turn sets this
+ * function pointer to the appropriate communications initialization function.
+ */
+uint8_t (*init_communications)(void);
 
 /* First thing done when we start the Rosetta server - initialize it. */
 u8 self_init(){
@@ -139,67 +141,35 @@ u8 self_init(){
 
     u8 status = 0;
 
-    for(socklen_t i = 0; i < MAX_CLIENTS; ++i){
-        clientLens[i] = sizeof(struct sockaddr_in);
+    status = init_communications();
+
+    if(status){
+        printf("[ERR] Server: Communication init function ptr call fail.\n");
+        goto label_cleanup;
     }
 
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
 
-    /* Initialize the server address structure. */
-    servaddr.sin_family      = AF_INET;
-    servaddr.sin_port        = htons(port);
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-
-    /* Obtain the file descriptor for the listen()ing socket. */                                                    
-    if( (listening_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
-        printf("[ERR] Server: Could not open server socket. Aborting.\n");
-        status = 1;
-	goto label_cleanup;
-    }
-    
-    setsockopt(
-          listening_socket, SOL_SOCKET, SO_REUSEPORT, &optval1, sizeof(optval1)
-    );  
-      
-    setsockopt(
-          listening_socket, SOL_SOCKET, SO_REUSEADDR, &optval2, sizeof(optval2)
-    );
-            
-    if( (bind(listening_socket, (struct sockaddr*)&servaddr, sizeof(servaddr)))
-        == -1
-       && 
-        (errno != 13)
-      )
-    {
-        printf("[ERR] Server: bind() failed. Errno != 13. Aborting.\n");
-        status = 1;
-	goto label_cleanup;
-    }
-       
-    /* Put the listen()ing socket in a state of listening for connections. */
-    if( (listen(listening_socket, MAX_SOCK_QUEUE)) == -1){
-        printf("[ERR] Server: couldn't begin listen()ing. Aborting.\n");
-        status = 1;
-	goto label_cleanup;
-    }
-    
     /*  Server will use its private key to compute cryptographic signatures of 
      *  everything it transmits, so all users can authenticate it using the
      *  server's long-term public key they already have at install time.
      */
-    privkey_dat = fopen("../bin/server_privkey.dat", "r");
+    privkey_dat = fopen( "/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/"
+                           "bin/server_privkey.dat"
+                        ,"r"
+                       );
     
     if(!privkey_dat){
         printf("[ERR] Server: couldn't open private key DAT file. Aborting.\n");
         status = 1;
-	goto label_cleanup;
+	    goto label_cleanup;
     }
     
     if(fread(server_privkey, 1, PRIVKEY_LEN, privkey_dat) != PRIVKEY_LEN){
         printf("[ERR] Server: couldn't get private key from file. Aborting.\n");
         status = 1;
-	goto label_cleanup;
+	    goto label_cleanup;
     }
     else{
         printf("[OK]  Server: Successfully loaded private key.\n");
@@ -273,10 +243,7 @@ label_cleanup:
     }
 
     if(status){
-        free(temp_handshake_buf);
-	if(listening_socket){
-            close(listening_socket);
-	}
+        free(temp_handshake_buf);    
     }
 
     return status;
@@ -979,10 +946,26 @@ void* start_new_client_thread(void* ix_ptr){
     }
 }
 
-int main(){
+int main(int argc, char* argv[]){
 
     u32 status;
     u32 curr_free_socket_ix;
+
+    /* Function pointer set to respective socket initialization routine. */
+    
+    int arg1 = argv[1];
+
+    if(arg1 == 1){
+        init_communications = init_ipc_listening;
+        printf("[OK] Server: Function pointer set to unix domain sockets.\n");
+    }
+    else if(arg1 == 0){
+        init_communications = init_tcp_listening;
+        printf("[OK] Server: Function pointer set to Internet sockets.\n");
+    }
+    else{
+        printf("Command line arg must be 0 or 1. It is: %8X. Exit.\n", arg1);
+    }
 
     /* Initialize Linux Sockets API, load cryptographic keys and artifacts. */ 
     status = self_init();
