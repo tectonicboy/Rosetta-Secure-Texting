@@ -1,6 +1,5 @@
 # -*- MakeFile -*-
 
-CFLAGS += -Wpedantic
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Waggregate-return
@@ -20,6 +19,7 @@ CFLAGS += -Wunreachable-code
 CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
+CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wno-unused-function
 CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
