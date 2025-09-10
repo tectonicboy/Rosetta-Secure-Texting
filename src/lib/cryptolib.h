@@ -189,6 +189,11 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
     u32 i;
     u32 j;
 
+    uint8_t* aux_ptr8_state;
+    uint8_t* aux_ptr8_key;
+    uint8_t* aux_ptr8_nonce;
+    uint8_t* aux_ptr8_serial_result;
+
     if(key_len + counter_len + nonce_len != 12){
         printf("[ERR] Cryptolib - lengths of key, counter,"
                " nonce DOES NOT add up to 12.\n");
@@ -202,12 +207,17 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
     state[3] = 0x6b206574;
     
     next_ix = 4;
-    
-    for(i = key_len; i > 0; --i){
-        for(j = 0; j < 4; ++j){
-            *(((u8*)(&(state[next_ix]))) + (3 - j)) 
-             = *(((u8*)(&(key[key_len - i]))) + j);
-        }
+
+    for(i = key_len; i > 0; --i){   /* For each uint32_t part in the key. */
+        
+        aux_ptr8_state = (uint8_t*)(state + next_ix);                                
+        aux_ptr8_key   = (uint8_t*)(key + (key_len - i));  
+        
+        aux_ptr8_state[3] = aux_ptr8_key[0];
+        aux_ptr8_state[2] = aux_ptr8_key[1];
+        aux_ptr8_state[1] = aux_ptr8_key[2];
+        aux_ptr8_state[0] = aux_ptr8_key[3];
+
         ++next_ix;
     }   
             
@@ -217,10 +227,15 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
     }  
     
     for(i = nonce_len; i > 0; --i){
-        for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(state[next_ix])))+(3 - j)) 
-              = *(((uint8_t*)(&(nonce[nonce_len - i])))+j);
-        }
+
+        aux_ptr8_state = (uint8_t*)(state + next_ix);
+        aux_ptr8_nonce = (uint8_t*)(nonce + (nonce_len - i));
+
+        aux_ptr8_state[3] = aux_ptr8_nonce[0];                                     
+        aux_ptr8_state[2] = aux_ptr8_nonce[1];                                     
+        aux_ptr8_state[1] = aux_ptr8_nonce[2];                                     
+        aux_ptr8_state[0] = aux_ptr8_nonce[3]; 
+
         ++next_ix;
     }      
     
@@ -238,10 +253,13 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
     /* So each uint32_t goes:                                                */
     /* from [byte_0 byte_1 byte_2 byte_3] to [byte_3 byte_2 byte_1 byte_0]   */
     for(i = 0; i < 16; ++i){
-        for(j = 0; j < 4; ++j){
-            *(((uint8_t*)(&(serialized_result[i]))) + j) 
-              = *(((uint8_t*)(&(state[i]))) + j);
-        }     
+        aux_ptr8_state         = (uint8_t*)(state + i);
+        aux_ptr8_serial_result = (uint8_t*)(serialized_result + i);
+
+        aux_ptr8_serial_result[0] = aux_ptr8_state[0];
+        aux_ptr8_serial_result[1] = aux_ptr8_state[1];
+        aux_ptr8_serial_result[2] = aux_ptr8_state[2];
+        aux_ptr8_serial_result[3] = aux_ptr8_state[3];
     }
     return;
 }
@@ -260,6 +278,8 @@ void chacha20( uint8_t*  plaintext, uint32_t txt_len
     u32**     outputs = NULL;
     u32*      counter = NULL;
     u32       full_txt_blocks = 0;
+
+    uint8_t* aux_ptr8_outputs;
 
     u8 have_last_block = 0;
 
@@ -312,20 +332,22 @@ void chacha20( uint8_t*  plaintext, uint32_t txt_len
     }
 
     for(i = 0; i < full_txt_blocks; ++i){
+        
+        aux_ptr8_outputs = (uint8_t*)(outputs[i]);
+
         for(j = 0; j < 64; ++j){
-            cyphertext[(64 * i) + j] 
-             = plaintext[(64 * i) + j] 
-               ^ 
-               ((uint8_t*)(outputs[i]))[j];
+            cyphertext[(64 * i) + j] =
+              plaintext[(64 * i) + j] ^ aux_ptr8_outputs[j];
         }      
     }
     
     if(have_last_block){
+
+        aux_ptr8_outputs = (uint8_t*)(outputs[full_txt_blocks]);
+
         for(j = 0; j < last_txt_block_len; ++j){
-            cyphertext[(64 * full_txt_blocks) + j] 
-             = plaintext[(64 * full_txt_blocks) + j] 
-               ^ 
-               ((uint8_t*)(outputs[full_txt_blocks]))[j];
+            cyphertext[(64 * full_txt_blocks) + j] =
+              plaintext[(64 * full_txt_blocks) + j] ^ aux_ptr8_outputs[j];
         }            
     }
     
@@ -860,13 +882,23 @@ void* argon2_transform_segment(void* thread_input){
     u64 j_start;
     u64 j_end;
     u64 computed_blocks = 0;
-    u64 cur_lane = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_l  ));
-    u64 q        = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_q  ));
-    u64 sl       = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_sl ));
-    u64 r        = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_r  ));
-    u64 p        = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_p  ));
-    u64 md       = *((uint64_t*)( ((uint8_t*)thread_input) + OFFSET_md ));
-    u64 num_blocks = ceil((double)q / (double)(128 * 4));
+    
+    u64 cur_lane;
+    u64 q;
+    u64 sl;
+    u64 r;
+    u64 p;
+    u64 md;
+   
+    memcpy(&cur_lane, ((uint8_t*)thread_input) + OFFSET_l,  sizeof(cur_lane));
+    memcpy(&q,        ((uint8_t*)thread_input) + OFFSET_q,  sizeof(q));
+    memcpy(&sl,       ((uint8_t*)thread_input) + OFFSET_sl, sizeof(sl));
+    memcpy(&r,        ((uint8_t*)thread_input) + OFFSET_r,  sizeof(r));
+    memcpy(&p,        ((uint8_t*)thread_input) + OFFSET_p,  sizeof(p));
+    memcpy(&md,       ((uint8_t*)thread_input) + OFFSET_md, sizeof(md));
+
+    u64  num_blocks = ceil((double)q / (double)(128 * 4));
+
 
     /* The first thing in the thread's input buffer
      * is a pointer to an array of pointers, each pointing to the start of 
@@ -874,7 +906,9 @@ void* argon2_transform_segment(void* thread_input){
      *
      * First ever actual necessary use of a triple pointer. Wow.
      */
-    block64_t** B = *((block64_t***)(thread_input));
+    block64_t** B;
+    memcpy(&B, thread_input, sizeof(B));
+
     block64_t*  G_input_one;
     block64_t*  G_input_two;
     block64_t*  G_output;
@@ -922,15 +956,17 @@ void* argon2_transform_segment(void* thread_input){
         if( r == 0 && sl < 2 ){
           
             /* Extract J_1 and J_2. */
-            J_1 = *((u32*)(&(J1J2blockpool[0])));
+            
+            memcpy(&J_1, J1J2blockpool + 0, sizeof(uint32_t));
             
             /* Offset is in terms of BYTES now! */
-            J_2 = *((u32*)(((u8*)J1J2blockpool) + (num_blocks * 512)));   
-        }   
+            memcpy(&J_2, ((u8*)J1J2blockpool) + (num_blocks*512), sizeof(u32));
+        }
+
         /* Otherwise: get J_1, J_2 for Argon2d. */
         else{
-            J_1 = *(((u32*)(&(B[cur_lane][j-1]))) + 0);
-            J_2 = *(((u32*)(&(B[cur_lane][j-1]))) + 1);
+            memcpy(&J_1, ((u32*)(&(B[cur_lane][j-1]))) + 0, sizeof(u32));
+            memcpy(&J_2, ((u32*)(&(B[cur_lane][j-1]))) + 1, sizeof(u32));
         }
         
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
@@ -982,10 +1018,11 @@ label_further_passes:
      *         take bytes for J1 and J2 on the first argument to G(), not 
      *         the target block. Which would mean for block 0 here we take 
      *         bytes from the LAST block of that lane for J1 and J2.
+     *
      */
      if(sl == 0){
-        J_1 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][q-1]))) + 0);  
-        J_2 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][q-1]))) + 1);
+        memcpy(&J_1, ((uint32_t*)(&(B[cur_lane][q-1]))) + 0, sizeof(u32));
+        memcpy(&J_2, ((uint32_t*)(&(B[cur_lane][q-1]))) + 1, sizeof(u32));
         
         /* We're populating W[] (the set of block indices we pick from when
          * computing indices l and z) in this case from all blocks in this
@@ -1022,8 +1059,8 @@ label_further_passes:
 
     for(j = j_start; j < j_end; ++j){
 
-        J_1 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][j-1]))) + 0);  
-        J_2 = (uint64_t)*(((uint32_t*)(&(B[cur_lane][j-1]))) + 1);
+        memcpy(&J_1, ((uint32_t*)(&(B[cur_lane][j-1]))) + 0, sizeof(u32));       
+        memcpy(&J_2, ((uint32_t*)(&(B[cur_lane][j-1]))) + 1, sizeof(u32));
 
         z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
 
@@ -1042,7 +1079,7 @@ label_further_passes:
         
         /* XOR the result of G() with the old block. This is now the new block*/
         for(size_t xr = 0; xr < 128; ++xr){
-            ((u64*)G_output)[xr] ^= ((u64*)(&old_block))[xr];
+            memcpy(((u64*)G_output) + xr, ((u64*)(&old_block)) + xr , 8);
         }  
         
         ++computed_blocks;           
