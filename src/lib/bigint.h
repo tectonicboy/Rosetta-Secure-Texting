@@ -1033,12 +1033,6 @@ void bigint_div2( const bigint* const A
     
     bigint big_temps[num_temps];
     
-    printf("big_int lib: div2: info for A  (in A/B): \n");
-    bigint_print_info(A);
-
-    printf("big_int lib: div2: info for B  (in A/B): \n");
-    bigint_print_info(B);
-
     for(i = 0; i < num_temps; ++i){
         bigint_create(&(big_temps[i]), A->size_bits, 0);
     }
@@ -1054,7 +1048,6 @@ void bigint_div2( const bigint* const A
     if(bigint_compare2(A, &(big_temps[0])) == 2){
         bigint_nullify(Res);
         bigint_nullify(Rem);
-        printf("div2: ret early. Nullified both Res and Rem.\n");
         goto label_cleanup;
     }
     
@@ -1062,7 +1055,6 @@ void bigint_div2( const bigint* const A
     if(bigint_compare2(A, B) == 3){
         bigint_nullify(Res);
         bigint_equate2(Rem, A);
-        printf("div2: ret early. Nullified result, equated remainder to A.");
         goto label_cleanup;
     }
 
