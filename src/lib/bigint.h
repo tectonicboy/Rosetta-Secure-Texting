@@ -34,7 +34,7 @@ typedef struct bigint{
 } bigint;
 
 /* First constructor - from a u32. */
-void bigint_create (bigint* const num, const u32 bitsize, const u32 initial){
+void bigint_create(bigint* const num, const u32 bitsize, const u32 initial){
 
     if( (bitsize % 8) || (bitsize < 64) || (bitsize > MAX_BITS) ){
         printf("[ERR] Bigint: Invalid bitsize of new BigInt. (from uint32)\n");
@@ -46,7 +46,7 @@ void bigint_create (bigint* const num, const u32 bitsize, const u32 initial){
     num->used_bits = 0;    
     
     for(u32 i = 0; i < 32; ++i){ /* most significant bit of u32 set. */
-        if ( (initial << i) & (unsigned int)0x80000000 ){ 
+        if ( (initial << i) & (uint32_t)0x80000000 ){ 
             num->used_bits = 32 - i;  
             break;  
         }    
@@ -60,69 +60,6 @@ void bigint_create (bigint* const num, const u32 bitsize, const u32 initial){
              (*helper_ptr) |= 1 << i;
         }
     }    
-}
-
-/* Second constructor - from a binary string. Little-endian assumed. */
-void bigint_create_from_string(bigint* const     num
-                              ,const u32         bitsize
-                              ,const char* const initial
-                              ,const u32         strlen)
-{
-    u32 bitcounter = 0;
-    u32 last_byte_ix;
-    const u32 i_looper = strlen / 8;
-            
-    u8 breakflag = 0;
-
-    if( 
-        (bitsize % 8) || (bitsize < 64) || (bitsize > MAX_BITS) 
-                      || (strlen % 8    || strlen < 64)
-      )
-    {
-        printf("[ERR] Bigint: Invalid bitlength of new BigInt (from string)\n");
-        return;
-    }
-
-    if(bitsize < strlen){
-        printf("[ERR] Bigint: Initializer bit string is too long.\n");
-        return;
-    }
-    
-    num->size_bits = bitsize;
-    num->bits = (u8*)calloc(1, bitsize / 8);    
-    
-    for(int32_t i = (strlen / 8) - 1; i >= 0; --i){
-        for(u32 j = 0; j < 8; ++j){
-            if(initial[(i*8) + j] == '1'){
-                breakflag = 1;
-                break;
-            }
-            ++bitcounter;
-        }
-        if(breakflag){
-            break;
-        }
-    } 
-    
-    num->used_bits = strlen - bitcounter;
-    
-    last_byte_ix = strlen - 8;
-    
-    while(initial[last_byte_ix] == '0'){
-        ++last_byte_ix;
-    }
-           
-    for(u32 i = 0; i < i_looper; ++i){
-        for(u32 j = 0; j < 8; ++j){
-            if ( initial[ (i*8) + j] == '1' ){ 
-                *(num->bits + i) |= 1 << (7 - j);  
-            }     
-        }
-    }   
-    
-    num->free_bits = (bitsize - num->used_bits);
-    
-    return;
 }
 
 void bigint_remake(bigint* const num, const u32 bitsize, const u32 initial){
@@ -414,9 +351,9 @@ void bigint_nullify(bigint* const num){
 }
 
 /* Bitwise XOR operation of two BigInts n1 and n2. */
-void bigint_xor2 ( const bigint* const n1
-                  ,const bigint* const n2 
-                  ,bigint* const res)
+void bigint_xor2( const bigint* const n1
+                 ,const bigint* const n2 
+                 ,bigint* const res)
 {
     u32 smaller;
     
@@ -639,17 +576,22 @@ void bigint_add_fast( const bigint* const n1
     u64 temp_res = 0;
     u64 last_bits_bigger;
     
-    u8* more_bits = NULL;
+    u32* more_bits = NULL;
+
+    uint32_t* aux_ptr_n1bits = (uint32_t*)(n1->bits);                          
+    uint32_t* aux_ptr_n2bits = (uint32_t*)(n2->bits);                          
+    uint32_t* aux_ptr_Rbits  = (uint32_t*)(R->bits); 
 
     bigint_nullify(R);
     
     if( n1->used_bits < n2->used_bits ){ 
-        A = n2->used_bits; more_bits = n2->bits;
+        A = n2->used_bits;
+        more_bits = (uint32_t*)(n2->bits);
     }
 
     else{ 
         A = n1->used_bits;
-        more_bits = n1->bits;
+        more_bits = (uint32_t*)(n1->bits);
     }
     
     if(!n1->used_bits){
@@ -674,9 +616,9 @@ void bigint_add_fast( const bigint* const n1
     while(i < (A-1)){
     
         temp_res = 
-            (u64)*( ((u32*)(n1->bits)) + i)
+            ( (u64)(aux_ptr_n1bits[i]) )
             +
-            (u64)*( ((u32*)(n2->bits)) + i)
+            ( (u64)(aux_ptr_n2bits[i]) )
             +
             carry;
             ;
@@ -687,26 +629,26 @@ void bigint_add_fast( const bigint* const n1
             carry = 1;
         }
            
-        *( ((u32*)(R->bits)) + i) = (u32)temp_res;
+        aux_ptr_Rbits[i] = (u32)temp_res;
         
         ++i;
     }
     
     /* ---------------------------------------------------------------------- */
 
-    temp_res = 
-            (u64)*( ((u32*)(n1->bits)) + i)
-            +
-            (u64)*( ((u32*)(n2->bits)) + i)
-            +
-            carry;
-            ;
-                
-    *( ((u32*)(R->bits)) + i) = (u32)temp_res;
+    temp_res =                                                               
+        ( (u64)(aux_ptr_n1bits[i]) ) 
+        +
+        ( (u64)(aux_ptr_n2bits[i]) )
+        +                                                                    
+        carry;                                                               
+        ;                    
+ 
+    aux_ptr_Rbits[i] = (u32)temp_res;
 
     last_bits_bigger = 31;
-
-    while(!((*( ((u32*)(more_bits)) + (u32)i)) & ((u32)1 << last_bits_bigger))){
+    
+    while( ! ( more_bits[i] & ( ((u32)1) << last_bits_bigger) ) ){
         --last_bits_bigger;
     }
  
@@ -718,7 +660,7 @@ void bigint_add_fast( const bigint* const n1
              *  addition because it was in the 33rd bit.
              */
             if(last_bits_bigger == 31){
-                *(R->bits + ((i+1) * 4) ) |= (u8)1;
+                R->bits[((i+1) * 4)] |= 1;
             }
     }
 
@@ -753,6 +695,11 @@ void bigint_mul_fast( const bigint* const n1
     u64 i;
     u64 j;
     u64 bit_to_check;
+
+    uint32_t* aux_ptr_tempres = (uint32_t*)(&temp_res);
+    uint32_t* aux_ptr_n1bits  = (uint32_t*)(n1->bits);
+    uint32_t* aux_ptr_n2bits  = (uint32_t*)(n2->bits);
+    uint32_t* aux_ptr_Rbits   = (uint32_t)(R->bits);
 
     bigint_nullify(R);
    
@@ -798,32 +745,44 @@ void bigint_mul_fast( const bigint* const n1
 
         for(j = 0; j < AA; ++j){
             temp_res = 
-                     (u64)(((u32*)R->bits)[i + j]) 
+                     ( (u64)(aux_ptr_Rbits[i+j]) )
                      +
                      C
                      +
                      (
-                        ((u64)(((u32*)n1->bits)[j]) ) 
+                        ( (u64)(aux_ptr_n1bits[j]) ) 
                         * 
-                        ((u64)(((u32*)n2->bits)[i]) )
+                        ( (u64)(aux_ptr_n2bits[i]) )
                      )
                      ;  
      
+            /* 1st oldest version - gives warnings. Prefer 2nd version. */
+            
             //((u32*)R->bits)[i+j] = *((u32*)(&temp_res));
+            
+            /* Third version, not with memcpy anymore, with proper pointers. */
+            /* EXPERIMENTAL NEW -- Might not work. Check it. */            
+
+            aux_ptr_Rbits[i+j] = *aux_ptr_tempres;
             
             /* Go (i+j) 32-bit places into R->bits. Place there temp_res. 
              * Replaces the commented line above to fix a GCC warning about
              * type-punned pointers being disallowed from being dereferenced. 
+             *
+             * <2nd version - OLD, working, no warnings. May need to bring back>
              */
+
+            /*
             memcpy( ((void*)(&(((u32*)R->bits)[i + j])))
                    ,((void*)(&temp_res))
                    ,sizeof(u32)
                   );
-            
-            C = (u64)*( ((u32*)(&temp_res)) + 1);
+            */
+
+            C = (u64)(aux_ptr_tempres[1])
         } 
 
-        ((u32*)R->bits)[i + 1 + (AA - 1)] = *(((u32*)(&temp_res)) + 1);
+        aux_ptr_Rbits[i + 1 + (AA - 1)] = aux_ptr_tempres[1];
     }
 
     R->used_bits = n1->used_bits + n2->used_bits;
@@ -1139,77 +1098,65 @@ void bigint_div2( const bigint* const A
 
     bigint_mul_fast(&(big_temps[11]), &(big_temps[2]), &(big_temps[12]));
     
+    /**** ============= HELPER POINTER DECLARATIONS START =================== */
+
+    /* IMPORTANT NOTE: The algorithm REMAKES big_temps [17] and [9].
+     *                 This means a new bits pointer returned by calloc
+     *                 in the bigint_create() in REMAKE. So, if they exist,
+     *                 update any auxilliary different-type pointers to
+     *                 to their bits buffer (equalling .bits ptr struct field)!
+     */
+
+    uint16_t* aux_ptr16_temp3bits = (uint16_t*)(big_temps[3].bits);
+    uint16_t* aux_ptr16_temp0bits = (uint16_t*)(big_temps[0].bits);
+    uint16_t* aux_ptr16_temp2bits = (uint16_t*)(big_temps[2].bits);
+
+    /**** ============= HELPER POINTER DECLARATIONS END   =================== */
+
     /* Part 2 */
     while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 3){
-        ++(*( ((u16*)(big_temps[3].bits)) + (n-t) ));
+        aux_ptr16_temp3bits[n-t] += 1;
         bigint_equate2(&(big_temps[1]), &(big_temps[0]));
         bigint_sub2(&(big_temps[1]), &(big_temps[12]), &(big_temps[0]));
     }
     
     /* Part 3 */
     for(i = n; i >= (t+1); --i){
-        if(   *( ((u16*)(big_temps[0].bits)) + i ) 
-           == *( ((u16*)(big_temps[2].bits)) + t )            
-        )
+         
+        if(aux_ptr16_temp0bits[i] == aux_ptr_temp2bits[t]) 
         {
-            /* q_(i-t-1) a limb, also stored as a bigint in big_temps[17]. */
-            *( ((u16*)(big_temps[3].bits)) + (i-t-1) ) = (u16)(b - 1);     
+            /* q_(i-t-1) a limb, also stored as a bigint in big_temps[17]. */ 
+            aux_ptr16_temp3bits[i-t-1] = (uint16_t)(b - 1);
+            
             bigint_remake(&(big_temps[17]), A->size_bits, (u32)(b - 1));
         }
         else{
-            *( ((u16*)(big_temps[3].bits)) + (i-t-1) ) = (u16)floor(
-                ( 
-                  (
-                     ((u64)(*( ((u16*)(big_temps[0].bits)) + i ))) 
-                     *
-                     b
+             aux_ptr16_temp3bits[i-t-1] = 
+              (u16)floor(
+                  ( (((u64)(aux_ptr16_temp0bits[i])) * b )
+                    + (u64)(aux_ptr16_temp0bits[i-1]) 
                   )
-                  + 
-                  ((u64)(*( ((u16*)(big_temps[0].bits)) + (i-1) )))
-                )
-                / 
-                ((u64)(*( ((u16*)(big_temps[2].bits)) + t )))
-            );
+                  / ( (u64)(aux_ptr16_temp2bits[t]) )
+              );
         }
         
         while(
-              (
-                ( 
-                  (
-                     ((u64)(*( ((u16*)(big_temps[2].bits)) + t ))) 
-                     *
-                     b
-                  )
-                  + 
-                  ((u64)(*( ((u16*)(big_temps[2].bits)) + (t-1) )))
-                )
-                * 
-                ((u64)(*( ((u16*)(big_temps[3].bits)) + (i-t-1) )))
+              (  ( (((u64)(aux_ptr16_temp2bits[t])) * b )
+                   + (u64)(aux_ptr16_temp2bits[t-1])
+                 )
+                 * ( (u64)(aux_ptr16_temp3bits[i-t-1]) ) 
               )
-              
-                >
-                
-              (
-                ( 
-                   ((u64)(*( ((u16*)(big_temps[0].bits)) + i ))) 
-                   *
-                   b_squared
-                )
-                + 
-                (
-                   ((u64)(*( ((u16*)(big_temps[0].bits)) + (i-1) ))) 
-                   *
-                   b
-                )
-                +
-                ((u64)(*( ((u16*)(big_temps[0].bits)) + (i-2) )))
-              )          
+              > 
+              ( ( ((u64)(aux_ptr16_temp0bits[i])) * b_squared )
+                  + ( ((u64)(aux_ptr16_temp0bits[i-1]))  * b) 
+                  + (  (u64)(aux_ptr16_temp0bits[i-2]))
+              )
         )
         {
-            --(*( ((u16*)(big_temps[3].bits)) + (i-t-1) ));
+           aux_ptr16_temp3bits[i-t-1] -= 1;
         }
         
-        /* IMPORTANT: Update X's bits before this, as its limbs were altered. xx
+        /* IMPORTANT: Update X's bits before this, as its limbs were altered.
          * 
          * if( x < q_(i-t-1) * y * b^(i-t-1 ) ) THEN {q_(i-t-1) -= 1;}
          * 
@@ -1233,22 +1180,22 @@ void bigint_div2( const bigint* const A
         
         bigint_remake(&(big_temps[17])
                      ,A->size_bits
-                     ,((u32)(*( ((u16*)(big_temps[3].bits))+(i-t-1))))
+                     ,(u32)(aux_ptr16_temp3bits[i-t-1])
                      );
                      
         bigint_mul_fast(&(big_temps[16]), &(big_temps[17]), &(big_temps[18]));
         
         if(bigint_compare2(&(big_temps[0]), &(big_temps[18])) == 3){
         
-            --(*( ((u16*)(big_temps[3].bits)) + (i-t-1) ));
+            aux_ptr16_temp3bits[i-t-1] -= 1;
+           
+            bigint_remake(&(big_temps[17])
+                         ,A->size_bits
+                         ,(u32)(aux_ptr16_temp3bits[i-t-1])
+                         );
             
-            bigint_remake(
-                    &(big_temps[17])
-                ,A->size_bits
-                ,((u32)(*( ((u16*)(big_temps[3].bits))+(i-t-1))))
-            );
-            
-            bigint_mul_fast(&(big_temps[16]),&(big_temps[17]),&(big_temps[18]));
+            bigint_mul_fast
+               (&(big_temps[16]), &(big_temps[17]), &(big_temps[18]));
         }
         
         bigint_equate2(&(big_temps[1]), &(big_temps[0]));
@@ -1623,11 +1570,3 @@ label_ret:
     
     return ret;
  }
-
-
-
-
-                  
-
-
-
