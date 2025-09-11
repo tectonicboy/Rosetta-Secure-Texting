@@ -1257,7 +1257,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     thread_inputs = (void**)calloc(1, parms->p * sizeof(void*));
     
     for(uint32_t i = 0; i < parms->p; ++i){
-        thread_inputs[i] = calloc(1, sizeof(block64_t*) + (8 * sizeof(uint64_t)));
+        thread_inputs[i] = calloc(1, sizeof(block64_t*) + (8*sizeof(uint64_t)));
     }
     
 label_start_pass:
@@ -1291,45 +1291,82 @@ label_start_pass:
              
              
             /* Populate this thread's input buffer before starting it. */
-            
+
+            /* Offset in bytes into the thread's input buffer. */ 
+            thread_in_offset = 0;
+
             /* First is a pointer to the start of the memory matrix B[][]. */
-            *((block64_t***)(((u8*)(thread_inputs[i])) + 0)) = B;
-            
-            /* Offset in bytes into the thread's input buffer. */
-            thread_in_offset = sizeof(block64_t*);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset
+                   ,&B
+                   ,sizeof(block64_t**)
+                  );
+
+            thread_in_offset += sizeof(block64_t**);
            
-            
             /* Second is r, the current pass number. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = r;   
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&r
+                   ,sizeof(r)                                          
+                  );            
+
+            thread_in_offset += sizeof(r);
             
             /* Third is l, the current lane number. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = i;
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&i                                                           
+                   ,sizeof(i)                                                    
+                  );            
+
+            thread_in_offset += sizeof(i);
             
             /* Fourth is sl, the current slice number. */ 
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = sl;
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&sl                                                           
+                   ,sizeof(sl)                                                    
+                  );
+
+            thread_in_offset += sizeof(sl);
             
             /* Now m', the total number of 1024-byte blocks in the matrix. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = m_dash;   
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&m_dash                                                           
+                   ,sizeof(m_dash)                                                    
+                  );
+
+            thread_in_offset += sizeof(m_dash);
             
             /* Sixth is t, the total number of passes. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = parms->t;
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&(parms->t)                                                           
+                   ,sizeof(parms->t)                                                    
+                  );
+
+            thread_in_offset += sizeof(parms->t);
             
             /* Seventh is y, the Argon2 type. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = parms->y;
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&(parms->y)                                                           
+                   ,sizeof(parms->y)                                                    
+                  );
+
+            thread_in_offset += sizeof(parms->y);
             
             /* Eighth is p, the total number of threads Argon2 should use. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = parms->p;
-            thread_in_offset += sizeof(u64);
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&(parms->p)                                                           
+                   ,sizeof(parms->p)                                                    
+                  );
+
+            thread_in_offset += sizeof(parms->p);
             
             /* Ninth is q, the total number of 1024-byte blocks in 1 row. */
-            *((u64*)(((u8*)(thread_inputs[i])) + thread_in_offset)) = q;
-            thread_in_offset += sizeof(u64);
+            /* AKA the total number of columns in the entire matrix.      */
+            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 
+                   ,&q                                                           
+                   ,sizeof(q)                                                    
+                  );
+
+            thread_in_offset += sizeof(q);
             
             /* Now that the input buffer for this thread is ready, start it. */
             pthread_create(
@@ -1403,10 +1440,13 @@ label_start_pass:
             printf("%02x ", (uint8_t)final_block_C[i]);
         }
         printf("\n\n");  
-        */
-           
+     */
+        
+        uint64_t* aux_ptr64_finalblock = (uint64_t*)final_block_C;
+        uint64_t* aux_ptr64_lastcolblk = (uint64_t*)(&(B[ln][q-1]));
+
         for(size_t xr = 0; xr < 128; ++xr){
-           ((uint64_t*)(final_block_C))[xr] ^= ((uint64_t*)(&(B[ln][q-1])))[xr];  
+           aux_ptr64_finalblock[xr] ^= aux_ptr64_lastcolblk[xr];           
         }        
     }
        
@@ -1488,13 +1528,19 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
     
     for(uint64_t i = 0; i < MONT_L; ++i){
 
+        uint64_t mulx_arg1;
+        uint64_t mulx_arg2;
+        uint64_t addcarryx_arg3; 
+
+        memcpy(&mulx_arg1, (Y->bits + (i * MONT_LIMB_SIZ)), sizeof(mulx_arg1));
+        memcpy(&mulx_arg2, X->bits, sizeof(mulx_arg2));
+     
         /* 2. */
-        Ul = _mulx_u64(  *((u64*)(Y->bits + (i * MONT_LIMB_SIZ)))
-                        ,*((u64*)(X->bits))
-                        ,&Uh
-                      );
-                      
-        C = _addcarryx_u64((u8)0, Ul, *((u64*)R->bits), &Ul);
+        Ul = _mulx_u64(mulx_arg1, mulx_arg2, &Uh);
+     
+        memcpy(&addcarryx_arg3, R->bits, sizeof(addcarryx_arg3));
+                 
+        C = _addcarryx_u64((u8)0, Ul, addcarryx_arg3, &Ul);
         
         Uh += (u64)C;
 
@@ -1505,8 +1551,12 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         /* 3. */
         q = _mulx_u64((u64)MONT_MU, *(T + 0), &Uh);
         
+        /* Prepare arg 2 to mulx() in 3.5 without deref type-punned pointers. */
+     
+        memcpy(&mulx_arg2, N->bits + (0 * MONT_LIMB_SIZ), sizeof(mulx_arg2));
+
         /* 3.5:  T += q*n0. */
-        Vl = _mulx_u64(q, *((u64*)(N->bits + (0*MONT_LIMB_SIZ))), &Vh);
+        Vl = _mulx_u64(q, mulx_arg2, &Vh);
         
         C = _addcarryx_u64( (u8)0, *(T + 0), Vl, (T + 0) );
         
@@ -1517,20 +1567,23 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         /* 4. */
         for(u64 j = 1; j < MONT_L; ++j){
 
+            memcpy(&mulx_arg2, N->bits + (j* MONT_LIMB_SIZ), sizeof(mulx_arg2));
+
             /* Compute T limb by limb. */
-            Ul = _mulx_u64(q, *((u64*)(N->bits + (j*MONT_LIMB_SIZ))), &Uh);
+            Ul = _mulx_u64(q, mulx_arg2, &Uh);
             
             
-            Vl = _mulx_u64( *((u64*)(Y->bits + (i * MONT_LIMB_SIZ)))
-                           ,*((u64*)(X->bits + (j * MONT_LIMB_SIZ)))
-                           ,&Vh
-                          );
+            memcpy(&mulx_arg1, Y->bits + (i* MONT_LIMB_SIZ), sizeof(mulx_arg1));
+            memcpy(&mulx_arg2, X->bits + (j* MONT_LIMB_SIZ), sizeof(mulx_arg2));
+
+            Vl = _mulx_u64(mulx_arg1, mulx_arg2, &Vh);
                           
-            C = _addcarryx_u64((u8)0
-                              ,Ul
-                              ,*((u64*)(R->bits + (j * MONT_LIMB_SIZ)))
-                              ,&Ul
-                              );              
+            memcpy( &addcarryx_arg3
+                   ,R->bits + (j * MONT_LIMB_SIZ)
+                   ,sizeof(addcarryx_arg3)
+                  );
+
+            C = _addcarryx_u64((u8)0, Ul, addcarryx_arg3, &Ul);              
                           
             Uh += (u64)C;              
                           
@@ -1545,13 +1598,16 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
             *(T + 2) = (u64)C + (u64)D;
                       
             /* Set r_(j-1) = t_0  */
-            *((u64*)(R->bits + ((j-1) * MONT_LIMB_SIZ))) = *(T + 0);
+            memcpy((R->bits + ((j-1) * MONT_LIMB_SIZ)), T, sizeof(uint64_t));
         }
 
+        memcpy(&addcarryx_arg3, R->bits +(MONT_L * MONT_LIMB_SIZ), sizeof(u64));
+
         /* 5. */        
-        C = _addcarryx_u64( (u8)0
+        C = _addcarryx_u64( 
+                    (u8)0
                    ,*(T + 1)
-                   ,*((u64*)(R->bits+(MONT_L * MONT_LIMB_SIZ)))
+                   ,addcarryx_arg3
                    , (T + 0)
                   );
        
@@ -1559,8 +1615,8 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         *(T + 2) = 0;
         
         /* 6. */ 
-        *((u64*)(R->bits+((MONT_L - 1) * MONT_LIMB_SIZ))) = *(T + 0);
-        *((u64*)(R->bits+( MONT_L      * MONT_LIMB_SIZ))) = *(T + 1);    
+        memcpy((R->bits+((MONT_L - 1) * MONT_LIMB_SIZ)), T + 0, sizeof(u64));
+        memcpy((R->bits+((MONT_L - 0) * MONT_LIMB_SIZ)), T + 1, sizeof(u64));
     }
 
     memset((u8*)T, 0, 3 * MONT_LIMB_SIZ);
@@ -1570,7 +1626,10 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
     
     R->free_bits = R->size_bits - R->used_bits;
     
-    if ( *((u64*)(R->bits + (MONT_L * MONT_LIMB_SIZ))) != 0){ 
+    uint64_t temp_limb;
+    memcpy(&temp_limb, (R->bits + (MONT_L * MONT_LIMB_SIZ)), sizeof(u64));
+
+    if ( temp_limb != 0){ 
         bigint_equate2(&R_aux, R);        
         bigint_sub2(&R_aux, N, R);
     }
@@ -1606,6 +1665,7 @@ void get_mont_form(bigint* src, bigint* target, bigint* M){
     bigint_create(&beta,      M->size_bits, 0 );
     bigint_create(&aux,       M->size_bits, 0 );
     bigint_create(&two_L,     M->size_bits, 2 * MONT_L );
+    
     bigint_nullify(target);
 
     /* beta = 2^64 for 64-bit Montgomery limbs. */
