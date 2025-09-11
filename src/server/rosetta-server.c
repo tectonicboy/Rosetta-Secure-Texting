@@ -316,6 +316,7 @@ void remove_user_from_room(u64 sender_ix){
 
     u8* reply_buf;
     u64 reply_len;
+    u64 tmp_packet_id;
     u64 saved_room_ix = clients[sender_ix].room_ix;
 
     /* If it's not the owner, just tell the others that the person has left. */
@@ -325,8 +326,9 @@ void remove_user_from_room(u64 sender_ix){
         reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
-        *((u64*)(reply_buf)) = PACKET_ID_50;
-                
+        tmp_packet_id = PACKET_ID_50;
+        memcpy(reply_buf, &tmp_packet_id, sizeof(u64));
+        
         memcpy( reply_buf + SMALL_FIELD_LEN
                ,clients[sender_ix].user_id
                ,SMALL_FIELD_LEN
@@ -371,7 +373,8 @@ void remove_user_from_room(u64 sender_ix){
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
-        *((u64*)(reply_buf)) = PACKET_ID_51;
+        tmp_packet_id = PACKET_ID_51;
+        memcpy(reply_buf, &tmp_packet_id, sizeof(u64));
         
         /* Compute a signature so the clients can authenticate the server. */
         signature_generate( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
