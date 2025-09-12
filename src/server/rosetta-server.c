@@ -522,6 +522,8 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
     u64 found_user_ix;
     u64 text_msg_len;
 
+    u64* aux_ptr64_clientmsgbuf = client_msg_buf;
+
     s64 expected_siz = 0;
 
     u32 status = 0;
@@ -626,8 +628,17 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
          *                 where N = (number of people in sender's room) - 1
          */
          
-        found_user_ix = *((u64*)(client_msg_buf + SMALL_FIELD_LEN));
-        text_msg_len  = *((u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN)));
+        memcpy( &found_user_ix
+               ,client_msg_buf + SMALL_FIELD_LEN
+               ,sizeof(found_user_ix)
+              );
+        
+        memcpy( &text_msg_len
+               ,client_msg_buf + (2 * SMALL_FIELD_LEN)
+               ,sizeof(text_msg_len)
+              );
+
+        aux_ptr64_clientmsgbuf = (u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN));
 
         expected_siz =   (3 * SMALL_FIELD_LEN)
                        + ( 
@@ -635,7 +646,7 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
                           *
                           (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_msg_len)
                          ) 
-                       + *((u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN)))
+                       + *aux_ptr64_clientmsgbuf
                        + SIGNATURE_LEN;
                     
         if(bytes_read != expected_siz){
