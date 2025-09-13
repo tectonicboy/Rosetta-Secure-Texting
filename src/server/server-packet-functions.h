@@ -46,7 +46,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
         free(reply_buf);
         reply_buf = calloc(1, reply_len);
     
-        *((u64*)(reply_buf)) = PACKET_ID_02;
+        memcpy(reply_buf, &PACKET_ID02, SMALL_FIELD_LEN);
         
         signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
                             ,reply_buf + SMALL_FIELD_LEN
@@ -254,7 +254,9 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
 */  
     replybuf_byte_offset = 0;
      
-    *((u64*)(reply_buf + replybuf_byte_offset)) = PACKET_ID_00;
+    uint64_t PACKET_ID00 = PACKET_ID_00;
+
+    memcpy(reply_buf, &PACKET_ID00, SMALL_FIELD_LEN);
     
     replybuf_byte_offset += SMALL_FIELD_LEN;
 
@@ -575,9 +577,14 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     
     printf("Resulted in this real client's public key:\n");
 
-    /* Increment the Nonce to not reuse it when encrypting the user's index. */        
-    ++(*((u64*)(temp_handshake_buf + handshake_buf_nonce_offset)));  
-         
+    /* Increment the Nonce to not reuse it when encrypting the user's index. */
+    
+    uint64_t* aux_ptr64_tempbuf =
+                       (u64*)(temp_handshake_buf + handshake_buf_nonce_offset);
+
+    ++(*aux_ptr64_tempbuf);
+        
+     
     /* Now we have the decrypted client's long-term public key. */
      
     /* If a message arrived to permit a newly arrived user to use Rosetta, but
@@ -591,8 +598,9 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
     
-        *((u64*)(reply_buf)) = PACKET_ID_02;
-        
+        uint64_t packet_id02 = PACKET_ID_02;
+        memcpy(reply_buf, &packet_id02, SMALL_FIELD_LEN);
+ 
         signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
                             ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
@@ -632,9 +640,10 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     /* Try using a chacha counter even with less than 64 bytes of input. */
     reply_len  = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
-    
-    *((u64*)(reply_buf)) = PACKET_ID_01;
-    
+     
+    uint64_t packet_id01 = PACKET_ID_01;
+    memcpy(reply_buf, &packet_id01, SMALL_FIELD_LEN);
+
     handshake_buf_key_offset  = (3 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);
     
     chacha20((u8*)(&next_free_user_ix)
@@ -851,7 +860,9 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     memset(send_K,           0, ONE_TIME_KEY_LEN);
     memset(room_user_ID_buf, 0, 2 * SMALL_FIELD_LEN);
 
-    user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+    uint64_t* aux_ptr64_msgbuf = (u64*)(msg_buf + SMALL_FIELD_LEN);
+   
+    user_ix = *aux_ptr64_msgbuf;
 
     /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
      * - Turn it into a temporary BigInt
@@ -983,7 +994,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
 
-        *((u64*)(reply_buf)) = PACKET_ID11;
+        memcpy(reply_buf, &PACKET_ID11, SMALL_FIELD_LEN);
 
         signature_generate( M, Q, Gm, (u8*)(&PACKET_ID11), SMALL_FIELD_LEN
                            ,reply_buf + SMALL_FIELD_LEN
@@ -1011,7 +1022,7 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     reply_len  = SMALL_FIELD_LEN + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
            
-    *((u64*)(reply_buf)) = PACKET_ID10;
+    memcpy(reply_buf, &PACKET_ID10, SMALL_FIELD_LEN);
     
     signature_generate( M, Q, Gm, (u8*)(&PACKET_ID10), SMALL_FIELD_LEN
                        ,(reply_buf + SMALL_FIELD_LEN)
@@ -1020,8 +1031,8 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     
     /* Server bookkeeping - populate this room's slot, find next free slot. */
     rooms[next_free_room_ix].num_people = 1;
-    rooms[next_free_room_ix].owner_ix = user_ix;
-    rooms[next_free_room_ix].room_id = *((u64*)room_user_ID_buf);
+    rooms[next_free_room_ix].owner_ix = user_ix; 
+    memcpy(&(rooms[next_free_room_ix].room_id), room_user_ID_buf, sizeof(u64));
     
     clients[user_ix].room_ix = next_free_room_ix;
     
@@ -1118,7 +1129,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     bigint one;
     bigint aux1;
         
-    user_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+    memcpy(&user_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     /* Early initializations and heap allocations. */
 
@@ -1250,8 +1261,10 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     /* Now that we have room_id, check that it really exists. */
     room_found = 0;
     
+    uint64_t cur_room_id = 0;
+    memcpy(&cur_room_id, room_user_ID_buf, SMALL_FIELD_LEN);
     for(u64 i = 0; i < MAX_CHATROOMS; ++i){
-        if(rooms[i].room_id == *((u64*)(room_user_ID_buf)) ){
+        if(rooms[i].room_id == cur_room_id ){
             room_found = 1;
             room_ix = i;
             break;
@@ -1306,7 +1319,9 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
                   
     reply_buf = calloc(1, reply_len);
            
-    *((u64*)(reply_buf)) = PACKET_ID_20;
+    uint64_t packet_id20 = PACKET_ID_20;
+    memcpy(reply_buf, &packet_id20, SMALL_FIELD_LEN);    
+
     
     /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
      * KBA as chacha key and the server-client-maintained incremented Nonce from
@@ -1355,10 +1370,13 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter); 
-    
-    *((u64*)(reply_buf + (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN))) 
-     = num_users_in_room; 
-    
+   
+     
+    memcpy( reply_buf + (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
+           ,&num_users_in_room
+           ,SMALL_FIELD_LEN
+          );
+
     buf_ixs_pubkeys = calloc(1, buf_ixs_pubkeys_len);
     
     /* Iterate over all users in this chatroom, to grab their public keys. */
@@ -1474,7 +1492,8 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         memset(buf_type_21, 0, buf_type_21_len);
        
         /* Place the network packet identifier 21 constant. */
-        *((u64*)(buf_type_21)) = PACKET_ID_21;
+        uint64_t packet_id21 = PACKET_ID_21;
+        memcpy(buf_type_21, &packet_id21, SMALL_FIELD_LEN);
         
         /* Draw the random one-time use 32-byte key K. */
         ret_val = fread(send_K, 1, ONE_TIME_KEY_LEN, ran_file);
@@ -1750,7 +1769,9 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
     u64 reply_write_offset = 0;
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len = sign_offset;
-    u64 poller_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+    u64 poller_ix;
+    
+    memcpy(&poller_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     printf("[DEBUG] Server: poller_ix in process_msg_40: %lu\n\n", poller_ix);
     
@@ -1771,7 +1792,8 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
         
-        *((u64*)(reply_buf)) = PACKET_ID_40;
+        uint64_t packet_id40 = PACKET_ID_40;
+        memcpy(reply_buf, &packet_id40, SMALL_FIELD_LEN);
         
         /* Compute a cryptographic signature so the client can authenticate us*/
         signature_generate
@@ -1818,18 +1840,24 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         } 
          
         reply_buf = calloc(1, reply_len);
-                
-        *((u64*)(reply_buf)) = PACKET_ID_41;
-        *((u64*)(reply_buf + SMALL_FIELD_LEN)) = 
-                                            clients[poller_ix].num_pending_msgs;
+        
+        uint64_t* aux_ptr64_replybuf = (u64*)reply_buf;
+        
+        *aux_ptr64_replybuf = PACKET_ID_41;
+        
+        aux_ptr64_replybuf  = (u64*)(reply_buf + SMALL_FIELD_LEN);
+
+        *aux_ptr64_replybuf = clients[poller_ix].num_pending_msgs;
         
         /* Iterate over this client's array of pending transmissions, as well */
         /* as their array of lengths to transport them to the reply buffer.   */
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
             
-            *((u64*)(reply_buf + reply_write_offset)) 
-             = clients[poller_ix].pending_msg_sizes[i];
-                             
+            memcpy( reply_buf + reply_write_offset
+                   ,(clients[poller_ix].pending_msg_sizes) + i
+                   ,SMALL_FIELD_LEN
+                  );         
+  
             reply_write_offset += SMALL_FIELD_LEN;
                    
             memcpy( reply_buf + reply_write_offset
@@ -1894,7 +1922,9 @@ void process_msg_50(u8* msg_buf){
     
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len = sign_offset;
-    u64 sender_ix = *((u64*)(msg_buf + SMALL_FIELD_LEN));
+    u64 sender_ix;
+    
+    memcpy(&sender_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
@@ -1915,8 +1945,10 @@ void process_msg_60(u8* msg_buf){
   
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len  = sign_offset;
-    u64 sender_ix   = *((u64*)(msg_buf + SMALL_FIELD_LEN));
-    
+    u64 sender_ix;
+
+    memcpy(&sender_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+ 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");

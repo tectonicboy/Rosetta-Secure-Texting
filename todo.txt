@@ -1,5 +1,11 @@
 1. Get rid of dereferencing type-punned pointers, it's undefined behaviour.
 
+SO FAR: Removed all such code from bigint.h, cryptolib.h, server.c and
+        server-packet-functions.h
+
+        Now doing client-packet-functions.h
+
+
 2. Fix argon2 implementation to work for further passes too.
 
 3. Rewrite lost code for finding new diffie-hellman ~ 3072-bit primes.
@@ -19,3 +25,6 @@
 ?. Make cryptography algorithms constant-time to avoid side channel attacks.
 
 ?. Write a full fledged documentation + description for Rosetta.
+
+?. Come up with a better unique packet ID numbering. Currently the same packet
+   ID exists in server and in client. BAD!
