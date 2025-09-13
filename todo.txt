@@ -26,5 +26,8 @@ SO FAR: Removed all such code from bigint.h, cryptolib.h, server.c and
 
 ?. Write a full fledged documentation + description for Rosetta.
 
+?. Specify exactly what global/local state bookkeeping is needed by each
+   function (especially packet processing) in Server and Client.
+
 ?. Come up with a better unique packet ID numbering. Currently the same packet
    ID exists in server and in client. BAD!
