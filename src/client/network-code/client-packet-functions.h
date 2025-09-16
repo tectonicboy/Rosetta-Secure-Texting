@@ -237,9 +237,8 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
 
     /* Construct and send the MSG buffer to the TCP server. */
 
-    *((u64*)(*msg_buf)) = PACKET_ID_00;
     u64 packet_id00 = PACKET_ID_00;
-    memcpy(msg_buf, &packet_id00, SMALL_FIELD_LEN);
+    memcpy(*msg_buf, &packet_id00, SMALL_FIELD_LEN);
 
     memcpy((*msg_buf) + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
@@ -432,7 +431,9 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
 
     /* Ready to start constructing the reply buffer to the server. */
 
-    *((u64*)(*msg_01_buf)) = PACKET_ID_01;
+    u64 packet_id01 = PACKET_ID_01;
+    memcpy(*msg_01_buf, &packet_id01, SMALL_FIELD_LEN);
+
 
     /*  Client uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
      *  encrypt its long-term public key A, producing the key A_x.
@@ -468,7 +469,10 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
     /* And it should have the same effect unless we lucked out with all 1s. */
     /* But generating 64 1s in a row with no 0s should be extremely rare.   */
 
-    ++(*((u64*)(temp_handshake_buf + handshake_buf_nonce_offset)));
+    u64* aux_ptr64_tempbuf = 
+                        (u64*)(temp_handshake_buf + handshake_buf_nonce_offset);
+
+    *aux_ptr64_tempbuf += 1;
 
     /* Only thing left to construct is the HMAC authenticator now. */
     memset(opad, 0x5c, B);
@@ -570,7 +574,7 @@ u8 process_msg_01(u8* msg){
     u8 status = 0;
 
     /* Validate the incoming signature with the server's long-term public key
-     * on packet_ID_01 (for now... later it will be of the whole payload).
+     * on packet_ID_01 (for now... later it will be of the whole payload). TODO
      */
 
     status = authenticate_server(msg, SMALL_FIELD_LEN, (2 * SMALL_FIELD_LEN));
@@ -807,9 +811,11 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
-    *((u64*)(*msg_buf)) = PACKET_ID_10;
+    u64 packet_id10 = PACKET_ID_10;
 
-    *((u64*)(*msg_buf + SMALL_FIELD_LEN)) = own_ix;
+    memcpy(*msg_buf, &packet_id10, SMALL_FIELD_LEN);
+
+    memcpy((*msg_buf) + SMALL_FIELD_LEN, &own_ix, SMALL_FIELD_LEN);
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
@@ -929,7 +935,7 @@ u8 process_msg_10(u8* msg){
 u8 construct_msg_20( unsigned char* requested_userid
                     ,unsigned char* requested_roomid 
                     ,uint8_t**      msg_buf
-		            ,uint64_t*      msg_len
+		    ,uint64_t*      msg_len
 		   )
 {
     bigint one;
@@ -1024,9 +1030,10 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
-    *((u64*)(msg_buf)) = PACKET_ID_10;
+    u64 packet_id20 = PACKET_ID_20;
 
-    *((u64*)((*msg_buf) + SMALL_FIELD_LEN)) = own_ix;
+    memcpy(*msg_buf, &packet_id20, SMALL_FIELD_LEN);
+    memcpy((*msg_buf) + SMALL_FIELD_LEN, &own_ix, SMALL_FIELD_LEN);
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
@@ -1084,7 +1091,9 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     u8  recv_K[ONE_TIME_KEY_LEN];
     u8* buf_decrypted_AD = NULL;
 
-    u64 num_current_guests = *(u64*)(msg + SMALL_FIELD_LEN + ONE_TIME_KEY_LEN);
+    u64* aux_ptr64_msg = (u64*)(msg + SMALL_FIELD_LEN + ONE_TIME_KEY_LEN);
+
+    u64 num_current_guests = *aux_ptr64_msg;
     u64 guest_info_slot_siz = (SMALL_FIELD_LEN + PUBKEY_LEN);
     u64 recv_type20_AD_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     u64 recv_type20_AD_len;
@@ -1496,9 +1505,12 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
     (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     /* Construct the first 3 sections of the payload. */
-    *((u64*)((*msg_buf) + (0 * SMALL_FIELD_LEN))) = PACKET_ID_30;
-    *((u64*)((*msg_buf) + (1 * SMALL_FIELD_LEN))) = own_ix;
-    *((u64*)((*msg_buf) + (2 * SMALL_FIELD_LEN))) = text_msg_len;
+
+    u64 packet_id30 = PACKET_ID_30;
+
+    memcpy( (*msg_buf) + (0 * SMALL_FIELD_LEN), &packet_id30,  SMALL_FIELD_LEN);
+    memcpy( (*msg_buf) + (1 * SMALL_FIELD_LEN), &own_ix,       SMALL_FIELD_LEN);
+    memcpy( (*msg_buf) + (2 * SMALL_FIELD_LEN), &text_msg_len, SMALL_FIELD_LEN);
 
     /* Generate the one-time key K to encrypt the text message with.          */
     /* An encrypted version of key K itself is sent to all receivers.         */
@@ -1657,7 +1669,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
      *  - Tell the GUI system to display the message from the sender.
      */
 
-    const u64 text_len  = *((u64*)(payload + (2 * SMALL_FIELD_LEN)));
+    u64* aux_ptr64_payload = (u64*)(payload + (2 * SMALL_FIELD_LEN));
+    const u64 text_len = *aux_ptr64_payload;
     u64 AD_slot_len;
     u64 AD_len;
     u64 our_AD_slot = MAX_CLIENTS + 1;
@@ -1788,8 +1801,6 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
         goto label_cleanup;
     }
 
-    /* TODO: Extract encrypted key and msg, decrypt them, send MSG to GUI. */
-
     /* Extract the encrypted key and message from our slot in associated data */
 
     /* Decide whether to encrypt with session key KAB or with KBA. */
@@ -1907,8 +1918,10 @@ u8 construct_msg_40(u8** msg_buf, u64* msg_len){
     
     *msg_buf = calloc(1, *msg_len); 
 
-    *((u64*)(*msg_buf)) = PACKET_ID_40;
-    *((u64*)(*msg_buf + SMALL_FIELD_LEN)) = own_ix;
+    u64 packet_id40 = PACKET_ID_40;
+
+    memcpy(*msg_buf, &packet_id40, SMALL_FIELD_LEN);
+    memcpy((*msg_buf) + SMALL_FIELD_LEN, &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
     signature_generate(
@@ -2086,7 +2099,9 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
 
     memset(own_user_id, 0, SMALL_FIELD_LEN);
 
-    *((u64*)(*msg_buf)) = PACKET_ID_50;
+    u64 packet_id50 = PACKET_ID_50;
+
+    memcpy(*msg_buf, &packet_id50, SMALL_FIELD_LEN);
 
     memcpy(((*msg_buf) + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
@@ -2179,7 +2194,9 @@ u8 construct_msg_60(uint8_t** msg_buf, uint64_t* msg_len){
 
     *msg_buf = calloc(1, *msg_len);
 
-    *((u64*)(*msg_buf)) = PACKET_ID_60;
+    u64 packet_id60 = PACKET_ID_60;
+
+    memcpy(*msg_buf, &packet_id60, SMALL_FIELD_LEN);
 
     memcpy(((*msg_buf) + SMALL_FIELD_LEN), &own_ix, SMALL_FIELD_LEN);
 
