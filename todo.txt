@@ -1,9 +1,10 @@
 1. Get rid of dereferencing type-punned pointers, it's undefined behaviour.
 
 SO FAR: Removed all such code from bigint.h, cryptolib.h, server.c and
-        server-packet-functions.h
+        server-packet-functions.h, client-packet-functions.h,
+        client-primary-functions.h
 
-        Now doing client-packet-functions.h
+        Now scanning lesser files for UB.
 
 
 2. Fix argon2 implementation to work for further passes too.

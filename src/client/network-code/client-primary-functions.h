@@ -174,7 +174,8 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
 
     for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
-        printf("%03u ", *(((u8*)(&prms)) + i) );
+        u8* aux_ptr8_argon2parms = ((u8*)(&prms)) + i;
+        printf("%03u ", *aux_ptr8_argon2parms );
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
         }
@@ -434,8 +435,6 @@ label_cleanup:
 
 void* begin_polling(void* input){
 
-    /* TODO? Construct the poll packet only once, and keep sending it. */
-
     u8  text_message_line[MESSAGE_LINE_LEN];
     u8  reply_buf[MAX_TXT_LEN];
     u8* msg_buf;
@@ -477,6 +476,8 @@ void* begin_polling(void* input){
 
         grab_servers_reply(reply_buf, &reply_len);
 
+        u64* aux_ptr64_replybuf;
+
         /* Call the appropriate function depending on server's response. */
         if( *reply_type_ptr == PACKET_ID_40 ){
 
@@ -503,14 +504,17 @@ void* begin_polling(void* input){
 
 */
         else if ( *reply_type_ptr == PACKET_ID_41 ) {
+           
+            aux_ptr64_replybuf = (u64*)(reply_buf + SMALL_FIELD_LEN);
 
-            pending_messages = *((u64*)(reply_buf + SMALL_FIELD_LEN));
+            pending_messages = *aux_ptr64_replybuf;
 
             read_ix = 2 * SMALL_FIELD_LEN;
 
             /* At end, read_ix = how many bytes a signature was computed on. */
             for(u64 i = 0; i < pending_messages; ++i){
-                block_len = *((u64*)(reply_buf + read_ix));
+                aux_ptr64_replybuf = (u64*)(reply_buf + read_ix);
+                block_len = *aux_ptr64_replybuf;
                 read_ix += block_len + SMALL_FIELD_LEN;
             }
 
@@ -529,11 +533,12 @@ void* begin_polling(void* input){
 
             /* packet_ID and signature are valid - process each pending MSG.  */
             for(u64 i = 0; i < pending_messages; ++i){
-
-                curr_msg_type = *((u64*)(reply_buf + read_ix));
-
-                curr_msg_len =
-                            *((u64*)(reply_buf + read_ix - SMALL_FIELD_LEN));
+                
+                aux_ptr64_replybuf = (u64*)(reply_buf + read_ix);
+                curr_msg_type = *aux_ptr64_replybuf;
+                
+                aux_ptr64_replybuf =(u64*)(reply_buf +read_ix -SMALL_FIELD_LEN);
+                curr_msg_len = *aux_ptr64_replybuf;
 
                 if(curr_msg_type == PACKET_ID_50){
 		    
@@ -707,7 +712,8 @@ u8 reg(u8* password, int password_len, char* save_dir){
     printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
 
     for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
-        printf("%03u ", *(((u8*)(&prms)) + i) );
+        u64* aux_ptr8_argon2parms = ((u8*)(&prms)) + i;
+        printf("%03u ", *aux_ptr8_argon2parms);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");
         }
