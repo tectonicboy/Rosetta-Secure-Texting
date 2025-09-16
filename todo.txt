@@ -20,7 +20,7 @@ SO FAR: Removed all such code from bigint.h, cryptolib.h, server.c and
 
 ?. Write benchmarks and correctness tests for BigInt/Cryptography algorithms.
 
-?. Rewrite Montgomery Modular Multiplication w/ intrinsics/code for more CPUs.
+?. Rewrite Montgomery Modular Multiplication w/ intrinsics for more CPUs.
 
 ?. Make cryptography algorithms constant-time to avoid side channel attacks.
 
@@ -31,3 +31,9 @@ SO FAR: Removed all such code from bigint.h, cryptolib.h, server.c and
 
 ?. Come up with a better unique packet ID numbering. Currently the same packet
    ID exists in server and in client. BAD!
+
+?. Make a better interface for gen_pub_key to not require the private key
+   in a temporary file.
+
+?. Get rid of having to manually free the .bits buffer of bigints. Instead,
+   implement some bigint destruction strategy or at least a simple API.

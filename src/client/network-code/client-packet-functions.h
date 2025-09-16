@@ -104,7 +104,8 @@ bigint own_privkey;
 bigint own_pubkey;
 
 /* These are for talking securely to the Rosetta server only. */
-u8 *KAB, *KBA;
+u8 *KAB;
+u8 *KBA;
 
 /* Memory region holding short-term cryptographic artifacts for Login scheme. */
 u8 temp_handshake_buf[TEMP_BUF_SIZ];
@@ -237,6 +238,8 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
     /* Construct and send the MSG buffer to the TCP server. */
 
     *((u64*)(*msg_buf)) = PACKET_ID_00;
+    u64 packet_id00 = PACKET_ID_00;
+    memcpy(msg_buf, &packet_id00, SMALL_FIELD_LEN);
 
     memcpy((*msg_buf) + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
