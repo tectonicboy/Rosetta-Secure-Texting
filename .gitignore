@@ -2,3 +2,4 @@ bin/user_save.dat
 *.swp
 src/rosetta-test-framework/test-accounts/*
 tags
+src/rosetta-test-framework/rtf
