@@ -11,10 +11,10 @@ int main(int argc, char* argv[]){
     
     printf("Obtained privkey_len_bytes arg: %u\n", privkey_len_bytes);
 
-    struct bigint *pubkey_bigint
-                 ,*pubkey_montform = malloc(sizeof(struct bigint))
-                 ,*M
-                 ;
+    struct bigint* pubkey_bigint;
+    struct bigint* pubkey_montform = malloc(sizeof(struct bigint));
+    struct bigint* M;
+                 
                  
      M = get_bigint_from_dat
       ( 3072

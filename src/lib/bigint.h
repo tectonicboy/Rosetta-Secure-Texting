@@ -699,7 +699,7 @@ void bigint_mul_fast( const bigint* const n1
     uint32_t* aux_ptr_tempres = (uint32_t*)(&temp_res);
     uint32_t* aux_ptr_n1bits  = (uint32_t*)(n1->bits);
     uint32_t* aux_ptr_n2bits  = (uint32_t*)(n2->bits);
-    uint32_t* aux_ptr_Rbits   = (uint32_t)(R->bits);
+    uint32_t* aux_ptr_Rbits   = (uint32_t*)(R->bits);
 
     bigint_nullify(R);
    
@@ -779,7 +779,7 @@ void bigint_mul_fast( const bigint* const n1
                   );
             */
 
-            C = (u64)(aux_ptr_tempres[1])
+            C = (u64)(aux_ptr_tempres[1]);
         } 
 
         aux_ptr_Rbits[i + 1 + (AA - 1)] = aux_ptr_tempres[1];
@@ -1115,7 +1115,7 @@ void bigint_div2( const bigint* const A
     /* Part 3 */
     for(i = n; i >= (t+1); --i){
          
-        if(aux_ptr16_temp0bits[i] == aux_ptr_temp2bits[t]) 
+        if(aux_ptr16_temp0bits[i] == aux_ptr16_temp2bits[t]) 
         {
             /* q_(i-t-1) a limb, also stored as a bigint in big_temps[17]. */ 
             aux_ptr16_temp3bits[i-t-1] = (uint16_t)(b - 1);

@@ -712,7 +712,7 @@ u8 reg(u8* password, int password_len, char* save_dir){
     printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
 
     for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
-        u64* aux_ptr8_argon2parms = ((u8*)(&prms)) + i;
+        u8* aux_ptr8_argon2parms = ((u8*)(&prms)) + i;
         printf("%03u ", *aux_ptr8_argon2parms);
         if(((i+1) % 8 == 0) && i > 6){
             printf("\n");

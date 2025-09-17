@@ -187,7 +187,6 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
     u32 initial_state[16]; 
     u32 next_ix;
     u32 i;
-    u32 j;
 
     uint8_t* aux_ptr8_state;
     uint8_t* aux_ptr8_key;

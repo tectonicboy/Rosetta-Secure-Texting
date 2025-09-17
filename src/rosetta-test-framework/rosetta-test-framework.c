@@ -15,8 +15,7 @@ uint8_t make_new_test_acc(void){
     unsigned char* full_save_dir;
     uint8_t        status = 0;
     uint8_t        pw_buf[16] = {0};
-    const char*    savedir = "/home/hypervisor/tmp/repos/Rosetta-Secure-Texting"
-                             "/src/rosetta-test-framework/test-accounts/"
+    const char*    savedir = "./test-accounts/"
                              ;
 
     printf("Creating a new test user account.\n\n");
@@ -118,32 +117,34 @@ label_again:
     if(op_number == 1){
         status = make_new_test_acc();
         if(status){
-            printf("[ERR] RTF: Making a test account failed. Check errors.\n");
+            printf("[ERR] RTF: Making a test account fails. Check errors.\n\n");
         }
-        printf("[OK] RTF: Created a new test account!\n");
+        else{
+            printf("[OK] RTF: Created a new test account!\n\n");
+        }
     }
     else if(op_number == 2){
-        printf("Starting a test user chat session (login).\n");
+        printf("Starting a test user chat session (login).\n\n");
         printf("[NOT IMPLEMENTED YET]\n\n");
     }
     else if(op_number == 3){
-        printf("Stopping a test user chat session (logout).\n");
+        printf("Stopping a test user chat session (logout).\n\n");
         printf("[NOT IMPLEMENTED YET]\n\n");
     }
     else if(op_number == 4){
-        printf("Deleting a test user account.\n");
+        printf("Deleting a test user account.\n\n");
         printf("[NOT IMPLEMENTED YET]\n\n");
     }
     else if(op_number == 5){
-        printf("Starting the Rosetta server with AF_UNIX communications.\n");
+        printf("Starting the Rosetta server with AF_UNIX communications.\n\n");
         printf("[NOT IMPLEMENTED YET]\n\n");
     }
     else if(op_number == 6){
-        printf("Stopping the Rosetta server.\n");
+        printf("Stopping the Rosetta server.\n\n");
         printf("[NOT IMPLEMENTED YET]\n\n");
     }
     else if(op_number == 7){
-        printf("Closing all testing and exiting Rosetta Test Framework.\n");
+        printf("Closing all testing and exiting Rosetta Test Framework.\n\n");
         goto label_cleanup;
     }
     else{
