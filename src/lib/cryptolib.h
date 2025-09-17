@@ -209,7 +209,7 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
 
     for(i = key_len; i > 0; --i){   /* For each uint32_t part in the key. */
         
-        aux_ptr8_state = (uint8_t*)(state + next_ix);                                
+        aux_ptr8_state = (uint8_t*)(state + next_ix);                 
         aux_ptr8_key   = (uint8_t*)(key + (key_len - i));  
         
         aux_ptr8_state[3] = aux_ptr8_key[0];

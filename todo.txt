@@ -1,13 +1,8 @@
 1. Get rid of dereferencing type-punned pointers, it's undefined behaviour.
-
-SO FAR: Removed all such code from bigint.h, cryptolib.h, server.c and
-        server-packet-functions.h, client-packet-functions.h,
-        client-primary-functions.h
-
-        Now scanning lesser files for UB.
-
+[ Completed ✓ ]
 
 2. Fix argon2 implementation to work for further passes too.
+[ in-progress... ]
 
 3. Rewrite lost code for finding new diffie-hellman ~ 3072-bit primes.
 
