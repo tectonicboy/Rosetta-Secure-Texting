@@ -23,14 +23,14 @@ CFLAGS += -Wstrict-aliasing=3
 CFLAGS += -Wno-unused-function
 CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
-CFLAGS += -Wno-unused-result
+CFLAGS += -Wunused-result
 
 .PHONY: bench debug
 
 bench:
 	cat /dev/null > ../compiler-report.txt && \
 	cc bench.c -O2 -lm -march=native $(CFLAGS) -o bench \
-	-fopt-info-loop-optimized=../compiler-report.txt \
+	-fopt-info-loop-optimized=../compiler-report.txt
 
 debug:
 	cc bench.c -O2 -g -lm -march=native $(CFLAGS) -o bench-debug
