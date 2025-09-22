@@ -1,18 +1,22 @@
 1. Get rid of dereferencing type-punned pointers, it's undefined behaviour.
 [ Completed ✓ ]
 
-2. Fix argon2 implementation to work for further passes too.
-[ in-progress... ]
+2. Remove checks for non-null ptrs in cleanup paths. Free accepts NULL pointers.
 
-3. Rewrite lost code for finding new diffie-hellman ~ 3072-bit primes.
+3. Replace if(ret_err){print_err; return;}else{print_good;} with a #define that
+   uses __LINE__ and __FILE__ instead of specific strings for all error types.
 
-4. Finish function pointers for AF_UNIX vs Internet socket function variants.
+4. Rewrite lost code for finding new diffie-hellman ~ 3072-bit primes.
 
-5. Implement the rest of the Rosetta Test Framework with AF_UNIX communication.
+5. Finish function pointers for AF_UNIX vs Internet socket function variants.
 
-6. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
+6. Implement the rest of the Rosetta Test Framework with AF_UNIX communication.
 
-7. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+7. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
+
+8. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+
+?. Fix argon2 implementation to work for further passes too.
 
 ?. Write benchmarks and correctness tests for BigInt/Cryptography algorithms.
 

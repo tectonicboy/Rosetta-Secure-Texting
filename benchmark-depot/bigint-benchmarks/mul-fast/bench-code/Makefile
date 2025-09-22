@@ -24,6 +24,8 @@ CFLAGS += -Wno-unused-function
 CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wunused-result
+CFLAGS += -Wno-unused-but-set-variable
+CFLAGS += -Wno-unused-variable
 
 .PHONY: bench debug
 

@@ -21,7 +21,7 @@ int main(){
     double   average_time = 0;
     double   total_time;
     double*  times = (double*)calloc(1, total_ops * sizeof(double));
-    size_t   print_step = total_ops / 10;
+    size_t   print_step = total_ops / 100;
     uint8_t  progress_percent = 0;
 
     struct timeval tv1;
@@ -54,6 +54,7 @@ int main(){
 
     min_time         = DBL_MAX;
     max_time         = 0;
+    total_time       = 0;
     progress_percent = 0;
 
     for(size_t i = 0; i < total_ops; ++i){
@@ -76,46 +77,99 @@ int main(){
         bigint_mul_fast(&a, &b, &r);
         
         gettimeofday(&tv2, NULL);
-        
-        time_taken = ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000.0)
-                     + ((double)(tv2.tv_sec - tv1.tv_sec));
+    
+		if(tv1.tv_sec == tv2.tv_sec){    
+	        time_taken = ((double)(tv2.tv_usec - tv1.tv_usec));
+		}
+        else{
+			//time_taken = 1000000.0 - (double)tv1.tv_usec +(double)tv2.tv_usec;
+             time_taken = (total_time / i);
+		}
 
-        int64_t microsecs = tv2.tv_usec - tv1.tv_usec;
-
-        if(time_taken < min_time){ 
-            printf("\n[op %lu] New MIN time. OLD min: %lf  --  NEW min: %lf\n\n"
-                   ,i, min_time, time_taken
-                  );
-            min_time = time_taken; 
-        }
-        if(time_taken > max_time){ 
-            printf("\n[op %lu] New MAX time. OLD max: %lf  --  NEW max: %lf\n\n"  
-                   ,i, max_time, time_taken                                      
-                  );
-            max_time = time_taken; 
-        }
         
         times[i] = time_taken;
         total_time += time_taken;
   
         if( __builtin_expect( ((i % print_step) == 0) && (i > 0), 0) ){
 
-            progress_percent += 10;
+            progress_percent += 1;
 
             t = time(NULL);                                                   
             tm = *localtime(&t);                                           
-            printf("[%d-%02d-%02d %02d:%02d:%02d] ", tm.tm_year + 1900               
-                   ,tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec      
-                  );                                                                 
+            printf("[%d-%02d-%02d %02d:%02d:%02d] ", tm.tm_year + 1900
+                  ,tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec
+                  );
         
-            printf("Done ops \t%lu\t  --  AVG Time: %lf nanos  --  %u %% done. usec = %lu\n"
-                   ,i, (total_time / i) * 1000000000, progress_percent, microsecs
-                  );        
+            printf(" %03u %%\tcomplete  --  AVG Time: %lf micros.\n"
+                   ,progress_percent, (total_time / i)
+                  );
         }
     }    
 
     average_time = total_time / total_ops;
 
+    printf("Reporting measurement type 1 AVG time: %lf\n", average_time);
+    
+/******************************************************************************/
+
+    total_time       = 0;
+    progress_percent = 0;
+
+    size_t batch_size = 100000;
+
+
+	/* Allocate and initialize 100K bigints. */
+
+	bigint* batch_op1 = (bigint*)calloc(1, batch_size * sizeof(bigint));
+	bigint* batch_op2 = (bigint*)calloc(1, batch_size * sizeof(bigint));
+	bigint* batch_res = (bigint*)calloc(1, batch_size * sizeof(bigint));
+
+	for(size_t j = 0; j < batch_size; ++j){
+		bigint_create(batch_op1 + j, BIGINT_SIZ,     0);
+		bigint_create(batch_op2 + j, BIGINT_SIZ,     0);
+		bigint_create(batch_res + j, BIGINT_SIZ * 2, 0);
+
+		if(fread(batch_op1[j].bits, 1, BIGINT_SIZ / 8, ran) != (BIGINT_SIZ / 8))
+			printf("\n\n   ----->  [ERR] fread() failed!  <-----\n\n");
+		if(fread(batch_op2[j].bits, 1, BIGINT_SIZ / 8, ran) != (BIGINT_SIZ / 8))
+			printf("\n\n   ----->  [ERR] fread() failed!  <-----\n\n");
+
+		batch_op1[j].used_bits = get_used_bits(batch_op1[j].bits, BIGINT_SIZ/8);
+		batch_op2[j].used_bits = get_used_bits(batch_op2[j].bits, BIGINT_SIZ/8);
+		batch_op1[j].free_bits = batch_op1[j].size_bits -batch_op1[j].used_bits;
+		batch_op2[j].free_bits = batch_op2[j].size_bits -batch_op2[j].used_bits;
+
+	}
+
+	gettimeofday(&tv1, NULL);
+
+	for(size_t j = 0; j < batch_size; ++j){
+		bigint_mul_fast(batch_op1 + j, batch_op2 + j, batch_res + j);
+    }
+
+    gettimeofday(&tv2, NULL);
+
+    printf( "\n WAY 2  |||  %lf sec  |||  %lf -> %lf micros\n\n"
+           ,(double)tv2.tv_sec - (double)tv1.tv_sec
+           ,(double)tv1.tv_usec, (double)tv2.tv_usec
+          );
+
+    printf("Measurement Type 2 total ops uninterrupted : %lu\n", batch_size);
+
+
+    for(size_t j = 0; j < batch_size; ++j){
+	    free(batch_op1[j].bits);
+	    free(batch_op2[j].bits);
+	    free(batch_res[j].bits);
+	}
+	
+    free(batch_op1);
+	free(batch_op2);
+	free(batch_res);      
+
+			
+
+/******************************************************************************/
     fclose(ran);
     free(a.bits);
     free(b.bits);
@@ -135,11 +189,11 @@ int main(){
 
     printf("\n\n");
     printf("RESULTING TIMES:\n\n");
-    printf("Minimum: %lf nanos\n", min_time     * 1000000000);
-    printf("Maximum: %lf nanos\n", max_time     * 1000000000);
-    printf("Average: %lf nanos\n", average_time * 1000000000);
-    printf("\n");
-    printf("Total: %lf seconds\n\n", total_time);
+    //printf("Minimum: %lf micros\n", min_time    );
+    //printf("Maximum: %lf micros\n", max_time    );
+    printf("MULs total  : %lu\n", total_ops);
+    printf("Time_Total  : %lf seconds\n", total_time / 1000000);
+    printf("Time_Average: %lf micros\n\n", average_time);
     free(times);
 
     return 0;
