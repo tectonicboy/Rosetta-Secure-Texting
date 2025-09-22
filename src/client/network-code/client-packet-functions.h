@@ -1265,11 +1265,8 @@ label_cleanup:
     free(one.bits);
     free(aux1.bits);
     free(temp_shared_secret.bits);
-
-    if(buf_decrypted_AD) {
-        free(buf_decrypted_AD);
-    }
-
+    free(buf_decrypted_AD);
+    
     return status;
 }
 
@@ -1626,7 +1623,9 @@ label_cleanup:
 
     free(associated_data);
 
-    if(ran_file != NULL) { fclose(ran_file); }
+    if(ran_file != NULL){ 
+        fclose(ran_file); 
+    }
 
     return status;
 }

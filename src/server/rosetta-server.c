@@ -140,6 +140,8 @@ u8 self_init(){
     FILE* privkey_dat;
 
     u8 status = 0;
+    
+    temp_handshake_buf = NULL;
 
     status = init_communications();
 
@@ -242,10 +244,8 @@ label_cleanup:
         fclose(privkey_dat);
     }
 
-    if(status){
-        free(temp_handshake_buf);    
-    }
-
+    free(temp_handshake_buf);
+    
     return status;
 }
 
@@ -493,7 +493,11 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     return ret;
 }
 
+/******************************************************************************/
+
 #include "server-packet-functions.h"
+
+/******************************************************************************/
 
 /*  To make the server design more elegant, this top-level message processor 
  *  only checks whether the message is legit or not, and which of the predefined

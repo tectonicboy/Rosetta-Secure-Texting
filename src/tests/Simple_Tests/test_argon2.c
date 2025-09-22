@@ -75,7 +75,11 @@ int main(){
     printf("TOTAL TIME for Argon2: %lf seconds\n\n"
             , cpu_time_used_argon2 / (double)prms.p);
     
-    free(P); free(S); free(K); free(X); free(argon2_output_tag);
+    free(P);
+    free(S); 
+    free(K); 
+    free(X); 
+    free(argon2_output_tag);
     
     return 0;
 }

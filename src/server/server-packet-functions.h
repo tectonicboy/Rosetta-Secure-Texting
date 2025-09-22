@@ -280,10 +280,8 @@ label_cleanup:
     free(Am.bits);
     free(reply_buf);
     free(X_s.bits);
-
-    if(B_s != NULL){
-        free(B_s);
-    }
+    free(B_s);
+    
 
     system("rm temp_privkey.dat");
   
@@ -813,10 +811,8 @@ label_cleanup:
 
     printf("[OK]  Server: Handshake memory region has been released!\n\n");
     
-    if(reply_buf){
-        free(reply_buf);
-    }
-    
+    free(reply_buf);
+        
     return ;
 }
 
@@ -1070,11 +1066,8 @@ label_cleanup:
 
     free(nonce_bigint.bits);
     free(one.bits);
-    free(aux1.bits);
-
-    if(reply_buf){ 
-        free(reply_buf);
-    }
+    free(aux1.bits); 
+    free(reply_buf);
     
     return;
 }
@@ -1631,11 +1624,12 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
 
 label_cleanup:
 
-    if(ran_file){ fclose(ran_file); }
+    if(ran_file){ 
+        fclose(ran_file); 
+    }
 
-    if(reply_buf)      { free(reply_buf);       }
-    if(buf_ixs_pubkeys){ free(buf_ixs_pubkeys); }
- 
+    free(reply_buf);
+    free(buf_ixs_pubkeys);
     free(nonce_bigint.bits);
     free(one.bits);
     free(aux1.bits); 
@@ -1910,9 +1904,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
   
 label_cleanup:
 
-    if(reply_buf){
-        free(reply_buf);
-    }
+    free(reply_buf);
     
     return;
 }

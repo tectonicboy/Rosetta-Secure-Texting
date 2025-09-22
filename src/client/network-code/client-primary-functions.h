@@ -1000,9 +1000,7 @@ u8 login(u8* password, int password_len, char* save_dir){
 
 label_cleanup:
 
-    if(msg_buf){
-        free(msg_buf);
-    }
+    free(msg_buf);
 
     return status;
 }
@@ -1115,11 +1113,9 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
 /* Unused for now but still have a label for completeness. */
 label_cleanup:
-
-    if(msg_buf){    
-        free(msg_buf);
-    }
-
+   
+    free(msg_buf);
+    
     return status;
 }
 
@@ -1220,9 +1216,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
 /* Unused for now but keep the label for completeness. */
 label_cleanup:
 
-    if(msg_buf){
-        free(msg_buf);
-    }
+    free(msg_buf);
 
     return status;
 }
@@ -1260,9 +1254,7 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
 
 label_cleanup:
 
-    if(msg_buf){
-        free(msg_buf);
-    }
+    free(msg_buf);
 
     return status;
 }
@@ -1297,9 +1289,7 @@ u8 leave_chatroom(void){
 
 label_cleanup:
 
-    if(msg_buf){
-        free(msg_buf);
-    }
+    free(msg_buf);
 
     return status;
 }
@@ -1334,9 +1324,7 @@ u8 logout(void){
 
 label_cleanup:
 
-    if(msg_buf){
-        free(msg_buf);
-    }
+    free(msg_buf);
 
     return status;
 }

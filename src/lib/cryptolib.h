@@ -351,7 +351,7 @@ void chacha20( uint8_t*  plaintext, uint32_t txt_len
     }
     
     /* Cleanup */
-    if(counter){ free(counter); }
+    free(counter);
 
     for(i = 0; i < num_matrices; ++i){
         free(outputs[i]);   
@@ -2007,9 +2007,7 @@ label_cleanup:
     free(div_res.bits); 
     free(val_e.bits);
 
-    if(R_with_prehash != NULL){
-        free(R_with_prehash);
-    }
+    free(R_with_prehash);
 
     return retval;
 }

@@ -61,7 +61,11 @@ int main(){
 
     }
     printf("\n");
-    free(key); free(nonce); free(cyphertext);
+    
+    free(key); 
+    free(nonce); 
+    free(cyphertext);
+    
     */
     
     return 0;
