@@ -27,4 +27,5 @@ CFLAGS += -Wno-unused-result
 .PHONY: all
 
 all:
-	gcc -O2 -lm -march=native $(CFLAGS) find-new-mq.c -o find-new-mq
+	gcc -O2 -lm -pthread -march=native $(CFLAGS) \
+	find-new-mq.c -o find-new-mq
