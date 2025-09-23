@@ -3,3 +3,4 @@ bin/user_save.dat
 src/rosetta-test-framework/test-accounts/*
 tags
 src/rosetta-test-framework/rtf
+src/keygen/find-new-mq
