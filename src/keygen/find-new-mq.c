@@ -27,7 +27,7 @@ void* thread_function_checker(void* thread_input_buffer){
     
     uint8_t is_prime = rabin_miller(&testing_M, RABIN_MILLER_PASSES);        
 									 
-    if(is_prime){                                                            
+    if(is_prime){
         is_dh_modulus_found[alert_ix] = 1;                                   
     }                                                                        
 									 
@@ -57,7 +57,7 @@ int main(void){
 
     bigint_create(&M,   MAXIMUM_BITS, 0);
     bigint_create(&Q,   MAXIMUM_BITS, 0);
-    bigint_create(&one, MAXIMUM_BITS, 0);
+    bigint_create(&one, MAXIMUM_BITS, 1);
     bigint_create(&two, MAXIMUM_BITS, 2);
     bigint_create(&tmp, MAXIMUM_BITS, 0);
     bigint_create(&aux, MAXIMUM_BITS, 0);
@@ -95,10 +95,13 @@ int main(void){
         is_prime = rabin_miller(&Q, RABIN_MILLER_PASSES);
         ++counter;
         printf("Finding 320-bit prime  Q  --  number schecked: %lu\n", counter);
-        bigint_equate2(&tmp, &Q);
+        if(is_prime == 1){
+            printf("\n---> Q prime found!!\n\n");
+            break;
+        }
+        bigint_equate2(&tmp, &Q);                                            
         bigint_add_fast(&tmp, &two, &Q);
     }
-
 
     /* For finding M. */
     counter  = 0;
@@ -115,7 +118,7 @@ int main(void){
     }    
 
     aux.bits[SIZE_M_BYTES - SIZE_Q_BYTES - 1] |= (1 << 7);
-    aux.bits[0] |= (1 << 0);
+    aux.bits[0] &= ~(1 << 0);
     aux.used_bits = get_used_bits(aux.bits, SIZE_M_BYTES - SIZE_Q_BYTES);
     aux.free_bits = aux.size_bits - aux.used_bits;
 
