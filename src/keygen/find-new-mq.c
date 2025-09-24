@@ -13,6 +13,22 @@
 #define RABIN_MILLER_PASSES 64
 #define NUM_THREADS         8
 
+
+#define GET_NEW_AUX                                                        \
+    memset(aux.bits, 0x00, SIZE_M_BYTES - SIZE_Q_BYTES);                   \
+    bytes_read = fread(aux.bits, 1, SIZE_M_BYTES - SIZE_Q_BYTES, rand_fd); \
+                                                                           \
+    if(bytes_read != SIZE_M_BYTES - SIZE_Q_BYTES){                         \
+        printf("[ERR]  AUX  fread() failed.\n");                           \
+        goto label_cleanup;                                                \
+    }                                                                      \
+                                                                           \
+    aux.bits[SIZE_M_BYTES - SIZE_Q_BYTES - 1] |= (1 << 7);                 \
+    aux.bits[0] &= ~(1 << 0);                                              \
+    aux.used_bits = get_used_bits(aux.bits, SIZE_M_BYTES - SIZE_Q_BYTES);  \
+    aux.free_bits = aux.size_bits - aux.used_bits;                         \
+
+
 //const uint64_t NUM_THREADS = (uint64_t)sysconf(_SC_NPROCESSORS_ONLN);
 
 uint64_t is_dh_modulus_found[NUM_THREADS];
@@ -92,13 +108,17 @@ int main(void){
     Q.free_bits = Q.size_bits - Q.used_bits;
 
     while(is_prime == 0){
+        printf("Finding 320-bit prime  Q  --  numbers checked: %lu\n", counter);
+        
         is_prime = rabin_miller(&Q, RABIN_MILLER_PASSES);
+        
         ++counter;
-        printf("Finding 320-bit prime  Q  --  number schecked: %lu\n", counter);
+        
         if(is_prime == 1){
             printf("\n---> Q prime found!!\n\n");
             break;
         }
+        
         bigint_equate2(&tmp, &Q);                                            
         bigint_add_fast(&tmp, &two, &Q);
     }
@@ -109,29 +129,19 @@ int main(void){
     /**************************************************************************/
 
     printf("\n\n============ STARTING TO FIND 3072-BIT  M  ==============\n\n");
-
-    bytes_read = fread(aux.bits, 1, SIZE_M_BYTES - SIZE_Q_BYTES, rand_fd);
-
-    if(bytes_read != SIZE_M_BYTES - SIZE_Q_BYTES){
-        printf("[ERR]  AUX  fread() failed.\n");
-        goto label_cleanup;
-    }    
-
-    aux.bits[SIZE_M_BYTES - SIZE_Q_BYTES - 1] |= (1 << 7);
-    aux.bits[0] &= ~(1 << 0);
-    aux.used_bits = get_used_bits(aux.bits, SIZE_M_BYTES - SIZE_Q_BYTES);
-    aux.free_bits = aux.size_bits - aux.used_bits;
-
-    /********* INITIAL AUX  (for (M-1) = Q * AUX)  has been generated. ********/
-
+    
 label_keep_searching:
 
-    /* Prepare test M's for each thread to check. AUX += 2 for each one. */
+    /* Prepare test M's for each thread to check. 
+     * Instead of doing AUX += 2 for each one, generate new ~2700-bit UAX.
+     * This apparently ensures we make use of the Riemann hypothesis for prime
+     * sparsity, saying about one in 3070 are prime around 2^3070. And
+     * incrementing does not allow us to do that because arithmetic progression
+     * created by it makes it not a random distribution of searched numbers?
+     */
 
-    for(uint64_t i = 0; i < NUM_THREADS; ++i){ 
-        bigint_equate2(&tmp, &aux);     
-        bigint_add_fast(&tmp, &two, &aux);  
-                                                    
+    for(uint64_t i = 0; i < NUM_THREADS; ++i){  
+        GET_NEW_AUX
         bigint_mul_fast(&Q, &aux, &(test_Ms[i]));
         bigint_equate2(&tmp, &(test_Ms[i]));
         bigint_add_fast(&tmp, &one, &(test_Ms[i]));
