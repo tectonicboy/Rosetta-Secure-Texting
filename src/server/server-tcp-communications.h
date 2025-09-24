@@ -17,8 +17,6 @@ struct sockaddr_in client_addresses[MAX_CLIENTS];
 socklen_t clientLens[MAX_CLIENTS];
 struct sockaddr_in servaddr;
 
-
-
 uint8_t init_tcp_listening(void){
 
     uint8_t status = 0;
@@ -65,11 +63,17 @@ uint8_t init_tcp_listening(void){
         goto label_cleanup;
     }
 
+    goto label_finished;
+
+/******************************************************************************/
+
 label_cleanup:
 
     if(listening_socket){
         close(listening_socket);
     }
+
+label_finished:
 
     return status;
 
