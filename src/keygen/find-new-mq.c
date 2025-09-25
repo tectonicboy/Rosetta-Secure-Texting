@@ -1,9 +1,10 @@
 #include "../lib/bigint.h"
 #include <pthread.h>
+
 /******************************************************************************/
 
-#define RED(string) "\x1b[31m" string "\x1b[0m"
-#define BLUE(string) "\x1b[34m"string "\x1b[0m"
+#define PRINT_RED(string) "\x1b[31m" string "\x1b[0m"
+#define PRINT_BLUE(string) "\x1b[34m"string "\x1b[0m"
 
 #define MAXIMUM_BITS        12000
 #define SIZE_Q_BITS         320
@@ -11,7 +12,7 @@
 #define SIZE_M_BITS         3072
 #define SIZE_M_BYTES        384
 #define RABIN_MILLER_PASSES 64
-#define NUM_THREADS         8
+#define NUM_THREADS         24
 
 
 #define GET_NEW_AUX                                                        \
@@ -116,6 +117,8 @@ int main(void){
         
         if(is_prime == 1){
             printf("\n---> Q prime found!!\n\n");
+            bigint_print_info(&Q);
+            bigint_print_bits(&Q);
             break;
         }
         
@@ -177,7 +180,7 @@ label_keep_searching:
     time_t t = time(NULL);                                                   
     struct tm tm = *localtime(&t);
     
-    printf(RED("\n[%d-%02d-%02d %02d:%02d:%02d] ")
+    printf(PRINT_RED("\n[%d-%02d-%02d %02d:%02d:%02d] ")
            ,tm.tm_year + 1900,tm.tm_mon + 1, tm.tm_mday                          
            ,tm.tm_hour, tm.tm_min, tm.tm_sec 
           );
