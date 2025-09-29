@@ -1,4 +1,4 @@
-#include "../client/network-code/client-main-functions.h"
+#include "../client/network-code/client-primary-functions.h"
 
 
 /* Command-line arguments will determine: 
@@ -11,7 +11,12 @@
  */
 int main(int argc, char** argv){
 
-    
+    uint8_t ret = init_client_interprocess_comms();
 
+    if(ret){
+        printf("[ERR] RTF client spawner: init_ipc failed!\n\n");
+        exit(1);
+    }    
+    exit(0);
 
 }

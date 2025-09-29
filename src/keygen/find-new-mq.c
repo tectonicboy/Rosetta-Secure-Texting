@@ -3,9 +3,10 @@
 
 /******************************************************************************/
 
-#define PRINT_RED(string) "\x1b[31m" string "\x1b[0m"
-#define PRINT_BLUE(string) "\x1b[34m"string "\x1b[0m"
-
+#define PRINT_RED(string)   "\x1b[31m"  string "\x1b[0m"
+#define PRINT_BLUE(string)  "\x1b[34m" string "\x1b[0m"
+#define SET_PRINT_BG_CYAN   printf("\x1b[46m");
+#define SET_PRINT_BG_BLACK  printf("\x1b[40m");
 #define MAXIMUM_BITS        12000
 #define SIZE_Q_BITS         320
 #define SIZE_Q_BYTES        40
@@ -13,22 +14,6 @@
 #define SIZE_M_BYTES        384
 #define RABIN_MILLER_PASSES 64
 #define NUM_THREADS         24
-
-
-#define GET_NEW_AUX                                                        \
-    memset(aux.bits, 0x00, SIZE_M_BYTES - SIZE_Q_BYTES);                   \
-    bytes_read = fread(aux.bits, 1, SIZE_M_BYTES - SIZE_Q_BYTES, rand_fd); \
-                                                                           \
-    if(bytes_read != SIZE_M_BYTES - SIZE_Q_BYTES){                         \
-        printf("[ERR]  AUX  fread() failed.\n");                           \
-        goto label_cleanup;                                                \
-    }                                                                      \
-                                                                           \
-    aux.bits[SIZE_M_BYTES - SIZE_Q_BYTES - 1] |= (1 << 7);                 \
-    aux.bits[0] &= ~(1 << 0);                                              \
-    aux.used_bits = get_used_bits(aux.bits, SIZE_M_BYTES - SIZE_Q_BYTES);  \
-    aux.free_bits = aux.size_bits - aux.used_bits;                         \
-
 
 //const uint64_t NUM_THREADS = (uint64_t)sysconf(_SC_NPROCESSORS_ONLN);
 
@@ -40,7 +25,7 @@ void* thread_function_checker(void* thread_input_buffer){
     bigint   testing_M;                                                      
 									 
     memcpy(&testing_M, thread_input_buffer, sizeof(bigint));               
-    memcpy(&alert_ix, ((u8*)thread_input_buffer) + sizeof(bigint), sizeof(u64));  
+    memcpy(&alert_ix, ((u8*)thread_input_buffer) + sizeof(bigint), sizeof(u64));
     
     uint8_t is_prime = rabin_miller(&testing_M, RABIN_MILLER_PASSES);        
 									 
@@ -48,7 +33,7 @@ void* thread_function_checker(void* thread_input_buffer){
         is_dh_modulus_found[alert_ix] = 1;                                   
     }                                                                        
 									 
-    return NULL;                                                                  
+    return NULL;       
 }
 
 int main(void){
@@ -144,7 +129,20 @@ label_keep_searching:
      */
 
     for(uint64_t i = 0; i < NUM_THREADS; ++i){  
-        GET_NEW_AUX
+        
+        memset(aux.bits, 0x00, SIZE_M_BYTES - SIZE_Q_BYTES);                   
+        bytes_read = fread(aux.bits, 1, SIZE_M_BYTES - SIZE_Q_BYTES, rand_fd); 
+                                                                           
+        if(bytes_read != SIZE_M_BYTES - SIZE_Q_BYTES){                         
+            printf("[ERR]  AUX  fread() failed.\n");                           
+            goto label_cleanup;                                                
+        }                                                                      
+                                                                           
+        aux.bits[SIZE_M_BYTES - SIZE_Q_BYTES - 1] |= (1 << 7);                 
+        aux.bits[0] &= ~(1 << 0);                                              
+        aux.used_bits = get_used_bits(aux.bits, SIZE_M_BYTES - SIZE_Q_BYTES);  
+        aux.free_bits = aux.size_bits - aux.used_bits;                         
+        
         bigint_mul_fast(&Q, &aux, &(test_Ms[i]));
         bigint_equate2(&tmp, &(test_Ms[i]));
         bigint_add_fast(&tmp, &one, &(test_Ms[i]));
@@ -179,11 +177,13 @@ label_keep_searching:
 
     time_t t = time(NULL);                                                   
     struct tm tm = *localtime(&t);
-    
+
+    SET_PRINT_BG_CYAN
     printf(PRINT_RED("\n[%d-%02d-%02d %02d:%02d:%02d] ")
-           ,tm.tm_year + 1900,tm.tm_mon + 1, tm.tm_mday                          
+           ,tm.tm_year + 1900,tm.tm_mon + 1, tm.tm_mday
            ,tm.tm_hour, tm.tm_min, tm.tm_sec 
           );
+    SET_PRINT_BG_BLACK
 
     printf("All %u threads finished.\nDiscoveries: [", NUM_THREADS);
 

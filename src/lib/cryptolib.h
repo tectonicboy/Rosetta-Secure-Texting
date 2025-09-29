@@ -39,14 +39,14 @@ struct Argon2_parms{
 }; 
 
 /* Offsets into the input memory buffer for Argon2's multithreading function. */
-#define OFFSET_r  (sizeof(block64_t*) + (0 * sizeof(uint64_t)))
-#define OFFSET_l  (sizeof(block64_t*) + (1 * sizeof(uint64_t)))
-#define OFFSET_sl (sizeof(block64_t*) + (2 * sizeof(uint64_t)))
-#define OFFSET_md (sizeof(block64_t*) + (3 * sizeof(uint64_t)))
-#define OFFSET_t  (sizeof(block64_t*) + (4 * sizeof(uint64_t)))
-#define OFFSET_y  (sizeof(block64_t*) + (5 * sizeof(uint64_t)))
-#define OFFSET_p  (sizeof(block64_t*) + (6 * sizeof(uint64_t)))
-#define OFFSET_q  (sizeof(block64_t*) + (7 * sizeof(uint64_t)))
+#define OFFSET_r  (sizeof(block1024_t*) + (0 * sizeof(uint64_t)))
+#define OFFSET_l  (sizeof(block1024_t*) + (1 * sizeof(uint64_t)))
+#define OFFSET_sl (sizeof(block1024_t*) + (2 * sizeof(uint64_t)))
+#define OFFSET_md (sizeof(block1024_t*) + (3 * sizeof(uint64_t)))
+#define OFFSET_t  (sizeof(block1024_t*) + (4 * sizeof(uint64_t)))
+#define OFFSET_y  (sizeof(block1024_t*) + (5 * sizeof(uint64_t)))
+#define OFFSET_p  (sizeof(block1024_t*) + (6 * sizeof(uint64_t)))
+#define OFFSET_q  (sizeof(block1024_t*) + (7 * sizeof(uint64_t)))
 
 /* Initialization vector of constants for BLAKE2b. Defined in the RFC spec. */
 const uint64_t BLAKE2B_IV[8] = {
@@ -760,7 +760,7 @@ void argon2_h_dash(uint8_t* input,   uint8_t* output
     return;
 }
 
-void argon2_initJ1J2_blockpool_for2i(u8* Z, block64_t* blocks, u64 num_blocks){
+void argon2_initJ1J2_blockpool_for2i(u8* Z, block1024_t* blocks, u64 num_blocks){
 
     /* We are about to compute ( q / (128*SL) ) 1024-byte blocks. SL=4 slices.*/
     /* Allocate memory for them after working out exactly how many to compute.*/
@@ -905,14 +905,14 @@ void* argon2_transform_segment(void* thread_input){
      *
      * First ever actual necessary use of a triple pointer. Wow.
      */
-    block64_t** B;
+    block1024_t** B;
     memcpy(&B, thread_input, sizeof(B));
 
-    block64_t*  G_input_one;
-    block64_t*  G_input_two;
-    block64_t*  G_output;
-    block64_t   old_block;
-    block64_t*  J1J2blockpool = (block64_t*)calloc(1, num_blocks * (1024));   
+    block1024_t*  G_input_one;
+    block1024_t*  G_input_two;
+    block1024_t*  G_output;
+    block1024_t   old_block;
+    block1024_t*  J1J2blockpool = (block1024_t*)calloc(1, num_blocks * (1024));   
     
     u8 Z_buf[6 * sizeof(uint64_t)];
     
@@ -976,7 +976,7 @@ void* argon2_transform_segment(void* thread_input){
          * These will be pointers directly to the two 1024-byte blocks
          * that will be read by G() as its algorithmic input, and one
          * pointer directly to the start of the 1024-byte block that
-         * G() will transform. They are of type block64_t*
+         * G() will transform. They are of type block1024_t*
          */
         
         /* j is the index of the block we're about to transform in this
@@ -1040,7 +1040,7 @@ label_further_passes:
          * block that was there before G() overwrote it. XORing it with its old
          * contents is the NEW NEW block that will ultimately reside there.
          */
-        memcpy(&old_block, G_output, sizeof(block64_t));
+        memcpy(&old_block, G_output, sizeof(block1024_t));
       
         argon2_g((u8*)G_input_one, (u8*)G_input_two, (u8*)G_output); 
                 
@@ -1072,7 +1072,7 @@ label_further_passes:
          * block that was there before G() overwrote it. XORing it with its old
          * contents is the NEW NEW block that will ultimately reside there.
          */
-        memcpy(&old_block, G_output, sizeof(block64_t));
+        memcpy(&old_block, G_output, sizeof(block1024_t));
         
         argon2_g((u8*)G_input_one, (u8*)G_input_two, (u8*)G_output); 
         
@@ -1126,7 +1126,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     size_t H0_in_offset;
     size_t thread_in_offset;
 
-    block64_t** B;
+    block1024_t** B;
 
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
     /* The order has to be exactly as specified in the RFC.             */
@@ -1186,7 +1186,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
      *
      * For the second bracket where B[][] is used in the specification, we will
      * use a specially defined struct that only has a 1024-byte array in it
-     * and typedef'd as block64_t. This changes the behind-the-scenes multiplier
+     * and typedef'd as block1024_t. This changes the hidden multiplier
      * of the C compiler's pointer arithmetic to (* 1024), just like it would
      * do (* 4) behind the scenes for a pointer to uint32_t.
      *
@@ -1195,16 +1195,16 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
      */
     
     /* Allocate the working memory matrix of Argon2. */
-    working_memory = (u8*)calloc(1, m_dash * sizeof(block64_t));
+    working_memory = (u8*)calloc(1, m_dash * sizeof(block1024_t));
     
     /* Split the memory matrix into p rows by setting pointers to the 
      * start of each row. Each row has many 1024-byte blocks. 
      */
-    B = (block64_t**)calloc(1, parms->p * sizeof(block64_t*));
+    B = (block1024_t**)calloc(1, parms->p * sizeof(block1024_t*));
     
     /* Set a pointer to the start of each row in the memory matrix. */
     for(uint64_t i = 0; i < parms->p; ++i){
-        B[i] = (block64_t*)(working_memory + (i * (q * sizeof(block64_t))));
+        B[i] = (block1024_t*)(working_memory + (i * (q * sizeof(block1024_t))));
     }
     
     /* Now where B[x][y] is used in the RFC specification, here in this
@@ -1256,7 +1256,8 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     thread_inputs = (void**)calloc(1, parms->p * sizeof(void*));
     
     for(uint32_t i = 0; i < parms->p; ++i){
-        thread_inputs[i] = calloc(1, sizeof(block64_t*) + (8*sizeof(uint64_t)));
+        thread_inputs[i] = 
+                      calloc(1, sizeof(block1024_t*) + (8*sizeof(uint64_t)));
     }
     
 label_start_pass:
@@ -1297,10 +1298,10 @@ label_start_pass:
             /* First is a pointer to the start of the memory matrix B[][]. */
             memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset
                    ,&B
-                   ,sizeof(block64_t**)
+                   ,sizeof(block1024_t**)
                   );
 
-            thread_in_offset += sizeof(block64_t**);
+            thread_in_offset += sizeof(block1024_t**);
            
             /* Second is r, the current pass number. */
             memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset                 

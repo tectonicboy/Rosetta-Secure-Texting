@@ -5,6 +5,7 @@
 #include "../../lib/coreutil.h"
 #include "client-packet-functions.h"
 #include "tcp-communications.h"
+#include "ipc-communications.h"
 
 /* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
@@ -433,7 +434,7 @@ label_cleanup:
     return status;
 }
 
-void* begin_polling(void* input){
+void* begin_polling(__attribute__((unused)) void* input){
 
     u8  text_message_line[MESSAGE_LINE_LEN];
     u8  reply_buf[MAX_TXT_LEN];

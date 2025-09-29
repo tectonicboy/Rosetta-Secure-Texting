@@ -24,7 +24,12 @@ CFLAGS += -Wno-unused-result
 CFLAGS += -Wstrict-aliasing
 
 all:
-	gcc rosetta-test-framework.c -O2 -o rtf -lm -pthread $(CFLAGS) -march=native
+	gcc rosetta-test-framework.c -O2 -o rtf -lm -pthread $(CFLAGS) \
+	-march=native && \
+	gcc user-test-session.c -O2 -o user-spawner -lm -pthread $(CFLAGS) \
+	-march=native && \
+	gcc ../server/rosetta-server.c -O2 -o test-server -lm -pthread $(CFLAGS) \
+	-march=native
 
 debug:
 	gcc -g rosetta-test-framework.c -O0 -o debugrtf -lm -pthread \

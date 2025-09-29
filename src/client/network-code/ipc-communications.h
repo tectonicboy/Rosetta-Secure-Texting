@@ -1,13 +1,16 @@
 #include <netinet/in.h>
 #include <sys/un.h>
 
-uint8_t init_client_interprocess_comms(char* required_socket_pathname){
+#define SOCK_PATH     "/usr/bin/rosetta.sock\0"
+#define SOCK_PATH_LEN strlen("/usr/bin/rosetta.sock\0")
+
+uint8_t init_client_interprocess_comms(){
 
     int unix_socket_fd = 0;
     int len            = 0;
     int sock_path_len  = 0;
 
-    uint8_t ret = 0;
+    int8_t ret = 0;
  
     struct sockaddr_un unix_server_addr;
 
@@ -24,12 +27,13 @@ uint8_t init_client_interprocess_comms(char* required_socket_pathname){
 
     /**************************************************************************/
 
+    memset(&unix_server_addr, 0x00, sizeof(struct sockaddr_un));
     unix_server_addr.sun_family = AF_UNIX;
-    sock_path_len = strlen(required_socket_pathname);
-    strncpy(unix_server_addr.sun_path,required_socket_pathname,sock_path_len+1);
+    sock_path_len = SOCK_PATH_LEN;
+    strncpy(unix_server_addr.sun_path, SOCK_PATH, SOCK_PATH_LEN + 1);
     len = sock_path_len + 1 + sizeof(unix_server_addr.sun_family);
 
-    ret = connect(unix_socket_fd, (struct sockaddr*)&unix_server_addr, len)
+    ret = connect(unix_socket_fd, (struct sockaddr*)&unix_server_addr, len);
 
     if(ret == -1){
         perror("[ERR] Communications Layer: AF_UNIX connect() call failed.\n");

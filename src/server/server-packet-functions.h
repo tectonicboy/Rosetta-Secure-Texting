@@ -1,3 +1,356 @@
+#define PRIVKEY_LEN      40
+#define PUBKEY_LEN       384
+#define MAX_CLIENTS      64
+#define MAX_PEND_MSGS    64
+#define MAX_CHATROOMS    64
+#define MAX_MSG_LEN      131072
+#define MAX_TXT_LEN      1024
+#define MAX_BIGINT_SIZ   12800
+#define SMALL_FIELD_LEN  8
+#define TEMP_BUF_SIZ     16384
+#define SESSION_KEY_LEN  32
+#define ONE_TIME_KEY_LEN 32
+#define INIT_AUTH_LEN    32
+#define SHORT_NONCE_LEN  12
+#define LONG_NONCE_LEN   16
+#define HMAC_TRUNC_BYTES 8
+
+#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
+
+/* Memory region for short-term cryptographic artifacts for a login handshake */
+u8* temp_handshake_buf = NULL;
+
+/* Whether the login handshake memory region is currently locked or not. */
+u8 temp_handshake_memory_region_isLocked = 0;
+
+struct connected_client{
+    char user_id[SMALL_FIELD_LEN];
+    u64  room_ix;
+    u64  num_pending_msgs;
+    u64  pending_msg_sizes[MAX_PEND_MSGS];
+    u8*  pending_msgs[MAX_PEND_MSGS];
+    u64  nonce_counter;
+
+    time_t time_last_polled;
+
+    bigint client_pubkey;
+    bigint client_pubkey_mont;
+    bigint shared_secret;
+};
+
+struct chatroom{
+    u64 num_people;
+    u64 owner_ix;
+    u64 room_id;
+};
+
+/* Bitmasks telling the server which client and room slots are currently free.
+ *
+ * Begin populating room slots and user slots at index [1]. Reserve [0] for
+ * meaning that the user is not in any room at all.
+ */
+u64 users_status_bitmask = 0;
+u64 rooms_status_bitmask = 0;
+
+/* Bitmask telling the server which socket file descriptors are free to be
+ * used to accept a new connection to a client machine and begin its recv() loop
+ * thread function which it will be stuck on until they exit Rosetta.
+ */
+u64 socket_status_bitmask = 0;
+u64 next_free_socket_ix = 1;
+
+u64 next_free_user_ix = 1;
+u64 next_free_room_ix = 1;
+
+u8 server_privkey[PRIVKEY_LEN];
+
+time_t time_curr_login_initiated;
+
+pthread_mutex_t mutex;
+pthread_t conn_checker_threadID;
+
+#define PACKET_ID_00 0xAD0084FF0CC25B0E
+#define PACKET_ID_01 0xE7D09F1FEFEA708B
+#define PACKET_ID_02 0x146AAE4D100DAEEA
+#define PACKET_ID_10 0x13C4A44F70842AC1
+#define PACKET_ID_11 0xAEFB70A4A8E610DF
+#define PACKET_ID_20 0x9FF4D1E0EAE100A5
+#define PACKET_ID_21 0x7C8124568ED45F1A
+#define PACKET_ID_30 0x9FFA7475DDC8B11C
+#define PACKET_ID_40 0xCAFB1C01456DF7F0
+#define PACKET_ID_41 0xDC4F771C0B22FDAB
+#define PACKET_ID_50 0x41C20F0BB4E34890
+#define PACKET_ID_51 0x2CC04FBEDA0B5E63
+#define PACKET_ID_60 0x0A7F4E5D330A14DD
+
+struct connected_client clients[MAX_CLIENTS];
+
+struct chatroom rooms[MAX_CHATROOMS];
+
+/* Create thread_id's for every client machine's recv() loop thread. */
+pthread_t client_thread_ids[MAX_CLIENTS];
+
+/* A global array of pointers that point to the heap memory buffer used for
+ * the i-th client machine thread's network payload. We need this global array
+ * in order to be able to release the heap-allocated memory buffer back to the
+ * process' dynamic memory allocator with free() AFTER the client machine has
+ * been disconnected from the Rosetta server, since that thread function enters
+ * an infinite recv() loop that never exits, and is thus unable to free its own
+ * heap-allocated payload buffer by itself, so it has to be done by the function
+ * that cleans up a client machine's in-server state, and it is to be done via
+ * this global array of pointers.
+ */
+u8* client_payload_buffer_ptrs[MAX_CLIENTS];
+
+bigint* M;  /* Diffie-Hellman prime modulus M.              */
+bigint* Q;  /* Diffie-Hellman prime exactly dividing (M-1). */
+bigint* G;  /* Diffie-Hellman generator.                    */
+bigint* Gm; /* Montgomery Form of G.                        */
+bigint* server_pubkey_bigint;
+bigint  server_privkey_bigint;
+
+
+/* NOT THE BEST PLACE FOR THIS FUNCTION DEFINITION! FIND A BETTER PLACE LATER */
+u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
+
+    if(pubkey_siz < 300){
+        printf("[ERR] Server: Passed a small PubKey Size: %lu\n", pubkey_siz);
+        return 1;
+    }
+
+    /* Client slot has to be taken, clients size has to match,
+     * then pubkey can match.
+     */
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
+        if(   (users_status_bitmask & (1ULL << (63ULL - i)))
+           && (PUBKEY_LEN == pubkey_siz)
+           && (memcmp(pubkey_buf,(clients[i].client_pubkey).bits,pubkey_siz)==0)
+          )
+        {
+            printf("\n[ERR] Server: PubKey already exists for user[%lu]\n", i);
+            return 10;
+        }
+    }
+
+    return 0;
+}
+
+
+void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
+
+    /* Make sure the user has space in their list of pending messages. */
+    if(clients[user_ix].num_pending_msgs == MAX_PEND_MSGS){
+        printf("[ERR] Server: No space for pend_msgs of userix[%lu]\n",user_ix);
+        return;
+    }
+
+    /* Make sure the message is within the maximum permitted message length. */
+    if(data_len >= MAX_MSG_LEN){
+        printf("[ERR] Server: Pend_msg of userix[%lu] is too long!\n", user_ix);
+        printf("              The MSG length is: %lu bytes\n\n", data_len);
+        return;
+    }
+
+    /* Warn the server operator the user has just reached the pend_msgs limit */
+    /* While not dangerous right now, this is still considered an error.      */
+    if(clients[user_ix].num_pending_msgs == (MAX_PEND_MSGS - 1)){
+        printf("[ERR] Server: userix[%lu] reached pend_msgs limit!\n", user_ix);
+    }
+
+    /* num_pending_msgs conveniently doubles as a way to tell which pending
+     * msg slot is the next free one for each user. If that user has 0 pending
+     * msgs, fill the [0] slot. If they have 1 pending message, fill out the
+     * second slot, which is [1], etc.
+     */
+
+    /* Proceed to add the pending message to the user's list of them. */
+    memcpy( clients[user_ix].pending_msgs[clients[user_ix].num_pending_msgs]
+           ,data
+           ,data_len
+    );
+
+    clients[user_ix].pending_msg_sizes[clients[user_ix].num_pending_msgs]
+     = data_len;
+
+    return;
+}
+
+void remove_user_from_room(u64 sender_ix){
+
+    u8* reply_buf;
+    u64 reply_len;
+    u64 tmp_packet_id;
+    u64 saved_room_ix = clients[sender_ix].room_ix;
+
+    /* If it's not the owner, just tell the others that the person has left. */
+    if(sender_ix != rooms[clients[sender_ix].room_ix].owner_ix){
+
+        /* Construct the message and send it to everyone else in the chatroom.*/
+        reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+
+        tmp_packet_id = PACKET_ID_50;
+        memcpy(reply_buf, &tmp_packet_id, sizeof(u64));
+
+        memcpy( reply_buf + SMALL_FIELD_LEN
+               ,clients[sender_ix].user_id
+               ,SMALL_FIELD_LEN
+        );
+
+        /* Compute a signature so the clients can authenticate the server. */
+        signature_generate( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+                           ,reply_buf + (reply_len - SIGNATURE_LEN)
+                           ,&server_privkey_bigint, PRIVKEY_LEN
+        );
+
+        /* Let the other room guests know that a user has left: TYPE_50 */
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            if(
+                 (i != sender_ix)
+               &&
+                 (clients[i].room_ix == clients[sender_ix].room_ix))
+            {
+                add_pending_msg(i, reply_len, reply_buf);
+
+                printf("[OK]  Server: Added pending message to user[%lu] that\n"
+                       "              user[%lu] left the room.\n",i,sender_ix
+                      );
+            }
+        }
+
+        /* Server bookkeeping - a guest has left the chatroom they were in. */
+        /* In this case, simply decrement the number of guests in the room. */
+        rooms[clients[sender_ix].room_ix].num_people -= 1;
+        clients[sender_ix].room_ix = 0;
+        clients[sender_ix].num_pending_msgs = 0;
+
+        for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
+            memset(clients[sender_ix].pending_msgs[i], 0, MAX_MSG_LEN);
+            clients[sender_ix].pending_msg_sizes[i] = 0;
+        }
+    }
+
+    /* if it WAS the room owner, boot everyone else from the chatroom as well */
+    else{
+        printf("Removing OWNER of room[%lu]!\n", clients[sender_ix].room_ix);
+        reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
+        reply_buf = calloc(1, reply_len);
+
+        tmp_packet_id = PACKET_ID_51;
+        memcpy(reply_buf, &tmp_packet_id, sizeof(u64));
+
+        /* Compute a signature so the clients can authenticate the server. */
+        signature_generate( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN
+                           ,reply_buf + (reply_len - SIGNATURE_LEN)
+                           ,&server_privkey_bigint, PRIVKEY_LEN
+        );
+
+        /* Let the other room guests know that they've been booted: TYPE_51 */
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+            if(
+                 (i != sender_ix)
+               &&
+                 (clients[i].room_ix == clients[sender_ix].room_ix))
+            {
+                printf("[OK]  Server: Adding pending MSG to user[%lu] that\n"
+                       "              they've been booted from the room.\n", i
+                      );
+
+                add_pending_msg(i, reply_len, reply_buf);
+            }
+        }
+
+        /* Reflect in the global chatroom index array that the room is free. */
+        rooms_status_bitmask &= ~(1ULL << (63ULL - clients[sender_ix].room_ix));
+
+        /* Bookkeeping - a room owner closed their chatroom. Boot everyone. */
+
+        /* In this case, nullify the entire room's descriptor structure. */
+        rooms[clients[sender_ix].room_ix].num_people = 0;
+        rooms[clients[sender_ix].room_ix].owner_ix   = 0;
+        rooms[clients[sender_ix].room_ix].room_id    = 0;
+
+        printf("Got to last loop in remove_user_FROM_ROOM()!\n");
+
+        for(u64 i = 0; i < MAX_CLIENTS; ++i){
+
+            if(clients[i].room_ix == saved_room_ix) {
+
+                clients[i].room_ix = 0;
+                clients[i].num_pending_msgs = 0;
+
+                for(size_t j = 0; j < MAX_PEND_MSGS; ++j){
+                    memset(clients[i].pending_msgs[j], 0, MAX_MSG_LEN);
+                    clients[i].pending_msg_sizes[j] = 0;
+                }
+            }
+        }
+    }
+
+    free(reply_buf);
+
+    return;
+}
+
+
+u8 authenticate_client( u64 client_ix,  u8* signed_ptr
+                       ,u64 signed_len, u64 sign_offset
+                      )
+{
+    bigint *recv_e;
+    bigint *recv_s;
+
+    u64 s_offset = sign_offset;
+    u64 e_offset = (sign_offset + sizeof(bigint) + PRIVKEY_LEN);
+
+    u8 ret;
+
+    /* Reconstruct the sender's signature as the two BigInts that make it up. */
+    recv_s = (bigint*)(signed_ptr + s_offset);
+    recv_e = (bigint*)(signed_ptr + e_offset);
+
+    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+
+    memcpy( recv_s->bits
+           ,signed_ptr + (sign_offset + sizeof(bigint))
+           ,PRIVKEY_LEN
+    );
+
+    memcpy( recv_e->bits
+           ,signed_ptr + (sign_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
+           ,PRIVKEY_LEN
+    );
+
+    /*
+    printf("[DEBUG] Server: Calling signature_validate with:\n");
+    printf("[DEBUG] Server: client[%lu]'s pubkeyMONT:\n", client_ix);
+    bigint_print_info(&(clients[client_ix].client_pubkey_mont));
+    bigint_print_bits(&(clients[client_ix].client_pubkey_mont));
+    printf("[DEBUG] Server: and signed things of length %lu:\n", signed_len);
+
+    for(u64 i = 0; i < signed_len; ++i){
+        printf("%03u ", *(signed_ptr + i) );
+        if(((i+1) % 8 == 0) && i > 6){
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+    */
+
+    /* Verify the sender's cryptographic signature. */
+    ret = signature_validate(
+                     Gm, &(clients[client_ix].client_pubkey_mont)
+                    ,M, Q, recv_s, recv_e, signed_ptr, signed_len
+    );
+
+    free(recv_s->bits);
+    free(recv_e->bits);
+
+    return ret;
+}
+
+
 /* A user requested to be logged in Rosetta:
 
     Client ----> Server
