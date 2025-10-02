@@ -4,20 +4,32 @@
 #include "server-ipc-communications.h"
 #include "server-packet-functions.h"
 
-/* This function pointer tells the server whether to communicate through
+/* These function pointers tell the server whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the server was started
- * by the Rosetta Testing Framework, communication with test clients (that are
- * emulated as local OS processes instead of real people texting on the system)
- * is done via local unix interprocess communications (AF_UNIX sockets). If the
+ * for the Rosetta Testing Framework, communication with test clients, which are
+ * local OS processes talking to each other, simulating real people texting,
+ * is done via locak unix interprocess communications (AF_UNIX sockets). If the
  * server is to be run normally for real Rosetta users to tune in to chatrooms
- * and text each other, Internet sockets are employed for communication.
+ * and text each other, Internet sockets provide the communication mechanism.
  *
- * These two methods of communication need different initialization code.
- * A command-line argument determines whether the server was started by the
- * testing framework or for the real system, and this in turn sets this
- * function pointer to the appropriate communications initialization function.
+ * The two communication mechanisms need different code for (1) initialization,
+ * (2) transmitting a message to a known client, (3) receiving a message sent by
+ * a known client and (4) accepting a newly arrived user/test messaging client.
+ *
+ * A command-line argument determines whether the server was started for the
+ * testing framework or for the real system, and this in turn sets these
+ * function pointers to the actual respective functions that implement the 4
+ * differing communication operations. This is at server initialization time.
+ *
+ * This allows for an elegant way to simplify in-server communication code while
+ * maintaining working messaging both for Rosetta Test Framework and for the
+ * real thing with only one set of simple, descriptive API functions, instead of
+ * polluting server code with sockets API-specific code for AF_UNIX / Internet.
  */
-uint8_t (*init_communications)(void);
+uint8_t(*init_communication)(void);
+uint8_t(*transmit_payload)  (uint32_t socket_ix, uint8_t* buf, size_t send_siz);
+uint8_t(*receive_payload)   (uint32_t socket_ix, uint8_t* buf, size_t max_siz);
+uint8_t(*onboard_new_client)(uint32_t socket_ix);
 
 /* First thing done when we start the Rosetta server - initialize it. */
 u8 self_init(){
@@ -366,20 +378,9 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
     /* Also do something in case it was a bad unrecognized transmission.  */
     
     default:{
-        
+        /* DO NOT REACT TO BAD PACKETS!! Drop them silently instead. */
         printf("[WAR] Server: No valid packet type found in request.\n\n");
-        /* Send the reply back to the client. */
-        /*
-        if(send(client_socket_fd[sock_ix], "fuck you", 8, 0) == -1){
-            printf("[ERR] Server: Couldn't reply to a bad transmission.\n");
-            status = 1;
-            goto label_error;
-        }
-        
-        else{
-            printf("[OK]  Server: Replied to a bad transmission.\n");
-        }
-        */    
+        break;    
     }
     
     } /* end switch */
@@ -545,9 +546,8 @@ void* check_for_lost_connections(){
 
 void* start_new_client_thread(void* ix_ptr){
 
-    u8*  client_msg_buf;
-
-    s64  bytes_read; 
+    u8* client_msg_buf;
+    u8  ret; 
 
     u32 status;
     u32 ix = *((u32*)ix_ptr);
@@ -571,43 +571,27 @@ void* start_new_client_thread(void* ix_ptr){
     while(1){
 
         /* Block on this recv call, waiting for a client's request. */
-        bytes_read = recv(client_socket_fd[ix], client_msg_buf, MAX_MSG_LEN, 0);
-
-        if(bytes_read == -1 || bytes_read < 8){
-            printf( "[ERR] Server: Couldn't recv() or too short, client[%u]\n\n"
-                ,ix
-            );
-            perror("recv() failed, errno was set to");
-            memset(client_msg_buf, 0, MAX_MSG_LEN);
-            continue;
-        }
-        else{
-            printf("[OK]  Server: Read %ld bytes from request by client[%u]\n\n" 
-                  ,bytes_read, ix
-            );
-        }
+        //bytes_read = recv(client_socket_fd[ix], client_msg_buf,MAX_MSG_LEN,0);
+        ret = receive_payload(client_socket_fd[ix],client_msg_buf, MAX_MSG_LEN); 
+        if(ret)
+            printf("[ERR] Server loop: receive_payload() went bad!\n");
 
         pthread_mutex_lock(&mutex);
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
 
-        if(status){
-            printf("\n\n****** WARNING ******\n\n"
-                    "Error while processing a received "
-                    "transmission, look at log to find it.\n"
-            );    
-        }   
-
-
+        if(status)
+            printf("[ERR] Server: identifying new transmission went bad!\n");
+           
         memset(client_msg_buf, 0, bytes_read);
 
-        pthread_mutex_unlock(&mutex); 
-
+        pthread_mutex_unlock(&mutex);
     }
 }
 
 int main(int argc, char* argv[]){
 
+    u8  ret = 0;
     u32 status = 0;
     u32 curr_free_socket_ix;
 
@@ -615,10 +599,35 @@ int main(int argc, char* argv[]){
     
     int arg1;
 
-    if(argc > 1)
-        arg1 = atoi(argv[1]);
+    if(argc != 2){
+        printf("[ERR] Server: run me with 1 cmd line arg: 0 or 1 (for RTF)\n");
+        exit(1);
+    }
+ 
+    arg1 = atoi(argv[1]);
 
+    /* Set 4 function pointers for the communication mechanism (socket type)  */
 
+    /* If server started for Rosetta Test Framework, use AF_UNIX sockets. */
+    if(arg1 == 1){
+        init_communication = ipc_init_communication;
+        transmit_payload   = ipc_transmit_payload;
+        receive_payload    = ipc_receive_payload;  
+        onboard_new_client = ipc_onboard_new_client;  
+    }
+
+    /* If server started for normal Rosetta texting, use Internet sockets. */
+    else if(arg1 == 0){
+        init_communication = tcp_init_communication;                             
+        transmit_payload   = tcp_transmit_payload;                               
+        receive_payload    = tcp_receive_payload;                                
+        onboard_new_client = tcp_onboard_new_client;  
+    }
+
+    else{
+        printf("[ERR] Server: command line argument must be 0 or 1.\n");
+        exit(1);
+    }
     /**************************************************************************/
 
     status = (uint32_t)init_server_ipc_comms();
@@ -633,6 +642,9 @@ int main(int argc, char* argv[]){
     
     if(arg1 == 1){
         init_communications = init_server_ipc_comms;
+        
+
+        
         printf("[OK] Server: Function pointer set to unix domain sockets.\n");
     }
     else if(arg1 == 0){
@@ -674,22 +686,18 @@ int main(int argc, char* argv[]){
     
     while(1){
 
-
-        /* Block on this accept() until a new client machine wants to connect */
-        client_socket_fd[next_free_socket_ix] = 
-        accept( listening_socket,
-                (struct sockaddr*)(&(client_addresses[next_free_socket_ix])),
-                &(clientLens[next_free_socket_ix])
-        );
-
         curr_free_socket_ix = next_free_socket_ix;
 
-        if(client_socket_fd[curr_free_socket_ix] == -1){
-            printf("[ERR] Server: accept() failed to connect the socket.\n");
-            perror("accept() failed, errno was set");
-            continue;
-        }
-        printf("[OK] Server: Passed accept! Received a new conn!\n\n");
+        /**********************************************************************/
+
+        /* Block here until a newly seen client wants to log in to Rosetta. */
+
+        ret = onboard_new_client(curr_free_socket_ix);
+
+        if(ret)
+            printf("[ERR] Server: accepting a newly seen client failed!\n");
+
+        /**********************************************************************/
 
         pthread_mutex_lock(&mutex);
 

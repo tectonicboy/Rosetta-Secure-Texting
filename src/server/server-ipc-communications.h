@@ -1,36 +1,8 @@
-#include <sys/socket.h>
-#include <sys/un.h>
-
-#define PRIVKEY_LEN      40
-#define PUBKEY_LEN       384
-#define MAX_CLIENTS      64
-#define MAX_PEND_MSGS    64
-#define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      131072
-#define MAX_TXT_LEN      1024
-#define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8
-#define TEMP_BUF_SIZ     16384
-#define SESSION_KEY_LEN  32
-#define ONE_TIME_KEY_LEN 32
-#define INIT_AUTH_LEN    32
-#define SHORT_NONCE_LEN  12
-#define LONG_NONCE_LEN   16
-#define HMAC_TRUNC_BYTES 8
-
-#define BUF_SIZ       100
-#define SOCK_PATH     "/usr/bin/rosetta.sock\0"
-#define SOCK_PATH_LEN strlen("/usr/bin/rosetta.sock\0")
-
+#include "communication-constructs.h"
 
 uint8_t init_server_ipc_comms()
 {
     uint8_t ret = 0;
-
-    int server_fd;
-    int client_fd;
-
-    struct sockaddr_un addr;
 
     char buf[BUF_SIZ];
 
@@ -38,10 +10,10 @@ uint8_t init_server_ipc_comms()
 
     /**************************************************************************/
 
-    server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    listening_socket = socket(AF_UNIX, SOCK_STREAM, 0);
    
-    if(server_fd == -1){
-        perror("[ERR] Communications Layer: AF_UNIX socket() call failed!\n");
+    if(listening_socket == -1){
+        perror("[ERR] Server: AF_UNIX socket() call failed!\n");
         ret = 1;
         goto label_cleanup;
     }
@@ -50,11 +22,11 @@ uint8_t init_server_ipc_comms()
 
     /**************************************************************************/
 
-    memset(&addr, 0, sizeof(struct sockaddr_un));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, SOCK_PATH, SOCK_PATH_LEN + 1);
+    memset(&ipc_servaddr, 0, sizeof(struct sockaddr_un));
+    ipc_servaddr.sun_family = AF_UNIX;
+    strncpy(ipc_addr.sun_path, SOCK_PATH, SOCK_PATH_LEN + 1);
     
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) 
+    if (bind(listening_socket, (struct sockaddr *)&ipc_servaddr, sizeof(struct sockaddr_un)) 
          == -1
        ) 
     {
@@ -65,21 +37,13 @@ uint8_t init_server_ipc_comms()
 
     /**************************************************************************/
 
-    if(listen(server_fd, 5) == -1){
+    if(listen(listening_socket, 50) == -1){
         perror("[ERR] Communications Layer: AF_UNIX listen() call failed!\n");
         ret = 1;
         goto label_cleanup;
     }
 
     /**************************************************************************/
-
-    // Accept a client connection
-    client_fd = accept(server_fd, NULL, NULL);
-    if (client_fd == -1) {
-        perror("[ERR] Communications Layer: AF_UNIX accept() call failed!\n");
-        ret = 1;
-        goto label_cleanup;
-    }
 
     sleep(1);
 
@@ -102,8 +66,8 @@ uint8_t init_server_ipc_comms()
 
 label_cleanup:
 
-    if(server_fd != -1)
-        close(server_fd);
+    if(listening_socket != -1)
+        close(listening_socket);
 
     unlink(SOCK_PATH);
 
@@ -111,3 +75,20 @@ label_init_succeeded:
 
     return ret;
 }
+
+uint8_t ipc_onboard_new_client(uint32_t socket_ix){
+
+    uint8_t ret = 0;
+
+    client_socket_fd[socket_ix] = accept(listening_socket, NULL, NULL);
+
+    if (client_socket_fd[socket_ix] == -1) {                                                       
+        perror("[ERR] Server: AF_UNIX accept() call failed!\n");   
+        ret = 1;                                       
+    }     
+    else
+        printf("[OK]  Server: AF_UNIX accept() is OK. Accepted new client!\n");
+
+    return ret;
+}
+

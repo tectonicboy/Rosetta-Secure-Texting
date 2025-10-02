@@ -1,40 +1,6 @@
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include "communication-constructs.h"
 
-#define PRIVKEY_LEN      40
-#define PUBKEY_LEN       384
-#define MAX_CLIENTS      64
-#define MAX_PEND_MSGS    64
-#define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      131072
-#define MAX_TXT_LEN      1024
-#define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8
-#define TEMP_BUF_SIZ     16384
-#define SESSION_KEY_LEN  32
-#define ONE_TIME_KEY_LEN 32
-#define INIT_AUTH_LEN    32
-#define SHORT_NONCE_LEN  12
-#define LONG_NONCE_LEN   16
-#define HMAC_TRUNC_BYTES 8
-
-#define SERVER_PORT    54746
-#define MAX_SOCK_QUEUE 1024
-
-/* Linux Sockets API related globals. */
-int port = SERVER_PORT;
-int listening_socket;
-int optval1 = 1;
-int optval2 = 2;
-
-int client_socket_fd[MAX_CLIENTS];
-struct sockaddr_in client_addresses[MAX_CLIENTS];
-socklen_t clientLens[MAX_CLIENTS];
-struct sockaddr_in servaddr;
-
-uint8_t init_tcp_listening(void){
+uint8_t tcp_init_communication(void){
 
     uint8_t status = 0;
 
@@ -94,4 +60,51 @@ label_finished:
 
     return status;
 
+}
+
+uint8_t tcp_onboard_new_client(uint32_t socket_ix){
+
+    uint8_t ret = 0;
+
+    client_socket_fd[socket_ix] =                                  
+            accept( listening_socket
+                   ,(struct sockaddr*)(&(client_addresses[socket_ix]))
+                   ,&(clientLens[socket_ix])
+                  );
+                                                                   
+    if(client_socket_fd[curr_free_socket_ix] == -1){                         
+        perror("[ERR] Server: TCP accept() failed, errno: ");
+        ret = 1;
+    }                                                                        
+    else
+        printf("[OK] Server: TCP accept() is OK. New client allowed in!\n");
+
+    return ret;
+}
+
+uint8_t tcp_transmit_payload(uint32_t socket_ix, uint8_t* buf, size_t send_len){
+
+    uint8_t ret = 0;
+
+    if(send(client_socket_fd[socket_ix], buf, sendlen, 0) == -1){
+        perror("[ERR] Server: TCP send() failed! errno: ");
+        ret = 1;
+    }
+
+    return ret;
+}
+
+uint8_t tcp_receive_payload(uint32_t socket_ix, uint8_t* buf, size_t max_len){
+
+    uint8_t ret = 0;
+    ssize_t bytes_read;
+
+    bytes_read = recv(client_socket_fd[ix], client_msg_buf, max_len, 0);
+
+    if(bytes_read == -1){
+        perror("[ERR] Server: TCP receiving failed! errno: ");
+        ret = 1;
+    }
+
+    return ret;
 }
