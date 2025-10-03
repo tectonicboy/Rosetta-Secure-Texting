@@ -381,6 +381,7 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
     u8  signature_buf[SIGNATURE_LEN]; 
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
     u8* Y_s;
+    u8  ret = 0;
 
     memset(signature_buf, 0, SIGNATURE_LEN);
 
@@ -418,17 +419,18 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
 
 */
         
-        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
+        ret = transmit_payload(sock_ix, reply_buf, reply_len);
+
+        if(ret)
             printf("[ERR] Server: Couldn't send try-login-later message.\n");
-        }
-        else{
+        else
             printf("[OK]  Server: Told client to try login later.\n");
-        }
+
 
         free(reply_buf);
 
         return;
-    } 
+    }
 
     /* Construct a bigint out of the client's short-term public key.          */
     /* Here's where a constructor from a memory buffer and its length is good */
@@ -620,13 +622,15 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
     memcpy(reply_buf + replybuf_byte_offset, signature_buf, SIGNATURE_LEN);
     
     /* Send the reply back to the client. */
-    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");
-    }
-    else{
-        printf("[OK]  Server: Replied to client with PACKET_ID_00 msg.\n");
-    }
-      
+    
+    ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                 
+    if(ret)                                                                  
+        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");   
+    else                                                                     
+        printf("[OK]  Server: Replied to client with PACKET_ID_00 msg.\n"); 
+  
+
 label_cleanup: 
 
     free(zero.bits);
@@ -635,7 +639,6 @@ label_cleanup:
     free(X_s.bits);
     free(B_s);
     
-
     system("rm temp_privkey.dat");
   
     return;
@@ -969,12 +972,13 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
 
 */
         
-        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
+        ret = transmit_payload(sock_ix, reply_buf, reply_len);                       
+                                                                                 
+        if(ret)                                                                      
             printf("[ERR] Server: Couldn't send try-login-later message.\n");
-        }
-        else{
-            printf("[OK]  Server: Told client to try login later.\n");
-        }
+        else                                                                         
+            printf("[OK]  Server: Told client to try login later.\n");  
+
         goto label_cleanup;
     }
     
@@ -1135,15 +1139,17 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
 --------------------------------------------------------------------------------
 
 */
-      
-    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't send Login-OK message.\n");
+ 
+    ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                 
+    if(ret){                                                                  
+        printf("[ERR] Server: Couldn't send Login-Finished message.\n");    
         goto label_cleanup;
     }
-    else{
-        printf("[OK]  Server: Told client Login went OK, sent their index.\n");
+    else{                                                                     
+        printf("[OK]  Server: Told client Login finished, sent their index.\n");  
     }
-    
+
     printf("\n\n[OK]  Server: SUCCESS - Permitted a user in Rosetta!!\n\n");
 
 label_cleanup:
@@ -1350,12 +1356,13 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
         
-        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't send No Room Space message.\n");
-        }
-        else{
-            printf("[OK]  Server: Told client No Room Space, try later.\n");
-        }
+        ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                 
+        if(ret)                                                                  
+            printf("[ERR] Server: Couldn't send No-Room-Space message.\n");    
+        else                                                                     
+            printf("[OK]  Server: Told client No Room Space, try later.\n");  
+
         goto label_cleanup;  
     }
     
@@ -1407,12 +1414,15 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
     }
     
     /* Transmit the server's ROOM CREATION OK reply back to the client. */    
-    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't send RoomCreation-OK message.\n");
+
+    ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                 
+    if(ret){                                                                  
+        printf("[ERR] Server: Couldn't send Room-Creation-OK message.\n");    
         goto label_cleanup;
     }
-    else{
-        printf("[OK]  Server: Told client room creation went OK!\n");
+    else{                                                                     
+        printf("[OK]  Server: Told client room creation finished!\n");  
     }
 
 label_cleanup:
@@ -1800,15 +1810,18 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     L = N * (SMALL_FIELD_LEN + PUBKEY_LEN). 
     
     */
-
-    if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-        printf("[ERR] Server: Couldn't send Room-Join-OK message.\n");
+ 
+    ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                
+    if(ret){                                                                 
+        printf("[ERR] Server: Couldn't send Room-Joined-OK message.\n");    
         goto label_cleanup;
     }
-    else{
-        printf("[OK]  Server: Told client they were permitted in the room.\n");
+    else{                                                                     
+        printf("[OK]  Server: Told client they were permitted in the room.\n");  
     }
-    
+
+
     printf("\n\n[OK]  Server: SUCCESS - Permitted a user in a chatroom!!\n\n");
     printf("Now to transmit the new user's public key to all room people!!\n");
     
@@ -2162,13 +2175,15 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
 
 */        
         /* Send the reply back to the client. */
-        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");
-        }
-        else{
-            printf("[OK]  Server: Replied with PACKET_ID_40 message.\n");
-        }
         
+        ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                 
+        if(ret)                                                                  
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");    
+        else                                                                     
+            printf("[OK]  Server: Replied with PACKET_ID_40 message..\n");  
+
+
         goto label_cleanup;
     }
     /* If there are pending messages, construct a buffer containing them all. */
@@ -2177,7 +2192,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         /* We need to allocate enough memory for the reply buffer. This can only
          * happen if we preemptively iterate over the sender's array of lengths
          * of pending messages, even if we will need to do it again later to 
-         * actually fetch their pending messages.
+         * actually fetch their pending messages. Doable in one pass over it?
          */
         reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         reply_write_offset = 2 * SMALL_FIELD_LEN;
@@ -2245,13 +2260,15 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
 
 */              
         /* Send the reply back to the client. */
-        if(send(client_socket_fd[sock_ix], reply_buf, reply_len, 0) == -1){
-            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");
-        }
-        else{
-            printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");
-        }
         
+        ret = transmit_payload(sock_ix, reply_buf, reply_len);                   
+                                                                                 
+        if(ret)                                                                  
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");    
+        else                                                                     
+            printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");  
+
+
         goto label_cleanup;
     }
   

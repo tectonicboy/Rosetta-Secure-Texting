@@ -10,13 +10,15 @@
 
 const int port = SERVER_PORT;
 const int optval1 = 1;
-      int own_socket_fd;
+      int own_socket_fd = -1;
 
 const socklen_t server_addr_len = sizeof(struct sockaddr_in);
 
 struct sockaddr_in servaddr;
 
-uint8_t init_tcp_conn_with_server(){
+uint8_t tcp_init_communication(){
+
+    uint8_t ret = 0;
 
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
 
@@ -29,7 +31,7 @@ uint8_t init_tcp_conn_with_server(){
     if(own_socket_fd == -1) {
         printf("[ERR] Client: socket() failed. Terminating.\n");
         perror("errno:");
-        return 1;
+        goto label_cleanup;
     }
 
     if(
@@ -40,7 +42,7 @@ uint8_t init_tcp_conn_with_server(){
     )
     {
         printf("[ERR] Client: set socket option failed.\n\n");
-        return 1;
+        label_cleanup;
     }
 
     printf("[OK]  Client: Socket file descriptor obtained!\n");
@@ -53,35 +55,46 @@ uint8_t init_tcp_conn_with_server(){
     {
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
         perror("connect() failed, errno: ");
-        return 1;
+        goto label_cleanup;
     }
 
     printf("[OK]  Client: Successfully connected to the Rosetta server!\n\n");
+    goto label_finished;
 
-    return 0;
+label_cleanup:
+    
+    ret = 1;
+
+    if(own_socket_fd != -1)
+        close(own_socket_fd);
+    
+label_finished:
+
+    return ret;
 }
 
-u8 send_to_tcp_server(u8* msg_buf, u64 msg_len){
+u8 tcp_transmit_payload(u8* msg_buf, u64 msg_len){
 
-    ssize_t bytes_sent;
-
-    bytes_sent = send(own_socket_fd, msg_buf, msg_len, 0);
-
-    if( ((uint64_t)bytes_sent) != msg_len){
-       return 1; 
+    uint8_t ret = 0;
+ 
+    if(send(own_socket_fd, msg_buf, msg_len, 0) != msg_len){
+        ret = 1;
+        perror("[ERR] Client: TCP send() failed! errno: ");
     }
 
-    return 0;
+    return ret;
 }
 
-u8 grab_servers_reply(u8* reply_buf, u64* reply_len){
+u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
  
-    *reply_len = recv(own_socket_fd, reply_buf, 8192, 0);
+    uint8_t ret = 0;
+
+    (int64_t)(*reply_len) = (int64_t)recv(own_socket_fd, reply_buf, 8192, 0);
      
     if( ((int64_t)(*reply_len)) == -1){
-        printf("\n[ERR] Client: Couldn't receive a reply to msg_00.\n\n");
-        return 1;
+        printf("\n[ERR] Client: TCP recv() failed! errno: ");
+        ret = 1;
     }
 
-    return 0;
+    return ret;
 }
