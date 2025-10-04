@@ -114,7 +114,7 @@ label_finished:
 
 }
 
-uint8_t tcp_onboard_new_client(uint32_t socket_ix){
+uint8_t tcp_onboard_new_client(uint64_t socket_ix){
 
     uint8_t ret = 0;
 
@@ -134,7 +134,7 @@ uint8_t tcp_onboard_new_client(uint32_t socket_ix){
     return ret;
 }
 
-uint8_t tcp_transmit_payload(uint32_t socket_ix, uint8_t* buf, size_t send_len){
+uint8_t tcp_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len){
 
     uint8_t ret = 0;
 
@@ -146,7 +146,7 @@ uint8_t tcp_transmit_payload(uint32_t socket_ix, uint8_t* buf, size_t send_len){
     return ret;
 }
 
-ssize_t tcp_receive_payload(uint32_t socket_ix, uint8_t* buf, size_t max_len){
+ssize_t tcp_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     ssize_t bytes_read;
 
@@ -173,7 +173,8 @@ uint8_t ipc_init_communication()
         ret = 1;
         goto label_cleanup;
     }
-
+    printf("[OK]  Server: AF_UNIX socket() call is OK.\n");
+  
     unlink(SOCK_PATH);
 
     /**************************************************************************/
@@ -188,18 +189,20 @@ uint8_t ipc_init_communication()
             ) == -1
        )
     {
-        perror("[ERR] Communications Layer: AF_UNIX bind() call failed!\n");
+        perror("[ERR] Server: AF_UNIX bind() call failed!\n");
         ret = 1;
         goto label_cleanup;
     }
+    printf("[OK]  Server: AF_UNIX bind()   call is OK.\n");
 
     /**************************************************************************/
 
     if(listen(listening_socket, 50) == -1){
-        perror("[ERR] Communications Layer: AF_UNIX listen() call failed!\n");
+        perror("[ERR] Server: AF_UNIX listen() call failed!\n");
         ret = 1;
         goto label_cleanup;
     }
+    printf("[OK]  Server: AF_UNIX listen() call is OK.\n");
 
     /**************************************************************************/
 
@@ -216,10 +219,12 @@ label_cleanup:
 
 label_init_succeeded:
 
+    printf("[OK]  Server: Local interprocess communication init finished!!\n");
+
     return ret;
 }
 
-uint8_t ipc_onboard_new_client(uint32_t socket_ix){
+uint8_t ipc_onboard_new_client(uint64_t socket_ix){
 
     uint8_t ret = 0;
 
@@ -235,7 +240,7 @@ uint8_t ipc_onboard_new_client(uint32_t socket_ix){
     return ret;
 }
 
-uint8_t ipc_transmit_payload(uint32_t socket_ix, uint8_t* buf, size_t send_len){
+uint8_t ipc_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len){
 
     uint8_t ret = 0;
 
@@ -247,11 +252,17 @@ uint8_t ipc_transmit_payload(uint32_t socket_ix, uint8_t* buf, size_t send_len){
     return ret;
 }
 
-ssize_t ipc_receive_payload(uint32_t socket_ix, uint8_t* buf, size_t max_len){
+ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     uint8_t ret = 0;
 
     ssize_t num_read;
+
+    printf("\n[DEBUG] Server: IPC, right before recv() -- \n"
+           "socket_ix: [%lu]\n"
+           "client_socket_fd[socket_ix] = %d\n\n"
+           ,socket_ix, client_socket_fd[socket_ix]
+          );
 
     if((num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0)) == -1){
         perror("[ERR] Server: AF_UNIX recv() call failed! errno: ");

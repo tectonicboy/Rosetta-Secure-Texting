@@ -177,9 +177,9 @@ uint8_t ipc_transmit_payload(uint8_t* buf, size_t buf_len){
 uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
 
     uint8_t ret    = 0;
-    ssize_t  status = 0;
+    ssize_t status = 0;
 
-    status = (uint64_t)recv(own_socket_fd, buf, 8192, 0);
+    status = recv(own_socket_fd, buf, 80000, 0);
 
     if(status == -1){
         printf("\n[ERR] Client: AF_UNIX recv() failed! errno: ");

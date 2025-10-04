@@ -26,9 +26,9 @@
 #include <sys/types.h>
 
 uint8_t(*init_communication)(void);
-uint8_t(*transmit_payload)  (uint32_t socket_ix, uint8_t* buf, size_t send_siz);
-ssize_t(*receive_payload)   (uint32_t socket_ix, uint8_t* buf, size_t max_siz);
-uint8_t(*onboard_new_client)(uint32_t socket_ix);
+uint8_t(*transmit_payload)  (uint64_t socket_ix, uint8_t* buf, size_t send_siz);
+ssize_t(*receive_payload)   (uint64_t socket_ix, uint8_t* buf, size_t max_siz);
+uint8_t(*onboard_new_client)(uint64_t socket_ix);
 
 #include "../lib/coreutil.h"
 #include "server-communications.h"
@@ -553,7 +553,12 @@ void* start_new_client_thread(void* ix_ptr){
     ssize_t bytes_read;
 
     u32 status;
-    u32 ix = *((u32*)ix_ptr);
+    
+    u64 ix;
+ 
+    memcpy(&ix, ix_ptr, sizeof(ix));
+
+    printf("New client recv() loop thread started. INDEX: %lu\n", ix);
 
     pthread_mutex_lock(&mutex);
 
@@ -598,7 +603,9 @@ int main(int argc, char* argv[]){
 
     u8  ret = 0;
     u32 status = 0;
-    u32 curr_free_socket_ix;
+    u64 curr_free_socket_ix;
+
+    uint8_t thread_func_arg_buf[sizeof(curr_free_socket_ix)];
 
     /* Function pointer set to respective socket initialization routine. */
     
@@ -647,6 +654,8 @@ int main(int argc, char* argv[]){
     }
     
     printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
+
+    
     
     /* Begin the thread function that will, in parallel to the running server,
      * check every 10 seconds for any lost connections, identified by connected
@@ -681,6 +690,13 @@ int main(int argc, char* argv[]){
 
         /**********************************************************************/
 
+        printf("[DEBUG] Server -- [ix] before : [%lu]\n", curr_free_socket_ix);
+
+        memcpy( thread_func_arg_buf
+               ,&curr_free_socket_ix
+               ,sizeof(curr_free_socket_ix)
+              );
+
         pthread_mutex_lock(&mutex);
 
         /* Give this new client a thread on which their socket will be stuck
@@ -692,7 +708,7 @@ int main(int argc, char* argv[]){
             &(client_thread_ids[curr_free_socket_ix])
            ,NULL
            , start_new_client_thread
-           ,((void*)(&curr_free_socket_ix))
+           ,(void*)thread_func_arg_buf
         );
 
         /* Reflect the new taken socket slot in the global status bitmask. */

@@ -11,9 +11,9 @@
  */
 int main(void){
 
-    init_communication = tcp_init_communication;
-    transmit_payload   = tcp_transmit_payload;
-    receive_payload    = tcp_receive_payload;
+    init_communication = ipc_init_communication;
+    transmit_payload   = ipc_transmit_payload;
+    receive_payload    = ipc_receive_payload;
 
     /* Take save file name and password from stdin. */
 
