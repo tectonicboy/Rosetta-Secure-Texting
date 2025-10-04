@@ -679,7 +679,8 @@ void process_msg_01(u8* msg_buf, u64 sock_ix){
     u8  HMAC_output[HMAC_TRUNC_BYTES];
     u8  client_pubkey_buf[PUBKEY_LEN];
     u8* reply_buf = NULL;
-    
+    u8  ret = 0;
+
     bigint* temp_ptr;
 
     memset(K0, 0, B);
@@ -1188,13 +1189,14 @@ label_cleanup:
 */
 void process_msg_10(u8* msg_buf, u32 sock_ix){
         
-    u8 nonce[LONG_NONCE_LEN];
-    u8 KAB[SESSION_KEY_LEN];
-    u8 KBA[SESSION_KEY_LEN];
-    u8 recv_K[ONE_TIME_KEY_LEN];
-    u8 send_K[ONE_TIME_KEY_LEN];
-    u8 room_user_ID_buf[2 * SMALL_FIELD_LEN];
+    u8  nonce[LONG_NONCE_LEN];
+    u8  KAB[SESSION_KEY_LEN];
+    u8  KBA[SESSION_KEY_LEN];
+    u8  recv_K[ONE_TIME_KEY_LEN];
+    u8  send_K[ONE_TIME_KEY_LEN];
+    u8  room_user_ID_buf[2 * SMALL_FIELD_LEN];
     u8* reply_buf = NULL;
+    u8  ret = 0;
 
     u64 reply_len;
     u64 user_ix;
@@ -1478,7 +1480,8 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     u8* buf_ixs_pubkeys = NULL;
     u8* reply_buf = NULL;
     u8  room_found;
-    
+    u8  ret = 0;    
+
     size_t ret_val;
        
     bigint nonce_bigint;
@@ -2123,7 +2126,8 @@ label_cleanup:
 */
 void process_msg_40(u8* msg_buf, u32 sock_ix){
         
-    u8 *reply_buf = NULL;
+    u8* reply_buf = NULL;
+    u8  ret = 0;
 
     u64 reply_len;
     u64 reply_write_offset = 0;

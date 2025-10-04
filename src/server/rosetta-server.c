@@ -1,9 +1,3 @@
-#include <errno.h>
-#include "../lib/coreutil.h"
-#include "server-tcp-communications.h"
-#include "server-ipc-communications.h"
-#include "server-packet-functions.h"
-
 /* These function pointers tell the server whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the server was started
  * for the Rosetta Testing Framework, communication with test clients, which are
@@ -26,10 +20,19 @@
  * real thing with only one set of simple, descriptive API functions, instead of
  * polluting server code with sockets API-specific code for AF_UNIX / Internet.
  */
+
+#include <stdint.h>
+#include <stddef.h>
+#include <sys/types.h>
+
 uint8_t(*init_communication)(void);
 uint8_t(*transmit_payload)  (uint32_t socket_ix, uint8_t* buf, size_t send_siz);
-uint8_t(*receive_payload)   (uint32_t socket_ix, uint8_t* buf, size_t max_siz);
+ssize_t(*receive_payload)   (uint32_t socket_ix, uint8_t* buf, size_t max_siz);
 uint8_t(*onboard_new_client)(uint32_t socket_ix);
+
+#include "../lib/coreutil.h"
+#include "server-communications.h"
+#include "server-packet-functions.h"
 
 /* First thing done when we start the Rosetta server - initialize it. */
 u8 self_init(){
@@ -40,7 +43,7 @@ u8 self_init(){
     
     temp_handshake_buf = NULL;
 
-    status = init_communications();
+    status = init_communication();
 
     if(status){
         printf("[ERR] Server: Communication init function ptr call fail.\n");
@@ -547,7 +550,7 @@ void* check_for_lost_connections(){
 void* start_new_client_thread(void* ix_ptr){
 
     u8* client_msg_buf;
-    u8  ret; 
+    ssize_t bytes_read;
 
     u32 status;
     u32 ix = *((u32*)ix_ptr);
@@ -572,8 +575,10 @@ void* start_new_client_thread(void* ix_ptr){
 
         /* Block on this recv call, waiting for a client's request. */
         //bytes_read = recv(client_socket_fd[ix], client_msg_buf,MAX_MSG_LEN,0);
-        ret = receive_payload(client_socket_fd[ix],client_msg_buf, MAX_MSG_LEN); 
-        if(ret)
+        bytes_read = 
+              receive_payload(client_socket_fd[ix],client_msg_buf, MAX_MSG_LEN); 
+        
+        if(bytes_read == -1)
             printf("[ERR] Server loop: receive_payload() went bad!\n");
 
         pthread_mutex_lock(&mutex);
@@ -600,7 +605,7 @@ int main(int argc, char* argv[]){
     int arg1;
 
     if(argc != 2){
-        printf("[ERR] Server: run me with 1 cmd line arg: 0 or 1 (for RTF)\n");
+        printf("[ERR] Server: Needs 1 cmd line arg: 0 = regular, 1 = RTF.\n");
         exit(1);
     }
  
@@ -628,41 +633,17 @@ int main(int argc, char* argv[]){
         printf("[ERR] Server: command line argument must be 0 or 1.\n");
         exit(1);
     }
-    /**************************************************************************/
-
-    status = (uint32_t)init_server_ipc_comms();
-
-    if(status != 0){
-        printf("[ERR] Server main: init_server_ipc_comms() failed!\n");
-        exit(1);
-    }
-    exit(0);
 
     /**************************************************************************/
-    
-    if(arg1 == 1){
-        init_communications = init_server_ipc_comms;
         
-
-        
-        printf("[OK] Server: Function pointer set to unix domain sockets.\n");
-    }
-    else if(arg1 == 0){
-        init_communications = init_tcp_listening;
-        printf("[OK] Server: Function pointer set to Internet sockets.\n");
-    }
-    else{
-        printf("Command line arg must be 0 or 1. It is: %8X. Exit.\n", arg1);
-    }
-    
-    /* Initialize Linux Sockets API, load cryptographic keys and artifacts. */ 
+    /* Initialize Linux Sockets API stuff, load cryptographic artifacts. */ 
     status = self_init();
     
     if(status){
         printf("[ERR] Server: Could not complete self initialization!\n"
                "              Critical - Terminating the server.\n\n"
               );
-        return 1;
+        exit(1);
     }
     
     printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
@@ -677,11 +658,12 @@ int main(int argc, char* argv[]){
                         ,&check_for_lost_connections
                         ,NULL
                        ) 
-        ) != 0)
+        ) != 0
+      )
     {
         printf("[ERR] Server: Could not begin the lost connection tracker!\n"
                "              Critical - Terminating the server.\n\n");  
-        return 1;          
+        exit(1);
     }
     
     while(1){

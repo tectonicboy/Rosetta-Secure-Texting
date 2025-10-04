@@ -1,11 +1,38 @@
 /******************************************************************************/
 
-#include <errno.h>
-
 #include "../../lib/coreutil.h"
+#include "client-communications.h"
 #include "client-packet-functions.h"
-#include "tcp-communications.h"
-#include "ipc-communications.h"
+
+
+/* These function pointers tell the client whether to communicate through
+ * Unix Domain sockets, or through Internet sockets. If the client was started
+ * for the Rosetta Testing Framework, communication with the server (as a 
+ * local OS process talking to other OS processes as clients and thus simulating
+ * real people texting on the internet without headaches with network issues)
+ * is done via locak unix interprocess communications (AF_UNIX sockets). If the
+ * client is to be run normally for a real Rosetta user to tune in to chatrooms
+ * and text other people, Internet sockets provide the communication mechanism.
+ *
+ * The two communication mechanisms need different code for (1) initialization,
+ * (2) transmitting a message to other people and (3) receiving a message sent
+ * by other people (in both cases relayed by the server as an intermediary).
+ *
+ * The GUI means the clienht was started for the real thing, the Test Framework
+ * means it was started as a test user emulated via a local OS process.
+ * This in turn sets these
+ * function pointers to the actual respective functions that implement the 3
+ * differing communication operations. This is at client initialization time.
+ *
+ * This allows for an elegant way to simplify in-client communication code while
+ * maintaining working messaging both for Rosetta Test Framework and for the
+ * real thing with only one set of simple, descriptive API functions, instead of
+ * polluting client code with sockets API-specific code for AF_UNIX / Internet.
+ */
+uint8_t(*init_communication)(void);
+uint8_t(*transmit_payload)  (uint8_t* buf, size_t send_siz);
+uint8_t(*receive_payload)   (uint8_t* buf, uint64_t* recv_len);
+
 
 /* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
@@ -45,8 +72,6 @@ u8 self_init(u8* password, int password_len, char* save_dir){
 
     struct Argon2_parms prms;
 
-    send_payload = send_to_tcp_server;
-
     memset(&prms, 0, sizeof(struct Argon2_parms));
 
     /* Initialize data structures for maintaining global state & bookkeeping. */
@@ -61,7 +86,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     if(savefile == NULL){
         printf("[ERR] Client: couldn't open the user's save file. Aborting.\n");
         status = 1;
-	goto label_cleanup;
+        goto label_cleanup;
     }
 
     /* Read savefile in the same order that Registration writes it in. */
@@ -363,14 +388,6 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
     nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
 
-    /* Initialize the Rosetta server's address structure. */
-
-    memset(&servaddr, 0, sizeof(struct sockaddr_in));
-
-    servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr(SERVER_IP_ADDR);
-    servaddr.sin_port        = htons(port);
-
     /* Initialize the mutex that will be used to prevent the main thread and
      * the poller thread from writing/reading the same data in parallel.
      */
@@ -380,50 +397,13 @@ u8 self_init(u8* password, int password_len, char* save_dir){
         goto label_cleanup;
     }
 
-    /* Initialize the socket before the connect() call. */
-    own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if(own_socket_fd == -1) {
-        printf("[ERR] Client: socket() failed. Terminating.\n");
-        perror("errno:");
-        status = 1;
-	goto label_cleanup;
-    }
-
-    if(
-        setsockopt(
-           own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval1, sizeof(optval1)
-        )
-        != 0
-    )
-    {
-        printf("[ERR] Client: set socket option failed.\n\n");
-	status = 1;
-	goto label_cleanup;
-    }
-
-    printf("[OK]  Client: Socket file descriptor obtained!\n");
-
-    /* Connect to the Rosetta server. */
-
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
-        == -1
-      )
-    {
-        printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
-        perror("connect() failed, errno: ");
-        status = 1;
-	goto label_cleanup;
-    }
-
-    printf("[OK]  Client: Connect() call finished, won't be re-attempted.\n");
-
+    status = init_communication();
 
 label_cleanup:
 
 
     if(savefile){
-	    fclose(savefile);
+        fclose(savefile);
     }
 
     if(calculated_A != NULL){
@@ -467,27 +447,27 @@ void* begin_polling(__attribute__((unused)) void* input){
 
         nanosleep(&ts, NULL);
 
-        status = send_payload(msg_buf, msg_len);
+        status = transmit_payload(msg_buf, msg_len);
         
         if(status){
             printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
-	    goto loop_cleanup;
-	}
+            goto loop_cleanup;
+        }
         printf("[OK]  Client: Sent poll packet_40 to server.\n");
 
-        grab_servers_reply(reply_buf, &reply_len);
+        receive_payload(reply_buf, &reply_len);
 
         u64* aux_ptr64_replybuf;
 
         /* Call the appropriate function depending on server's response. */
         if( *reply_type_ptr == PACKET_ID_40 ){
 
-      	    status = process_msg_40(reply_buf);
+            status = process_msg_40(reply_buf);
 
-    	    if(status){
+            if(status){
                 printf("[ERR] Client: Packet_40_Reply auth failed!\n");
-		continue;
-	    }
+                continue;
+            }
             printf("[OK]  Client: Server said nothing new after polling.\n\n");
         }
 /*
@@ -876,7 +856,7 @@ u8 login(u8* password, int password_len, char* save_dir){
 
 
 
-    status = send_payload(msg_buf, msg_len);
+    status = transmit_payload(msg_buf, msg_len);
 
     if(status){
         printf("[ERR] Client: Couldn't send MSG_00 for Login. Abort.\n");
@@ -884,9 +864,7 @@ u8 login(u8* password, int password_len, char* save_dir){
     }
     printf("[OK]  Client: Transmitted MSG_00 to the Rosetta server.\n");
 
-
-
-    status = grab_servers_reply(reply_buf, (uint64_t*)&reply_len);
+    status = receive_payload(reply_buf, (uint64_t*)&reply_len);
 
     if(status){
         printf("[ERR] Client: Couldn't receive MSG_00 reply by server.\n\n");
@@ -931,7 +909,7 @@ u8 login(u8* password, int password_len, char* save_dir){
 --------------------------------------------------------------------------------
 
 */
-        status = send_payload(msg_buf, msg_len);
+        status = transmit_payload(msg_buf, msg_len);
 
         if(status){
             printf("[ERR] Client: Sending MSG_01 failed.");
@@ -955,7 +933,7 @@ u8 login(u8* password, int password_len, char* save_dir){
 
     memset(reply_buf, 0, MAX_TXT_LEN);
 
-    status = grab_servers_reply(reply_buf, (uint64_t*)&reply_len);
+    status = receive_payload(reply_buf, (uint64_t*)&reply_len);
 
     if(status){
         printf("[ERR] Client: Couldn't receive a reply to msg_01.\n\n");
@@ -1045,7 +1023,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
 /******************************************************************************/
 
-    status = send_payload(msg_buf, msg_len);
+    status = transmit_payload(msg_buf, msg_len);
 
     if(status){
         printf("\n[ERR] Client: Couldn't send MSG_10 (make_room). Abort.\n");
@@ -1055,7 +1033,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
     /* Reply packet has ID either 10 or 11 - OK / no_space_for_new_chatrooms. */
 
-    status = grab_servers_reply(reply_buf, &reply_len);
+    status = receive_payload(reply_buf, &reply_len);
 
     if(status){
         printf("\n[ERR] Client: Couldn't receive MSG_10 reply by server.\n\n");
@@ -1154,12 +1132,12 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     /* bad msg_20 construction. abort. */
     if(status){
         printf("[ERR] Client: Could not construct msg_20 to join a room!\n\n");
-	goto label_cleanup;
+        goto label_cleanup;
     }
 
 /******************************************************************************/
 
-    status = send_payload(msg_buf, msg_len);
+    status = transmit_payload(msg_buf, msg_len);
 
     if(status){
         printf("\n[ERR] Client: Couldn't send MSG_20 (make_room). Abort.\n");
@@ -1167,18 +1145,18 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     }
     printf("[OK]  Client: Sent MSG_20 (make_room) to Rosetta server.\n");
 
-    status = grab_servers_reply(reply_buf, &reply_len);
+    status = receive_payload(reply_buf, &reply_len);
 
     if(status){
         printf("\n[ERR] Client: Couldn't receive MSG_20 reply by server.\n\n");
-	goto label_cleanup;
+        goto label_cleanup;
     }
     printf("[OK]  Client: Received reply to MSG_20: %lu bytes.\n", reply_len);
 
     if(*reply_type_ptr != PACKET_ID_20){
         printf("[ERR] Client: Unexpected reply by the server to MSG_20\n\n");
         status = 1;
-      	goto label_cleanup;
+        goto label_cleanup;
     }
 
 /******************************************************************************/
@@ -1192,7 +1170,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
             goto label_cleanup;
         }
 
-	printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
+        printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
     }
 
     printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");
@@ -1238,7 +1216,7 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
         goto label_cleanup;
     }
 
-    status = send_payload(msg_buf, msg_len);
+    status = transmit_payload(msg_buf, msg_len);
 
     if(status){
         printf("\n[ERR] Client: Couldn't send MSG_30 (send_text). Abort.\n");
@@ -1273,14 +1251,14 @@ u8 leave_chatroom(void){
     
     if(status){
         printf("[ERR] Client: Could not construct msg_50 (exit_room).\n\n");
-	goto label_cleanup;
+        goto label_cleanup;
     }
     
-    status = send_payload(msg_buf, msg_len);
+    status = transmit_payload(msg_buf, msg_len);
 
     if(status){
         printf("[ERR] Client: Couldn't send MSG_50 (exit_room). Abort.\n");
-	goto label_cleanup;
+        goto label_cleanup;
     }
     printf("[OK]  Client: Sent MSG_50 (exit_room) to Rosetta server.\n");
 
@@ -1308,14 +1286,14 @@ u8 logout(void){
 
     if(status){
         printf("[ERR] Client: Could not construct msg_60 (logoff).\n\n");
-	goto label_cleanup;
+        goto label_cleanup;
     }
 
-    status = send_payload(msg_buf, msg_len);
+    status = transmit_payload(msg_buf, msg_len);
 
     if(status){
         printf("[ERR] Client: Couldn't send MSG_60 (logoff). Abort.\n");
-	goto label_cleanup;
+        goto label_cleanup;
     }
     printf("[OK]  Client: Sent MSG_60 (logoff) to Rosetta server.\n");
 

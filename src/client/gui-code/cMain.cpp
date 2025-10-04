@@ -350,7 +350,7 @@ void cMain::BtnClickLogin(wxCommandEvent &evt){
 
 void cMain::BtnClickLoginGo(wxCommandEvent &evt){
 
-    uint8_t login_status = 1;
+    uint8_t login_status = 0;
     uint8_t password[16];
     int password_len;
 
@@ -376,6 +376,12 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
             ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
             ,password_len
     );
+
+    /* 3 function pointers for Internet sockets need to be set here. */
+
+    init_communication = tcp_init_communication;
+    transmit_payload   = tcp_transmit_payload;    
+    receive_payload    = tcp_receive_payload;
 
     login_status = login(password, password_len);
 
