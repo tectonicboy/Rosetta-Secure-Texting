@@ -1029,7 +1029,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
         printf("\n[ERR] Client: Couldn't send MSG_10 (make_room). Abort.\n");
         goto label_cleanup;
     }
-    printf("[OK]  Client: Transmitted MSG_10 to the Rosetta server.\n");
+    printf("[OK]  Client: Sent MSG_10 (make_room) to the Rosetta server.\n");
 
     /* Reply packet has ID either 10 or 11 - OK / no_space_for_new_chatrooms. */
 
@@ -1143,7 +1143,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
         printf("\n[ERR] Client: Couldn't send MSG_20 (make_room). Abort.\n");
         goto label_cleanup;
     }
-    printf("[OK]  Client: Sent MSG_20 (make_room) to Rosetta server.\n");
+    printf("[OK]  Client: Sent MSG_20 (join_room) to Rosetta server.\n");
 
     status = receive_payload(reply_buf, &reply_len);
 

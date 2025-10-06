@@ -82,7 +82,7 @@ void draw_menu_0(){
     logo_buf = calloc(1, bytes + 1);
     fread(logo_buf, 1, bytes, logo_file);
     logo_buf[bytes] = '\0';
-    printf("\n\n\n%s\n\n\n\n\n\n\n\n\n\n", logo_buf);
+    printf("\n\n\n\n%s\n\n\n\n", logo_buf);
 
     /* ====================== PART 2: Top menu options ====================== */
 
