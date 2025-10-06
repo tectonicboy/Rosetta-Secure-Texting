@@ -453,7 +453,7 @@ void* begin_polling(__attribute__((unused)) void* input){
             printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
             goto loop_cleanup;
         }
-        printf("[OK]  Client: Sent poll packet_40 to server.\n");
+        //printf("[OK]  Client: Sent poll packet_40 to server.\n");
 
         receive_payload(reply_buf, &reply_len);
 
@@ -468,7 +468,7 @@ void* begin_polling(__attribute__((unused)) void* input){
                 printf("[ERR] Client: Packet_40_Reply auth failed!\n");
                 continue;
             }
-            printf("[OK]  Client: Server said nothing new after polling.\n\n");
+            //printf("[OK]  Client: Server said nothing new after polling.\n\n");
         }
 /*
 

@@ -184,9 +184,11 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     u32 status = 0;
 
     char *msg_type_str = calloc(1, 3);
-
+   
+    /*
     printf("[OK]  Server: Inside packet identifier for socket[%lu]\n", sock_ix);
-
+    */
+    
     /* Read the first 8 bytes to see what type of init transmission it is. */
     memcpy(&transmission_type, client_msg_buf, SMALL_FIELD_LEN);
     
@@ -319,7 +321,7 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     /* A client polled the server asking for any pending unreceived messages. */
     case(PACKET_ID_40):{
-        printf("[OK]  Server: Found a matching packet_ID = 40\n\n");
+        //printf("[OK]  Server: Found a matching packet_ID = 40\n\n");
         strncpy(msg_type_str, "40\0", 3);    
     
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;

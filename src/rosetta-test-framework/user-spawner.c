@@ -36,7 +36,7 @@ label_try_again1:
     }
     if(user_option == 1){
         printf("Pick a room name and user name, up to 7 characters each.\n");
-        
+   
         memset(input_room_name, 0x00, 8);    
         printf("Room name: ");
         scanf("%7s", input_room_name);
@@ -53,7 +53,7 @@ label_try_again1:
         printf("[OK]  RTF User Spawner: room_name len: %d, user_name len: %d"
                ,room_name_len, user_name_len
               );
-        
+     
         status = make_new_chatroom(input_room_name, room_name_len,
                                    input_user_name, user_name_len
                                   );
@@ -62,18 +62,51 @@ label_try_again1:
         else
             printf("[OK]  RTF User Spawner: New chatroom made successfully!\n");
 
-
         printf("\nMessage to send:  ...  [to be implemented] \n\n");
-
         printf("For now keeping this spawned user active in while(1).\n");
         printf("Because make_room started the polling thread in the client\n");
-
 
         volatile int x = 5;
         while(1){
             ++x;
         }
+    }
+    if(user_option == 2){
+        printf("Pick a room name and user name, up to 7 characters each.\n");
 
+        memset(input_room_name, 0x00, 8);
+        printf("Room name: ");
+        scanf("%7s", input_room_name);
+        input_room_name[7] = '\0';
+
+        memset(input_user_name, 0x00, 8);
+        printf("User name: ");
+        scanf("%7s", input_user_name);
+        input_user_name[7] = '\0';
+
+        room_name_len = strlen((const char*)input_room_name);
+        user_name_len = strlen((const char*)input_user_name);
+
+        printf("[OK]  RTF User Spawner: room_name len: %d, user_name len: %d"
+               ,room_name_len, user_name_len
+              );
+
+        status = join_chatroom(input_room_name, room_name_len,
+                                   input_user_name, user_name_len
+                                  );
+        if(status)
+            printf("[ERR] RTF User Spawner: Chat room could not be joined.\n");
+        else
+            printf("[OK]  RTF User Spawner: Joined chatroom successfully!\n");
+
+        printf("\nMessage to send:  ...  [to be implemented] \n\n");
+        printf("For now keeping this spawned user active in while(1).\n");
+        printf("Because join_room started the polling thread in the client\n");
+
+        volatile int x = 5;
+        while(1){
+            ++x;
+        }
     }
 
     return;

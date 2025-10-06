@@ -1246,9 +1246,6 @@ void process_msg_10(u8* msg_buf, u32 sock_ix){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
-    else{
-        printf("[OK]  Server: Client authenticated successfully!\n");
-    }
     
     /*  On server's side: 
      *       - KBA = least significant 32 bytes of shared secret
@@ -1514,9 +1511,6 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) == 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
-    }
-    else{
-        printf("[OK]  Server: Client authenticated successfully!\n");
     }
 
     /*  On server's side: 
@@ -2053,9 +2047,6 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
-    else{
-        printf("[OK]  Server: Client authenticated successfully!\n");
-    }  
     
     /* Iterate over all user indices to find the other chatroom participants. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
@@ -2143,9 +2134,6 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
     if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         goto label_cleanup;       
-    }
-    else{
-        printf("[OK]  Server: Client authenticated successfully!\n");
     }
     
     clients[poller_ix].time_last_polled = clock();
@@ -2297,9 +2285,6 @@ void process_msg_50(u8* msg_buf){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         return;      
     }
-    else{
-        printf("[OK]  Server: Client authenticated successfully!\n");
-    }
  
     remove_user_from_room(sender_ix);
 
@@ -2319,9 +2304,6 @@ void process_msg_60(u8* msg_buf){
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         return;     
-    }
-    else{
-        printf("[OK]  Server: Client authenticated successfully!\n");
     }
 
     /* Clear the user descriptor structure and alter the global index array. */
