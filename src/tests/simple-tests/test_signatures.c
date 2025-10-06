@@ -32,42 +32,42 @@ int main(){
 
     M = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+      ,"../../bin/saved_M.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      ); 
        
     Q = get_bigint_from_dat
      ( 320
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Q.dat"
+      ,"../../bin/saved_Q.dat"
       ,320
       ,MAX_BIGINT_SIZ
      );
                             
     G = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_G.dat"
+      ,"../../bin/saved_G.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
 
     Gm = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+      ,"../../bin/saved_Gm.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
    
     a = get_bigint_from_dat
     ( 320
-     ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/server_privkey.dat"
+     ,"../../bin/server_privkey.dat"
      ,318
      ,MAX_BIGINT_SIZ
     );
 
     Am = get_bigint_from_dat
     ( 3072
-     ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin"
+     ,"../../bin"
         "/server_pubkeymont.dat" 
      ,3071
      ,MAX_BIGINT_SIZ

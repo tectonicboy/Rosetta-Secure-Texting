@@ -18,7 +18,7 @@ int main(int argc, char* argv[]){
                  
      M = get_bigint_from_dat
       ( 3072
-       ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+       ,"../../bin/saved_M.dat"
        ,3071
        ,12800
       );

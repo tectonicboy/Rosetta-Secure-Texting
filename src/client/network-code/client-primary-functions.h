@@ -282,7 +282,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */
     M = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+      ,"../../bin/saved_M.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -296,7 +296,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
     Q = get_bigint_from_dat
      ( 320
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Q.dat"
+      ,"../../bin/saved_Q.dat"
       ,320
       ,MAX_BIGINT_SIZ
      );
@@ -310,7 +310,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     /* Diffie-Hellman generator G = 2^((M-1)/Q) */
     G = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_G.dat"
+      ,"../../bin/saved_G.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -324,7 +324,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+      ,"../../bin/saved_Gm.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -338,7 +338,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     /* Grab the server's public key. */
     server_pubkey = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/server_pubkey.dat"
+      ,"../../bin/server_pubkey.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );

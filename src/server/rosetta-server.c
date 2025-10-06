@@ -1,3 +1,7 @@
+#include <stdint.h>                                                              
+#include <stddef.h>                                                              
+#include <sys/types.h> 
+
 /* These function pointers tell the server whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the server was started
  * for the Rosetta Testing Framework, communication with test clients, which are
@@ -20,11 +24,6 @@
  * real thing with only one set of simple, descriptive API functions, instead of
  * polluting server code with sockets API-specific code for AF_UNIX / Internet.
  */
-
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/types.h>
-
 uint8_t(*init_communication)(void);
 uint8_t(*transmit_payload)  (uint64_t socket_ix, uint8_t* buf, size_t send_siz);
 ssize_t(*receive_payload)   (uint64_t socket_ix, uint8_t* buf, size_t max_siz);
@@ -57,10 +56,7 @@ u8 self_init(){
      *  everything it transmits, so all users can authenticate it using the
      *  server's long-term public key they already have at install time.
      */
-    privkey_dat = fopen( "/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/"
-                           "bin/server_privkey.dat"
-                        ,"r"
-                       );
+   privkey_dat = fopen( "../../bin/server_privkey.dat", "r");
     
     if(!privkey_dat){
         printf("[ERR] Server: couldn't open private key DAT file. Aborting.\n");
@@ -93,7 +89,7 @@ u8 self_init(){
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
     M = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+      ,"../../bin/saved_M.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -101,7 +97,7 @@ u8 self_init(){
     /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
     Q = get_bigint_from_dat
      ( 320
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Q.dat"
+      ,"../../bin/saved_Q.dat"
       ,320
       ,MAX_BIGINT_SIZ
      );
@@ -109,7 +105,7 @@ u8 self_init(){
     /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
     G = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_G.dat"
+      ,"../../bin/saved_G.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -117,14 +113,14 @@ u8 self_init(){
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+      ,"../../bin/saved_Gm.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
     
     server_pubkey_bigint = get_bigint_from_dat
      ( 3072
-      ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/server_pubkey.dat"
+      ,"../../bin/server_pubkey.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -175,9 +171,7 @@ label_cleanup:
  *      - A client decides to exit the chat room they're in.
  *      - A client decides to log off Rosetta.
  */
-u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
-
-    printf("?? identifier entering?? \n");
+u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
 
     u64 transmission_type = 0;
     u64 found_user_ix;
@@ -191,8 +185,7 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u32 sock_ix){
 
     char *msg_type_str = calloc(1, 3);
 
-    printf("?? right before printing socket[sock_ix]  \n");    
-    printf("[OK]  Server: Entered packet identifier for socket[%u]\n", sock_ix);
+    printf("[OK]  Server: Inside packet identifier for socket[%lu]\n", sock_ix);
 
     /* Read the first 8 bytes to see what type of init transmission it is. */
     memcpy(&transmission_type, client_msg_buf, SMALL_FIELD_LEN);
@@ -580,8 +573,7 @@ void* start_new_client_thread(void* ix_ptr){
 
         /* Block on this recv call, waiting for a client's request. */
         //bytes_read = recv(client_socket_fd[ix], client_msg_buf,MAX_MSG_LEN,0);
-        bytes_read = 
-              receive_payload(client_socket_fd[ix],client_msg_buf, MAX_MSG_LEN); 
+        bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN); 
         
         if(bytes_read == -1)
             printf("[ERR] Server loop: receive_payload() went bad!\n");

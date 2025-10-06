@@ -55,14 +55,14 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     
     M  = get_bigint_from_dat
          ( 3072
-          ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_M.dat"
+          ,"../../bin/saved_M.dat"
           ,3071
           ,12800
          );
 
     Gm = get_bigint_from_dat
          ( 3072
-          ,"/home/hypervisor/tmp/repos/Rosetta-Secure-Texting/bin/saved_Gm.dat"
+          ,"../../bin/saved_Gm.dat"
           ,3071
           ,12800
          );

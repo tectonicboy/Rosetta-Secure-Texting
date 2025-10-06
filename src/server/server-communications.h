@@ -254,8 +254,6 @@ uint8_t ipc_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len){
 
 ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
-    uint8_t ret = 0;
-
     ssize_t num_read;
 
     printf("\n[DEBUG] Server: IPC, right before recv() -- \n"
@@ -266,8 +264,8 @@ ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     if((num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0)) == -1){
         perror("[ERR] Server: AF_UNIX recv() call failed! errno: ");
-        ret = 1;
+        return -1;
     }
 
-    return ret;
+    return num_read;
 }
