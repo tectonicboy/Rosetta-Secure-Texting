@@ -4,3 +4,6 @@ src/rosetta-test-framework/test-accounts/*
 tags
 src/rosetta-test-framework/rtf
 src/keygen/find-new-mq
+src/rosetta-test-framework/SERVER-OUTPUT-FILE.txt
+src/rosetta-test-framework/test-server
+src/rosetta-test-framework/user-spawner

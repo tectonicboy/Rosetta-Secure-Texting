@@ -377,7 +377,7 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     default:{
         /* DO NOT REACT TO BAD PACKETS!! Drop them silently instead. */
-        printf("[WAR] Server: No valid packet type found in request.\n\n");
+        // printf("[WAR] Server: No valid packet type found in request.\n\n");
         break;    
     }
     

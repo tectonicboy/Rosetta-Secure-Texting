@@ -92,7 +92,7 @@ label_try_again1:
               );
 
         status = join_chatroom(input_room_name, room_name_len,
-                                   input_user_name, user_name_len
+                               input_user_name, user_name_len
                                   );
         if(status)
             printf("[ERR] RTF User Spawner: Chat room could not be joined.\n");

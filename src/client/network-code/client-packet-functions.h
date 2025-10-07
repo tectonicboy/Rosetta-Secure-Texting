@@ -802,8 +802,8 @@ u8 construct_msg_10( unsigned char* requested_userid
              ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
-             ,(u32*)(KAB)                          /* chacha Key              */
-             ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
+             ,(u32*)(send_K)                       /* chacha Key              */
+             ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,(*msg_buf) + sendbuf_roomID_offset   /* output target buffer    */
             );
 
@@ -941,6 +941,16 @@ u8 construct_msg_20( unsigned char* requested_userid
     bigint one;
     bigint aux1;
 
+    /* DEBUG */
+
+    u64 room_id_debug;
+    memcpy(&room_id_debug, requested_roomid, SMALL_FIELD_LEN);
+    printf( "[DEBUG] Client: Packet 20 -- room_id: %s |  room_id = %lu\n"
+           ,requested_roomid, room_id_debug
+          );
+
+    /* DEBUG */
+
     const u64 sendbuf_roomID_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     const u64 signed_len            = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     
@@ -1015,14 +1025,29 @@ u8 construct_msg_20( unsigned char* requested_userid
     memcpy(roomID_userID, requested_roomid, SMALL_FIELD_LEN);
     memcpy(roomID_userID + SMALL_FIELD_LEN, requested_userid, SMALL_FIELD_LEN);
 
+    /* DEBUG */                                                                  
+                                                                                 
+    printf("[DEBUG] Client: packet_20 -- Not encrupted room_user_ids_buf:\n"); 
+    for(uint32_t i = 0; i < (2 * SMALL_FIELD_LEN); ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}                                  
+        printf("%02X ", roomID_userID[i]);
+    }                                                                            
+    printf("\n\n");                                                              
+                                                                                 
+    /* DEBUG */   
+
     /* Encrypt the user's requested user_ID and room_ID for the joining room. */
+
+    printf("[DEBUG] Client: packet_20 -- Before encrypting roomID + userID:\n");
+    printf("[DEBUG] Client: packet_20 -- room_id: %s\n", roomID_userID);
+    printf("[DEBUG] Client: packet_20 -- user_idL %s\n", roomID_userID + 8);
 
     chacha20( roomID_userID                        /* text: one-time key K    */
              ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
-             ,(u32*)(KAB)                          /* chacha Key              */
-             ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
+             ,(u32*)(send_K)                       /* chacha Key              */
+             ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,(*msg_buf) + sendbuf_roomID_offset   /* output target buffer    */
             );
 
@@ -1041,6 +1066,20 @@ u8 construct_msg_20( unsigned char* requested_userid
                        ,((*msg_buf) + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
+
+    /* DEBUG */
+
+    printf("[DEBUG] Client: packet_20 -- Made payload %lu bytes: \n", *msg_len);
+    printf("[DEBUG] Client: packet_20 -- (should be : %lu bytes.\n"
+           ,(4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN
+          );
+    for(uint32_t i = 0; i < *msg_len; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", (*msg_buf)[i]);
+    }
+    printf("\n\n");  
+
+    /* DEBUG */
 
 label_cleanup:
 

@@ -1447,6 +1447,18 @@ label_cleanup:
 */
 void process_msg_20(u8* msg_buf, u32 sock_ix){
 
+    /* DEBUG */
+
+    printf("[DEBUG] Server: packet_20 -- Got payload: \n"); 
+    uint64_t pkt_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
+    for(uint64_t i = 0; i < pkt_siz; ++i){                                      
+        if(i % 16 == 0 && i > 0){printf("\n");}                                  
+        printf("%02X ", msg_buf[i]);                                         
+    }                                                                            
+    printf("\n\n");
+
+    /* DEBUG */
+
     FILE* ran_file = NULL;
 
     const u64 buf_type_21_len = 
@@ -1500,7 +1512,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     memset(recv_K,                0, ONE_TIME_KEY_LEN);
     memset(send_K,                0, ONE_TIME_KEY_LEN);
     memset(type21_encrypted_part, 0, SMALL_FIELD_LEN + PUBKEY_LEN);
-    memset(user_ixs_in_room,      0, MAX_CLIENTS * sizeof(u32));
+    memset(user_ixs_in_room,      0, MAX_CLIENTS * SMALL_FIELD_LEN);
 
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
@@ -1606,6 +1618,17 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
              ,room_user_ID_buf                     /* output target buffer    */
             );
   
+    /* DEBUG */                                                                  
+                                                                                 
+    printf("[DEBUG] Server: packet_20 -- Decrypted room_user_ids_buf:\n");   
+    for(uint32_t i = 0; i < (2 * SMALL_FIELD_LEN); ++i){                         
+        if(i % 16 == 0 && i > 0){printf("\n");}                                  
+        printf("%02X ", room_user_ID_buf[i]);
+    }                                                                            
+    printf("\n\n");                                                              
+                                                                                 
+    /* DEBUG */  
+
     /* Increment nonce counter again to prepare the nonce for its next use. */
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
@@ -1615,8 +1638,15 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     room_found = 0;
     
     uint64_t cur_room_id = 0;
+    char room_id_string_test[8];
+    memcpy(room_id_string_test, room_user_ID_buf, 8);
     memcpy(&cur_room_id, room_user_ID_buf, SMALL_FIELD_LEN);
+    printf("[DEBUG] Server: Extracted room_id for joining: %lu\n", cur_room_id);
+    printf("[DEBUG] Server: Extracted it in string form  : %s\n", room_id_string_test);
     for(u64 i = 0; i < MAX_CHATROOMS; ++i){
+        printf( "[DEBUG] Server: Checking it against room_id[%lu] = %lu\n"
+               ,i, rooms[i].room_id
+              );
         if(rooms[i].room_id == cur_room_id ){
             room_found = 1;
             room_ix = i;
