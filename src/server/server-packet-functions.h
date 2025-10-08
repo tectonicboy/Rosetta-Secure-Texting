@@ -1447,18 +1447,6 @@ label_cleanup:
 */
 void process_msg_20(u8* msg_buf, u32 sock_ix){
 
-    /* DEBUG */
-
-    printf("[DEBUG] Server: packet_20 -- Got payload: \n"); 
-    uint64_t pkt_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
-    for(uint64_t i = 0; i < pkt_siz; ++i){                                      
-        if(i % 16 == 0 && i > 0){printf("\n");}                                  
-        printf("%02X ", msg_buf[i]);                                         
-    }                                                                            
-    printf("\n\n");
-
-    /* DEBUG */
-
     FILE* ran_file = NULL;
 
     const u64 buf_type_21_len = 
@@ -1618,17 +1606,6 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
              ,room_user_ID_buf                     /* output target buffer    */
             );
   
-    /* DEBUG */                                                                  
-                                                                                 
-    printf("[DEBUG] Server: packet_20 -- Decrypted room_user_ids_buf:\n");   
-    for(uint32_t i = 0; i < (2 * SMALL_FIELD_LEN); ++i){                         
-        if(i % 16 == 0 && i > 0){printf("\n");}                                  
-        printf("%02X ", room_user_ID_buf[i]);
-    }                                                                            
-    printf("\n\n");                                                              
-                                                                                 
-    /* DEBUG */  
-
     /* Increment nonce counter again to prepare the nonce for its next use. */
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
@@ -1638,15 +1615,8 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
     room_found = 0;
     
     uint64_t cur_room_id = 0;
-    char room_id_string_test[8];
-    memcpy(room_id_string_test, room_user_ID_buf, 8);
     memcpy(&cur_room_id, room_user_ID_buf, SMALL_FIELD_LEN);
-    printf("[DEBUG] Server: Extracted room_id for joining: %lu\n", cur_room_id);
-    printf("[DEBUG] Server: Extracted it in string form  : %s\n", room_id_string_test);
     for(u64 i = 0; i < MAX_CHATROOMS; ++i){
-        printf( "[DEBUG] Server: Checking it against room_id[%lu] = %lu\n"
-               ,i, rooms[i].room_id
-              );
         if(rooms[i].room_id == cur_room_id ){
             room_found = 1;
             room_ix = i;
@@ -1671,6 +1641,8 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
            ,(room_user_ID_buf + SMALL_FIELD_LEN)
            ,SMALL_FIELD_LEN
           ); 
+
+    clients[user_ix].room_ix = room_ix;
 
     /* Send (encrypted and signed) the public keys of all users currently in the
      * chatroom, to the user who is now wanting to join it, as well as the new 
@@ -2157,9 +2129,7 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
     u64 poller_ix;
     
     memcpy(&poller_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
-
-    printf("[DEBUG] Server: poller_ix in process_msg_40: %lu\n\n", poller_ix);
-    
+ 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
@@ -2202,9 +2172,6 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
                                                                                  
         if(ret)                                                                  
             printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");    
-        else                                                                     
-            printf("[OK]  Server: Replied with PACKET_ID_40 message..\n");  
-
 
         goto label_cleanup;
     }

@@ -482,6 +482,19 @@ void* check_for_lost_connections(){
          * and any chatrooms they were guests in or the owner of.
          */      
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
+          
+            /* DEBUG */
+
+            if(clients[i].room_ix != 0){
+                printf("[DEBUG] Server: check for user[%lu] in room[%lu] :   \n"
+                       "                cur_time: %ld s | last_polled: %ld s \n"
+                       ,i, clients[i].room_ix, (curr_time / CLOCKS_PER_SEC)
+                       ,(clients[i].time_last_polled / CLOCKS_PER_SEC)
+                      );
+            }
+
+            /* DEBUG */
+
             
             if( 
                (users_status_bitmask & (1ULL << (63ULL - i))) 

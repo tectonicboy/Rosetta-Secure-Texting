@@ -1133,6 +1133,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     u64* aux_ptr64_msg = (u64*)(msg + SMALL_FIELD_LEN + ONE_TIME_KEY_LEN);
 
     u64 num_current_guests = *aux_ptr64_msg;
+
     u64 guest_info_slot_siz = (SMALL_FIELD_LEN + PUBKEY_LEN);
     u64 recv_type20_AD_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     u64 recv_type20_AD_len;
@@ -1231,9 +1232,13 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     next_free_roommate_slot = 0;
     roommate_slots_bitmask = 0;
     num_roommates = num_current_guests;
-    next_free_roommate_slot = num_current_guests;
+
+    printf("[DEBUG] Client: JOIN_ROOM response processor: \n");
+    printf("                num_roommates: %lu\n", num_roommates);
 
     for(u64 i = 0; i < num_current_guests; ++i){
+
+        printf("[DEBUG] Client: Set guest slot[%lu]\n",next_free_roommate_slot);
 
         /* Reflect the new guest slot in the global guest slots bitmask. */
         roommate_slots_bitmask |= BITMASK_BIT_ON_AT(next_free_roommate_slot);
@@ -1510,6 +1515,13 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
 		    ,uint8_t**       msg_buf,  u64* msg_len
 		   )
 {
+
+    printf("[DEBUG] Client: %s -- Arguments:\n", __FUNCTION__);
+    printf("              : text_msg_len: %lu\n"
+           "              : text_msg    : %s\n "
+           ,text_msg_len, text_msg
+          );
+
     u64 L = num_roommates * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_msg_len);
     u64 AD_write_offset = 0;
     u64 signed_len;
@@ -1527,10 +1539,16 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
 
     size_t ret_val;
 
+    printf("?? 1\n");
+
     *msg_len = L + (3 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
     signed_len = *msg_len - SIGNATURE_LEN;
 
+    printf("?? 2\n");
+
     *msg_buf = calloc(1, *msg_len);  
+
+    printf("?? 3\n");
 
     memset(send_K, 0, ONE_TIME_KEY_LEN);
 
@@ -1547,6 +1565,8 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
     memcpy( (*msg_buf) + (0 * SMALL_FIELD_LEN), &packet_id30,  SMALL_FIELD_LEN);
     memcpy( (*msg_buf) + (1 * SMALL_FIELD_LEN), &own_ix,       SMALL_FIELD_LEN);
     memcpy( (*msg_buf) + (2 * SMALL_FIELD_LEN), &text_msg_len, SMALL_FIELD_LEN);
+
+    printf("?? 4\n");
 
     /* Generate the one-time key K to encrypt the text message with.          */
     /* An encrypted version of key K itself is sent to all receivers.         */
@@ -1573,6 +1593,8 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
     for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
         if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
 
+            printf("?? loop_0\n");
+
             /* Place this guest's userid. */
             memcpy(
                 associated_data + AD_write_offset
@@ -1593,11 +1615,20 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
             /* Another instance of a manual BigInt constructor from mem :( */
             /* MAX_BIGINT_SIZ is in bits so divide by 8 to get reserved BYTES */
 
+            printf("?? loop_1\n");
+
+            printf("\n\n---->pkt_30 loop: Right before bad memcpy() <----\n\n");
+            printf("Target pointer: %p\n", guest_nonce_bigint.bits);
+            printf("Source pointer: %p\n", roommates[i].guest_Nonce);
+            printf("-------->    i: %lu\n\n", i);
+
             memcpy(
                 guest_nonce_bigint.bits
                ,roommates[i].guest_Nonce
                ,LONG_NONCE_LEN
             );
+
+            printf("?? loop_2\n");
 
             guest_nonce_bigint.used_bits =
                 get_used_bits(guest_nonce_bigint.bits, LONG_NONCE_LEN);
@@ -1619,6 +1650,8 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
             bigint_equate2(&guest_nonce_bigint, &aux1);
             ++(roommates[i].guest_nonce_counter);
 
+            printf("?? loop_3\n");
+
             /* Now encrypt and place the text message with K. */
             chacha20(
                 text_msg                             /* text - the text msg   */
@@ -1630,6 +1663,8 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
                ,associated_data + AD_write_offset    /* output target buffer  */
             );
 
+            printf("?? loop_4\n");
+
             AD_write_offset += text_msg_len;
 
             /* Increment our Nonce with this guest again to keep it symmetric */
@@ -1640,12 +1675,18 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
                ,0
                ,((size_t)((double)MAX_BIGINT_SIZ/(double)8))
             );
+            
+            printf("?? loop_5\n");
         }
     }
+
+    printf("?? after_loop 0\n");
 
     /* At the end of the above loop, AD_write_offset is AD length. */
 
     memcpy((*msg_buf) + (3 * SMALL_FIELD_LEN), associated_data, AD_write_offset);
+
+    printf("?? after_loop 1\n");
 
     /* Now calculate a cryptographic signature of the whole packet's payload. */
 
@@ -1653,6 +1694,8 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
                        ,((*msg_buf) + signed_len)
                        ,&own_privkey, PRIVKEY_LEN
                       );
+
+    printf("?? after_loop 2, right before CLEANUP label\n");
 
 label_cleanup:
 
@@ -1665,6 +1708,8 @@ label_cleanup:
     if(ran_file != NULL){ 
         fclose(ran_file); 
     }
+
+    printf("?? after CLEANUP label.\n");
 
     return status;
 }

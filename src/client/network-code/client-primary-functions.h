@@ -441,7 +441,6 @@ void* begin_polling(__attribute__((unused)) void* input){
         printf("[ERR] Client: (CRIT) Constructing poll packet_40 failed!\n");
         exit(1);
     }
-    printf("[OK]  Client: Constructed poll packet_40.\n");
 
     for(;;){
 
@@ -544,7 +543,7 @@ void* begin_polling(__attribute__((unused)) void* input){
                                   );
 
                     /* Tell GUI to display the message with obtained length. */
-                    /* TODO */
+                    printf("\n%s\n", text_message_line);
 
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
@@ -1209,7 +1208,11 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
 
     /**************************************************************************/
 
+    printf("[DEBUG] Client: in send_text(), before construct_msg_30().\n");
+
     status = construct_msg_30(text, text_len, &msg_buf, &msg_len);
+
+    printf("[DEBUG] Client: in send_text(), construct_msg_30 done!\n");
 
     if(status){
         printf("[ERR] Client: Could not construct msg_30 to send a text!\n\n");
@@ -1217,6 +1220,8 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
     }
 
     status = transmit_payload(msg_buf, msg_len);
+
+    printf("[DEBUG] Client: in send_text(), transmit_payload done!\n");
 
     if(status){
         printf("\n[ERR] Client: Couldn't send MSG_30 (send_text). Abort.\n");

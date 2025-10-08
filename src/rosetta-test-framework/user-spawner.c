@@ -6,6 +6,7 @@ void user_loop(void){
     char          input_user_option[1];
     unsigned char input_room_name[8];
     unsigned char input_user_name[8];
+    unsigned char message[128];
     int           room_name_len;
     int           user_name_len;
     uint8_t       status;
@@ -40,35 +41,32 @@ label_try_again1:
         memset(input_room_name, 0x00, 8);    
         printf("Room name: ");
         scanf("%7s", input_room_name);
-        input_room_name[7] = '\0';   
 
         memset(input_user_name, 0x00, 8); 
         printf("User name: ");
         scanf("%7s", input_user_name);
-        input_user_name[7] = '\0';
 
         room_name_len = strlen((const char*)input_room_name);
         user_name_len = strlen((const char*)input_user_name);
+ 
+        status = make_new_chatroom
+                (input_room_name, room_name_len,input_user_name, user_name_len);
 
-        printf("[OK]  RTF User Spawner: room_name len: %d, user_name len: %d"
-               ,room_name_len, user_name_len
-              );
-     
-        status = make_new_chatroom(input_room_name, room_name_len,
-                                   input_user_name, user_name_len
-                                  );
         if(status)
             printf("[ERR] RTF User Spawner: New chatroom could not be made.\n");
         else
             printf("[OK]  RTF User Spawner: New chatroom made successfully!\n");
 
-        printf("\nMessage to send:  ...  [to be implemented] \n\n");
-        printf("For now keeping this spawned user active in while(1).\n");
-        printf("Because make_room started the polling thread in the client\n");
-
-        volatile int x = 5;
         while(1){
-            ++x;
+            memset(message, 0x00, 128);                                          
+            printf("Send a message: ");                                          
+            scanf("%127s", message);                             
+            printf("[DEBUG] User spawner: [MAKE] reached send_text() call.\n");         
+            printf("[DEBUG] User spawner: [MAKE] msg_len: %lu\n"                        
+                   ,(uint64_t)strlen((const char*)message)                       
+                  );                                                             
+            printf("[DEBUG] User spawner: [MAKE] message: %s\n", message);                 
+            send_text(message, (uint64_t)strlen((const char*)message));  
         }
     }
     if(user_option == 2){
@@ -77,35 +75,32 @@ label_try_again1:
         memset(input_room_name, 0x00, 8);
         printf("Room name: ");
         scanf("%7s", input_room_name);
-        input_room_name[7] = '\0';
 
         memset(input_user_name, 0x00, 8);
         printf("User name: ");
         scanf("%7s", input_user_name);
-        input_user_name[7] = '\0';
 
         room_name_len = strlen((const char*)input_room_name);
         user_name_len = strlen((const char*)input_user_name);
 
-        printf("[OK]  RTF User Spawner: room_name len: %d, user_name len: %d"
-               ,room_name_len, user_name_len
-              );
+        status = join_chatroom
+               (input_room_name, room_name_len, input_user_name, user_name_len);
 
-        status = join_chatroom(input_room_name, room_name_len,
-                               input_user_name, user_name_len
-                                  );
         if(status)
             printf("[ERR] RTF User Spawner: Chat room could not be joined.\n");
         else
-            printf("[OK]  RTF User Spawner: Joined chatroom successfully!\n");
-
-        printf("\nMessage to send:  ...  [to be implemented] \n\n");
-        printf("For now keeping this spawned user active in while(1).\n");
-        printf("Because join_room started the polling thread in the client\n");
-
-        volatile int x = 5;
+            printf("[OK]  RTF User Spawner: Joined chatroom successfully!\n\n");
+        
         while(1){
-            ++x;
+            memset(message, 0x00, 128);
+            printf("Send a message: ");
+            scanf("%127s", message);
+            printf("[DEBUG] User spawner: [JOIN] reached send_text() call.\n");
+            printf("[DEBUG] User spawner: [JOIN] msg_len: %lu\n"
+                   ,(uint64_t)strlen((const char*)message)
+                  );
+            printf("[DEBUG] User spawner: [JOIN] message: %s\n", message);
+            send_text(message, (uint64_t)strlen((const char*)message));
         }
     }
 
