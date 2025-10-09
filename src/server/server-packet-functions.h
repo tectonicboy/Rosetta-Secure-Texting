@@ -135,7 +135,7 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
     return 0;
 }
 
-
+/* add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);  */
 void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
 
     /* Make sure the user has space in their list of pending messages. */
@@ -171,6 +171,8 @@ void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
 
     clients[user_ix].pending_msg_sizes[clients[user_ix].num_pending_msgs]
      = data_len;
+
+    ++clients[user_ix].num_pending_msgs;
 
     return;
 }
@@ -1665,6 +1667,13 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         }
     }  
       
+    /* The logic above has already placed the newly joined user's room index in
+     * their clients[i].room_ix field, when it searches to find how many guests
+     * that were already present need to know about this, so decrement this
+     * counter by 1 here.
+     */
+    --num_users_in_room;
+
     /* Construct the message buffer. */
     buf_ixs_pubkeys_len = num_users_in_room * (SMALL_FIELD_LEN + PUBKEY_LEN);
     
@@ -1983,7 +1992,15 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
 |  SMALL_LEN   | ONETIME_KEY_LEN |  SMALL_LEN   |    PUBKEY_LEN    |  SIG_LEN  |
 --------------------------------------------------------------------------------
 
-*/     
+*/
+        printf("[DEBUG] Server : Adding pending message for: \n");
+        printf("--> user index : %lu\n", user_ixs_in_room[i]);
+        printf("--> pkt_21_len : %lu\n", buf_type_21_len);
+        printf("--> username   : %s \n", clients[user_ixs_in_room[i]].user_id);
+        printf("--> Inner signature computed over %lu bytes.\n"
+               ,buf_type_21_len - SIGNATURE_LEN
+              );
+
         add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
     }
 
@@ -2189,6 +2206,10 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
          reply_len += clients[poller_ix].pending_msg_sizes[i] + SMALL_FIELD_LEN;
         } 
+
+        printf("[DEBUG] Server: Sending pending messages payload.\n");
+        printf("              : reply_len: %lu\n", reply_len);
+        printf("              : sign over: %lu\n", (reply_len - SIGNATURE_LEN));
          
         reply_buf = calloc(1, reply_len);
         
@@ -2233,6 +2254,9 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
                           ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
+        printf("[DEBUG] Server: Sending PENDING message:\n");
+        printf("--> Outer signature on %lu bytes\n", reply_len - SIGNATURE_LEN);
+
         clients[poller_ix].num_pending_msgs = 0;
 /*
 

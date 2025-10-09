@@ -471,9 +471,6 @@ void* begin_polling(__attribute__((unused)) void* input){
         }
 /*
 
- One or more pending messages were found for the polling client.
- Send them all at once.
-
  Server ----> Client
 
 ================================================================================
@@ -489,17 +486,29 @@ void* begin_polling(__attribute__((unused)) void* input){
 
             pending_messages = *aux_ptr64_replybuf;
 
+            printf("[DEBUG] Client: Pending messages: %lu\n", pending_messages);
+
             read_ix = 2 * SMALL_FIELD_LEN;
 
             /* At end, read_ix = how many bytes a signature was computed on. */
             for(u64 i = 0; i < pending_messages; ++i){
                 aux_ptr64_replybuf = (u64*)(reply_buf + read_ix);
                 block_len = *aux_ptr64_replybuf;
+                printf("[DEBUG] Client: Pending msgs: block_len[%lu] = %lu\n"
+                       ,i, block_len
+                      );
                 read_ix += block_len + SMALL_FIELD_LEN;
+                printf("and read_ix is now: %lu\n", read_ix);
             }
+
+            printf("[DEBUG] Client: PEND - Signature is computed on %lu bytes\n"
+                   ,read_ix
+                  );
 
             /* Verify the cryptographic signature now. */
             status = authenticate_server(reply_buf, read_ix, read_ix);
+
+            printf("[DEBUG] Client: Authentication passed OK!\n");
 
             if(status == 1){
                 printf("[ERR] Client: Bad signature in polling reply.\n\n");
@@ -521,22 +530,25 @@ void* begin_polling(__attribute__((unused)) void* input){
                 curr_msg_len = *aux_ptr64_replybuf;
 
                 if(curr_msg_type == PACKET_ID_50){
-		    
+                    printf("[DEBUG] Client: PEND - Found ID_50. Process it.\n");
                     process_msg_50(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_51){
+                    printf("[DEBUG] Client: PEND - Found ID_51. Process it.\n");
                     process_msg_51(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_21){
+                    printf("[DEBUG] Client: PEND - Found ID_21. Process it.\n");
                     process_msg_21(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_30){
+                    printf("[DEBUG] Client: PEND - Found ID_30. Process it.\n");
                     process_msg_30( reply_buf + read_ix
                                    ,text_message_line
                                    ,&obtained_text_message_line_len

@@ -177,8 +177,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     u64 found_user_ix;
     u64 text_msg_len;
 
-    u64* aux_ptr64_clientmsgbuf = (uint64_t*)client_msg_buf;
-
     s64 expected_siz = 0;
 
     u32 status = 0;
@@ -272,29 +270,24 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         
         /* Size must be in bytes: 
          *
-         *   (3 * SMALL_FIELD_LEN) + AD_LEN + TXT_LEN + SIGNATURE_LEN 
+         *   (3 * SMALL_FIELD_LEN) + L + SIG_LEN
          *
-         *   where:
-         *          - TXT_LEN is found in message's third small field.  
+         *   where L is the length of associated data:
          *
-         *          - AD_LEN is length of Associated Data:
-         *              
-         *                 AD_LEN = N * (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
-         *     
-         *                 where N = (number of people in sender's room) - 1
+         *   L = (people in room - 1) * (SMALL_LEN + ONE_TIME_KEY_LEN + TXT_LEN)
+         *
+         *   where TXT_LEN is given in the 3rd SMALL_FIELD_LEN field.
          */
          
         memcpy( &found_user_ix
                ,client_msg_buf + SMALL_FIELD_LEN
-               ,sizeof(found_user_ix)
+               ,SMALL_FIELD_LEN
               );
         
         memcpy( &text_msg_len
                ,client_msg_buf + (2 * SMALL_FIELD_LEN)
-               ,sizeof(text_msg_len)
+               ,SMALL_FIELD_LEN
               );
-
-        aux_ptr64_clientmsgbuf = (u64*)(client_msg_buf + (2 * SMALL_FIELD_LEN));
 
         expected_siz =   (3 * SMALL_FIELD_LEN)
                        + ( 
@@ -302,7 +295,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
                           *
                           (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_msg_len)
                          ) 
-                       + *aux_ptr64_clientmsgbuf
                        + SIGNATURE_LEN;
                     
         if(bytes_read != expected_siz){

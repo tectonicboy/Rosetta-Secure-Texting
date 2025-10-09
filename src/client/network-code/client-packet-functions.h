@@ -1216,7 +1216,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     chacha20( (msg + recv_type20_AD_offset)        /* text: one-time key K    */
              ,recv_type20_AD_len                   /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
-             ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* Nonce_len in uint32_t's */
+             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(recv_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,buf_decrypted_AD                     /* output target buffer    */
@@ -1243,6 +1243,8 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         /* Reflect the new guest slot in the global guest slots bitmask. */
         roommate_slots_bitmask |= BITMASK_BIT_ON_AT(next_free_roommate_slot);
 
+        printf("Now roommate_slots_bitmask = %lu\n", roommate_slots_bitmask);
+
         /* Pointer arithmetic to get to the right guest slot in message's AD. */
         /* No need to dereference the obtained pointer, we're using memcpy(). */
 
@@ -1251,6 +1253,9 @@ u8 process_msg_20(u8* msg, u64 msg_len){
                ,buf_decrypted_AD + (i * guest_info_slot_siz)
                ,SMALL_FIELD_LEN
               );
+
+        printf("[DEBUG] Client: JOIN_ROOM response processor:\n");
+        printf("roommates[%lu] got user_id: %s\n", i, roommates[i].guest_user_id);
 
         /* SMALL_FIELD_LEN bytes offset into THIS SLOT in AD: guest's PubKey. */
         this_pubkey = &(roommates[i].guest_pubkey);
@@ -1361,6 +1366,8 @@ void process_msg_21(u8* msg){
 
     status = authenticate_server(msg, signed_len, signed_len);
 
+    printf("[DEBUG] Client: process_pkt_21: Got past signature validation!\n");
+
     if(status){
         printf("[ERR] Client: Invalid signature in process_msg_21. Drop.\n");
         goto label_cleanup;
@@ -1415,6 +1422,8 @@ void process_msg_21(u8* msg){
 
     guest_ix = next_free_roommate_slot;
 
+    printf("[DEBUG] Client: process_pkt_21: guest_ix = %lu\n", guest_ix);
+
     /* Maintain global state for next free roommate slot in the global bitmask.
      *
      * Guest deletion logic makes sure the next free guest slot in the bitmask
@@ -1429,6 +1438,8 @@ void process_msg_21(u8* msg){
        ,SMALL_FIELD_LEN
     );
 
+    printf("[DEBUG] Client: process_pkt_21: ?? point 1\n");
+
     /* Grab the decrypted guest's long-term public key. */
     this_pubkey = &(roommates[guest_ix].guest_pubkey);
 
@@ -1440,6 +1451,8 @@ void process_msg_21(u8* msg){
        ,PUBKEY_LEN
     );
 
+printf("[DEBUG] Client: process_pkt_21: ?? point 2\n");
+
     /* Now initialize the rest of the new guest's descriptor structure. */
     this_pubkey->size_bits = MAX_BIGINT_SIZ;
     this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
@@ -1448,7 +1461,11 @@ void process_msg_21(u8* msg){
     bigint_create(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
     get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
 
+    printf("[DEBUG] Client: process_pkt_21: ?? point 3\n");
+
     roommates[guest_ix].guest_nonce_counter = 0;
+
+    printf("[DEBUG] Client: process_pkt_21: ?? point 4\n");
 
     /* Now compute a shared secret with the new guest to get our pair of
      * bidirectional session keys KAB, KBA and the symmetric ChaCha nonce.
@@ -1460,11 +1477,19 @@ void process_msg_21(u8* msg){
         ,&temp_shared_secret
     );
 
+printf("[DEBUG] Client: process_pkt_21: ?? point 5\n");
+
+    roommates[guest_ix].guest_KBA   = (u8*)calloc(1, SESSION_KEY_LEN);
+    roommates[guest_ix].guest_KAB   = (u8*)calloc(1, SESSION_KEY_LEN);
+    roommates[guest_ix].guest_Nonce = (u8*)calloc(1, LONG_NONCE_LEN); 
+
     /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
     memcpy( roommates[guest_ix].guest_KBA
            ,temp_shared_secret.bits
 	   ,SESSION_KEY_LEN
           );
+
+printf("[DEBUG] Client: process_pkt_21: ?? point 6\n");
 
     memcpy(
         roommates[guest_ix].guest_KAB
@@ -1472,11 +1497,19 @@ void process_msg_21(u8* msg){
         ,SESSION_KEY_LEN
     );
 
+printf("[DEBUG] Client: process_pkt_21: ?? point 7\n");
+
     memcpy(
         roommates[guest_ix].guest_Nonce
         ,temp_shared_secret.bits + (2 * SESSION_KEY_LEN)
         ,LONG_NONCE_LEN
     );
+
+    printf("[DEBUG] Client: process_pkt_21: ?? point 8\n");
+
+    ++num_roommates;
+
+    printf("[OK] Client: Synced with a newly joined room guest!\n");
 
 label_cleanup:
 
@@ -1544,6 +1577,9 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
     *msg_len = L + (3 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
     signed_len = *msg_len - SIGNATURE_LEN;
 
+    printf("[DEBUG] Client: make_pkt_30 -- roommates   = %lu\n", num_roommates);
+    printf("[DEBUG] Client: make_pkt_30 -- payload_len = %lu\n", *msg_len);
+
     printf("?? 2\n");
 
     *msg_buf = calloc(1, *msg_len);  
@@ -1590,7 +1626,7 @@ u8 construct_msg_30(unsigned char* text_msg, u64  text_msg_len
     }
 
     /* Construct the Associated Data within the payload. */
-    for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
+    for(u64 i = 0; i < MAX_CLIENTS - 1; ++i){
         if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
 
             printf("?? loop_0\n");
@@ -1784,8 +1820,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
 
-    guest_nonce_bigint.bits =
-    (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    guest_nonce_bigint.bits = (u8*)calloc(1, MAX_BIGINT_SIZ / 8);
 
     memset(decrypted_key, 0, ONE_TIME_KEY_LEN);
     memset(temp_user_id,  0, SMALL_FIELD_LEN);
@@ -1801,9 +1836,16 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     sign2_offset = (3 * SMALL_FIELD_LEN) + SIGNATURE_LEN + AD_len;
     sign1_offset = sign2_offset - SIGNATURE_LEN;
 
+    printf("[DEBUG] Client: got_pkt30: num_roommates = %lu\n", num_roommates);
+    printf("roommate_slots_bitmask = %lu (for finding sender's userID.)\n", roommate_slots_bitmask);
+    printf("userID in the payload: %s\n", (char*)(payload + SMALL_FIELD_LEN));
+
     /* Find the index of the guest with this userID. */
-    for(u64 i = 0; i <= num_roommates - 2; ++i){
+    for(u64 i = 0; i < num_roommates; ++i){
         if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
+            
+            printf("[DEBUG] Client: got_pkt30: Finding sender's userID to extract their index in roommates[]:\n");
+            printf("[%lu]:  %s  vs  %s", i, roommates[i].guest_user_id, (char*)(payload + SMALL_FIELD_LEN));
 
             /* if userIDs match. */
             if(strncmp( roommates[i].guest_user_id
@@ -1817,6 +1859,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
             }
         }
     }
+
+    printf("[DEBUG] Client: got_pkt30 -- sender roommate ix: %lu\n", sender_ix);
 
     /* If the sender wasn't found in any global descriptor */
     if(sender_ix == MAX_CLIENTS + 1) {
@@ -1833,11 +1877,13 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
         goto label_cleanup;
     }
 
+    printf("[DEBUG] Client: Signture of server (2) validated successfully!\n");
+
     /* Now the sender client's signature. */
 
     /* Reconstruct the sender's signature as the two BigInts that make it up. */
     s_offset = sign1_offset;
-    e_offset = (sign1_offset + sizeof(bigint) + PRIVKEY_LEN);
+    e_offset = sign1_offset + sizeof(bigint) + PRIVKEY_LEN;
 
     recv_s = (bigint*)(payload + s_offset);
     recv_e = (bigint*)(payload + e_offset);
@@ -1851,7 +1897,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     );
 
     memcpy( recv_e->bits
-           ,payload + (sign1_offset + (2*sizeof(bigint)) + PRIVKEY_LEN)
+           ,payload + sign1_offset + (2 * sizeof(bigint)) + PRIVKEY_LEN
            ,PRIVKEY_LEN
     );
 
@@ -1867,13 +1913,19 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
         goto label_cleanup;
     }
 
+    printf("[DEBUG] Client: Signature of sender client (1) is valid too.\n");
+
     /* Now that the packet seems legit, find our slot in the associated data. */
     for(u64 i = 0; i < num_roommates; ++i){
 
         memcpy(temp_user_id, AD_pointer + (i * AD_slot_len), SMALL_FIELD_LEN);
 
+        printf("[DEBUG] Client: Looking for this client's ID in AD:\n");
+        printf("-> [%lu] userIDs  %s  and  %s\n", i, temp_user_id, own_user_id);
+
         if(strncmp(temp_user_id, own_user_id, SMALL_FIELD_LEN) == 0){
             our_AD_slot = i;
+            printf("[DEBUG] Client: Found our userID in associated data!\n");
             break;
         }
     }
@@ -1883,6 +1935,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
         printf("[ERR] Client: Didn't find our message slot in AD. Drop.\n\n");
         goto label_cleanup;
     }
+
+    printf("[DEBUG] Client: got_pkt30 -- additional point of interest 0.\n");
 
     /* Extract the encrypted key and message from our slot in associated data */
 
@@ -1909,8 +1963,10 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     guest_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
 
     guest_nonce_bigint.free_bits =
-        MAX_BIGINT_SIZ - guest_nonce_bigint.used_bits;
+                    guest_nonce_bigint.size_bits - guest_nonce_bigint.used_bits;
 
+
+    printf("[DEBUG] Client: got_pkt30 -- additional point of interest 1.\n");
 
     /* Increment nonce as many times as counter says for this guest. */
     for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter; ++j){
@@ -1932,6 +1988,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
        ,decrypted_key                        /* output target buffer   */
     );
 
+    printf("[DEBUG] Client: got_pkt30 -- additional point of interest 2.\n");
+
     ++roommates[sender_ix].guest_nonce_counter;
 
     bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
@@ -1948,10 +2006,18 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
        ,decrypted_msg                         /* output target buffer   */
     );
 
+    printf("[DEBUG] Client: got_pkt30 -- additional point of interest 3.\n");
+
     ++roommates[sender_ix].guest_nonce_counter;
 
     /* Displayed name format in GUI is always "xxxxNAME: MSG"            */
     /* Always 8 chars space for username and max_txt_len for msg, 1 row. */
+
+    printf("[DEBUG] Client: got_pkt30 -- additional point of interest 4.\n");
+    printf("Using 2 passed pointers -- name with MSG string AND its length:\n");
+    printf("display_msg_line_len_ptr: %p\n", result_chars);
+    printf("actial__msg_line_____ptr: %p\n", name_with_msg_string);
+
     *result_chars = SMALL_FIELD_LEN + 2 + text_len;
 
     memset(name_with_msg_string, 0, MESSAGE_LINE_LEN);
@@ -1960,6 +2026,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     memcpy(name_with_msg_string, payload + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
     memcpy(name_with_msg_string, GUI_string_helper, 2);
     memcpy(name_with_msg_string, decrypted_msg, text_len);
+
+    printf("[DEBUG] Client: got_pkt30 -- additional point of interest 5.\n");
 
 label_cleanup:
 
