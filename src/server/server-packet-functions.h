@@ -1523,7 +1523,12 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
      *  Here the server needs KAB to decrypt KB into one-time-use key K, behind
      *  which is hidden the desired room index of the room they want to create.
      */
-    
+  
+    printf("---> [DEBUG] Server: KAB/KBA for sending to lev obtained from\n"
+           "                     clients[%lu].shared_secret. CHECK IT!!\n"
+          ,user_ix
+          );
+ 
     if(
        bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint) 
         == 3
@@ -1718,9 +1723,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         printf("[ERR] Server: Couldn't read urandom. Dropping transmission.\n");
         goto label_cleanup;
     }
-    
-    /* This function has already fetched and incremented the Nonce enough. */
-    
+     
     chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1753,6 +1756,11 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
                ,SMALL_FIELD_LEN
               );
         
+        printf("[DEBUG] Server: JOIN_ROOM REPLY - placed guest userID:\n");
+        printf("--> userID of clients[%lu] placed: %s\n"
+               ,user_ixs_in_room[i], clients[user_ixs_in_room[i]].user_id
+              );
+
         buf_ixs_pubkeys_write_offset += SMALL_FIELD_LEN;
               
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
@@ -1831,7 +1839,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
 
 
     printf("\n\n[OK]  Server: SUCCESS - Permitted a user in a chatroom!!\n\n");
-    printf("Now to transmit the new user's public key to all room people!!\n");
+    printf("Now sending the new guest's PubKey and name to current people.\n");
     
     
     /* Add the new room guest's id and pubkey as a pending MSG to each user. */
@@ -1870,7 +1878,14 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
             goto label_cleanup;
         }
         
-        /* Get session the keys KBA, KAB of this already-present room guest. */
+
+        printf("---> [DEBUG] Server: KAB/KBA for sending to kev obtained from\n"
+               "                     clients[%lu].shared_secret. CHECK IT!!\n"
+               "                     Which came from user_ixs_in_room[%lu]\n"
+               ,user_ixs_in_room[i], i
+              );
+
+        /* Get session keys KBA, KAB of this already-present room guest. */
         if(
            bigint_compare2( &(clients[user_ixs_in_room[i]].client_pubkey)
                            ,server_pubkey_bigint
@@ -1923,12 +1938,57 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
             
         nonce_bigint.size_bits = MAX_BIGINT_SIZ;
         nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
-       
+
+
+    
+        printf("[DEBUG] Server: Pend for kev, encrypting K into KC:\n");
+        printf("              : Fetched original starter nonce: \n"
+               "              : Will be incremented %lu times.\n"
+               ,clients[user_ixs_in_room[i]].nonce_counter
+              );
+
+        for(uint32_t x = 0; x < LONG_NONCE_LEN; ++x){
+            if(x % 16 == 0 && x > 0){printf("\n");}
+            printf("%02X ", nonce_bigint.bits[x]);
+        }
+        printf("\n\n");
+
+
+   
         /* Increment nonce as many times as needed. */
         for(u64 j = 0; j < clients[user_ixs_in_room[i]].nonce_counter; ++j){
             bigint_add_fast(&nonce_bigint, &one, &aux1);
             bigint_equate2(&nonce_bigint, &aux1);     
         }
+        
+        printf("\n---> [DEBUG] Server: nonce counter for kev, encrypting\n"
+               "                       one-time key K into KC: %lu\n"
+               ,clients[user_ixs_in_room[i]].nonce_counter
+               );
+    
+    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting K into KC:\n");
+    printf("                : Nonce is:\n");
+    for(uint32_t x = 0; x < LONG_NONCE_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", nonce_bigint.bits[x]);
+    }
+    printf("\n\n");
+
+    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting K into KC:\n");
+    printf("                : Key KBA is:\n");
+    for(uint32_t x = 0; x < SESSION_KEY_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", KBA[x]);
+    }
+    printf("\n\n");
+    
+    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting K into KC:\n");
+    printf("                : UNencrypted key K:\n");
+    for(uint32_t x = 0; x < ONE_TIME_KEY_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", send_K[x]);
+    }
+    printf("\n\n");
 
         chacha20(
             send_K                                  /* text - one-time key K  */
@@ -1957,6 +2017,43 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
                ,PUBKEY_LEN
         );
 
+        printf("\n---> [DEBUG] Server: Placed current guest name for pend: %s\n"
+               ,type21_encrypted_part
+              );
+
+        printf("\n---> [DEBUG] Server: nonce counter for kev, encrypting\n"
+               "                       lev's name and pubkey: %lu\n"
+               ,clients[user_ixs_in_room[i]].nonce_counter
+               );
+
+
+    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting name +key:\n");
+    printf("                : Nonce is:\n");
+    for(uint32_t x = 0; x < SHORT_NONCE_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", nonce_bigint.bits[x]);
+    }
+    printf("\n\n");
+
+    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting name +key:\n");
+    printf("                : Key K is:\n");
+    for(uint32_t x = 0; x < ONE_TIME_KEY_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", send_K[x]);
+    }
+    printf("\n\n");
+
+    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting name +key:\n");
+    printf("                : UNencrypted buffer of len %lu bytes:\n"
+           ,(u64)(SMALL_FIELD_LEN + PUBKEY_LEN)
+          );
+    for(uint32_t x = 0; x < SMALL_FIELD_LEN + PUBKEY_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", type21_encrypted_part[x]);
+    }
+    printf("\n\n");
+
+
         /* Encrypt it with chacha20, place the result ciphertext in response. */
         chacha20( 
          type21_encrypted_part                      /* text: user_ix + pubkey */
@@ -1974,6 +2071,10 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
         /* Final part of TYPE_21 replies - signature itself. */
         /* Compute the signature itself of everything so far.*/
         
+        printf("\n---> [DEBUG] Server: Offset for signature: %lu\n"
+               , (buf_type_21_len - SIGNATURE_LEN)
+              );
+
         signature_generate
         (     M, Q, Gm, buf_type_21
              ,buf_type_21_len - SIGNATURE_LEN
@@ -1982,7 +2083,7 @@ void process_msg_20(u8* msg_buf, u32 sock_ix){
              ,PRIVKEY_LEN
         );
         
-/* Send the new room guest's index and public key to all room participants.
+/* Send the new room guest's name and public key to all room participants.
  
     Server ----> Client
   

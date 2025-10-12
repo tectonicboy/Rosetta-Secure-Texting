@@ -13,11 +13,14 @@
 5. Implement the rest of the Rosetta Test Framework with AF_UNIX communication.
 [ In progress ]
 
-6. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
+6. If a user relogs quickly, server says Public Key already exists and does not
+   permit the user to log back in. Fix it.
 
-7. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+7. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
 
-8. Montgomery Modular Multiplication is currently hardcoded to use the same      
+8. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+
+9. Montgomery Modular Multiplication is currently hardcoded to use the same      
    Diffie-Hellman modulus M as its multiplication modulus. It doesn't have to be 
    that way. Computing MU and L (the 2 parameters that depend on the Montgomery  
    Modulus) is simple - L is the number of 64-bit limbs (8-byte chunks) in the   

@@ -93,7 +93,7 @@ pthread_t poller_threadID;
 u8 own_privkey_buf[PRIVKEY_LEN];
 
 bigint server_shared_secret;
-bigint nonce_bigint;
+bigint server_nonce_bigint;
 bigint *M  = NULL;
 bigint *Q  = NULL;
 bigint *G  = NULL;
@@ -770,16 +770,18 @@ u8 construct_msg_10( unsigned char* requested_userid
     }
 
     /* Increment nonce as many times as the saved counter says. */
+    /*
     for(u64 i = 0; i < server_nonce_counter; ++i){
-        bigint_add_fast(&nonce_bigint, &one, &aux1);
-        bigint_equate2(&nonce_bigint, &aux1);
+        bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+        bigint_equate2(&server_nonce_bigint, &aux1);
     }
-
+    */
+    
     /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
 
     chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
@@ -787,10 +789,10 @@ u8 construct_msg_10( unsigned char* requested_userid
             );
 
     /* Maintain nonce's symmetry on both server and client with counters. */
-    ++server_nonce_counter;
+    //++server_nonce_counter;
 
-    bigint_add_fast(&nonce_bigint, &one, &aux1);
-    bigint_equate2(&nonce_bigint, &aux1);
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
 
     /* Prepare the buffer containing the user_ID and room_ID for encryption. */
     memcpy(roomID_userID, requested_roomid, SMALL_FIELD_LEN);
@@ -800,14 +802,17 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     chacha20( roomID_userID                        /* text: one-time key K    */
              ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(send_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,(*msg_buf) + sendbuf_roomID_offset   /* output target buffer    */
             );
 
-    ++server_nonce_counter;
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
+
+    //++server_nonce_counter;
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
@@ -999,16 +1004,18 @@ u8 construct_msg_20( unsigned char* requested_userid
     }
 
     /* Increment nonce as many times as the saved counter says. */
+    /*
     for(u64 i = 0; i < server_nonce_counter; ++i){
-        bigint_add_fast(&nonce_bigint, &one, &aux1);
-        bigint_equate2(&nonce_bigint, &aux1);
+        bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+        bigint_equate2(&server_nonce_bigint, &aux1);
     }
-
+    */
+    
     /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
 
     chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KAB)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
@@ -1016,10 +1023,10 @@ u8 construct_msg_20( unsigned char* requested_userid
             );
 
     /* Maintain nonce's symmetry on both server and client with counters. */
-    ++server_nonce_counter;
+    //++server_nonce_counter;
 
-    bigint_add_fast(&nonce_bigint, &one, &aux1);
-    bigint_equate2(&nonce_bigint, &aux1);
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
 
     /* Prepare the buffer containing the user_ID and room_ID for encryption. */
     memcpy(roomID_userID, requested_roomid, SMALL_FIELD_LEN);
@@ -1044,14 +1051,17 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     chacha20( roomID_userID                        /* text: one-time key K    */
              ,(2 * SMALL_FIELD_LEN)                /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(send_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,(*msg_buf) + sendbuf_roomID_offset   /* output target buffer    */
             );
 
-    ++server_nonce_counter;
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
+
+    //++server_nonce_counter;
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
@@ -1191,38 +1201,42 @@ u8 process_msg_20(u8* msg, u64 msg_len){
     /* This yields us the key to in turn decrypt the Associated Data with.    */
 
     /* Increment nonce as many times as the saved counter with server says. */
+    /*
     for(u64 i = 0; i < server_nonce_counter; ++i){
-        bigint_add_fast(&nonce_bigint, &one, &aux1);
-        bigint_equate2(&nonce_bigint, &aux1);
+        bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+        bigint_equate2(&server_nonce_bigint, &aux1);
     }
-
+    */
 
     chacha20( (msg + SMALL_FIELD_LEN)              /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KBA)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
              ,recv_K                               /* output target buffer    */
             );
 
-    ++server_nonce_counter;
+    //++server_nonce_counter;
 
-    bigint_add_fast(&nonce_bigint, &one, &aux1);
-    bigint_equate2(&nonce_bigint, &aux1);
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
 
     /* Now use the obtained one-time key K to decrypt the room guests' info. */
 
     chacha20( (msg + recv_type20_AD_offset)        /* text: one-time key K    */
              ,recv_type20_AD_len                   /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
-             ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
+             ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* Nonce_len in uint32_t's */
              ,(u32*)(recv_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,buf_decrypted_AD                     /* output target buffer    */
             );
 
-    ++server_nonce_counter;
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
+
+    //++server_nonce_counter;
 
     /* Now initialize the global state for keeping information about guests in
      * the chatroom we're currently in and process this message's associated
@@ -1376,40 +1390,120 @@ void process_msg_21(u8* msg){
     /* Next, use shared secret with server to decrypt KC with KBA chacha key. */
     /* This yields us the key to in turn decrypt the new guest info with.    */
 
+        printf("[DEBUG] Client: lev join, Pend kev, decrypting KC and name:\n");
+        printf("              : Fetched original starter nonce: \n"
+               "              : Will be incremented %lu times.\n"
+               ,server_nonce_counter
+              );
+
+        for(uint32_t x = 0; x < LONG_NONCE_LEN; ++x){
+            if(x % 16 == 0 && x > 0){printf("\n");}
+            printf("%02X ", server_nonce_bigint.bits[x]);
+        }
+        printf("\n\n");
+
     /* Increment nonce as many times as the saved counter with server says. */
+    /*
     for(u64 i = 0; i < server_nonce_counter; ++i){
-        bigint_add_fast(&nonce_bigint, &one, &aux1);
-        bigint_equate2(&nonce_bigint, &aux1);
+        bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+        bigint_equate2(&server_nonce_bigint, &aux1);
     }
+    */
+    printf("\n---> [DEBUG] Client: join_room_pend: nonce counter decrypting\n"
+           "                       KC back into one-time- key K: %lu\n"
+           ,server_nonce_counter
+           );
+
+
+    printf("\n[DEBUG] Client: lev join, pend for kev, decrypting KC into K:\n");
+    printf("                : Nonce is:\n");
+    for(uint32_t i = 0; i < LONG_NONCE_LEN; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", server_nonce_bigint.bits[i]);
+    }
+    printf("\n\n");
+
+    printf("\n[DEBUG] Client: lev join, pend for kev, decrypting KC into K:\n");
+    printf("                : Key KBA is:\n");
+    for(uint32_t i = 0; i < SESSION_KEY_LEN; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", KBA[i]);
+    }
+    printf("\n\n");
+
 
     /* DECRYPTING the one time key KC back into K.                            */
     chacha20( (msg + SMALL_FIELD_LEN)              /* text: one-time key KC   */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(LONG_NONCE_LEN / sizeof(u32))  /* Nonce_len in uint32_t's */
              ,(u32*)(KBA)                          /* chacha Key              */
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
              ,recv_K                               /* output: chacha key K    */
             );
 
-    ++server_nonce_counter;
+    printf("\n[DEBUG] Client: lev join, pend for kev, decrypting KC into K:\n");
+    printf("                : DEcrypted key K  (recv_K):\n");
+    for(uint32_t i = 0; i < ONE_TIME_KEY_LEN; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", recv_K[i]);
+    }
+    printf("\n\n");
 
-    bigint_add_fast(&nonce_bigint, &one, &aux1);
-    bigint_equate2(&nonce_bigint, &aux1);
+    //++server_nonce_counter;
+
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
 
     /* Now use the obtained one-time key K to decrypt the room guests' info. */
+
+    printf("\n---> [DEBUG] Client: join_room_pend: nonce counter decrypting\n"
+           "                       lev's name and pubkey: %lu\n"
+           ,server_nonce_counter
+           );
+
+
+
+    printf("\n[DEBUG] Client: lev join, pend for kev, decrypting name +key:\n");
+    printf("                : Nonce is:\n");
+    for(uint32_t i = 0; i < SHORT_NONCE_LEN; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", server_nonce_bigint.bits[i]);
+    }
+    printf("\n\n");
+
+    printf("\n[DEBUG] Client: lev join, pend for kev, decrypting name +key:\n");
+    printf("                : Key recv_K is:\n");
+    for(uint32_t i = 0; i < ONE_TIME_KEY_LEN; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", recv_K[i]);
+    }
+    printf("\n\n");
 
     /* DECRYPTING new guest's information.                                    */
     chacha20( (msg + new_guest_info_offset)        /* text: one-time key K    */
              ,new_guest_info_len                   /* text_len in bytes       */
-             ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
+             ,(u32*)(server_nonce_bigint.bits)     /* Nonce                   */
              ,(u32)(SHORT_NONCE_LEN / sizeof(u32)) /* Nonce_len in uint32_t's */
              ,(u32*)(recv_K)                       /* chacha Key              */
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,buf_decrypted_guest_info             /* output target buffer    */
             );
 
-    ++server_nonce_counter;
+    bigint_add_fast(&server_nonce_bigint, &one, &aux1);
+    bigint_equate2(&server_nonce_bigint, &aux1);
+
+    printf("\n[DEBUG] Client: lev join, pend for kev, decrypting name +key:\n");
+    printf("                : DEcrypted buffer of len %lu bytes:\n"
+           ,new_guest_info_len
+          );
+    for(uint32_t i = 0; i < new_guest_info_len; ++i){
+        if(i % 16 == 0 && i > 0){printf("\n");}
+        printf("%02X ", buf_decrypted_guest_info[i]);
+    }
+    printf("\n\n");
+
+//    ++server_nonce_counter;
 
     /* Now initialize the global state for keeping information about guests in
      * the chatroom we're currently in, process new guest's included information
@@ -1437,6 +1531,10 @@ void process_msg_21(u8* msg){
        ,buf_decrypted_guest_info
        ,SMALL_FIELD_LEN
     );
+
+    printf("[DEBUG] Client: lev's name in roommates[].guest_user_id: %s\n"
+           ,roommates[guest_ix].guest_user_id
+          );
 
     printf("[DEBUG] Client: process_pkt_21: ?? point 1\n");
 
@@ -1486,16 +1584,15 @@ printf("[DEBUG] Client: process_pkt_21: ?? point 5\n");
     /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
     memcpy( roommates[guest_ix].guest_KBA
            ,temp_shared_secret.bits
-	   ,SESSION_KEY_LEN
+           ,SESSION_KEY_LEN
           );
 
-printf("[DEBUG] Client: process_pkt_21: ?? point 6\n");
+    printf("[DEBUG] Client: process_pkt_21: ?? point 6\n");
 
-    memcpy(
-        roommates[guest_ix].guest_KAB
-        ,temp_shared_secret.bits + SESSION_KEY_LEN
-        ,SESSION_KEY_LEN
-    );
+    memcpy( roommates[guest_ix].guest_KAB
+           ,temp_shared_secret.bits + SESSION_KEY_LEN
+           ,SESSION_KEY_LEN
+          );
 
 printf("[DEBUG] Client: process_pkt_21: ?? point 7\n");
 

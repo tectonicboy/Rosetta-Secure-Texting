@@ -376,17 +376,21 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     }
 
     /* calloc() needs it in bytes, MAX_BIGINT_SIZ is in bits, so divide by 8. */
-    nonce_bigint.bits =
+    server_nonce_bigint.bits =
     (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
-    memcpy( nonce_bigint.bits
+    memcpy( server_nonce_bigint.bits
            ,server_shared_secret.bits + (2 * SESSION_KEY_LEN)
            ,LONG_NONCE_LEN
           );
 
-    nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
-    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
+    server_nonce_bigint.used_bits = get_used_bits
+                                     (server_nonce_bigint.bits, LONG_NONCE_LEN);
+
+    server_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+
+    server_nonce_bigint.free_bits = 
+                                 MAX_BIGINT_SIZ - server_nonce_bigint.used_bits;
 
     /* Initialize the mutex that will be used to prevent the main thread and
      * the poller thread from writing/reading the same data in parallel.
