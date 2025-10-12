@@ -23,6 +23,7 @@ CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
 CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wformat-security
+CFLAGS += -Wno-stringop-truncation
 
 OPTIMIZATION_LEVEL = -O2
 

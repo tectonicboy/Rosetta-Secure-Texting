@@ -174,7 +174,7 @@ label_cleanup:
 u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
 
     u64 transmission_type = 0;
-    u64 found_user_ix;
+    u64 found_user_ix = 0;
     u64 text_msg_len;
 
     s64 expected_siz = 0;
@@ -279,11 +279,32 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
          *   where TXT_LEN is given in the 3rd SMALL_FIELD_LEN field.
          */
          
+        /*
         memcpy( &found_user_ix
                ,client_msg_buf + SMALL_FIELD_LEN
                ,SMALL_FIELD_LEN
               );
-        
+        */
+
+        for(u64 x = 0; x < MAX_CLIENTS; ++x){
+            if(strncmp( clients[x].user_id
+                       ,(const char*)(client_msg_buf + SMALL_FIELD_LEN)
+                       ,SMALL_FIELD_LEN
+                      ) == 0
+              )
+            {
+                printf("\n[DEBUG] Server: New user_id logic parsing PKT_30.\n");
+                printf("              : Found the sender userID's index!!  \n");
+                printf("              : in_server: %s\nvs\nin_packet:  %s\n\n"
+                       ,clients[x].user_id
+                       ,(const char*)(client_msg_buf + SMALL_FIELD_LEN)
+                      );
+                printf("              : Setting found_user_ix to %lu\n", x);
+                found_user_ix = x;
+                break;
+            }
+        }
+
         memcpy( &text_msg_len
                ,client_msg_buf + (2 * SMALL_FIELD_LEN)
                ,SMALL_FIELD_LEN

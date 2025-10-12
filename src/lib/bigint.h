@@ -33,6 +33,16 @@ typedef struct bigint{
     u32 free_bits;
 } bigint;
 
+void print_buffer(uint8_t* buf, uint64_t len){
+    printf("\n\n");
+    for(u64 x = 0; x < len; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", buf[x]);
+    }
+    printf("\n\n");
+    return;
+}
+
 /* First constructor - from a u32. */
 void bigint_create(bigint* const num, const u32 bitsize, const u32 initial){
 

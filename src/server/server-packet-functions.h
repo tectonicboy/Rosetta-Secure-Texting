@@ -2127,7 +2127,7 @@ label_cleanup:
  Main packet structure:
  
 ================================================================================
-| packetID 30 |  user_ix  |  TXT_LEN   |    AD   |          Signature1         | 
+| packetID 30 |  user_id  |  TXT_LEN   |    AD   |          Signature1         | 
 |=============|===========|============|=========|=============================|
 |  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |            SIG_LEN          |
 --------------------------------------------------------------------------------
@@ -2183,22 +2183,39 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
       
     /* Place the already received packet into the upgraded type_30 packet */
     memcpy(reply_buf, msg_buf, packet_siz);
+
+    /* Replace the sender's index in the server's internal bookkeeping with
+     * their userID so the client's internal bookkeeping can also locate them.
+     */
+    //memcpy(userid, clients[sender_ix].user_id, SMALL_FIELD_LEN);
+    //memcpy(reply_buf + SMALL_FIELD_LEN, userid, SMALL_FIELD_LEN);
+
         
     /* Compute the server's cryptographic signature of the entire received  
      * packet, including the sender's cryptographic signature!
      */
-    
+
+    printf("[DEBUG] Server: Upgrade MSG_30 -- signature 2 generation:\n");
+    printf("              : Signature 2 computed on: %lu bytes:\n"
+           ,packet_siz
+          );
+    for(int64_t x = 0; x < packet_siz; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", reply_buf[x]);
+    }    
+    printf("\n\n");
+
     signature_generate
                     (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
                     ,&server_privkey_bigint, PRIVKEY_LEN
     );
         
-    /* Replace the sender's index in the server's internal bookkeeping with
-     * their userID so the client's internal bookkeeping can also locate them.
-     */
-    memcpy(userid, clients[sender_ix].user_id, SMALL_FIELD_LEN);
-
-    memcpy(reply_buf + SMALL_FIELD_LEN, userid, SMALL_FIELD_LEN);
+    printf("[DEBUG] Server: Upgrade MSG_30 -- Signature 2 generated:\n");
+    for(u64 x = 0; x < SIGNATURE_LEN; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", (reply_buf + packet_siz)[x]);
+    }
+    printf("\n\n");
 
     /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
     /*
