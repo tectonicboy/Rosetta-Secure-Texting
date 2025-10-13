@@ -1,9 +1,0 @@
-../../../../src/lib/bigint.h:300:26: optimized: basic block part vectorized using 32 byte vectors
-../../../../src/lib/bigint.h:550:19: optimized: basic block part vectorized using 32 byte vectors
-../../../../src/lib/bigint.h:672:22: optimized: basic block part vectorized using 32 byte vectors
-../../../../src/lib/bigint.h:1008:18: optimized: basic block part vectorized using 32 byte vectors
-../../../../src/lib/bigint.h:1204:28: optimized: basic block part vectorized using 32 byte vectors
-../../../../src/lib/bigint.h:1204:28: optimized: basic block part vectorized using 32 byte vectors
-../../../../src/lib/bigint.h:1204:28: optimized: basic block part vectorized using 32 byte vectors
-bench.c:138:26: optimized: basic block part vectorized using 32 byte vectors
-bench.c:138:26: optimized: basic block part vectorized using 32 byte vectors
