@@ -1771,6 +1771,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
             /* Increment nonce as many times as counter says for this guest. */
             for(u64 j = 0; j < roommates[i].guest_nonce_counter; ++j){
                 bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
+                bigint_equate2(&guest_nonce_bigint, &aux1);
             }
 
             /* Now encrypt and place the text message with K. */
