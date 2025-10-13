@@ -1325,6 +1325,13 @@ u8 process_msg_20(u8* msg, u64 msg_len){
            ,temp_shared_secret.bits + (2 * SESSION_KEY_LEN)
            ,LONG_NONCE_LEN
         );
+
+        /* This client just joined a room, so its scheme for finding next free
+         * guest slot is simple - just increment it, as here we are only
+         * processing the initial populating of current guests before us.
+         */
+        ++next_free_roommate_slot;
+
     }
 
 label_cleanup:
@@ -1514,11 +1521,11 @@ void process_msg_21(u8* msg){
      * and fill out their guest descriptor structure in the global array.
      */
 
-    /* Reflect the new guest slot in the global guest slots bitmask. */
-    roommate_slots_bitmask     |= BITMASK_BIT_ON_AT(next_free_roommate_slot);
-    roommate_key_usage_bitmask |= BITMASK_BIT_ON_AT(next_free_roommate_slot);
-
     guest_ix = next_free_roommate_slot;
+
+    /* Reflect the new guest slot in the global guest slots bitmask. */
+    roommate_slots_bitmask     |= BITMASK_BIT_ON_AT(guest_ix);
+    roommate_key_usage_bitmask |= BITMASK_BIT_ON_AT(guest_ix);
 
     printf("[DEBUG] Client: process_pkt_21: guest_ix = %lu\n", guest_ix);
 
@@ -1536,11 +1543,9 @@ void process_msg_21(u8* msg){
        ,SMALL_FIELD_LEN
     );
 
-    printf("[DEBUG] Client: lev's name in roommates[].guest_user_id: %s\n"
+    printf("[DEBUG] Client: poll reply (got pkt21): New guest_user_id: %s\n"
            ,roommates[guest_ix].guest_user_id
           );
-
-    printf("[DEBUG] Client: process_pkt_21: ?? point 1\n");
 
     /* Grab the decrypted guest's long-term public key. */
     this_pubkey = &(roommates[guest_ix].guest_pubkey);
@@ -1553,8 +1558,6 @@ void process_msg_21(u8* msg){
        ,PUBKEY_LEN
     );
 
-printf("[DEBUG] Client: process_pkt_21: ?? point 2\n");
-
     /* Now initialize the rest of the new guest's descriptor structure. */
     this_pubkey->size_bits = MAX_BIGINT_SIZ;
     this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
@@ -1563,11 +1566,7 @@ printf("[DEBUG] Client: process_pkt_21: ?? point 2\n");
     bigint_create(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
     get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
 
-    printf("[DEBUG] Client: process_pkt_21: ?? point 3\n");
-
     roommates[guest_ix].guest_nonce_counter = 0;
-
-    printf("[DEBUG] Client: process_pkt_21: ?? point 4\n");
 
     /* Now compute a shared secret with the new guest to get our pair of
      * bidirectional session keys KAB, KBA and the symmetric ChaCha nonce.
@@ -1579,8 +1578,6 @@ printf("[DEBUG] Client: process_pkt_21: ?? point 2\n");
         ,&temp_shared_secret
     );
 
-printf("[DEBUG] Client: process_pkt_21: ?? point 5\n");
-
     roommates[guest_ix].guest_KBA   = (u8*)calloc(1, SESSION_KEY_LEN);
     roommates[guest_ix].guest_KAB   = (u8*)calloc(1, SESSION_KEY_LEN);
     roommates[guest_ix].guest_Nonce = (u8*)calloc(1, LONG_NONCE_LEN); 
@@ -1591,14 +1588,10 @@ printf("[DEBUG] Client: process_pkt_21: ?? point 5\n");
            ,SESSION_KEY_LEN
           );
 
-    printf("[DEBUG] Client: process_pkt_21: ?? point 6\n");
-
     memcpy( roommates[guest_ix].guest_KAB
            ,temp_shared_secret.bits + SESSION_KEY_LEN
            ,SESSION_KEY_LEN
           );
-
-printf("[DEBUG] Client: process_pkt_21: ?? point 7\n");
 
     memcpy(
         roommates[guest_ix].guest_Nonce
@@ -1606,9 +1599,17 @@ printf("[DEBUG] Client: process_pkt_21: ?? point 7\n");
         ,LONG_NONCE_LEN
     );
 
-    printf("[DEBUG] Client: process_pkt_21: ?? point 8\n");
-
     ++num_roommates;
+    ++next_free_roommate_slot;
+
+
+    while(roommate_slots_bitmask & BITMASK_BIT_ON_AT(next_free_roommate_slot)){
+        if(next_free_roommate_slot == MAX_CLIENTS){
+            printf("[ERR] Client: Room is full! No next_free_roommate_slot!\n");
+            break;
+        }
+        ++next_free_roommate_slot;
+    }
 
     printf("[OK] Client: Synced with a newly joined room guest!\n");
 
@@ -2220,9 +2221,10 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     memset(name_with_msg_string, 0, MESSAGE_LINE_LEN);
 
     /* Construct the string with name and message to be displayed on the GUI. */
-    memcpy(name_with_msg_string, payload + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
-    memcpy(name_with_msg_string, GUI_string_helper, 2);
-    memcpy(name_with_msg_string, decrypted_msg, text_len);
+    memset(name_with_msg_string, 0x20, (SMALL_FIELD_LEN - strlen( (const char*)(payload + SMALL_FIELD_LEN) )));
+    memcpy(name_with_msg_string + (SMALL_FIELD_LEN - strlen( (const char*)(payload + SMALL_FIELD_LEN) )), payload + SMALL_FIELD_LEN, strlen( (const char*)(payload + SMALL_FIELD_LEN) ));
+    memcpy(name_with_msg_string + SMALL_FIELD_LEN, GUI_string_helper, 2);
+    memcpy(name_with_msg_string + SMALL_FIELD_LEN + 2, decrypted_msg, text_len);
 
 label_cleanup:
 

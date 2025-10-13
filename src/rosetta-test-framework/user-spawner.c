@@ -91,16 +91,26 @@ label_try_again1:
         else
             printf("[OK]  RTF User Spawner: Joined chatroom successfully!\n\n");
         
+        const char* GUI_string_helper = ": ";
+
         while(1){
             memset(message, 0x00, 128);
             printf("Send a message: ");
             scanf("%127s", message);
-            printf("[DEBUG] User spawner: [JOIN] reached send_text() call.\n");
-            printf("[DEBUG] User spawner: [JOIN] msg_len: %lu\n"
-                   ,(uint64_t)strlen((const char*)message)
-                  );
-            printf("[DEBUG] User spawner: [JOIN] message: %s\n", message);
+
+            char name_with_msg_string[127 + 2 + SMALL_FIELD_LEN];
+
+            /* Send it to everyone in the chatroom. */
             send_text(message, (uint64_t)strlen((const char*)message));
+
+            /* Display it in that user's own client too */
+            
+    /* Construct the string with name and message to be displayed on the GUI. */ 
+    memset(name_with_msg_string, 0x20, (SMALL_FIELD_LEN - strlen( (const char*)(input_user_name) )));
+    memcpy(name_with_msg_string + (SMALL_FIELD_LEN - strlen( (const char*)(input_user_name) )), input_user_name, strlen( (const char*)(input_user_name) ));
+    memcpy(name_with_msg_string + SMALL_FIELD_LEN, GUI_string_helper, 2);        
+    memcpy(name_with_msg_string + SMALL_FIELD_LEN + 2, message, strlen((const char*)message));
+
         }
     }
 
