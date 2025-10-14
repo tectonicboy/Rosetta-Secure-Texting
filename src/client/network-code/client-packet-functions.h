@@ -25,22 +25,8 @@
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
 /******************************************************************************/
-
-/* This function pointer determines whether to communicate through Unix Domain
- * sockets or through TCP sockets. A separate function handles these methods of
- * communication. The former is for the Rosetta Testing Framework and the latter
- * is for running the real messaging system.
- *
- * The Rosetta Testing Framework simulates people texting each other by spawning
- * processes within the same operating system and having them talk to the server
- * with interprocess communications over Unix Domain sockets instead of TCP.
- * Everything else, including GUI, remains exactly the same as the real system.
- *
- * The client initialization routine sets this function pointer accordingly
- * depending on which one we are currently running.
- */
-
-uint8_t (*send_payload)(uint8_t*, uint64_t);
+ 
+uint8_t poll_should_stop = 0;
 
 u8 temp_handshake_memory_region_isLocked = 0;
 
@@ -88,6 +74,7 @@ unsigned char own_user_id[SMALL_FIELD_LEN];
 u64 server_nonce_counter = 0;
 
 pthread_mutex_t mutex;
+pthread_mutex_t poll_mutex;
 pthread_t poller_threadID;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
@@ -2342,7 +2329,7 @@ void process_msg_50(u8* payload){
     }
 
     /* Find the index of the guest with this userID. */
-    for(u64 i = 0; i <= num_roommates - 2; ++i){
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
 
             /* if userID matches the one in payload */
@@ -2360,7 +2347,7 @@ void process_msg_50(u8* payload){
 
     /* If no guest found with the userID in the payload */
     if(sender_ix == MAX_CLIENTS + 1){
-        printf("[ERR] Client: No departed guest found in chatroom. Drop.\n\n");
+        printf("[ERR] Client: No departed guest found with this userID.\n");
         goto label_cleanup;
     }
 
@@ -2420,7 +2407,7 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
     
     *msg_buf = calloc(1, *msg_len);
 
-    for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
 
         /* Make sure we deallocate any memory pointed to by pointers contained
          * in the struct itself or by pointers in an object that's part of the
@@ -2444,7 +2431,6 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
     roommate_key_usage_bitmask = 0;
     num_roommates              = 0;
     next_free_roommate_slot    = 0;
-
     memset(own_user_id, 0, SMALL_FIELD_LEN);
 
     u64 packet_id50 = PACKET_ID_50;
@@ -2458,6 +2444,16 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
         M, Q, Gm, *msg_buf, 2 * SMALL_FIELD_LEN,
         (*msg_buf) + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
+
+    /* Now stop the polling thread. */
+
+    pthread_mutex_lock(&poll_mutex);
+    poll_should_stop = 1;
+    pthread_mutex_unlock(&poll_mutex);
+
+    void** thread_ret_ptr = NULL;
+
+    pthread_join(poller_threadID, thread_ret_ptr);
 
 label_cleanup:
 
@@ -2490,7 +2486,7 @@ void process_msg_51(u8* payload){
         goto label_cleanup;
     }
 
-    for(u64 i = 0; i <= MAX_CLIENTS - 2; ++i){
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
 
         /* Make sure we deallocate any memory pointed to by pointers contained
          * in the struct itself or by pointers in an object that's part of the
@@ -2514,6 +2510,17 @@ void process_msg_51(u8* payload){
     roommate_key_usage_bitmask = 0;
     num_roommates              = 0;
     next_free_roommate_slot    = 0;
+
+    /* Now stop the polling thread. */
+
+    pthread_mutex_lock(&poll_mutex);
+    poll_should_stop = 1;
+    pthread_mutex_unlock(&poll_mutex);
+
+    void** thread_ret_ptr = NULL;                                                
+                                                                                 
+    pthread_join(poller_threadID, thread_ret_ptr);
+
 
     /* Cleanup. */
 label_cleanup:

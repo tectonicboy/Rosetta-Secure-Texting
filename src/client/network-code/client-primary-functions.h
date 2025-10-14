@@ -32,7 +32,7 @@
 uint8_t(*init_communication)(void);
 uint8_t(*transmit_payload)  (uint8_t* buf, size_t send_siz);
 uint8_t(*receive_payload)   (uint8_t* buf, uint64_t* recv_len);
-
+void   (*end_communication) (void);
 
 /* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
@@ -403,6 +403,8 @@ u8 self_init(u8* password, int password_len, char* save_dir){
 
     status = init_communication();
 
+    pthread_mutex_init(&poll_mutex, NULL);
+
 label_cleanup:
 
 
@@ -418,7 +420,27 @@ label_cleanup:
     return status;
 }
 
-void* begin_polling(__attribute__((unused)) void* input){
+void* begin_polling(__attribute__((unused)) void* input)
+{
+/*    NOTE: for stopping this polling thread function when owner leaves (closes)
+ *          our chatroom or when we decide to leave the chatroom:
+ *
+ *    by using pthread_setcanceltype() to set the thread's cancellation type to
+ *    asynchronous instead of deferred. To do that, you'd add something like 
+ *    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL); near the start 
+ *    of your thread function, before you start the loop. You would then be able
+ *    to terminate the thread by calling pthread_cancel(th) from main().
+ *
+ *    IMPORTANT NOTE: However, notice that this will NOT clean up any allocated
+ *                    or opened resources. At least one is here: &msg_buf passed
+ *                    to construct_msg_40(), the function calls malloc on that
+ *                    pointer internally and THE CALLER is supposed to free it
+ *                    later when the payload buffer is no longer needed.
+ *                    pthread_cancel(thread) will not free() this. Perhaps have
+ *                    this pointer as a global pointer and call free() on it
+ *                    in the TWO possible functions that stop the polling thread
+ *                    (this thread function).
+ */
 
     u8  text_message_line[MESSAGE_LINE_LEN];
     u8  reply_buf[MAX_TXT_LEN];
@@ -459,6 +481,27 @@ void* begin_polling(__attribute__((unused)) void* input){
         //printf("[OK]  Client: Sent poll packet_40 to server.\n");
 
         receive_payload(reply_buf, &reply_len);
+
+
+        pthread_mutex_lock(&poll_mutex);
+
+        if(poll_should_stop == 1){
+            memset(msg_buf,           0x00, msg_len);
+            memset(reply_buf,         0x00, MAX_TXT_LEN);
+            memset(text_message_line, 0x00, MESSAGE_LINE_LEN);
+            pending_messages = 0;
+            msg_len          = 0;
+            reply_len        = 0;
+            read_ix          = 0;
+            curr_msg_len     = 0;
+            curr_msg_type    = 0;
+            free(msg_buf);
+            pthread_mutex_unlock(&poll_mutex);
+            return NULL;
+        }
+        else{
+            pthread_mutex_unlock(&poll_mutex);
+        }
 
         u64* aux_ptr64_replybuf;
 
@@ -1103,6 +1146,8 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
      * for the messages sub-window and "exit room" button. Render them.
      */
 
+    poll_should_stop = 0;
+
     start_polling_thread();
 
 /* Unused for now but still have a label for completeness. */
@@ -1204,10 +1249,11 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
      * for the messages sub-window and "exit room" button. GUI code will 
      * do that if it sees returned 0 from here.
      */
-
+    
+    poll_should_stop = 0;                                                    
+                                                                                 
     start_polling_thread();
 
-/* Unused for now but keep the label for completeness. */
 label_cleanup:
 
     free(msg_buf);
@@ -1319,6 +1365,8 @@ u8 logout(void){
     printf("[OK]  Client: Sent MSG_60 (logoff) to Rosetta server.\n");
 
     /* No server reply here. */
+
+    end_communication();
 
     /**************************************************************************/
 

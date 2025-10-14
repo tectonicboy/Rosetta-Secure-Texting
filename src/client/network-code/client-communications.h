@@ -113,6 +113,12 @@ u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
     return ret;
 }
 
+void tcp_end_communication(void)
+{
+    close(own_socket_fd);       
+    return;
+}
+
 uint8_t ipc_init_communication(){
 
     int len = 0;
@@ -191,3 +197,10 @@ uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
 
     return ret;
 }
+
+void ipc_end_communication(void)                                                 
+{                                                                                
+    close(own_socket_fd);                                                        
+    return;                                                                      
+}  
+

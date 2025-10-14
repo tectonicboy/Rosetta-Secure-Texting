@@ -223,6 +223,11 @@ void remove_user_from_room(u64 sender_ix){
         /* Server bookkeeping - a guest has left the chatroom they were in. */
         /* In this case, simply decrement the number of guests in the room. */
         rooms[clients[sender_ix].room_ix].num_people -= 1;
+
+        printf("\n\n----> [DEBUG] Server: REMOVING USER from room:\n");
+        printf("    ----> Set clients[%lu].room_ix to 0.\n", sender_ix);
+        printf("    ----> Their room_ix was %lu\n", clients[sender_ix].room_ix);
+
         clients[sender_ix].room_ix = 0;
         clients[sender_ix].num_pending_msgs = 0;
 
@@ -2424,7 +2429,7 @@ void process_msg_50(u8* msg_buf){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         return;      
     }
- 
+
     remove_user_from_room(sender_ix);
 
     return;
@@ -2438,6 +2443,8 @@ void process_msg_60(u8* msg_buf){
     u64 sender_ix;
 
     memcpy(&sender_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
+
+    remove_user_from_room(sender_ix);
  
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){

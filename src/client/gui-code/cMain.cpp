@@ -382,6 +382,7 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
     init_communication = tcp_init_communication;
     transmit_payload   = tcp_transmit_payload;    
     receive_payload    = tcp_receive_payload;
+    end_communication  = tcp_end_communication;
 
     login_status = login(password, password_len);
 

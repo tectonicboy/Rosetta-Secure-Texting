@@ -60,7 +60,17 @@ label_try_again1:
         while(1){
             memset(message, 0x00, 128);                                          
             printf("Send a message: ");                                          
-            scanf("%127s", message);                             
+            scanf("%127s", message);
+            if(strncmp((const char*)message, "__logout__", 10) == 0){                         
+                status = logout();                                               
+                if(status){                                                      
+                    printf("[ERR] User Spawner: Error during Logout().\n");      
+                }                                                                
+                else{                                                            
+                    printf("[OK]  User Spawner: Successfully logged out.\n");    
+                }                                                                
+                break;                                                           
+            }                                 
             printf("[DEBUG] User spawner: [MAKE] reached send_text() call.\n");         
             printf("[DEBUG] User spawner: [MAKE] msg_len: %lu\n"                        
                    ,(uint64_t)strlen((const char*)message)                       
@@ -97,7 +107,16 @@ label_try_again1:
             memset(message, 0x00, 128);
             printf("Send a message: ");
             scanf("%127s", message);
-
+            if(strncmp((const char*)message, "__logout__", 10) == 0){
+                status = logout();
+                if(status){
+                    printf("[ERR] User Spawner: Error during Logout().\n");
+                }
+                else{
+                    printf("[OK]  User Spawner: Successfully logged out.\n");
+                }
+                break;
+            }
             char name_with_msg_string[127 + 2 + SMALL_FIELD_LEN];
 
             /* Send it to everyone in the chatroom. */
@@ -122,6 +141,7 @@ int main(void){
     init_communication = ipc_init_communication;
     transmit_payload   = ipc_transmit_payload;
     receive_payload    = ipc_receive_payload;
+    end_communication  = ipc_end_communication;
 
     unsigned char  savefilename[16] = {'\0'};
     unsigned char* full_save_dir = NULL;
