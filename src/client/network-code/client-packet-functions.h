@@ -24,8 +24,60 @@
 #define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 
-/******************************************************************************/
- 
+/* Set optimization level to none (-O0) for this function, instruct the compiler
+ * to not inline calls to it, mark the pointer to the memory buffer containing
+ * sensitive information that must be zeroed out for security reasons as
+ * volatile, which informs the compiler that the memory it points to might get
+ * altered in ways the compiler can't predict, doesn't expect, and the source
+ * code does not directly contain any signs it might happen. This prevents the
+ * compiler from eliminating calls to the function upon determining that the
+ * effects of it are not utilized anywhere in the source code.
+ *
+ * Efforts by compiler writers and the C language standard participants do exist
+ * with functions like explicit_bzero() and memset_explicit() slowly being added
+ * however, still, neither of these seems to be easily available AND they are
+ * only approximations to the solution - Whole-program optimization at link time
+ * might still decide to optimize them away. So, sticking to this ugliness until
+ * a more elegant and straightforward way to zero out sensitive memory exists.
+ */
+__attribute__((noinline))
+__attribute__((optimize("O0")))
+void erase_memory_guaranteed(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
+{
+    __m256i zero_reg256 = _mm256_setzero_si256();
+
+    size_t i = 0;
+    
+    /* SIMD - zero out memory in chunks of 256 bits at a time. */
+
+    while(i + sizeof(__m256i) <= num_bytes_to_erase){
+        _mm256_storeu_si256((__m256i *)(buf + i), zero_reg256);
+        i += sizeof(__m256i);
+    }
+
+    /* Any remaining bytes fewer than 32, clear byte by byte. */
+
+    while(i < num_bytes_to_erase){
+        buf[i] = 0;
+        ++i;
+    }
+
+    /* Compiler memory barrier to prevent aggressive compile-time and link-time
+     * optimizers from eliminating calls to the function or parts of its body.
+     */
+
+    __asm__ __volatile__ ( ""          /* No assembly instructions to emit.  */
+                           :           /* No output operands.                */  
+                           : "r"(buf)  /* input - pointer to erased memory.  */
+                                       /* in a general purpose register r.   */
+                           : "memory"  /* clobbers memory - do not reorder   */
+                                       /* memory accesses across this block. */
+                         );
+
+    return;
+}
+
+
 uint8_t poll_should_stop = 0;
 
 u8 temp_handshake_memory_region_isLocked = 0;
@@ -2364,16 +2416,41 @@ void process_msg_50(u8* payload){
     /* Make sure we deallocate any heap memory pointed to by pointers contained
      * in the descriptor struct or by pointers in an object which is itself part
      * of the descriptor struct, BEFORE we zero out the descriptor itself.
+     *
+     * Additionally, use a volatile pointer to the memory buffers containing
+     * sensitive information, in combination with a -O0 and noinline marked
+     * function to prevent the compiler from optimizing away the memory clearing
+     * upon determining that its result is not used anywhere.
+     * 
      */
-    memset(roommates[sender_ix].guest_user_id, 0, SMALL_FIELD_LEN);
+
+    volatile uint8_t* secure_erase_ptr;
+    uint64_t n_bytes_to_erase;
+
+    secure_erase_ptr = (volatile uint8_t*)roommates[sender_ix].guest_user_id;
+    n_bytes_to_erase = SMALL_FIELD_LEN; 
+    erase_mem_secure(secure_erase_ptr, num_bytes_to_erase);
+
+    secure_erase_ptr = (volatile uint8_t*)
+    n_bytes_to_erase = 
+    erase_mem_secure(roommates[sender_ix].guest_pubkey.bits, MAX_BIGINT_SIZ / 8);
+
+
+    erase_mem_secure(roommates[sender_ix].guest_pubkey_mont.bits, MAX_BIGINT_SIZ / 8);
+
     free(roommates[sender_ix].guest_pubkey.bits);
     free(roommates[sender_ix].guest_pubkey_mont.bits);
+
+    memset_explicit(roommates[sender_ix].guest_KBA,   0, SESSION_KEY_LEN);
+    memset_explicit(roommates[sender_ix].guest_KAB,   0, SESSION_KEY_LEN);
+    memset_explicit(roommates[sender_ix].guest_Nonce, 0, LONG_NONCE_LEN );
+
     free(roommates[sender_ix].guest_KBA);
     free(roommates[sender_ix].guest_KAB);
     free(roommates[sender_ix].guest_Nonce);
 
     /* Now zero out the descriptor itself without the risk of memory leaks. */
-    memset(&(roommates[sender_ix]), 0, sizeof(struct roommate));
+    memset_explicit(&(roommates[sender_ix]), 0, sizeof(struct roommate));
 
     roommate_slots_bitmask     &= ~(BITMASK_BIT_ON_AT(sender_ix));
     roommate_key_usage_bitmask &= ~(BITMASK_BIT_ON_AT(sender_ix));
@@ -2399,12 +2476,12 @@ label_cleanup:
 --------------------------------------------------------------------------------
 
 */
-u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
-
-    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
-
+u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
+{
     u8 status = 0;
-    
+    void** thread_ret_ptr = NULL;
+
+    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN; 
     *msg_buf = calloc(1, *msg_len);
 
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
@@ -2413,8 +2490,17 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
          * in the struct itself or by pointers in an object that's part of the
          * struct BEFORE we zero out the descriptor itself.
          */
-        if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i)){
-            memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
+        if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i))
+        {
+            memset_explicit(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
+
+            bigint_nullify(&(roommates[i].guest_pubkey));
+            bigint_nullify(&(roommates[i].guest_pubkey_mont));
+
+            memset_explicit(roommates[i].guest_KBA,   0, SESSION_KEY_LEN);       
+            memset_explicit(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);       
+            memset_explicit(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );
+
             free(roommates[i].guest_pubkey.bits);
             free(roommates[i].guest_pubkey_mont.bits);
             free(roommates[i].guest_KBA);
@@ -2451,8 +2537,6 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len){
     poll_should_stop = 1;
     pthread_mutex_unlock(&poll_mutex);
 
-    void** thread_ret_ptr = NULL;
-
     pthread_join(poller_threadID, thread_ret_ptr);
 
 label_cleanup:
@@ -2477,6 +2561,7 @@ label_cleanup:
 void process_msg_51(u8* payload){
 
     u8 status = 0;
+    void** thread_ret_ptr = NULL;
 
     /* Verify the server's signature first. */
     status = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
@@ -2492,18 +2577,27 @@ void process_msg_51(u8* payload){
          * in the struct itself or by pointers in an object that's part of the
          * struct BEFORE we zero out the descriptor itself.
          */
-        if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i)){
-            memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
-            free(roommates[i].guest_pubkey.bits);
-            free(roommates[i].guest_pubkey_mont.bits);
-            free(roommates[i].guest_KBA);
-            free(roommates[i].guest_KAB);
-            free(roommates[i].guest_Nonce);
+        if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i))
+        {
+            memset_explicit(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);     
+                                                                                 
+            bigint_nullify(&(roommates[i].guest_pubkey));                        
+            bigint_nullify(&(roommates[i].guest_pubkey_mont));                   
+                                                                                 
+            memset_explicit(roommates[i].guest_KBA,   0, SESSION_KEY_LEN);       
+            memset_explicit(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);       
+            memset_explicit(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );       
+                                                                                 
+            free(roommates[i].guest_pubkey.bits);                                
+            free(roommates[i].guest_pubkey_mont.bits);                           
+            free(roommates[i].guest_KBA);                                        
+            free(roommates[i].guest_KAB);                                        
+            free(roommates[i].guest_Nonce); 
         }
     }
 
     /* Now zero out all global descriptors without the risk of memory leaks. */
-    memset(roommates, 0, (roommates_arr_siz * sizeof(struct roommate)));
+    memset_explicit(roommates, 0, roommates_arr_siz * sizeof(struct roommate));
 
     /* Reset the two global guest bitmasks and other bookkeeping information. */
     roommate_slots_bitmask     = 0;
@@ -2516,9 +2610,7 @@ void process_msg_51(u8* payload){
     pthread_mutex_lock(&poll_mutex);
     poll_should_stop = 1;
     pthread_mutex_unlock(&poll_mutex);
-
-    void** thread_ret_ptr = NULL;                                                
-                                                                                 
+    
     pthread_join(poller_threadID, thread_ret_ptr);
 
 
