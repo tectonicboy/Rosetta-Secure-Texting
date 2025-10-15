@@ -42,6 +42,7 @@
  * might still decide to optimize them away. So, sticking to this ugliness until
  * a more elegant and straightforward way to zero out sensitive memory exists.
  */
+__attribute__((no_reorder))
 __attribute__((used))
 __attribute__((noinline))
 __attribute__((optimize("O0")))
