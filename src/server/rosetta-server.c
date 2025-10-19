@@ -412,65 +412,7 @@ label_error:
 label_cleanup: 
 
     free(msg_type_str);
-    
     return status;
-}
-
-void remove_user(u64 removing_user_ix){
-    
-    int status;
-
-    /* Might have to remove them from a room (as a guest or as the owner)
-     * or simply from the server if they weren't in a room.
-     */
-    if(clients[removing_user_ix].room_ix != 0){
-        remove_user_from_room(removing_user_ix);
-    }
-    
-    /* Clear the user's descriptor, free their global user index slot. */
-    /* But first free calloc()'d stuff during user creation!           */
-
-    for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
-        free(clients[removing_user_ix].pending_msgs[i]);
-    }
-    
-    /* Deallocate the bits buffer of the client's long-term public key. */
-    free(clients[removing_user_ix].client_pubkey.bits); 
-    
-    /* Deallocate the bits buffer of the their public key's Montgomery form. */ 
-    free(clients[removing_user_ix].client_pubkey_mont.bits);      
-    
-    /* Deallocate the bits buffer holding our shared secret with this client. */
-    free(clients[removing_user_ix].shared_secret.bits);
-
-    memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
-
-    users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
-
-    status = pthread_cancel(client_thread_ids[removing_user_ix]);
-
-    /* Free the network payload buffer this client's thread had allocated. */
-    free(client_payload_buffer_ptrs[removing_user_ix]);
-
-    if(status != 0){
-        printf("[ERR] Server: Couldn't stop quitting client's recv thread.\n\n");
-    }
-
-    status = close(client_socket_fd[removing_user_ix]);
-
-    if(status != 0){
-        printf("[ERR] Server: Couldn't close quitting client's socket.\n\n");
-    }
-
-    /* Update next free socket slot if needed. */
-    if(removing_user_ix < next_free_socket_ix){
-        next_free_socket_ix = removing_user_ix;
-    }
-
-    /* Reflect in global socket bitmask that this socket is now free again. */
-    socket_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
-
-    return;
 }
 
 void* check_for_lost_connections(){

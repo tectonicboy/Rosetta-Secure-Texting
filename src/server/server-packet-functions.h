@@ -49,9 +49,9 @@ struct chatroom{
  * Begin populating room slots and user slots at index [1]. Reserve [0] for
  * meaning that the user is not in any room at all.
  */
-u64 users_status_bitmask = 0;
-u64 rooms_status_bitmask = 0;
-
+u64 users_status_bitmask  = 0;
+u64 rooms_status_bitmask  = 0;
+u64 last_poll_req_bitmask = 0; 
 /* Bitmask telling the server which socket file descriptors are free to be
  * used to accept a new connection to a client machine and begin its recv() loop
  * thread function which it will be stuck on until they exit Rosetta.
@@ -135,7 +135,6 @@ u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
     return 0;
 }
 
-/* add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);  */
 void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
 
     /* Make sure the user has space in their list of pending messages. */
@@ -182,7 +181,6 @@ void remove_user_from_room(u64 sender_ix){
     u8* reply_buf;
     u64 reply_len;
     u64 tmp_packet_id;
-    u64 saved_room_ix = clients[sender_ix].room_ix;
 
     /* If it's not the owner, just tell the others that the person has left. */
     if(sender_ix != rooms[clients[sender_ix].room_ix].owner_ix){
@@ -264,6 +262,8 @@ void remove_user_from_room(u64 sender_ix){
                       );
 
                 add_pending_msg(i, reply_len, reply_buf);
+
+                last_poll_req_bitmask |= (1ULL << (63ULL - i));
             }
         }
 
@@ -277,21 +277,7 @@ void remove_user_from_room(u64 sender_ix){
         rooms[clients[sender_ix].room_ix].owner_ix   = 0;
         rooms[clients[sender_ix].room_ix].room_id    = 0;
 
-        printf("Got to last loop in remove_user_FROM_ROOM()!\n");
-
-        for(u64 i = 0; i < MAX_CLIENTS; ++i){
-
-            if(clients[i].room_ix == saved_room_ix) {
-
-                clients[i].room_ix = 0;
-                clients[i].num_pending_msgs = 0;
-
-                for(size_t j = 0; j < MAX_PEND_MSGS; ++j){
-                    memset(clients[i].pending_msgs[j], 0, MAX_MSG_LEN);
-                    clients[i].pending_msg_sizes[j] = 0;
-                }
-            }
-        }
+        clients[sender_ix].room_ix = 0;
     }
 
     free(reply_buf);
@@ -357,6 +343,56 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     return ret;
 }
 
+void remove_user(u64 removing_user_ix){
+    int status;
+    /* Might have to remove them from a room (as a guest or as the owner)
+     * or simply from the server if they weren't in a room.
+     */
+    if(clients[removing_user_ix].room_ix != 0){
+        remove_user_from_room(removing_user_ix);                                      }
+
+    /* Clear the user's descriptor, free their global user index slot. */
+    /* But first free calloc()'d stuff during user creation!           */
+
+    for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
+        free(clients[removing_user_ix].pending_msgs[i]);
+    }
+
+    /* Deallocate the bits buffer of the client's long-term public key. */
+    free(clients[removing_user_ix].client_pubkey.bits);                           
+    /* Deallocate the bits buffer of the their public key's Montgomery form. */
+    free(clients[removing_user_ix].client_pubkey_mont.bits);
+
+    /* Deallocate the bits buffer holding our shared secret with this client. */
+    free(clients[removing_user_ix].shared_secret.bits);
+
+    memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
+    users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
+    status = pthread_cancel(client_thread_ids[removing_user_ix]);
+
+    /* Free the network payload buffer this client's thread had allocated. */
+    free(client_payload_buffer_ptrs[removing_user_ix]);
+
+    if(status != 0){
+        printf("[ERR] Server: Couldn't stop quitting client's recv thread.\n\n");
+    }
+
+    status = close(client_socket_fd[removing_user_ix]);
+
+    if(status != 0){
+        printf("[ERR] Server: Couldn't close quitting client's socket.\n\n");
+    }
+
+    /* Update next free socket slot if needed. */
+    if(removing_user_ix < next_free_socket_ix){
+        next_free_socket_ix = removing_user_ix;
+    }
+
+    /* Reflect in global socket bitmask that this socket is now free again. */
+    socket_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
+
+    return;
+}
 
 /* A user requested to be logged in Rosetta:
 
@@ -2404,6 +2440,16 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         else                                                                     
             printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");  
 
+        if(last_poll_req_bitmask & (1ULL << (63ULL - poller_ix))) {
+            last_poll_req_bitmask &= ~(1ULL << (63ULL - poller_ix));
+            clients[poller_ix].room_ix = 0;
+            clients[poller_ix].num_pending_msgs = 0;
+
+            for(size_t j = 0; j < MAX_PEND_MSGS; ++j){
+                memset(clients[poller_ix].pending_msgs[j], 0, MAX_MSG_LEN);
+                clients[poller_ix].pending_msg_sizes[j] = 0;
+            }
+        }
 
         goto label_cleanup;
     }
@@ -2443,19 +2489,14 @@ void process_msg_60(u8* msg_buf){
     u64 sender_ix;
 
     memcpy(&sender_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
-
-    remove_user_from_room(sender_ix);
- 
+    
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         return;     
     }
 
-    /* Clear the user descriptor structure and alter the global index array. */
-    memset(&(clients[sender_ix]), 0, sizeof(struct connected_client));
-    
-    users_status_bitmask &= ~(1ULL << (63ULL - sender_ix));
+    remove_user(sender_ix);
 
     return;
 }

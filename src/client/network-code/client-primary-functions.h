@@ -470,22 +470,18 @@ void* begin_polling(__attribute__((unused)) void* input)
 
     for(;;){
 
-        nanosleep(&ts, NULL);
-
-        status = transmit_payload(msg_buf, msg_len);
-        
-        if(status){
-            printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
-            goto loop_cleanup;
-        }
-        //printf("[OK]  Client: Sent poll packet_40 to server.\n");
-
-        receive_payload(reply_buf, &reply_len);
-
+        /* Lock a mutex to prevent race conditions on poll_should_stop with
+         * the main client thread (that is taking user input and reacts to it)
+         * which can decide to leave the chatroom and thus sets it to 1. The
+         * other place that can set it to 1 is THIS THREAD, if polling receives
+         * MSG_51 - the room owner has closed the chatroom. These two events
+         * can happen at independent times by 2 threads, so both lock a mutex.
+         */
 
         pthread_mutex_lock(&poll_mutex);
 
         if(poll_should_stop == 1){
+            printf("[DEBUG] Client: POLL THREAD should_stop IS 1! good!\n");
             memset(msg_buf,           0x00, msg_len);
             memset(reply_buf,         0x00, MAX_TXT_LEN);
             memset(text_message_line, 0x00, MESSAGE_LINE_LEN);
@@ -496,12 +492,25 @@ void* begin_polling(__attribute__((unused)) void* input)
             curr_msg_len     = 0;
             curr_msg_type    = 0;
             free(msg_buf);
+            printf("[DEBUG] Client: poll thread is at mutex_unlock!\n");
             pthread_mutex_unlock(&poll_mutex);
+            printf("\n-->[DEBUG] Client: poll thread returning NULL now.\n");
             return NULL;
         }
         else{
             pthread_mutex_unlock(&poll_mutex);
         }
+
+        nanosleep(&ts, NULL);
+
+        status = transmit_payload(msg_buf, msg_len);
+        
+        if(status){
+            printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
+            goto loop_cleanup;
+        }
+
+        receive_payload(reply_buf, &reply_len);
 
         u64* aux_ptr64_replybuf;
 
@@ -619,6 +628,17 @@ loop_cleanup:
     }
 
     return NULL;
+}
+
+void handle_signal_sigusr1(__attribute__((unused)) int sig)
+{
+    write(
+     STDOUT_FILENO
+    ,"[DEBUG] Client: main got a signal by poll thread! Stop scanf.\n"
+    ,strlen("[DEBUG] Client: main got a signal by poll thread! Stop scanf.\n\0")
+    );
+
+    return;
 }
 
 void start_polling_thread(){
@@ -1146,7 +1166,8 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
      * for the messages sub-window and "exit room" button. Render them.
      */
 
-    poll_should_stop = 0;
+    poll_should_stop    = 0;
+    texting_should_stop = 0;
 
     start_polling_thread();
 
@@ -1250,8 +1271,9 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
      * do that if it sees returned 0 from here.
      */
     
-    poll_should_stop = 0;                                                    
-                                                                                 
+    poll_should_stop    = 0;                                                    
+    texting_should_stop = 0;
+                                                                             
     start_polling_thread();
 
 label_cleanup:

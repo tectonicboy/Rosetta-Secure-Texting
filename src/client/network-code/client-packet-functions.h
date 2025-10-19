@@ -1,3 +1,8 @@
+#include <signal.h>
+#include <errno.h>
+
+/* All bitmasks are 64-bit and begin with their leftmost bit. */
+
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
 #define SERVER_PORT      54746
@@ -23,66 +28,6 @@
 #define ARGON_HASH_LEN   64
 #define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
 #define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
-
-/* Set optimization level to none (-O0) for this function, instruct the compiler
- * to not inline calls to it, mark the pointer to the memory buffer containing
- * sensitive information that must be zeroed out for security reasons as
- * volatile, which informs the compiler that the memory it points to might get
- * altered in ways the compiler can't predict, doesn't expect, and the source
- * code does not directly contain any signs it might happen. This prevents the
- * compiler from eliminating calls to the function upon determining that the
- * effects of it are not utilized anywhere in the source code. Also, attribute
- * ((used)) is another protection against the compiler optimizing away calls to
- * this function if it determines the memory it zeroes out isn't used afterward.
- *
- * Efforts by compiler writers and C language standard participants do exist
- * with functions like explicit_bzero() and memset_explicit() slowly being added
- * however, still, neither of these seems to be easily available AND they are
- * only approximations to the solution - Whole-program optimization at link time
- * might still decide to optimize them away. So, sticking to this ugliness until
- * a more elegant and straightforward way to zero out sensitive memory exists.
- */
-__attribute__((no_reorder))
-__attribute__((used))
-__attribute__((noinline))
-__attribute__((optimize("O0")))
-void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
-{
-    __m256i zero_reg256 = _mm256_setzero_si256();
-
-    size_t i = 0;
-    
-    /* SIMD - zero out memory in chunks of 256 bits at a time. */
-
-    while(i + sizeof(__m256i) <= num_bytes_to_erase){
-        _mm256_storeu_si256((__m256i *)(uintptr_t)(buf + i), zero_reg256);
-        i += sizeof(__m256i);
-    }
-
-    /* Any remaining bytes fewer than 32, clear byte by byte. */
-
-    while(i < num_bytes_to_erase){
-        buf[i] = 0;
-        ++i;
-    }
-
-    /* Compiler memory barrier to prevent aggressive compile-time and link-time
-     * optimizers from reordering memory around this memory clearing operation.
-     */
-
-    __asm__ __volatile__ ( ""          /* No assembly instructions to emit.  */
-                           :           /* No output operands.                */  
-                           : "r"(buf)  /* input - pointer to erased memory.  */
-                                       /* in a general purpose register r.   */
-                           : "memory"  /* clobbers memory - do not reorder   */
-                                       /* memory accesses across this block. */
-                         );
-
-    return;
-}
-
-
-uint8_t poll_should_stop = 0;
 
 u8 temp_handshake_memory_region_isLocked = 0;
 
@@ -128,10 +73,16 @@ u64  own_ix = 0;
 unsigned char own_user_id[SMALL_FIELD_LEN];
 
 u64 server_nonce_counter = 0;
-
+/* thread_ID of main thread allows poller thread to send it a signal, in order
+ * to interrupt its blocked scanf(), if it's told the room owner has closed it.
+ * and thus the client shouldn't be allowed to send any more messages in it.
+ */
+pthread_t main_thread_id;
+pthread_t poller_threadID;
 pthread_mutex_t mutex;
 pthread_mutex_t poll_mutex;
-pthread_t poller_threadID;
+volatile uint8_t poll_should_stop    = 0;
+volatile uint8_t texting_should_stop = 0;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
 
@@ -169,6 +120,56 @@ u8 temp_handshake_buf[TEMP_BUF_SIZ];
 #define PACKET_ID_60 0x0A7F4E5D330A14DD
 
 
+/* Set optimization level to none (-O0) for this function, instruct the compiler
+ * to not inline calls to it, mark the pointer to the memory buffer containing
+ * sensitive information that must be zeroed out for security reasons as
+ * volatile, which informs the compiler that the memory it points to might get
+ * altered in ways the compiler can't predict, doesn't expect, and the source
+ * code does not directly contain any signs it might happen. This prevents the
+ * compiler from eliminating calls to the function upon determining that the
+ * effects of it are not utilized anywhere in the source code. Also, attribute
+ * ((used)) is another protection against the compiler optimizing away calls to
+ * this function if it determines the memory it zeroes out isn't used afterward.
+ *
+ * Efforts by compiler writers and C language standard participants do exist
+ * with functions like explicit_bzero() and memset_explicit() slowly being added
+ * however, still, neither of these seems to be easily available AND they are
+ * only approximations to the solution - Whole-program optimization at link time
+ * might still decide to optimize them away. So, sticking to this ugliness until
+ * a more elegant and straightforward way to zero out sensitive memory exists.
+ */
+__attribute__((no_reorder))
+__attribute__((used))
+__attribute__((noinline))
+__attribute__((optimize("O0")))
+void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
+{
+    __m256i zero_reg256 = _mm256_setzero_si256();
+    size_t i = 0;
+
+    /* SIMD - zero out memory in chunks of 256 bits at a time. */
+
+    while(i + sizeof(__m256i) <= num_bytes_to_erase){
+        _mm256_storeu_si256((__m256i *)(uintptr_t)(buf + i), zero_reg256);
+        i += sizeof(__m256i);
+    }
+
+    /* Any remaining bytes fewer than 32, clear byte by byte. */
+
+    while(i < num_bytes_to_erase)
+        buf[i++] = 0;
+
+    /* Compiler memory barrier to prevent aggressive compile-time and link-time
+     * optimizers from reordering memory around this memory clearing operation.
+     */
+    __asm__ __volatile__ (
+    ""          /* No assembly instructions to emit.                         */
+    :           /* No output operands.                                       */
+    : "r"(buf)  /* input - pointer to erased memory, in a gp register r.     */
+    : "memory"  /* clobbers memory - don't reorder memory operations nearby. */
+    );
+    return;
+}
 
 /* Validate a cryptographic signature computed by the Rosetta server. */
 u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
@@ -2028,7 +2029,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     printf("userID in the payload: %s\n", (char*)(payload + SMALL_FIELD_LEN));
 
     /* Find the index of the guest with this userID. */
-    for(u64 i = 0; i < num_roommates; ++i){
+    for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
             
             printf("[DEBUG] Client: got_pkt30: Finding sender's userID to extract their index in roommates[]:\n");
@@ -2395,6 +2396,10 @@ void process_msg_50(u8* payload){
                       ) == 0
               )
             {
+                printf("[DEBUG] Client: Non-owner left our room. Their index "
+                       "in roommates[] is: %lu\n"
+                       ,i
+                      );
                 sender_ix = i;
                 break;
             }
@@ -2576,7 +2581,6 @@ label_cleanup:
 void process_msg_51(u8* payload){
 
     u8 status = 0;
-    void** thread_ret_ptr = NULL;
 
     /* Verify the server's signature first. */
     status = authenticate_server(payload, SMALL_FIELD_LEN, SMALL_FIELD_LEN);
@@ -2620,14 +2624,31 @@ void process_msg_51(u8* payload){
     num_roommates              = 0;
     next_free_roommate_slot    = 0;
 
-    /* Now stop the polling thread. */
+    /* Use this to alert the main thread to stop texting, if it happens to not
+     * be blocked on the scanf() call for some milliseconds (which this thread
+     * unblocks it from by sending it a signal with the following pthread_kill).
+     */
+    pthread_mutex_lock(&poll_mutex);
+    texting_should_stop = 1;
+    pthread_mutex_unlock(&poll_mutex);
 
+    /* This DOES NOT kill the main thread, it merely sends it a signal for which
+     * the main thread has installed a custom signal handler function. This call
+     * is done only to unblock the main thread from its blocked scanf() call.
+     * In the desktop GUI version, this signal will be used to alert the GUI
+     * to draw an info box that the room the user is in was closed by the owner
+     * and retract the GUI elements that allow the user to send text messages.
+     */
+    printf("\n-->[DEBUG] Client: got MSG_51: sending SIGNAL to main thread!\n");
+    pthread_kill(main_thread_id, SIGUSR1);
+
+    /* Main thread could be in a state of writing to poll_should_stop, if the
+     * user has just decided to leave the chatroom. Prevent a race condition.
+     * This function can only be called by the poller thread.
+     */
     pthread_mutex_lock(&poll_mutex);
     poll_should_stop = 1;
-    pthread_mutex_unlock(&poll_mutex);
-    
-    pthread_join(poller_threadID, thread_ret_ptr);
-
+    pthread_mutex_unlock(&poll_mutex);    
 
     /* Cleanup. */
 label_cleanup:
