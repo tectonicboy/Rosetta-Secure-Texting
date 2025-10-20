@@ -55,10 +55,16 @@ label_try_again1:
         status = make_new_chatroom
                 (input_room_name, room_name_len,input_user_name, user_name_len);
 
-        if(status)
+        if(status){
             printf("[ERR] RTF User Spawner: New chatroom could not be made.\n");
-        else
+            if(status == 2){
+                printf("[ERR] RTF User Spawner: Server reply took too long.\n");
+            }
+            goto label_begin_user;
+        }
+        else{
             printf("[OK]  RTF User Spawner: New chatroom made successfully!\n");
+        }
 
         while(1){
   
@@ -143,11 +149,17 @@ label_try_again1:
         status = join_chatroom
                (input_room_name, room_name_len, input_user_name, user_name_len);
 
-        if(status)
-            printf("[ERR] RTF User Spawner: Chat room could not be joined.\n");
-        else
-            printf("[OK]  RTF User Spawner: Joined chatroom successfully!\n\n");
-        
+        if(status){
+            printf("[ERR] RTF User Spawner: Chatroom could not be joined.\n");
+            if(status == 2){
+                printf("[ERR] RTF User Spawner: Server reply took too long.\n");
+            }
+            goto label_begin_user;
+        }
+        else{
+            printf("[OK]  RTF User Spawner: Chatroom joined successfully!\n"); 
+        }
+ 
         while(1){
 
             /* This boolean is for handling the case where the polling thread

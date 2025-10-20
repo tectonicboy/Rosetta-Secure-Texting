@@ -481,21 +481,7 @@ void* begin_polling(__attribute__((unused)) void* input)
         pthread_mutex_lock(&poll_mutex);
 
         if(poll_should_stop == 1){
-            printf("[DEBUG] Client: POLL THREAD should_stop IS 1! good!\n");
-            memset(msg_buf,           0x00, msg_len);
-            memset(reply_buf,         0x00, MAX_TXT_LEN);
-            memset(text_message_line, 0x00, MESSAGE_LINE_LEN);
-            pending_messages = 0;
-            msg_len          = 0;
-            reply_len        = 0;
-            read_ix          = 0;
-            curr_msg_len     = 0;
-            curr_msg_type    = 0;
-            free(msg_buf);
-            printf("[DEBUG] Client: poll thread is at mutex_unlock!\n");
-            pthread_mutex_unlock(&poll_mutex);
-            printf("\n-->[DEBUG] Client: poll thread returning NULL now.\n");
-            return NULL;
+            goto thread_cleanup;
         }
         else{
             pthread_mutex_unlock(&poll_mutex);
@@ -511,6 +497,17 @@ void* begin_polling(__attribute__((unused)) void* input)
         }
 
         receive_payload(reply_buf, &reply_len);
+
+        if(status == 2){
+            printf("[ERR] Client: Poll thread: Server reply took too long.\n");
+            pthread_kill(main_thread_id, SIGUSR1);
+            goto thread_cleanup;
+        }
+        if(status == 1){
+            printf("[ERR] Client: Poll thread: receive_payload() failed.\n");
+            pthread_kill(main_thread_id, SIGUSR1);
+            goto thread_cleanup;
+        }
 
         u64* aux_ptr64_replybuf;
 
@@ -618,14 +615,26 @@ void* begin_polling(__attribute__((unused)) void* input)
                 }
             }
         }
-        else{
-            printf("[ERR] Client: Strange reply by server to poll request.\n");
-        }
-
+        
 loop_cleanup:
 
         memset(reply_buf, 0, MAX_TXT_LEN);
     }
+
+thread_cleanup:
+
+    memset(msg_buf,           0x00, msg_len);
+    memset(reply_buf,         0x00, MAX_TXT_LEN);
+    memset(text_message_line, 0x00, MESSAGE_LINE_LEN);
+    pending_messages = 0;
+    msg_len          = 0;
+    reply_len        = 0;
+    read_ix          = 0;
+    curr_msg_len     = 0;
+    curr_msg_type    = 0;
+    free(msg_buf);
+    pthread_mutex_unlock(&poll_mutex);
+    printf("\n-->[DEBUG] Client: poll thread returning NULL now.\n");
 
     return NULL;
 }

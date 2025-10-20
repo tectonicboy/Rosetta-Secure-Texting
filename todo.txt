@@ -24,6 +24,19 @@
                                signal, and thats how that client's listener 
                                thread knows it has to return.
 
+                ==> IN SERVER: Polling needs to start right after login, not
+                               when the client joins/creates a chatroom. Becase
+                               now, if the client logs in, turns Rosetta off and
+                               disappears, the server keeps thinking that client
+                               is still logged in. That way we also won't need
+                               3 separate global index arrays for:
+                                   - user index
+                                   - socket index
+                                   - thread index
+
+                               ALL would be unified under the same user_ix,
+                               vastly simplying the design and bookkeeping.
+
 6. If a user relogs quickly, server says Public Key already exists and does not
    permit the user to log back in. Fix it.
 
