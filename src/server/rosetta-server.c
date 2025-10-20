@@ -381,7 +381,10 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         
         /* If transmission is of a valid type and size, process it. */
         process_msg_60(client_msg_buf);
-        
+       
+        /* Indicate to this client's poll listening thread function to return */
+        status = 100;
+
         break;            
     
     }
@@ -421,7 +424,7 @@ void* check_for_lost_connections(){
 
     while(1){
     
-        sleep(5); /* Check for lost connections every 10 seconds. */
+        sleep(5); /* Check for lost connections every 5 seconds. */
 
         pthread_mutex_lock(&mutex);
        
@@ -513,12 +516,14 @@ void* check_for_lost_connections(){
 void* start_new_client_thread(void* ix_ptr){
 
     u8* client_msg_buf;
+
     ssize_t bytes_read;
 
     u32 status;
     
     u64 ix;
- 
+    u64 stop_poll;
+
     memcpy(&ix, ix_ptr, sizeof(ix));
 
     printf("New client recv() loop thread started. INDEX: %lu\n", ix);
@@ -552,13 +557,19 @@ void* start_new_client_thread(void* ix_ptr){
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
 
-        if(status)
+        if(status != 100 && status > 0)
             printf("[ERR] Server: identifying new transmission went bad!\n");
-           
+                       
         memset(client_msg_buf, 0, bytes_read);
 
         pthread_mutex_unlock(&mutex);
+
+        if(status == 100){
+            break;
+        }
     }
+
+    return NULL;
 }
 
 int main(int argc, char* argv[]){

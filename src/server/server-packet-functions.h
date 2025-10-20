@@ -222,9 +222,9 @@ void remove_user_from_room(u64 sender_ix){
         /* In this case, simply decrement the number of guests in the room. */
         rooms[clients[sender_ix].room_ix].num_people -= 1;
 
-        printf("\n\n----> [DEBUG] Server: REMOVING USER from room:\n");
-        printf("    ----> Set clients[%lu].room_ix to 0.\n", sender_ix);
-        printf("    ----> Their room_ix was %lu\n", clients[sender_ix].room_ix);
+        printf("----> [DEBUG] Server: REMOVING USER from room:\n");
+        printf("----> Set clients[%lu].room_ix to 0.\n", sender_ix);
+        printf("----> Their room_ix was %lu\n", clients[sender_ix].room_ix);
 
         clients[sender_ix].room_ix = 0;
         clients[sender_ix].num_pending_msgs = 0;

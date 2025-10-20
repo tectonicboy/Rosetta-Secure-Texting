@@ -34,15 +34,8 @@ OPTIMIZATION_REPORT += -fopt-info-loop-optimized
 LINKER_FLAGS += -pthread
 LINKER_FLAGS += -lm
 
-#Disabling Link-Time Optimizations to ensure calls to functions, that zero out
-#memory buffers containing sensitive data that must be erased when not needed
-#like keys, nonces, decrypted messages or other cryptographic artifacts, do not
-#get optimized away and eliminated by the linker.
-
-LINKER_FLAGS += -fno-lto
-
-
 ARCHITECTURE_FLAGS += -march=native
+
 
 all:
 	gcc rosetta-test-framework.c -o rtf $(OPTIMIZATION_REPORT) \
