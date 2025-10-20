@@ -1,3 +1,5 @@
+#include <signal.h>
+
 #define PRIVKEY_LEN      40
 #define PUBKEY_LEN       384
 #define MAX_CLIENTS      64
@@ -344,12 +346,14 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 }
 
 void remove_user(u64 removing_user_ix){
-    int status;
+    int status = 0;
+    
     /* Might have to remove them from a room (as a guest or as the owner)
      * or simply from the server if they weren't in a room.
      */
     if(clients[removing_user_ix].room_ix != 0){
-        remove_user_from_room(removing_user_ix);                                      }
+        remove_user_from_room(removing_user_ix);                                      
+    }
 
     /* Clear the user's descriptor, free their global user index slot. */
     /* But first free calloc()'d stuff during user creation!           */
@@ -368,14 +372,9 @@ void remove_user(u64 removing_user_ix){
 
     memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
-    status = pthread_cancel(client_thread_ids[removing_user_ix]);
-
+    
     /* Free the network payload buffer this client's thread had allocated. */
     free(client_payload_buffer_ptrs[removing_user_ix]);
-
-    if(status != 0){
-        printf("[ERR] Server: Couldn't stop quitting client's recv thread.\n\n");
-    }
 
     status = close(client_socket_fd[removing_user_ix]);
 
@@ -2441,7 +2440,6 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
             printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");  
 
         if(last_poll_req_bitmask & (1ULL << (63ULL - poller_ix))) {
-            last_poll_req_bitmask &= ~(1ULL << (63ULL - poller_ix));
             clients[poller_ix].room_ix = 0;
             clients[poller_ix].num_pending_msgs = 0;
 

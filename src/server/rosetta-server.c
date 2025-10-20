@@ -146,6 +146,17 @@ label_cleanup:
 }
 
 
+void handle_signal_sigusr1(__attribute__((unused)) int sig)                      
+{                                                                                
+    write(                                                                       
+     STDOUT_FILENO                                                               
+    ,"[DEBUG] Server: A client poll listening thread got a SIGNAL!\n"           
+    ,strlen("[DEBUG] Server: A client poll listening thread got a SIGNAL!\n\0") 
+    );                                                                           
+                                                                                 
+    return;                                                                      
+}  
+
 
 /******************************************************************************/
 
@@ -364,7 +375,10 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         
         /* If transmission is of a valid type and size, process it. */
         process_msg_50(client_msg_buf);
-        
+    
+        /* Indicate to this client's poll listening thread function to return */ 
+        status = 100;
+    
         break;        
     }
     
@@ -471,7 +485,9 @@ void* check_for_lost_connections(){
                        ,clients[i].room_ix
                        ,( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC)
                 );
-                      
+
+                pthread_kill(client_thread_ids[i], SIGUSR1);      
+
                 remove_user(i);
             }
         } 
@@ -522,11 +538,38 @@ void* start_new_client_thread(void* ix_ptr){
     u32 status;
     
     u64 ix;
-    u64 stop_poll;
 
     memcpy(&ix, ix_ptr, sizeof(ix));
 
-    printf("New client recv() loop thread started. INDEX: %lu\n", ix);
+    /**************************************************************************/
+
+    /* This signal handler allows the lost connection checker thread to send
+     * each client's poll thread (this thread) a signal to return; because the
+     * client has lost connection with the server. Unlike in the client software
+     * where the unlikely case of sending the interrupting signal for the few
+     * milliseconds exactly during sending a message (and not blocked on scanf)
+     * has to be handled separately with a global flag protected by a mutex,
+     * here in the server we do not have such a case because BY DEFINITION that
+     * client has lost connection so their poll thread HAS TO BE stuck in a 
+     * blocked recv() call.
+     */
+
+    struct sigaction sa;                                                         
+                                                                                 
+    sa.sa_handler = handle_signal_sigusr1;                                       
+    sigemptyset(&sa.sa_mask);                                                    
+                                                                                 
+    /* Don't immediately restart syscalls interrupted by this signal. */         
+    sa.sa_flags = 0;                                                             
+                                                                                 
+    /* Install the signal handler. */                                            
+    sigaction(SIGUSR1, &sa, NULL);  
+
+    /**************************************************************************/
+
+    printf("[OK] Server: Installed signal handler for a client poll thread.\n");
+
+    printf("[DEBUG] Server: new client poll thread started. INDEX: %lu\n", ix);
 
     pthread_mutex_lock(&mutex);
 
@@ -549,7 +592,12 @@ void* start_new_client_thread(void* ix_ptr){
         /* Block on this recv call, waiting for a client's request. */
         //bytes_read = recv(client_socket_fd[ix], client_msg_buf,MAX_MSG_LEN,0);
         bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN); 
-        
+       
+        if(errno == EINTR){
+            printf("[OK] Server: client poll thread [%lu] got a SIGNAL!\n", ix);
+            break;
+        }
+ 
         if(bytes_read == -1)
             printf("[ERR] Server loop: receive_payload() went bad!\n");
 
@@ -559,14 +607,29 @@ void* start_new_client_thread(void* ix_ptr){
 
         if(status != 100 && status > 0)
             printf("[ERR] Server: identifying new transmission went bad!\n");
+
+        if(last_poll_req_bitmask & (1ULL << (63ULL - ix))){
+            last_poll_req_bitmask &= ~(1ULL << (63ULL - ix));
+            printf("[OK] Server: client poll thread [%lu] exits: "
+                   "Room owner has left!\n"
+                   ,ix
+                  );
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
+
+        if( status == 100 ) {
+            printf("[OK] Server: client poll thread [%lu] exits: "
+                   "User Logout or left room!\n"
+                   ,ix
+                  );
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
                        
         memset(client_msg_buf, 0, bytes_read);
 
         pthread_mutex_unlock(&mutex);
-
-        if(status == 100){
-            break;
-        }
     }
 
     return NULL;
@@ -683,6 +746,8 @@ int main(int argc, char* argv[]){
            , start_new_client_thread
            ,(void*)thread_func_arg_buf
         );
+
+        pthread_detach(client_thread_ids[curr_free_socket_ix]);
 
         /* Reflect the new taken socket slot in the global status bitmask. */
         socket_status_bitmask |= (1ULL << (63ULL - curr_free_socket_ix));
