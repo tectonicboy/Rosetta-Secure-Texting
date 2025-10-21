@@ -453,15 +453,18 @@ void* check_for_lost_connections(){
          * a lost connection and boot the user's client machine from the server 
          * and any chatrooms they were guests in or the owner of.
          */      
+        printf("===========================================================\n");
+        printf("\n[DEBUG] Server: Lost connection checker ran.\n");
+
         for(u64 i = 0; i < MAX_CLIENTS; ++i){
           
             /* DEBUG */
 
             if(clients[i].room_ix != 0){
-                printf("[DEBUG] Server: check for user[%lu] in room[%lu] :   \n"
-                       "                cur_time: %ld s | last_polled: %ld s \n"
-                       ,i, clients[i].room_ix, (curr_time / CLOCKS_PER_SEC)
-                       ,(clients[i].time_last_polled / CLOCKS_PER_SEC)
+                printf("user[%04lu]  | inside room [%04lu]  -----------------\n"
+                       "cur: %04lu s | last_polled: %04lu s [sec SINCE START]\n"
+                       ,i, clients[i].room_ix, (u64)(curr_time / CLOCKS_PER_SEC)
+                       ,(u64)(clients[i].time_last_polled / CLOCKS_PER_SEC)
                       );
             }
 
@@ -471,6 +474,9 @@ void* check_for_lost_connections(){
             if( 
                (users_status_bitmask & (1ULL << (63ULL - i))) 
                 &&
+                /* ROOM_IX CHECK WILL HAVE TO BE REMOVED WHEN POLLING CHANGES
+                 * TO START RIGHT AFTER LOGIN, INSTEAD OF AFTER JOIN/MAKE ROOM!!
+                 */
                 (clients[i].room_ix != 0)
                 &&
                (( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC) > 20.0)
@@ -486,12 +492,16 @@ void* check_for_lost_connections(){
                        ,( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC)
                 );
 
+                printf("[DEBUG] Server: Sending client poll thread a signal\n");
+
                 pthread_kill(client_thread_ids[i], SIGUSR1);      
 
                 remove_user(i);
             }
         } 
-        
+
+        printf("===========================================================\n");
+
         /* Check for an interrupted connection in the middle of an attempted
          * login. We keep the time at which the current (only one at a time is
          * possible) login started. Under normal circumstances, it should finish
@@ -593,13 +603,16 @@ void* start_new_client_thread(void* ix_ptr){
         //bytes_read = recv(client_socket_fd[ix], client_msg_buf,MAX_MSG_LEN,0);
         bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN); 
        
-        if(errno == EINTR){
-            printf("[OK] Server: client poll thread [%lu] got a SIGNAL!\n", ix);
+        if(bytes_read == -1 && errno == EINTR){
+            printf("[OK] Server: client poll thread [%lu] got a SIGNAL by\n"
+                   "             lost connection checker thread!\n", ix);
             break;
         }
  
-        if(bytes_read == -1)
+        if(bytes_read == -1 && errno != EINTR){
             printf("[ERR] Server loop: receive_payload() went bad!\n");
+            continue;
+        }
 
         pthread_mutex_lock(&mutex);
 

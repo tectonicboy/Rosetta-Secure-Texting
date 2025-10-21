@@ -153,8 +153,13 @@ ssize_t tcp_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
     bytes_read = recv(client_socket_fd[socket_ix], buf, max_len, 0);
 
     if(bytes_read == -1){
+        if(errno == EINTR){
+            printf("[OK] Server: recv in sock[%lu] got a SIGNAL!\n", socket_ix);
+            return -1;
+        }
         perror("[ERR] Server: TCP receiving failed! errno: ");
-        exit(1);
+        printf("            : socket_ix = [%lu]\n", socket_ix);
+        return -1;
     }
 
     return bytes_read;
@@ -257,7 +262,12 @@ ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
     ssize_t num_read;
 
     if((num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0)) == -1){
-        perror("[ERR] Server: AF_UNIX recv() call failed! errno: ");
+        if(erno == EINTR){
+            printf("[OK] Server: recv in sock[%lu] got a SIGNAL!\n", socket_ix);
+            return -1;
+        }
+        perror("[ERR] Server: AF_UNIX receiving failed! errno: ");                   
+        printf("            : socket_ix = [%lu]\n", socket_ix);
         return -1;
     }
 
