@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
+#include <fcntl.h>
 #include <errno.h>
 
 #define PRIVKEY_LEN      40
@@ -116,8 +117,6 @@ label_finished:
 
 uint8_t tcp_onboard_new_client(uint64_t socket_ix){
 
-    uint8_t ret = 0;
-
     client_socket_fd[socket_ix] =
             accept( listening_socket
                    ,(struct sockaddr*)(&(client_addresses[socket_ix]))
@@ -126,12 +125,18 @@ uint8_t tcp_onboard_new_client(uint64_t socket_ix){
 
     if(client_socket_fd[socket_ix] == -1){
         perror("[ERR] Server: TCP accept() failed, errno: ");
-        ret = 1;
+        return 1;
     }
     else
         printf("[OK] Server: TCP accept() is OK. New client allowed in!\n");
 
-    return ret;
+    if(fcntl(client_socket_fd[socket_ix], F_SETFL, O_NONBLOCK) == -1){
+        printf("[ERR] Server: BAD fcntl() NONBLOCK for sock[%lu]\n", socket_ix);
+        perror("errno:");
+        return 1;
+    }
+
+    return 0;
 }
 
 uint8_t tcp_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len){
@@ -152,15 +157,9 @@ ssize_t tcp_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     bytes_read = recv(client_socket_fd[socket_ix], buf, max_len, 0);
 
-    if(bytes_read == -1){
-        if(errno == EINTR){
-            printf("[OK] Server: recv in sock[%lu] got a SIGNAL!\n", socket_ix);
-            return -1;
-        }
-        perror("[ERR] Server: TCP receiving failed! errno: ");
-        printf("            : socket_ix = [%lu]\n", socket_ix);
-        return -1;
-    }
+    /* errno=EWOULDBLOCK is handled by the caller (client's poll thread func) */
+    /* -1 and errno!=EWOULDBLOCK is also handled by the caller.               */
+    /* Retrying until a retry limit is reached is also handled by the caller. */
 
     return bytes_read;
 }
@@ -231,18 +230,22 @@ label_init_succeeded:
 
 uint8_t ipc_onboard_new_client(uint64_t socket_ix){
 
-    uint8_t ret = 0;
-
     client_socket_fd[socket_ix] = accept(listening_socket, NULL, NULL);
 
     if (client_socket_fd[socket_ix] == -1) {                                      
         perror("[ERR] Server: AF_UNIX accept() call failed!\n");
-        ret = 1;
+        return 1;
     }
     else
         printf("[OK]  Server: AF_UNIX accept() is OK. Accepted new client!\n");
 
-    return ret;
+    if(fcntl(client_socket_fd[socket_ix], F_SETFL, O_NONBLOCK) == -1){           
+        printf("[ERR] Server: BAD fcntl() NONBLOCK for sock[%lu]\n", socket_ix); 
+        perror("errno:");                                                        
+        return 1;                                                                
+    }    
+
+    return 0;
 }
 
 uint8_t ipc_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len){
@@ -261,15 +264,11 @@ ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     ssize_t num_read;
 
-    if((num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0)) == -1){
-        if(erno == EINTR){
-            printf("[OK] Server: recv in sock[%lu] got a SIGNAL!\n", socket_ix);
-            return -1;
-        }
-        perror("[ERR] Server: AF_UNIX receiving failed! errno: ");                   
-        printf("            : socket_ix = [%lu]\n", socket_ix);
-        return -1;
-    }
+    num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0);
+
+    /* errno=EWOULDBLOCK is handled by the caller (client's poll thread func) */
+    /* -1 and errno!=EWOULDBLOCK is also handled by the caller.               */
+    /* Retrying until a retry limit is reached is also handled by the caller. */
 
     return num_read;
 }

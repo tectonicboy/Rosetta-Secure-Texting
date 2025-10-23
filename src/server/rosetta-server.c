@@ -146,21 +146,6 @@ label_cleanup:
 }
 
 
-void handle_signal_sigusr1(__attribute__((unused)) int sig)                      
-{                                                                                
-    write(                                                                       
-     STDOUT_FILENO                                                               
-    ,"[DEBUG] Server: A client poll listening thread got a SIGNAL!\n"           
-    ,strlen("[DEBUG] Server: A client poll listening thread got a SIGNAL!\n\0") 
-    );                                                                           
-                                                                                 
-    return;                                                                      
-}  
-
-
-/******************************************************************************/
-
-
 /******************************************************************************/
 
 /*  To make the server design more elegant, this top-level message processor 
@@ -432,195 +417,93 @@ label_cleanup:
     return status;
 }
 
-void* check_for_lost_connections(){
-
-    time_t curr_time;
-
-    while(1){
-    
-        sleep(5); /* Check for lost connections every 5 seconds. */
-
-        pthread_mutex_lock(&mutex);
-       
-        curr_time = clock();
-
-        //printf("\n[OK] Server: Detector of lost connections STARTED!\n\n");
-
-        //printf("[OK]  Server: Checker for lost connections started!\n");
-        
-        /* Go over all user slots, for every connected client, check the last 
-         * time they polled the server. If it's more than 5 seconds ago, assume 
-         * a lost connection and boot the user's client machine from the server 
-         * and any chatrooms they were guests in or the owner of.
-         */      
-        printf("===========================================================\n");
-        printf("\n[DEBUG] Server: Lost connection checker ran.\n");
-
-        for(u64 i = 0; i < MAX_CLIENTS; ++i){
-          
-            /* DEBUG */
-
-            if(clients[i].room_ix != 0){
-                printf("user[%04lu]  | inside room [%04lu]  -----------------\n"
-                       "cur: %04lu s | last_polled: %04lu s [sec SINCE START]\n"
-                       ,i, clients[i].room_ix, (u64)(curr_time / CLOCKS_PER_SEC)
-                       ,(u64)(clients[i].time_last_polled / CLOCKS_PER_SEC)
-                      );
-            }
-
-            /* DEBUG */
-
-            
-            if( 
-               (users_status_bitmask & (1ULL << (63ULL - i))) 
-                &&
-                /* ROOM_IX CHECK WILL HAVE TO BE REMOVED WHEN POLLING CHANGES
-                 * TO START RIGHT AFTER LOGIN, INSTEAD OF AFTER JOIN/MAKE ROOM!!
-                 */
-                (clients[i].room_ix != 0)
-                &&
-               (( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC) > 20.0)
-            )
-            {
-                printf("[ERR] Server: Caught an inactive connected client!\n"
-                       "              Removing them from the server:\n"
-                       "              user_slot_bitmask_ix: [%lu]\n"
-                       "              this_user's_room_ix : [%lu]\n"
-                       "              Time since last poll: %f seconds\n\n"
-                       ,i
-                       ,clients[i].room_ix
-                       ,( ((double)(curr_time - clients[i].time_last_polled)) / CLOCKS_PER_SEC)
-                );
-
-                printf("[DEBUG] Server: Sending client poll thread a signal\n");
-
-                pthread_kill(client_thread_ids[i], SIGUSR1);      
-
-                remove_user(i);
-            }
-        } 
-
-        printf("===========================================================\n");
-
-        /* Check for an interrupted connection in the middle of an attempted
-         * login. We keep the time at which the current (only one at a time is
-         * possible) login started. Under normal circumstances, it should finish
-         * right away, as it's just 2 transmissions. Although extremely unlikely
-         * it's still possible for a connection to be interrupted after the 1st
-         * login request was sent and before the second login packet could be
-         * sent by the client. In this case, the global memory region keeping 
-         * the very short-lived shared secret and key pair only used to securely
-         * transport the long-term public key and unlock it from here.
-         *
-         * To defend against such a scenario (be it caused by a real loss of 
-         * network connection to the server, or a malicious person deliberately
-         * trying to do this to DoS or otherwise attack the server), check the
-         * time elapsed since the CURRENT login was started. If it's been over
-         * 10 seconds, assume a lost connection - drop the login attempt and
-         * unlock the global memory region for login cryptographic artifacts.
-         */
-        if( 
-              temp_handshake_memory_region_isLocked == 1
-            &&
-              ( (curr_time - time_curr_login_initiated) > 10)       
-          )
-        {
-            explicit_bzero(temp_handshake_buf, TEMP_BUF_SIZ);
-            temp_handshake_memory_region_isLocked = 0;               
-        }
-        
-        curr_time = clock();
-        /*
-        printf( "\n[OK] Server: Detector of lost connections ENDED: %s\n"
-               ,ctime(&curr_time)
-        );
-        */
-        pthread_mutex_unlock(&mutex);
-    }
-}
-
 void* start_new_client_thread(void* ix_ptr){
 
-    u8* client_msg_buf;
+    u8* client_msg_buf = calloc(1, MAX_MSG_LEN);
 
     ssize_t bytes_read;
 
     u32 status;
-    
+    u32 attempts;
+
+    /* 400 * 5 ms = 2 seconds */
+
+    u32 attempts_limit = 400;
+
     u64 ix;
 
     memcpy(&ix, ix_ptr, sizeof(ix));
 
-    /**************************************************************************/
-
-    /* This signal handler allows the lost connection checker thread to send
-     * each client's poll thread (this thread) a signal to return; because the
-     * client has lost connection with the server. Unlike in the client software
-     * where the unlikely case of sending the interrupting signal for the few
-     * milliseconds exactly during sending a message (and not blocked on scanf)
-     * has to be handled separately with a global flag protected by a mutex,
-     * here in the server we do not have such a case because BY DEFINITION that
-     * client has lost connection so their poll thread HAS TO BE stuck in a 
-     * blocked recv() call.
-     */
-
-    struct sigaction sa;                                                         
-                                                                                 
-    sa.sa_handler = handle_signal_sigusr1;                                       
-    sigemptyset(&sa.sa_mask);                                                    
-                                                                                 
-    /* Don't immediately restart syscalls interrupted by this signal. */         
-    sa.sa_flags = 0;                                                             
-                                                                                 
-    /* Install the signal handler. */                                            
-    sigaction(SIGUSR1, &sa, NULL);  
-
-    /**************************************************************************/
-
-    printf("[OK] Server: Installed signal handler for a client poll thread.\n");
-
     printf("[DEBUG] Server: new client poll thread started. INDEX: %lu\n", ix);
-
-    pthread_mutex_lock(&mutex);
-
-    /* Get the ix-th global pointer to point to this heap memory buffer so
-     * that the client cleanup functionality can free() it later, since this
-     * function enters an infinite recv() loop that is never exited, and thus
-     * cannot free() it by itself when the client machine gets disconnected
-     * from the Rosetta server.
-     */
-    client_payload_buffer_ptrs[ix] = calloc(1, MAX_MSG_LEN);
-
-    pthread_mutex_unlock(&mutex);
-
-    client_msg_buf = client_payload_buffer_ptrs[ix];
 
     memset(client_msg_buf, 0, MAX_MSG_LEN);
 
     while(1){
+  
+         attempts = 0;
+ 
+        /* This recv call is made non-blocking with fcntl(). If no data present,
+         * sleep for 5 ms (5000 microseconds) and check again, incrementing the
+         * counter each time. If the counter reaches its limit of attempts, a
+         * lost connection is assumed, without using a separate lost connection
+         * checker thread at all. Stop retrying after 2 seconds - disconnected.
+         */
 
-        /* Block on this recv call, waiting for a client's request. */
-        //bytes_read = recv(client_socket_fd[ix], client_msg_buf,MAX_MSG_LEN,0);
-        bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN); 
-       
-        if(bytes_read == -1 && errno == EINTR){
-            printf("[OK] Server: client poll thread [%lu] got a SIGNAL by\n"
-                   "             lost connection checker thread!\n", ix);
+        while((bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN))
+                 == -1
+             && (errno == EWOULDBLOCK)
+             && (attempts < attempts_limit)
+             )
+        {
+            ++attempts;
+        } 
+  
+        /* (1)
+         * In this case it's OK to stop accepting any more poll requests by this
+         * client because the connection has been lost.
+         */
+        if( __builtin_expect(attempts == attempts_limit, 0) ){
+            printf("[ERR] Server: Client poll thread recv TIMED OUT.\n");
+            remove_user(ix);
             break;
         }
- 
-        if(bytes_read == -1 && errno != EINTR){
-            printf("[ERR] Server loop: receive_payload() went bad!\n");
-            continue;
+
+        /* (2)
+         * In this case, something has unexpectedly gone horribly wrong with
+         * this particular client's polling request processor, so we abort
+         * communication with this client out of security concerns, if anything.
+         */
+        if( __builtin_expect(bytes_read == -1 && errno != EWOULDBLOCK, 0) ){
+            perror("[ERR] Server: Client poll thread  recv went bad!\n");
+            remove_user(ix);    
+            break;
         }
 
         pthread_mutex_lock(&mutex);
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
-
-        if(status != 100 && status > 0)
+  
+        /* (3)
+         * Same as (2).
+         */
+        if(status != 100 && status > 0){
             printf("[ERR] Server: identifying new transmission went bad!\n");
+            pthread_mutex_unlock(&mutex);
+            remove_user(ix);
+            break;  
+        }
 
+        /* (4)
+         * The last_poll_req_bitmask was already checked by this client's poll
+         * MSG processor, which in order to have been set there, must have been
+         * set by a room owner's MSG arriving and adding to the pending messages
+         * of this client, which in turn means, at this point right here, the
+         * poll MSG processor of this client has already sent the client info
+         * that they've been booted from the room since the room owner left.
+         * Therefore this check here is valid and can safely stop accepting
+         * poll requests by this client, knowing that the client has already
+         * been informed by their last poll request that the owner has left.
+         */
         if(last_poll_req_bitmask & (1ULL << (63ULL - ix))){
             last_poll_req_bitmask &= ~(1ULL << (63ULL - ix));
             printf("[OK] Server: client poll thread [%lu] exits: "
@@ -631,6 +514,11 @@ void* start_new_client_thread(void* ix_ptr){
             break;
         }
 
+        /* (5)
+         * In this case, by definition, it's also OK to stop accepting any more
+         * poll requests by this client since they know they're not in the room
+         * anymore since they initiated their leaving.
+         */
         if( status == 100 ) {
             printf("[OK] Server: client poll thread [%lu] exits: "
                    "User Logout or left room!\n"
@@ -644,6 +532,8 @@ void* start_new_client_thread(void* ix_ptr){
 
         pthread_mutex_unlock(&mutex);
     }
+
+    free(client_msg_buf);
 
     return NULL;
 }
@@ -676,7 +566,6 @@ int main(int argc, char* argv[]){
         receive_payload    = ipc_receive_payload;  
         onboard_new_client = ipc_onboard_new_client;  
     }
-
     /* If server started for normal Rosetta texting, use Internet sockets. */
     else if(arg1 == 0){
         init_communication = tcp_init_communication;                             
@@ -684,7 +573,6 @@ int main(int argc, char* argv[]){
         receive_payload    = tcp_receive_payload;                                
         onboard_new_client = tcp_onboard_new_client;  
     }
-
     else{
         printf("[ERR] Server: command line argument must be 0 or 1.\n");
         exit(1);
@@ -696,34 +584,12 @@ int main(int argc, char* argv[]){
     status = self_init();
     
     if(status){
-        printf("[ERR] Server: Could not complete self initialization!\n"
-               "              Critical - Terminating the server.\n\n"
-              );
+        printf("\n[ERR] Server: Could not complete self initialization!\n\n");
         exit(1);
     }
     
     printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
-
-    
-    
-    /* Begin the thread function that will, in parallel to the running server,
-     * check every 10 seconds for any lost connections, identified by connected
-     * clients that haven't polled us for pending messages in over 3 seconds.
-     * The normal polling is every 0.2 seconds.
-     */
-    if( (pthread_create( &conn_checker_threadID
-                        ,NULL
-                        ,&check_for_lost_connections
-                        ,NULL
-                       ) 
-        ) != 0
-      )
-    {
-        printf("[ERR] Server: Could not begin the lost connection tracker!\n"
-               "              Critical - Terminating the server.\n\n");  
-        exit(1);
-    }
-    
+ 
     while(1){
 
         curr_free_socket_ix = next_free_socket_ix;

@@ -1,5 +1,3 @@
-#include <signal.h>
-
 #define PRIVKEY_LEN      40
 #define PUBKEY_LEN       384
 #define MAX_CLIENTS      64
@@ -58,18 +56,16 @@ u64 last_poll_req_bitmask = 0;
  * used to accept a new connection to a client machine and begin its recv() loop
  * thread function which it will be stuck on until they exit Rosetta.
  */
-u64 socket_status_bitmask = 0;
-u64 next_free_socket_ix = 1;
 
+u64 socket_status_bitmask = 0;
+
+u64 next_free_socket_ix = 1;
 u64 next_free_user_ix = 1;
 u64 next_free_room_ix = 1;
 
 u8 server_privkey[PRIVKEY_LEN];
 
-time_t time_curr_login_initiated;
-
 pthread_mutex_t mutex;
-pthread_t conn_checker_threadID;
 
 #define PACKET_ID_00 0xAD0084FF0CC25B0E
 #define PACKET_ID_01 0xE7D09F1FEFEA708B
@@ -92,17 +88,6 @@ struct chatroom rooms[MAX_CHATROOMS];
 /* Create thread_id's for every client machine's recv() loop thread. */
 pthread_t client_thread_ids[MAX_CLIENTS];
 
-/* A global array of pointers that point to the heap memory buffer used for
- * the i-th client machine thread's network payload. We need this global array
- * in order to be able to release the heap-allocated memory buffer back to the
- * process' dynamic memory allocator with free() AFTER the client machine has
- * been disconnected from the Rosetta server, since that thread function enters
- * an infinite recv() loop that never exits, and is thus unable to free its own
- * heap-allocated payload buffer by itself, so it has to be done by the function
- * that cleans up a client machine's in-server state, and it is to be done via
- * this global array of pointers.
- */
-u8* client_payload_buffer_ptrs[MAX_CLIENTS];
 
 bigint* M;  /* Diffie-Hellman prime modulus M.              */
 bigint* Q;  /* Diffie-Hellman prime exactly dividing (M-1). */

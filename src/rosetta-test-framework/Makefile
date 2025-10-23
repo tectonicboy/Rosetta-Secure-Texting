@@ -25,6 +25,11 @@ CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wformat-security
 CFLAGS += -Wno-stringop-truncation
 
+#-Wall -Wextra -Wcast-align -Wno-multichar -Wno-unused -Wstrict-aliasing=2
+#-Wstrict-overflow=1 -Wswitch -Wtrigraphs -Wuninitialized -Wunknown-pragmas
+#-Wunused-function -Wunused-label -Wunused-value -Wunused-variable
+#-Wsign-compare -Wmissing-prototypes -Wmissing-declarations
+
 OPTIMIZATION_LEVEL = -O2
 
 # Ask GCC to tell us of any vectorization and loop optimizations it performed.
