@@ -9,8 +9,9 @@
 #define SERVER_PORT             54746
 #define MAX_SOCK_QUEUE          1024
 #define SERVER_IP_ADDR          "192.168.0.112"
-#define MAX_RECV_RETRIES        100
-#define RECV_RETRY_AFTER_MICROS 20000
+#define MAX_RECV_RETRIES        400
+#define RECV_RETRY_AFTER_MICROS 5000
+#define POLL_INTERVAL_MICROS    100000 /* Poll the server every 0.1 seconds */
 
 const int port = SERVER_PORT;
 const int optval1 = 1;

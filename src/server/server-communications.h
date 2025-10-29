@@ -23,8 +23,10 @@
 #define LONG_NONCE_LEN   16
 #define HMAC_TRUNC_BYTES 8
 
-#define SERVER_PORT    54746
-#define MAX_SOCK_QUEUE 1024
+#define SERVER_PORT             54746
+#define MAX_SOCK_QUEUE          1024
+#define RETRY_RECV_DELAY_MICROS 5000
+#define RETRY_RECV_MAX_ATTEMPTS 400
 
 /* Linux Sockets API related globals. */
 int port = SERVER_PORT;

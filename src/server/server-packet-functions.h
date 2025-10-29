@@ -358,9 +358,6 @@ void remove_user(u64 removing_user_ix){
     memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
     
-    /* Free the network payload buffer this client's thread had allocated. */
-    free(client_payload_buffer_ptrs[removing_user_ix]);
-
     status = close(client_socket_fd[removing_user_ix]);
 
     if(status != 0){
@@ -468,8 +465,6 @@ void process_msg_00(u8* msg_buf, u64 sock_ix){
      * lock it, disallowing another parallel login attempt to corrupt them.
      */
     temp_handshake_memory_region_isLocked = 1;
-
-    time_curr_login_initiated = clock();
 
     bigint_create(&X_s, MAX_BIGINT_SIZ, 0);
     

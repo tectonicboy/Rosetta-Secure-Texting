@@ -422,26 +422,6 @@ label_cleanup:
 
 void* begin_polling(__attribute__((unused)) void* input)
 {
-/*    NOTE: for stopping this polling thread function when owner leaves (closes)
- *          our chatroom or when we decide to leave the chatroom:
- *
- *    by using pthread_setcanceltype() to set the thread's cancellation type to
- *    asynchronous instead of deferred. To do that, you'd add something like 
- *    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL); near the start 
- *    of your thread function, before you start the loop. You would then be able
- *    to terminate the thread by calling pthread_cancel(th) from main().
- *
- *    IMPORTANT NOTE: However, notice that this will NOT clean up any allocated
- *                    or opened resources. At least one is here: &msg_buf passed
- *                    to construct_msg_40(), the function calls malloc on that
- *                    pointer internally and THE CALLER is supposed to free it
- *                    later when the payload buffer is no longer needed.
- *                    pthread_cancel(thread) will not free() this. Perhaps have
- *                    this pointer as a global pointer and call free() on it
- *                    in the TWO possible functions that stop the polling thread
- *                    (this thread function).
- */
-
     u8  text_message_line[MESSAGE_LINE_LEN];
     u8  reply_buf[MAX_TXT_LEN];
     u8* msg_buf;
@@ -457,10 +437,6 @@ void* begin_polling(__attribute__((unused)) void* input)
     u64  msg_len;
     u64  reply_len;
 
-    struct timespec ts;
-    ts.tv_sec  = 0;
-    ts.tv_nsec = 200000000; /* 200,000,000 nanoseconds = 0.2 seconds */
-
     status = construct_msg_40(&msg_buf, &msg_len);
 
     if(status){
@@ -470,24 +446,8 @@ void* begin_polling(__attribute__((unused)) void* input)
 
     for(;;){
 
-        /* Lock a mutex to prevent race conditions on poll_should_stop with
-         * the main client thread (that is taking user input and reacts to it)
-         * which can decide to leave the chatroom and thus sets it to 1. The
-         * other place that can set it to 1 is THIS THREAD, if polling receives
-         * MSG_51 - the room owner has closed the chatroom. These two events
-         * can happen at independent times by 2 threads, so both lock a mutex.
-         */
 
-        pthread_mutex_lock(&poll_mutex);
-
-        if(poll_should_stop == 1){
-            goto thread_cleanup;
-        }
-        else{
-            pthread_mutex_unlock(&poll_mutex);
-        }
-
-        nanosleep(&ts, NULL);
+        usleep(POLL_INTERVAL_MICROS);
 
         status = transmit_payload(msg_buf, msg_len);
         
@@ -1062,6 +1022,10 @@ u8 login(u8* password, int password_len, char* save_dir){
 	goto label_cleanup;
     }
 
+    texting_should_stop = 0;
+   
+    start_polling_thread();
+
     printf("\n\n\n******** LOGIN COMPLETED *********\n\n\n");
 
 label_cleanup:
@@ -1130,6 +1094,7 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
     if(*reply_type_ptr != PACKET_ID_10 && *reply_type_ptr != PACKET_ID_11){
         printf("[ERR] Client: Unexpected reply by the server to msg_10\n\n");
+        status = 1;
         goto label_cleanup;
     }
 
@@ -1161,24 +1126,10 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
     printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
 
-    /* Here is one of 2 possible places to start polling. So start it.
-     * Basically an infinite loop in a separate running thread that sends a
-     * polling request to the Rosetta server every 0.2 seconds or so, asking for
-     * info about undisplayed messages by others, a room participant having left
-     * the chatroom or the owner of the chatroom having deleted it, etc.
-     *
-     * Ideally the vastly most common case of there not being anything for us
-     * to receive shouldn't need to lock the GUI thread (for too long).
-     */
-
     /* ALSO, here is one of 2 possible places where GUI renders the graphics
      * for the messages sub-window and "exit room" button. Render them.
      */
 
-    poll_should_stop    = 0;
-    texting_should_stop = 0;
-
-    start_polling_thread();
 
 /* Unused for now but still have a label for completeness. */
 label_cleanup:
@@ -1280,11 +1231,6 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
      * do that if it sees returned 0 from here.
      */
     
-    poll_should_stop    = 0;                                                    
-    texting_should_stop = 0;
-                                                                             
-    start_polling_thread();
-
 label_cleanup:
 
     free(msg_buf);

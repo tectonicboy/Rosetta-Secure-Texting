@@ -81,7 +81,7 @@ pthread_t main_thread_id;
 pthread_t poller_threadID;
 pthread_mutex_t mutex;
 pthread_mutex_t poll_mutex;
-volatile uint8_t poll_should_stop    = 0;
+
 volatile uint8_t texting_should_stop = 0;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
@@ -2499,7 +2499,6 @@ label_cleanup:
 u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
 {
     u8 status = 0;
-    void** thread_ret_ptr = NULL;
 
     *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN; 
     *msg_buf = calloc(1, *msg_len);
@@ -2550,14 +2549,6 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
         M, Q, Gm, *msg_buf, 2 * SMALL_FIELD_LEN,
         (*msg_buf) + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
-
-    /* Now stop the polling thread. */
-
-    pthread_mutex_lock(&poll_mutex);
-    poll_should_stop = 1;
-    pthread_mutex_unlock(&poll_mutex);
-
-    pthread_join(poller_threadID, thread_ret_ptr);
 
 label_cleanup:
 
@@ -2642,13 +2633,6 @@ void process_msg_51(u8* payload){
     printf("\n-->[DEBUG] Client: got MSG_51: sending SIGNAL to main thread!\n");
     pthread_kill(main_thread_id, SIGUSR1);
 
-    /* Main thread could be in a state of writing to poll_should_stop, if the
-     * user has just decided to leave the chatroom. Prevent a race condition.
-     * This function can only be called by the poller thread.
-     */
-    pthread_mutex_lock(&poll_mutex);
-    poll_should_stop = 1;
-    pthread_mutex_unlock(&poll_mutex);    
 
     /* Cleanup. */
 label_cleanup:

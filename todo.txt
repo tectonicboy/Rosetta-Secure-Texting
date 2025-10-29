@@ -11,31 +11,17 @@
 [ Completed ✓ ]
 
 5. Implement the rest of the Rosetta Test Framework with AF_UNIX communication.
-[ In progress ] ==> IN SERVER: The thread checking for lost connections needs to
-                               have a way to tell a lost client's poll listening
-                               thread to stop and return. identify_new_trans is
-                               doing it by returning 100 and that client's poll
-                               listening thread (its caller) knows to return,
-                               but it doesn't have a way to get notified to ret
-                               also by the lost connections checker thread.
-                               Perhaps a signal handler for SIGUSR1 in each
-                               client's poll listen thread and the lost conns
-                               thread can send a lost client's poll listener the
-                               signal, and thats how that client's listener 
-                               thread knows it has to return.
+[ In progress ]
 
-                ==> IN SERVER: Polling needs to start right after login, not
-                               when the client joins/creates a chatroom. Becase
-                               now, if the client logs in, turns Rosetta off and
-                               disappears, the server keeps thinking that client
-                               is still logged in. That way we also won't need
-                               3 separate global index arrays for:
-                                   - user index
-                                   - socket index
-                                   - thread index
+    ====> Client receives unexpected replies by server to make_room / join_room.
+          But leaving and rejoining chatrooms and sending MSGs again works now.
 
-                               ALL would be unified under the same user_ix,
-                               vastly simplying the design and bookkeeping.
+          TODO: Test more connection timeout scenarios with CTRL+Z to the side
+                we want to "lose connection" without the OS alerting connected
+                processes or TCP sending FIN packets to connected machines.
+
+                And find out what's going on with unexpected replies by server.
+
 
 6. If a user relogs quickly, server says Public Key already exists and does not
    permit the user to log back in. Fix it.

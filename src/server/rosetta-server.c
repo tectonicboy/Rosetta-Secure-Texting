@@ -428,7 +428,7 @@ void* start_new_client_thread(void* ix_ptr){
 
     /* 400 * 5 ms = 2 seconds */
 
-    u32 attempts_limit = 400;
+    u32 attempts_limit = RETRY_RECV_MAX_ATTEMPTS;
 
     u64 ix;
 
@@ -455,9 +455,12 @@ void* start_new_client_thread(void* ix_ptr){
              && (attempts < attempts_limit)
              )
         {
+            usleep(RETRY_RECV_DELAY_MICROS); /* 5000 microseconds = 5 millis */
             ++attempts;
         } 
   
+        
+
         /* (1)
          * In this case it's OK to stop accepting any more poll requests by this
          * client because the connection has been lost.
@@ -474,8 +477,41 @@ void* start_new_client_thread(void* ix_ptr){
          * communication with this client out of security concerns, if anything.
          */
         if( __builtin_expect(bytes_read == -1 && errno != EWOULDBLOCK, 0) ){
-            perror("[ERR] Server: Client poll thread  recv went bad!\n");
+            perror("[ERR] Server: Client poll thread recv went bad!\n");
             remove_user(ix);    
+            break;
+        }
+
+        /* (3) FOR AF_UNIX only? Because both processes are running on the same
+         *                       local OS, the OS notifies the server process
+         *                       that this client's process received CTRL+C
+         *                       aka interrupt signal, so the server process
+         *                       ACTUALLY KNOWS, it doesnt sit waiting with
+         *                       EWOULDBLOCK and bytes_read=-1, the recv() call
+         *                       in the server in that case after AF_UNIX client
+         *                       received CTRL+C signal actually returns 0 (EOF)
+         *                       so handle that case in Rosetta Test Framework,
+         *                       but not in the real thing (this code here runs
+         *                       both so how do we disable it for real rosetta?)
+         *
+         * OR NOT AF_UNIX only,  because even TCP remote sockets get notified
+         *                       by a special FIN packet, when the other side
+         *                       knowingly ends communication (close() on socket
+         *                       or CTRL+C or whatever, but the machine is still
+         *                       able to communicate on the network (or at least
+         *                       the router can, which detects unavailability of
+         *                       that machine and sends a FIN packet to that IP
+         *                       address?).
+         *
+         *             SOLUTION: recv() getting 0 returned ALWAYS means that the
+         *                       other side performed "an orderly shutdown" of
+         *                       communication, regardless of NONBLOCKING or the
+         *                       socket type (TCP or AF_UNIX). So always handle
+         *                       this case here.
+         */
+        if( __builtin_expect(bytes_read == 0, 0) ){
+            printf("[OK]  Server: Notified by client's OS: they terminated.\n");
+            remove_user(ix);
             break;
         }
 
@@ -483,7 +519,7 @@ void* start_new_client_thread(void* ix_ptr){
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
   
-        /* (3)
+        /* (4)
          * Same as (2).
          */
         if(status != 100 && status > 0){
@@ -493,7 +529,7 @@ void* start_new_client_thread(void* ix_ptr){
             break;  
         }
 
-        /* (4)
+        /* (5)
          * The last_poll_req_bitmask was already checked by this client's poll
          * MSG processor, which in order to have been set there, must have been
          * set by a room owner's MSG arriving and adding to the pending messages
