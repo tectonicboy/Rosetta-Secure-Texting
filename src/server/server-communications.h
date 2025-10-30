@@ -129,14 +129,24 @@ uint8_t tcp_onboard_new_client(uint64_t socket_ix){
         perror("[ERR] Server: TCP accept() failed, errno: ");
         return 1;
     }
-    else
+    else{
         printf("[OK] Server: TCP accept() is OK. New client allowed in!\n");
-
-    if(fcntl(client_socket_fd[socket_ix], F_SETFL, O_NONBLOCK) == -1){
-        printf("[ERR] Server: BAD fcntl() NONBLOCK for sock[%lu]\n", socket_ix);
-        perror("errno:");
-        return 1;
     }
+
+    struct timeval tv;
+    tv.tv_sec  = 3;
+    tv.tv_usec = 0;
+
+    if(setsockopt
+       (
+        client_socket_fd[socket_ix], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
+       ) 
+       < 0
+      )
+    {
+        perror("[ERR] Server: TCP setsockopt() failed: ");
+        close(client_socket_fd[socket_ix]);
+    } 
 
     return 0;
 }
@@ -159,9 +169,24 @@ ssize_t tcp_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     bytes_read = recv(client_socket_fd[socket_ix], buf, max_len, 0);
 
-    /* errno=EWOULDBLOCK is handled by the caller (client's poll thread func) */
-    /* -1 and errno!=EWOULDBLOCK is also handled by the caller.               */
-    /* Retrying until a retry limit is reached is also handled by the caller. */
+    /* Handle terminated communication - both graceful and unexpected. */
+
+    if( __builtin_expect (bytes_read < 0, 0) ){                              
+        if(errno != EWOULDBLOCK && errno != EAGAIN)
+            perror("[ERR] Server: Client[%lu] poll recv unexpected fail: ", ix);     
+        else
+            printf("[ERR] Server: Client[%lu] poll recv() timed out.\n", ix); 
+        
+        remove_user(ix);
+    }                                                                        
+
+    if( __builtin_expect(bytes_read == 0, 0) ){                              
+        printf("[OK]  Server: Notified by client OS:\n"
+               "              gracefully ended communication.\n"
+              ); 
+
+        remove_user(ix);                                                     
+    }   
 
     return bytes_read;
 }
@@ -241,11 +266,20 @@ uint8_t ipc_onboard_new_client(uint64_t socket_ix){
     else
         printf("[OK]  Server: AF_UNIX accept() is OK. Accepted new client!\n");
 
-    if(fcntl(client_socket_fd[socket_ix], F_SETFL, O_NONBLOCK) == -1){           
-        printf("[ERR] Server: BAD fcntl() NONBLOCK for sock[%lu]\n", socket_ix); 
-        perror("errno:");                                                        
-        return 1;                                                                
-    }    
+    struct timeval tv;                                                           
+    tv.tv_sec  = 3;                                                              
+    tv.tv_usec = 0;                                                              
+                                                                                 
+    if(setsockopt                                                                
+       (                                                                         
+        client_socket_fd[socket_ix], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)    
+       )                                                                         
+       < 0                                                                       
+      )                                                                          
+    {                                                                            
+        perror("[ERR] Server: TCP setsockopt() failed: ");                       
+        close(client_socket_fd[socket_ix]);                                      
+    }  
 
     return 0;
 }
@@ -268,9 +302,24 @@ ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0);
 
-    /* errno=EWOULDBLOCK is handled by the caller (client's poll thread func) */
-    /* -1 and errno!=EWOULDBLOCK is also handled by the caller.               */
-    /* Retrying until a retry limit is reached is also handled by the caller. */
+    /* Handle terminated communication - both graceful and unexpected. */        
+                                                                                 
+    if( __builtin_expect (bytes_read < 0, 0) ){                                  
+        if(errno != EWOULDBLOCK && errno != EAGAIN)                              
+            perror("[ERR] Server: Client[%lu] poll recv unexpected fail: ", ix); 
+        else                                                                     
+            printf("[ERR] Server: Client[%lu] poll recv() timed out.\n", ix);    
+                                                                                 
+        remove_user(ix);                                                         
+    }                                                                            
+                                                                                 
+    if( __builtin_expect(bytes_read == 0, 0) ){                                  
+        printf("[OK]  Server: Notified by client OS:\n"                          
+               "              gracefully ended communication.\n"                 
+              );                                                                 
+                                                                                 
+        remove_user(ix);                                                         
+    }                  
 
     return num_read;
 }

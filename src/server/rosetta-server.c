@@ -424,11 +424,6 @@ void* start_new_client_thread(void* ix_ptr){
     ssize_t bytes_read;
 
     u32 status;
-    u32 attempts;
-
-    /* 400 * 5 ms = 2 seconds */
-
-    u32 attempts_limit = RETRY_RECV_MAX_ATTEMPTS;
 
     u64 ix;
 
@@ -440,92 +435,20 @@ void* start_new_client_thread(void* ix_ptr){
 
     while(1){
   
-         attempts = 0;
- 
-        /* This recv call is made non-blocking with fcntl(). If no data present,
-         * sleep for 5 ms (5000 microseconds) and check again, incrementing the
-         * counter each time. If the counter reaches its limit of attempts, a
-         * lost connection is assumed, without using a separate lost connection
-         * checker thread at all. Stop retrying after 2 seconds - disconnected.
-         */
-
-        while((bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN))
-                 == -1
-             && (errno == EWOULDBLOCK)
-             && (attempts < attempts_limit)
-             )
-        {
-            usleep(RETRY_RECV_DELAY_MICROS); /* 5000 microseconds = 5 millis */
-            ++attempts;
-        } 
-  
+        /* Blocking. TIMES OUT automatically via SO_RCVTIMEO socket option. */
+        bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN);
         
-
-        /* (1)
-         * In this case it's OK to stop accepting any more poll requests by this
-         * client because the connection has been lost.
-         */
-        if( __builtin_expect(attempts == attempts_limit, 0) ){
-            printf("[ERR] Server: Client poll thread recv TIMED OUT.\n");
-            remove_user(ix);
-            break;
-        }
-
-        /* (2)
-         * In this case, something has unexpectedly gone horribly wrong with
-         * this particular client's polling request processor, so we abort
-         * communication with this client out of security concerns, if anything.
-         */
-        if( __builtin_expect(bytes_read == -1 && errno != EWOULDBLOCK, 0) ){
-            perror("[ERR] Server: Client poll thread recv went bad!\n");
-            remove_user(ix);    
-            break;
-        }
-
-        /* (3) FOR AF_UNIX only? Because both processes are running on the same
-         *                       local OS, the OS notifies the server process
-         *                       that this client's process received CTRL+C
-         *                       aka interrupt signal, so the server process
-         *                       ACTUALLY KNOWS, it doesnt sit waiting with
-         *                       EWOULDBLOCK and bytes_read=-1, the recv() call
-         *                       in the server in that case after AF_UNIX client
-         *                       received CTRL+C signal actually returns 0 (EOF)
-         *                       so handle that case in Rosetta Test Framework,
-         *                       but not in the real thing (this code here runs
-         *                       both so how do we disable it for real rosetta?)
-         *
-         * OR NOT AF_UNIX only,  because even TCP remote sockets get notified
-         *                       by a special FIN packet, when the other side
-         *                       knowingly ends communication (close() on socket
-         *                       or CTRL+C or whatever, but the machine is still
-         *                       able to communicate on the network (or at least
-         *                       the router can, which detects unavailability of
-         *                       that machine and sends a FIN packet to that IP
-         *                       address?).
-         *
-         *             SOLUTION: recv() getting 0 returned ALWAYS means that the
-         *                       other side performed "an orderly shutdown" of
-         *                       communication, regardless of NONBLOCKING or the
-         *                       socket type (TCP or AF_UNIX). So always handle
-         *                       this case here.
-         */
-        if( __builtin_expect(bytes_read == 0, 0) ){
-            printf("[OK]  Server: Notified by client's OS: they terminated.\n");
-            remove_user(ix);
-            break;
-        }
-
         pthread_mutex_lock(&mutex);
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
   
         /* (4)
-         * Same as (2).
+         * Same as (1).
          */
         if(status != 100 && status > 0){
             printf("[ERR] Server: identifying new transmission went bad!\n");
-            pthread_mutex_unlock(&mutex);
             remove_user(ix);
+            pthread_mutex_unlock(&mutex);
             break;  
         }
 
@@ -550,7 +473,7 @@ void* start_new_client_thread(void* ix_ptr){
             break;
         }
 
-        /* (5)
+        /* (6)
          * In this case, by definition, it's also OK to stop accepting any more
          * poll requests by this client since they know they're not in the room
          * anymore since they initiated their leaving.

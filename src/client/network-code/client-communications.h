@@ -47,12 +47,6 @@ uint8_t tcp_init_communication(){
         goto label_cleanup;
     }
 
-    if(fcntl(own_socket_fd, F_SETFL, O_NONBLOCK) == -1){
-        printf("[ERR] Client: fcntl() O_NONBLOCK for socket fd failed.\n");
-        perror("errno:");
-        goto label_cleanup;
-    }
-
     if(
         setsockopt(
            own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval1, sizeof(optval1)
@@ -63,6 +57,21 @@ uint8_t tcp_init_communication(){
         printf("[ERR] Client: set socket option failed.\n\n");
         goto label_cleanup;
     }
+
+    struct timeval tv;                                                           
+    tv.tv_sec  = 3;                                                              
+    tv.tv_usec = 0;                                                              
+                                                                                 
+    if(setsockopt                                                                
+       (                                                                         
+        own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)    
+       )                                                                         
+       < 0                                                                       
+      )                                                                          
+    {                                                                            
+        perror("[ERR] Server: TCP setsockopt() failed: ");                       
+        close(own_socket_fd);
+    } 
 
     printf("[OK]  Client: Socket file descriptor obtained!\n");
 
@@ -108,32 +117,28 @@ u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
 
     uint8_t  ret = 0;
     ssize_t  status = 0;    
-    uint64_t retry_counter = 0;
 
-    while(    ((status = recv(own_socket_fd, reply_buf, 8192, 0)) == -1)
-           && errno == EWOULDBLOCK
-           && retry_counter < MAX_RECV_RETRIES
-         )
-    {
-        usleep(RECV_RETRY_AFTER_MICROS);
-        ++retry_counter;
-    }
+    status = recv(own_socket_fd, reply_buf, 8192, 0);
 
-    if(__builtin_expect(retry_counter == MAX_RECV_RETRIES, 0)){
-        printf("[ERR] Client: TCP recv reached max retries. No connection.\n");
-        ret = 2;
-        *reply_len = 0;
-    }
-
-    if(__builtin_expect(status == -1 && errno != EWOULDBLOCK, 0)){
-        printf("\n[ERR] Client: TCP recv() failed! errno: ");
-        ret = 1;
-        *reply_len = 0;
-    }
-    else{
-        *reply_len = status;
-    }
-    
+    if( __builtin_expect (status == 0, 0) ){                                     
+        printf("[OK]  Client: IPC Server gracefully ended communication.\n");    
+        ret = 1;                                                                 
+        *recv_len = 0;                                                           
+    }                                                                            
+    else if( __builtin_expect (status < 0, 0) ){                                 
+        if(errno != EWOULDBLOCK && errno != EAGAIN){                             
+            perror("[ERR] Client: IPC recv() from server failed unexpectedly:"); 
+            ret = 1;                                                             
+        }                                                                        
+        else{                                                                    
+            printf("[ERR] Client: IPC recv() from server TIMED OUT!\n");         
+            ret = 2;                                                             
+        }                                                                        
+        *recv_len = 0;                                                           
+    }                                                                            
+    else{                                                                        
+        *recv_len = status;                                                      
+    }      
 
     return ret;
 }
@@ -162,10 +167,19 @@ uint8_t ipc_init_communication(){
     }
     printf("[OK]  Client: AF_UNIX socket() call is OK.\n");
 
-    if(fcntl(own_socket_fd, F_SETFL, O_NONBLOCK) == -1){
-        printf("[ERR] Client: fcntl() O_NONBLOCK for socket fd failed.\n");
-        perror("errno:");
-        goto label_cleanup;
+    struct timeval tv;                                                           
+    tv.tv_sec  = 3;                                                              
+    tv.tv_usec = 0;                                                              
+                                                                                 
+    if(setsockopt                                                                
+        (                                                                         
+         own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
+        )                                                                         
+        < 0                                                                       
+      )                                                                          
+    {                                                                            
+        perror("[ERR] Server: TCP setsockopt() failed: ");                       
+        close(own_socket_fd);                                                    
     }
 
     /**************************************************************************/
@@ -215,26 +229,23 @@ uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
 
     uint8_t  ret    = 0;
     ssize_t  status = 0;
-    uint64_t retry_counter = 0;
 
-    while(    ((status = recv(own_socket_fd, buf, 8192, 0)) == -1)
-           && errno == EWOULDBLOCK
-           && retry_counter < MAX_RECV_RETRIES
-         )
-    {
-        usleep(RECV_RETRY_AFTER_MICROS);
-        ++retry_counter;
-    }
+    status = recv(own_socket_fd, buf, 8192, 0);
 
-    if(__builtin_expect(retry_counter == MAX_RECV_RETRIES, 0)){
-        printf("[ERR] Client: TCP recv reached max retries. No connection.\n");
-        ret = 2;
+    if( __builtin_expect (status == 0, 0) ){
+        printf("[OK]  Client: IPC Server gracefully ended communication.\n");
+        ret = 1;
         *recv_len = 0;
     }
-
-    if(__builtin_expect(status == -1 && errno != EWOULDBLOCK, 0)){
-        printf("\n[ERR] Client: TCP recv() failed! errno: ");
-        ret = 1;
+    else if( __builtin_expect (status < 0, 0) ){
+        if(errno != EWOULDBLOCK && errno != EAGAIN){
+            perror("[ERR] Client: IPC recv() from server failed unexpectedly:");   
+            ret = 1;
+        }
+        else{
+            printf("[ERR] Client: IPC recv() from server TIMED OUT!\n");
+            ret = 2;
+        }
         *recv_len = 0;
     }
     else{

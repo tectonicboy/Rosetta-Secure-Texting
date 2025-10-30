@@ -22,6 +22,28 @@
 
                 And find out what's going on with unexpected replies by server.
 
+          FIX: 1. Use BLOCKING recv() (remove fnctl for socket) with SO_RCVTIMEO
+                  to implement timeouts and lost connection detection. In both
+                  server and in client.
+
+               2. Move recv() error handling code in rosetta_server.c into its
+                  communication source file (in start_new_client_thread() rn.)
+
+               3. In client, unify the receive_payload() calls for poll replies
+                  AND for replies to stuff like join_room() asynchronous sends
+                  INTO THE SAME PLACE. Then, recv() is in only one place and can
+                  handle both periodic poll replies AND asynchronous replies to
+                  stuff like join_room(), all from one thread.
+
+                  Then the thread that called send() for stuff like join_room 
+                  will just end there and the code that was in it for handling
+                  the reply to it will have to be moved to the unified recv()
+                  code.
+
+                  This will be similar to the server's listening thread that
+                  sits and calls identify_new_transmission() on each received
+                  payload.
+                  
 
 6. If a user relogs quickly, server says Public Key already exists and does not
    permit the user to log back in. Fix it.

@@ -446,6 +446,7 @@ void* begin_polling(__attribute__((unused)) void* input)
 
     for(;;){
 
+        memset(reply_buf, 0, MAX_TXT_LEN);
 
         usleep(POLL_INTERVAL_MICROS);
 
@@ -456,7 +457,7 @@ void* begin_polling(__attribute__((unused)) void* input)
             goto loop_cleanup;
         }
 
-        receive_payload(reply_buf, &reply_len);
+        status = receive_payload(reply_buf, &reply_len);
 
         if(status == 2){
             printf("[ERR] Client: Poll thread: Server reply took too long.\n");
@@ -472,13 +473,79 @@ void* begin_polling(__attribute__((unused)) void* input)
         u64* aux_ptr64_replybuf;
 
         /* Call the appropriate function depending on server's response. */
-        if( *reply_type_ptr == PACKET_ID_40 ){
+
+        /* NEW TODO: Handle here replies for join_room, create_room, leave_room
+         *           and for logout.
+         *
+         * QUESTION: If the other thread sent join_room and this thread sent
+         *           a poll request but theres only one receive_payload for both
+         *           how would that work? Do we need to insert a second call to
+         *           receive_payload in the event we are handling a response to
+         *           the other thread's sent message and NOT a response to poll?
+         */
+        
+        /**********************************************************************/
+
+
+    if( *reply_type_ptr == PACKET_ID_10 ){
+        printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
+        
+        status = process_msg_10(reply_buf);
+        
+        if (status){
+            printf("[ERR] Client: process_msg_10 failed.\n\n");
+            pthread_kill(main_thread_id, SIGUSR1);                               
+            goto thread_cleanup;
+        }
+        printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
+    }
+
+    else if( *reply_type_ptr == PACKET_ID_11 ){
+
+        printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
+
+        status = process_msg_11(reply_buf);
+
+        if (status){
+            printf("[ERR] Client: process_msg_11 failed.\n\n");
+            pthread_kill(main_thread_id, SIGUSR1);                               
+            goto thread_cleanup;
+        }
+
+        printf("[OK]  Client: Rosetta told us: try later, room is full!\n\n");
+    }
+
+    else if(*reply_type_ptr == PACKET_ID_20){
+
+        printf("[OK]  Client: Received reply to MSG_20: %lu bytes.\n", reply_len);
+
+        status = process_msg_20(reply_buf, reply_len);
+
+        if (status){
+            printf("[ERR] Client: process_msg_20 failed.\n\n");
+            pthread_kill(main_thread_id, SIGUSR1);                               
+            goto thread_cleanup;
+        }
+
+        printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
+        printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");           
+                                                                                 
+        /* ALSO, here is one of 2 possible places where GUI renders the graphics     
+         * for the messages sub-window and "exit room" button. GUI code will         
+         * do that if it sees returned 0 from here.                                  
+         */ 
+    }
+ 
+        /**********************************************************************/
+
+        else if( *reply_type_ptr == PACKET_ID_40 ){
 
             status = process_msg_40(reply_buf);
 
             if(status){
                 printf("[ERR] Client: Packet_40_Reply auth failed!\n");
-                continue;
+                pthread_kill(main_thread_id, SIGUSR1);                               
+                goto thread_cleanup;
             }
             //printf("[OK]  Client: Server said nothing new after polling.\n\n");
         }
@@ -525,7 +592,8 @@ void* begin_polling(__attribute__((unused)) void* input)
 
             if(status == 1){
                 printf("[ERR] Client: Bad signature in polling reply.\n\n");
-                goto loop_cleanup;
+                pthread_kill(main_thread_id, SIGUSR1);                               
+                goto thread_cleanup;
             }
 
             /* Start at first message contents. */
@@ -574,11 +642,7 @@ void* begin_polling(__attribute__((unused)) void* input)
                     continue;
                 }
             }
-        }
-        
-loop_cleanup:
-
-        memset(reply_buf, 0, MAX_TXT_LEN);
+        }    
     }
 
 thread_cleanup:
@@ -1082,56 +1146,8 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     }
     printf("[OK]  Client: Sent MSG_10 (make_room) to the Rosetta server.\n");
 
-    /* Reply packet has ID either 10 or 11 - OK / no_space_for_new_chatrooms. */
-
-    status = receive_payload(reply_buf, &reply_len);
-
-    if(status){
-        printf("\n[ERR] Client: Couldn't receive MSG_10 reply by server.\n\n");
-        goto label_cleanup;
-    }
-    printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
-
-    if(*reply_type_ptr != PACKET_ID_10 && *reply_type_ptr != PACKET_ID_11){
-        printf("[ERR] Client: Unexpected reply by the server to msg_10\n\n");
-        status = 1;
-        goto label_cleanup;
-    }
-
-/******************************************************************************/
-
-    if( *reply_type_ptr == PACKET_ID_10 ){
-        status = process_msg_10(reply_buf);
-        if (status){
-            printf("[ERR] Client: process_msg_10 failed.\n\n");
-            goto label_cleanup;
-        }
-        printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
-    }
-
-    else{
-
-        status = process_msg_11(msg_buf);
-
-        if (status){
-            printf("[ERR] Client: process_msg_11 failed.\n\n");
-            goto label_cleanup;
-        }
-
-        printf("[OK]  Client: Rosetta told us: try later, room is full!\n\n");
-
-        status = 10;
-	goto label_cleanup;
-    }
-
-    printf("\n\n\n******** ROOM CREATION SUCCESSFUL *********\n\n\n");
-
-    /* ALSO, here is one of 2 possible places where GUI renders the graphics
-     * for the messages sub-window and "exit room" button. Render them.
-     */
 
 
-/* Unused for now but still have a label for completeness. */
 label_cleanup:
    
     free(msg_buf);
@@ -1186,51 +1202,7 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
     }
     printf("[OK]  Client: Sent MSG_20 (join_room) to Rosetta server.\n");
 
-    status = receive_payload(reply_buf, &reply_len);
 
-    if(status){
-        printf("\n[ERR] Client: Couldn't receive MSG_20 reply by server.\n\n");
-        goto label_cleanup;
-    }
-    printf("[OK]  Client: Received reply to MSG_20: %lu bytes.\n", reply_len);
-
-    if(*reply_type_ptr != PACKET_ID_20){
-        printf("[ERR] Client: Unexpected reply by the server to MSG_20\n\n");
-        status = 1;
-        goto label_cleanup;
-    }
-
-/******************************************************************************/
-
-    else{
-
-        status = process_msg_20(reply_buf, reply_len);
-
-        if (status){
-            printf("[ERR] Client: process_msg_20 failed.\n\n");
-            goto label_cleanup;
-        }
-
-        printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
-    }
-
-    printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");
-
-    /* Here is one of 2 possible places to start polling. So start it.
-     * Basically an infinite loop in a separate running thread that sends a
-     * polling request to the Rosetta server every 0.2 seconds or so, asking for
-     * info about undisplayed messages by others, a room participant having left
-     * the chatroom or the owner of the chatroom having deleted it, etc.
-     *
-     * Ideally the vastly most common case of there not being anything for us
-     * to receive shouldn't need to lock the GUI thread (for too long).
-     */
-
-    /* ALSO, here is one of 2 possible places where GUI renders the graphics
-     * for the messages sub-window and "exit room" button. GUI code will 
-     * do that if it sees returned 0 from here.
-     */
-    
 label_cleanup:
 
     free(msg_buf);
