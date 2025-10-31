@@ -23,10 +23,17 @@ void user_loop(void){
 
 label_begin_user:
 
+    texting_should_stop = 0;
+
+    int c;                                                                       
+    while ((c = getchar()) != '\n' && c != EOF) {                                
+        ; /* Empty body: discard input until end of line. */                     
+    } 
+
     printf("\nNow you can select one of 3 test user options:\n");
-    printf("1  --  Make a chatroom.");
-    printf("2  --  Join a chatroom.");
-    printf("3  --  Logout.");
+    printf("1  --  Make a chatroom.\n");
+    printf("2  --  Join a chatroom.\n");
+    printf("3  --  Logout.\n");
     printf("\nPlease enter an option number: ");
 
 label_try_again1:
@@ -80,7 +87,7 @@ label_try_again1:
             if(texting_should_stop == 1){
                 printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
                 pthread_mutex_unlock(&poll_mutex);
-                pthread_join(poller_threadID, NULL);
+                //pthread_join(poller_threadID, NULL);
                 printf("[DEBUG] RTF User Spawner: Got past pthread_join() !\n");
                 break;
             }
@@ -93,7 +100,10 @@ label_try_again1:
 
             if(scanf_status == -1 && errno == EINTR){
                 printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
-                pthread_join(poller_threadID, NULL);
+                clearerr(stdin);
+                /* Get rid of any invalid residual input in the buffer. */
+                while ((c = getchar()) != '\n' && c != EOF);
+                //pthread_join(poller_threadID, NULL);
                 break;
             }
             else if(strncmp((const char*)message, "__logout__", 10) == 0){           
@@ -172,10 +182,10 @@ label_try_again1:
              */
             pthread_mutex_lock(&poll_mutex);
             if(texting_should_stop == 1){
-                printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
+                printf("{CASE 1} [OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
                 pthread_mutex_unlock(&poll_mutex);
-                pthread_join(poller_threadID, NULL);
-                printf("[DEBUG] RTF User Spawner: got past pthread_join() !\n");
+                //pthread_join(poller_threadID, NULL);
+                printf("{CASE 1} [DEBUG] RTF User Spawner: got past pthread_join() !\n");
                 break;
             }
             pthread_mutex_unlock(&poll_mutex);
@@ -186,8 +196,12 @@ label_try_again1:
             scanf_status = scanf("%127s", message);
 
             if(scanf_status == -1 && errno == EINTR){
-                printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
-                pthread_join(poller_threadID, NULL);
+                printf("{CASE 2} [OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
+                //pthread_join(poller_threadID, NULL);
+                clearerr(stdin);                                                 
+                /* Get rid of any invalid residual input in the buffer. */       
+                while ((c = getchar()) != '\n' && c != EOF); 
+                printf("{CASE 2} [DEBUG] RTF User Spawner: got past pthread_join() !\n");
                 break;
             }
             else if(strncmp((const char*)message, "__logout__", 10) == 0){

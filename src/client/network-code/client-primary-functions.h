@@ -426,6 +426,7 @@ void* begin_polling(__attribute__((unused)) void* input)
     u8  reply_buf[MAX_TXT_LEN];
     u8* msg_buf;
     u8  status;
+    u8  flag_no_poll_reply = 0;
 
     u64* reply_type_ptr = (u64*)reply_buf;
     u64  curr_msg_type = 0;
@@ -446,6 +447,8 @@ void* begin_polling(__attribute__((unused)) void* input)
 
     for(;;){
 
+        flag_no_poll_reply = 0;
+
         memset(reply_buf, 0, MAX_TXT_LEN);
 
         usleep(POLL_INTERVAL_MICROS);
@@ -454,7 +457,7 @@ void* begin_polling(__attribute__((unused)) void* input)
         
         if(status){
             printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
-            goto loop_cleanup;
+            continue;
         }
 
         status = receive_payload(reply_buf, &reply_len);
@@ -474,19 +477,8 @@ void* begin_polling(__attribute__((unused)) void* input)
 
         /* Call the appropriate function depending on server's response. */
 
-        /* NEW TODO: Handle here replies for join_room, create_room, leave_room
-         *           and for logout.
-         *
-         * QUESTION: If the other thread sent join_room and this thread sent
-         *           a poll request but theres only one receive_payload for both
-         *           how would that work? Do we need to insert a second call to
-         *           receive_payload in the event we are handling a response to
-         *           the other thread's sent message and NOT a response to poll?
-         */
+        /* NEW: Handle here replies for join_room and create_room commands. */
         
-        /**********************************************************************/
-
-
     if( *reply_type_ptr == PACKET_ID_10 ){
         printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
         
@@ -498,6 +490,8 @@ void* begin_polling(__attribute__((unused)) void* input)
             goto thread_cleanup;
         }
         printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
+
+        flag_no_poll_reply = 1;
     }
 
     else if( *reply_type_ptr == PACKET_ID_11 ){
@@ -513,6 +507,8 @@ void* begin_polling(__attribute__((unused)) void* input)
         }
 
         printf("[OK]  Client: Rosetta told us: try later, room is full!\n\n");
+
+        flag_no_poll_reply = 1;
     }
 
     else if(*reply_type_ptr == PACKET_ID_20){
@@ -534,11 +530,35 @@ void* begin_polling(__attribute__((unused)) void* input)
          * for the messages sub-window and "exit room" button. GUI code will         
          * do that if it sees returned 0 from here.                                  
          */ 
+
+        flag_no_poll_reply = 1;
     }
  
         /**********************************************************************/
 
-        else if( *reply_type_ptr == PACKET_ID_40 ){
+        if( __builtin_expect (flag_no_poll_reply == 1, 0) ){
+            
+            memset(reply_buf, 0, MAX_TXT_LEN); 
+        
+            /* A reply to an asynchronously sent user command, eg. join_room,
+             * transmitted by the user input thread, was received, so we need to
+             * do another recv() to finish this loop cycle's poll request now.
+             */
+            status = receive_payload(reply_buf, &reply_len);                         
+                                                                                 
+            if(status == 2){                                                         
+                printf("[ERR] Client: Poll thread: Server reply took too long.\n");  
+                pthread_kill(main_thread_id, SIGUSR1);                               
+                goto thread_cleanup;                                                 
+            }                                                                        
+            else if(status == 1){                                                         
+                printf("[ERR] Client: Poll thread: receive_payload() failed.\n");    
+                pthread_kill(main_thread_id, SIGUSR1);                               
+                goto thread_cleanup;                                                 
+            }  
+        }
+        
+        if( *reply_type_ptr == PACKET_ID_40 ){
 
             status = process_msg_40(reply_buf);
 
@@ -560,7 +580,7 @@ void* begin_polling(__attribute__((unused)) void* input)
 --------------------------------------------------------------------------------
 
 */
-        else if ( *reply_type_ptr == PACKET_ID_41 ) {
+        if ( *reply_type_ptr == PACKET_ID_41 ) {
            
             aux_ptr64_replybuf = (u64*)(reply_buf + SMALL_FIELD_LEN);
 
@@ -1106,14 +1126,9 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
     u64 userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64 roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
     u64 msg_len;
-    u64 reply_len;
 
     u8  status = 0;
     u8* msg_buf = NULL;
-    u8  reply_buf[MAX_TXT_LEN];
-    
-    u64* reply_type_ptr = (uint64_t*)reply_buf;
-
 
     /* Zero-extend the userID to 8 bytes including a null terminator.       */
     /* Len does not include the null terminator already placed by the GUI.  */
@@ -1160,15 +1175,11 @@ u8 join_chatroom(unsigned char* roomid, int roomid_len,
                 )
 {
     u8  status = 0;
-    u8  reply_buf[MAX_TXT_LEN];
     u8* msg_buf = NULL;
 
     u64  userid_bytes_for_zeroing = SMALL_FIELD_LEN - userid_len;
     u64  roomid_bytes_for_zeroing = SMALL_FIELD_LEN - roomid_len;
     u64  msg_len;
-    u64  reply_len;
-    u64* reply_type_ptr = (uint64_t*)reply_buf;
-
 
     /* Zero-extend the userID to 8 bytes including a null terminator.       */
     /* Len does not include the null terminator already placed by the GUI.  */

@@ -438,6 +438,11 @@ void* start_new_client_thread(void* ix_ptr){
         /* Blocking. TIMES OUT automatically via SO_RCVTIMEO socket option. */
         bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN);
         
+        if( __builtin_expect (bytes_read <= 0, 0) ){
+            remove_user(ix);
+            break;
+        }
+
         pthread_mutex_lock(&mutex);
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
@@ -453,27 +458,6 @@ void* start_new_client_thread(void* ix_ptr){
         }
 
         /* (5)
-         * The last_poll_req_bitmask was already checked by this client's poll
-         * MSG processor, which in order to have been set there, must have been
-         * set by a room owner's MSG arriving and adding to the pending messages
-         * of this client, which in turn means, at this point right here, the
-         * poll MSG processor of this client has already sent the client info
-         * that they've been booted from the room since the room owner left.
-         * Therefore this check here is valid and can safely stop accepting
-         * poll requests by this client, knowing that the client has already
-         * been informed by their last poll request that the owner has left.
-         */
-        if(last_poll_req_bitmask & (1ULL << (63ULL - ix))){
-            last_poll_req_bitmask &= ~(1ULL << (63ULL - ix));
-            printf("[OK] Server: client poll thread [%lu] exits: "
-                   "Room owner has left!\n"
-                   ,ix
-                  );
-            pthread_mutex_unlock(&mutex);
-            break;
-        }
-
-        /* (6)
          * In this case, by definition, it's also OK to stop accepting any more
          * poll requests by this client since they know they're not in the room
          * anymore since they initiated their leaving.

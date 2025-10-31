@@ -49,9 +49,9 @@ struct chatroom{
  * Begin populating room slots and user slots at index [1]. Reserve [0] for
  * meaning that the user is not in any room at all.
  */
-u64 users_status_bitmask  = 0;
-u64 rooms_status_bitmask  = 0;
-u64 last_poll_req_bitmask = 0; 
+u64 users_status_bitmask    = 0;
+u64 rooms_status_bitmask    = 0;
+u64 room_owner_left_bitmask = 0; 
 /* Bitmask telling the server which socket file descriptors are free to be
  * used to accept a new connection to a client machine and begin its recv() loop
  * thread function which it will be stuck on until they exit Rosetta.
@@ -250,7 +250,7 @@ void remove_user_from_room(u64 sender_ix){
 
                 add_pending_msg(i, reply_len, reply_buf);
 
-                last_poll_req_bitmask |= (1ULL << (63ULL - i));
+                room_owner_left_bitmask |= (1ULL << (63ULL - i));
             }
         }
 
@@ -2419,7 +2419,8 @@ void process_msg_40(u8* msg_buf, u32 sock_ix){
         else                                                                     
             printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");  
 
-        if(last_poll_req_bitmask & (1ULL << (63ULL - poller_ix))) {
+        if(room_owner_left_bitmask & (1ULL << (63ULL - poller_ix))) {
+            room_owner_left_bitmask &= ~(1ULL << (64ULL - poller_ix));
             clients[poller_ix].room_ix = 0;
             clients[poller_ix].num_pending_msgs = 0;
 

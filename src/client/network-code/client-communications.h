@@ -123,10 +123,15 @@ u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
     if( __builtin_expect (status == 0, 0) ){                                     
         printf("[OK]  Client: IPC Server gracefully ended communication.\n");    
         ret = 1;                                                                 
-        *recv_len = 0;                                                           
+        *reply_len = 0;                                                           
     }                                                                            
     else if( __builtin_expect (status < 0, 0) ){                                 
-        if(errno != EWOULDBLOCK && errno != EAGAIN){                             
+        if(errno != EAGAIN
+           #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+           && errno != EWOULDBLOCK
+           #endif
+          )
+        {                             
             perror("[ERR] Client: IPC recv() from server failed unexpectedly:"); 
             ret = 1;                                                             
         }                                                                        
@@ -134,10 +139,10 @@ u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
             printf("[ERR] Client: IPC recv() from server TIMED OUT!\n");         
             ret = 2;                                                             
         }                                                                        
-        *recv_len = 0;                                                           
+        *reply_len = 0;                                                           
     }                                                                            
     else{                                                                        
-        *recv_len = status;                                                      
+        *reply_len = status;                                                      
     }      
 
     return ret;
@@ -238,7 +243,12 @@ uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
         *recv_len = 0;
     }
     else if( __builtin_expect (status < 0, 0) ){
-        if(errno != EWOULDBLOCK && errno != EAGAIN){
+        if(errno != EAGAIN 
+           #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+           && errno != EWOULDBLOCK
+           #endif
+          )
+        {
             perror("[ERR] Client: IPC recv() from server failed unexpectedly:");   
             ret = 1;
         }
