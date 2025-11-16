@@ -196,13 +196,17 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         strncpy(msg_type_str, "00\0", 3);
         
         if(bytes_read != expected_siz){
-            status = 1;
+            status = 200;
+            login_not_finished = 0;
             goto label_error;
         }
         
         /* If transmission is of a valid type and size, process it. */
-        process_msg_00(client_msg_buf, sock_ix);
-        
+        status = (uint32_t)process_msg_00(client_msg_buf, sock_ix);
+        if(status){
+            login_not_finished = 0;
+            status = 200;
+        }
         break;
     }
     
@@ -219,8 +223,11 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         }
     
         /* If transmission is of a valid type and size, process it. */
-        process_msg_01(client_msg_buf, sock_ix); 
+        status = (uint32_t)process_msg_01(client_msg_buf, sock_ix); 
         
+        if(status)
+            status = 200;
+
         break;           
     }
     
@@ -439,14 +446,54 @@ void* start_new_client_thread(void* ix_ptr){
         bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN);
         
         if( __builtin_expect (bytes_read <= 0, 0) ){
-            remove_user(ix);
+            if(temp_handshake_memory_region_isLocked == 1){
+                /* At various points of this buffer's lifetime, various pointers
+                 * in it point to heap memory. Sudden disruption of login
+                 * leading to here DOES NOT free() them or erase the memory
+                 * they might point to.
+                 * TODO ^
+                 */
+                memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
+                temp_handshake_memory_region_isLocked = 0;
+            }
+            if(login_not_finished){
+                login_not_finished = 0;
+                close(client_socket_fd[ix]);
+                if(ix < next_free_user_ix) next_free_user_ix = ix;
+            }
+            else{
+                remove_user(ix);
+            }
             break;
         }
 
         pthread_mutex_lock(&mutex);
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
-  
+
+        /* 200 - login can not proceed. Remove the user. No struct slot has 
+         *       been allocated yet, but a socket is used and next_free_user_ix
+         *       has been moved. Move it back, release the socket, stop this
+         *       thread.
+         */
+        if(status == 200){
+            /* At various points of this buffer's lifetime, various pointers
+             * in it point to heap memory. Sudden disruption of login leading to
+             * here DOES NOT free() them or erase the memory they point to.
+             * TODO ^
+             */
+            u8 socket_closed = 0;
+            if( users_status_bitmask & (1ULL << (63ULL - ix)) ){
+                remove_user(ix);
+                socket_closed = 1;
+            }
+            memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
+            temp_handshake_memory_region_isLocked = 0;
+            if(!socket_closed) close(client_socket_fd[ix]);
+            if(ix < next_free_user_ix) next_free_user_ix = ix;
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
         /* (4)
          * Same as (1).
          */
@@ -535,7 +582,18 @@ int main(int argc, char* argv[]){
  
     while(1){
 
-        curr_free_socket_ix = next_free_socket_ix;
+        curr_free_socket_ix = next_free_user_ix;
+
+        /* Find the next free socket index. */
+        ++next_free_user_ix;
+
+        while(next_free_user_ix < MAX_CLIENTS){
+            if(!(users_status_bitmask & (1ULL<<(63ULL - next_free_user_ix))))
+            {
+                break;
+            }
+            ++next_free_user_ix;
+        }
 
         /**********************************************************************/
 
@@ -543,8 +601,14 @@ int main(int argc, char* argv[]){
 
         ret = onboard_new_client(curr_free_socket_ix);
 
-        if(ret)
+        login_not_finished = 1;
+
+        if(ret){
             printf("[ERR] Server: accepting a newly seen client failed!\n");
+            login_not_finished = 0;
+            next_free_user_ix = curr_free_socket_ix;
+            continue;
+        }
 
         /**********************************************************************/
 
@@ -570,20 +634,6 @@ int main(int argc, char* argv[]){
         );
 
         pthread_detach(client_thread_ids[curr_free_socket_ix]);
-
-        /* Reflect the new taken socket slot in the global status bitmask. */
-        socket_status_bitmask |= (1ULL << (63ULL - curr_free_socket_ix));
-
-        /* Find the next free socket index. */
-        ++next_free_socket_ix;
-        
-        while(next_free_socket_ix < MAX_CLIENTS){
-            if(!(socket_status_bitmask & (1ULL<<(63ULL - next_free_socket_ix))))
-            {
-                break;
-            }
-            ++next_free_socket_ix;
-        }  
 
         pthread_mutex_unlock(&mutex);                  
     }
