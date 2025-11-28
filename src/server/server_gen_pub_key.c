@@ -14,14 +14,8 @@ int main(int argc, char* argv[]){
     struct bigint* pubkey_bigint;
     struct bigint* pubkey_montform = malloc(sizeof(struct bigint));
     struct bigint* M;
-                 
-                 
-     M = get_bigint_from_dat
-      ( 3072
-       ,"../../bin/saved_M.dat"
-       ,3071
-       ,12800
-      );
+                                  
+    M = get_bigint_from_dat(3072, "../../bin/saved_M.dat", 3071, 12800);
                  
     bigint_create(pubkey_montform, 12800, 0);
     

@@ -22,7 +22,7 @@
  * This allows for an elegant way to simplify in-server communication code while
  * maintaining working messaging both for Rosetta Test Framework and for the
  * real thing with only one set of simple, descriptive API functions, instead of
- * polluting server code with sockets API-specific code for AF_UNIX / Internet.
+ * polluting server code with AF_UNIX / Internet sockets-specific code.
  */
 uint8_t(*init_communication)(void);
 uint8_t(*transmit_payload)  (uint64_t socket_ix, uint8_t* buf, size_t send_siz);
@@ -37,9 +37,8 @@ uint8_t(*onboard_new_client)(uint64_t socket_ix);
 u8 self_init(){
 
     FILE* privkey_dat = NULL;
-
     u8 status = 0;
-    
+
     temp_handshake_buf = NULL;
 
     status = init_communication();
@@ -88,21 +87,12 @@ u8 self_init(){
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        
     M = get_bigint_from_dat
-     ( 3072
-      ,"../../bin/saved_M.dat"
-      ,3071
-      ,MAX_BIGINT_SIZ
-     );
+                   (3072, "../../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
     
-    /* 320-bit prime exactly dividing M-1, making M cryptographycally strong. */
-    Q = get_bigint_from_dat
-     ( 320
-      ,"../../bin/saved_Q.dat"
-      ,320
-      ,MAX_BIGINT_SIZ
-     );
+    /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
+    Q = get_bigint_from_dat(320, "../../bin/saved_Q.dat", 320, MAX_BIGINT_SIZ);
     
-    /* Diffie-Hellman generator G = G = 2^((M-1)/Q) */
+    /* Diffie-Hellman generator G = 2^((M-1)/Q) */
     G = get_bigint_from_dat
      ( 3072
       ,"../../bin/saved_G.dat"
@@ -296,13 +286,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
                       ) == 0
               )
             {
-                printf("\n[DEBUG] Server: New user_id logic parsing PKT_30.\n");
-                printf("              : Found the sender userID's index!!  \n");
-                printf("              : in_server: %s\nvs\nin_packet:  %s\n\n"
-                       ,clients[x].user_id
-                       ,(const char*)(client_msg_buf + SMALL_FIELD_LEN)
-                      );
-                printf("              : Setting found_user_ix to %lu\n", x);
                 found_user_ix = x;
                 break;
             }
@@ -355,7 +338,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     /* A client decided to exit the chatroom they're currently in. */
     case(PACKET_ID_50):{
-        printf("[OK]  Server: Found a matching packet_ID = 50\n\n");
         strncpy(msg_type_str, "50\0", 3);    
     
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
@@ -377,7 +359,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     /* A client decided to log off Rosetta. */
     case(PACKET_ID_60):{
         strncpy(msg_type_str, "60\0", 3);    
-        printf("[OK]  Server: Found a matching packet_ID = 60\n\n");
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         
         if(bytes_read != expected_siz){
@@ -435,8 +416,6 @@ void* start_new_client_thread(void* ix_ptr){
     u64 ix;
 
     memcpy(&ix, ix_ptr, sizeof(ix));
-
-    printf("[DEBUG] Server: new client poll thread started. INDEX: %lu\n", ix);
 
     memset(client_msg_buf, 0, MAX_MSG_LEN);
 
@@ -611,8 +590,6 @@ int main(int argc, char* argv[]){
         }
 
         /**********************************************************************/
-
-        printf("[DEBUG] Server -- [ix] before : [%lu]\n", curr_free_socket_ix);
 
         memcpy( thread_func_arg_buf
                ,&curr_free_socket_ix

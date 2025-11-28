@@ -208,10 +208,6 @@ void remove_user_from_room(u64 sender_ix){
         /* In this case, simply decrement the number of guests in the room. */
         rooms[clients[sender_ix].room_ix].num_people -= 1;
 
-        printf("----> [DEBUG] Server: REMOVING USER from room:\n");
-        printf("----> Set clients[%lu].room_ix to 0.\n", sender_ix);
-        printf("----> Their room_ix was %lu\n", clients[sender_ix].room_ix);
-
         clients[sender_ix].room_ix = 0;
         clients[sender_ix].num_pending_msgs = 0;
 
@@ -227,7 +223,9 @@ void remove_user_from_room(u64 sender_ix){
 
     /* if it WAS the room owner, boot everyone else from the chatroom as well */
     else{
-        printf("Removing OWNER of room[%lu]!\n", clients[sender_ix].room_ix);
+        printf
+           ("[NFO] Removing OWNER of room[%lu]!\n", clients[sender_ix].room_ix);
+        
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
 
@@ -311,21 +309,6 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
            ,PRIVKEY_LEN
     );
 
-    /*
-    printf("[DEBUG] Server: Calling signature_validate with:\n");
-    printf("[DEBUG] Server: client[%lu]'s pubkeyMONT:\n", client_ix);
-    bigint_print_info(&(clients[client_ix].client_pubkey_mont));
-    bigint_print_bits(&(clients[client_ix].client_pubkey_mont));
-    printf("[DEBUG] Server: and signed things of length %lu:\n", signed_len);
-
-    for(u64 i = 0; i < signed_len; ++i){
-        printf("%03u ", *(signed_ptr + i) );
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-    */
 
     /* Verify the sender's cryptographic signature. */
     ret = signature_validate(
@@ -461,7 +444,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
         else
             printf("[OK]  Server: Told client to try login later.\n");
 
-
         free(reply_buf);
 
         return 1;
@@ -490,11 +472,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
                      
     A_s->free_bits = A_s->size_bits - A_s->used_bits;
     
-    printf("[DEBUG] Server: Copied over client's short-term pubkey's bits:\n");
-    printf("                (Before Get_Mong_Form) Its info and ALL bits:\n\n");
-    bigint_print_info(A_s);
-    bigint_print_all_bits(A_s);
-
     /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
     
     /* A "check non zero" function in the BigInt library would also be useful */
@@ -565,10 +542,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     
     mont_pow_mod_m(&Am, &b_s, M, &X_s);
     
-    printf("[DEBUG] Server: X_s computed on Server side:\n");
-    bigint_print_info(&X_s);
-    bigint_print_bits(&X_s);
-
     /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
     tempbuf_byte_offset = 3 * sizeof(bigint);
     
@@ -600,19 +573,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
            ,SHORT_NONCE_LEN
     );
    
-    printf("[DEBUG] Server: Y_s on which we COMPUTE signature:\n");
-    printf("[DEBUG] Server: Y_s size 32 bytes:\n");
-
-    for(u64 i = 0; i < INIT_AUTH_LEN; ++i){
-        printf("%03u ", Y_s[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("[DEBUG] Server: Calling signature_generate now.\n\n");
-
     /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
     signature_generate( M, Q, Gm, Y_s, INIT_AUTH_LEN, signature_buf
                        ,&server_privkey_bigint, PRIVKEY_LEN
@@ -662,9 +622,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     if(ret){                                                                  
         printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");   
         status = 1;
-    }
-    else{
-        printf("[OK]  Server: Replied to client with PACKET_ID_00 msg.\n"); 
     }
 
 label_cleanup: 
@@ -720,29 +677,18 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
 
     bigint* temp_ptr;
 
-    memset(K0, 0, B);
-    memset(K0_XOR_ipad_TEXT, 0, (B + PUBKEY_LEN));
-    memset(BLAKE2B_output, 0, L);
+    memset(K0,                 0, B);
+    memset(K0_XOR_ipad_TEXT,   0, (B + PUBKEY_LEN));
+    memset(BLAKE2B_output,     0, L);
     memset(last_BLAKE2B_input, 0, B + L);
-    memset(K0_XOR_ipad, 0, B);
-    memset(K0_XOR_opad, 0, B);
-    memset(HMAC_output, 0, HMAC_TRUNC_BYTES);
-    memset(client_pubkey_buf, 0, PUBKEY_LEN);
+    memset(K0_XOR_ipad,        0, B);
+    memset(K0_XOR_opad,        0, B);
+    memset(HMAC_output,        0, HMAC_TRUNC_BYTES);
+    memset(client_pubkey_buf,  0, PUBKEY_LEN);
 
     memset(opad, 0x5c, B);
     memset(ipad, 0x36, B);
     
-    printf("[DEBUG] Server: Printing received msg_01 of length %u bytes:\n",
-            SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES
-    );
-
-    for(u64 i = 0; i < SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES; ++i){
-        printf("%03u ", (msg_buf)[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
     /*  Use what's already in the locked memory region to compute HMAC and 
      *  to decrypt the user's long-term public key
      *
@@ -770,135 +716,37 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
            ,SESSION_KEY_LEN
           );
 
-    printf("[DEBUG] Server: HMAC Step 3 produced K0:\n");
-
-    for(u64 i = 0; i < B; ++i){
-        printf("%03u ", K0[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* Step 4 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_ipad[i] = (K0[i] ^ ipad[i]);
     }
     
-    printf("[DEBUG] Server: HMAC Step 4 produced K0_XOR_ipad: 64 bytes:\n");
-
-    for(u64 i = 0; i < B; ++i){
-        printf("%03u ", K0_XOR_ipad[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* step 5 of HMAC construction */
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
     memcpy(K0_XOR_ipad_TEXT + B, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     
-    printf("[DEBUG] Server: HMAC Step 5 produced K0_XOR_ipad_TEXT: 448 bytes:\n");
-
-    for(u64 i = 0; i < B + PUBKEY_LEN; ++i){
-        printf("%03u ", K0_XOR_ipad_TEXT[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* step 6 of HMAC construction */
     /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
     blake2b_init(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
     
-    printf("[DEBUG] Server: HMAC Step 6 produced BLAKE2B_output: 64 bytes:\n");
-
-    for(u64 i = 0; i < L; ++i){
-        printf("%03u ", BLAKE2B_output[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* Step 7 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_opad[i] = (K0[i] ^ opad[i]);
     }
     
-   printf("[DEBUG] Server: HMAC Step 7 produced K0_XOR_opad: 64 bytes:\n");
-
-    for(u64 i = 0; i < B; ++i){
-        printf("%03u ", K0_XOR_opad[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* Step 8 of HMAC construction */
     /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
     /* B + L bytes total length */
     memcpy(last_BLAKE2B_input + 0, K0_XOR_opad,    B);
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
     
-   printf("[DEBUG] Server: HMAC Step 8 produced last_BLAKE2B_input: 192 bytes:\n");
-
-    for(u64 i = 0; i < B + L; ++i){
-        printf("%03u ", last_BLAKE2B_input[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* Step 9 of HMAC construction */ 
     /* Call BLAKE2B on the combined buffer in step 8. */
     blake2b_init(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
     
-   printf("[DEBUG] Server: HMAC Step 9 produced BLAKE2B_output: 64 bytes:\n");
-
-    for(u32 i = 0; i < L; ++i){
-        printf("%03u ", BLAKE2B_output[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
     memcpy(HMAC_output, BLAKE2B_output, HMAC_TRUNC_BYTES);
     
-    printf("[DEBUG] Server: Produced these 8 bytes of HMAC:\n");
-
-    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
-        printf("%03u ", BLAKE2B_output[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");  
-
-    printf("[DEBUG] Server: (1) To be checked against received HMAC 8 bytes\n");
-
-    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
-        printf("%03u ", msg_buf[recv_HMAC_offset + i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
-    printf("[DEBUG] Server: (2) To be checked against received HMAC 8 bytes\n");
-
-    for(u32 i = 0; i < HMAC_TRUNC_BYTES; ++i){
-        printf("%03u ", (msg_buf + recv_HMAC_offset)[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
     /* Now compare calculated HMAC with the HMAC the client sent us */
     for(u64 i = 0; i < HMAC_TRUNC_BYTES; ++i){
         if(HMAC_output[i] != msg_buf[recv_HMAC_offset + i]){
@@ -916,39 +764,11 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
      *
      *  Server then destroys all cryptographic artifacts for handshake. 
      */
-    handshake_buf_nonce_offset = 
-    (3 * sizeof(bigint)) + (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN;
+    handshake_buf_nonce_offset
+       = (3 * sizeof(bigint)) + (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN;
 
     handshake_buf_key_offset =  3 * sizeof(bigint);
     
-    printf("[DEBUG] Server: ChaCha to decrypt client's long-term pubkey:\n");
-    printf("input text: client's encrypted pubkey:\n");
-
-    for(u64 i = 0; i < PUBKEY_LEN; ++i){
-        printf("%03u ", (msg_buf + SMALL_FIELD_LEN)[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
-    printf("input SHORT nonce:\n");
-
-    for(u64 i = 0; i < SHORT_NONCE_LEN; ++i){
-        printf("%03u ", (temp_handshake_buf + handshake_buf_nonce_offset)[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
-    printf("Input chacha key of SESSION_KEY_LEN:\n");
-
-    for(u64 i = 0; i < SESSION_KEY_LEN; ++i){
-        printf("%03u ", (temp_handshake_buf + handshake_buf_key_offset)[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
     /* Passed parameters to this call to ChaCha20:
      *
      *  1. INPUT TEXT   : Client's encrypted long-term public key.
@@ -968,8 +788,6 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
             ,client_pubkey_buf
             );
     
-    printf("Resulted in this real client's public key:\n");
-
     /* Increment the Nonce to not reuse it when encrypting the user's index. */
     
     uint64_t* aux_ptr64_tempbuf =
@@ -1025,7 +843,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     
     if( (check_pubkey_exists(client_pubkey_buf, PUBKEY_LEN)) != 0){
         printf("[ERR] Server: Obtained login public key already exists.\n");
-        printf("\n[OK]  Server: Discarding transmission.\n");
+        printf("[OK]  Server: Discarding transmission.\n");
         status = 1;
         goto label_cleanup;
     }
@@ -1086,26 +904,11 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
           );
     
     (clients[user_ix].client_pubkey).used_bits 
-     = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
+       = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
      
     (clients[user_ix].client_pubkey).free_bits
-    = MAX_BIGINT_SIZ - (clients[user_ix].client_pubkey).used_bits;
+       = MAX_BIGINT_SIZ - (clients[user_ix].client_pubkey).used_bits;
     
-    printf("[DEBUG] Server: obtained client's real public key from chacha20\n");
-
-    bigint_print_info(&(clients[user_ix].client_pubkey));
-    bigint_print_bits(&(clients[user_ix].client_pubkey));
-    printf("\n\n ALL BITS of the client's real public key:\n\n");
-    bigint_print_all_bits(&(clients[user_ix].client_pubkey));
-    printf("\n ALSO the decrypted pubkey bits placed in pubkey_buf:\n");
-
-    for(u64 i = 0; i < PUBKEY_LEN; ++i){
-        printf("%03u ", (client_pubkey_buf)[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-
     /* Calculate the Montgomery Form of the client's long-term public key. */ 
     bigint_create( &(clients[user_ix].client_pubkey_mont)
                   ,MAX_BIGINT_SIZ
@@ -1165,9 +968,6 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
         status = 1;
         goto label_cleanup;
     }
-    else{                                                                     
-        printf("[OK]  Server: Told client Login finished, sent their index.\n");  
-    }
 
     printf("\n\n[OK]  Server: SUCCESS - Permitted a user in Rosetta!!\n\n");
 
@@ -1188,9 +988,7 @@ label_cleanup:
     temp_handshake_memory_region_isLocked = 0;     
 
     login_not_finished = 0;
-
-    printf("[OK]  Server: Handshake memory region has been released!\n\n");
-    
+ 
     free(reply_buf);
         
     return status;
@@ -1539,12 +1337,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
      *  Here the server needs KAB to decrypt KB into one-time-use key K, behind
      *  which is hidden the desired room index of the room they want to create.
      */
-  
-    printf("---> [DEBUG] Server: KAB/KBA for sending to lev obtained from\n"
-           "                     clients[%u].shared_secret. CHECK IT!!\n"
-          ,user_ix
-          );
- 
+   
     if(
        bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint) 
         == 3
@@ -1767,11 +1560,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
                ,SMALL_FIELD_LEN
               );
         
-        printf("[DEBUG] Server: JOIN_ROOM REPLY - placed guest userID:\n");
-        printf("--> userID of clients[%lu] placed: %s\n"
-               ,user_ixs_in_room[i], clients[user_ixs_in_room[i]].user_id
-              );
-
         buf_ixs_pubkeys_write_offset += SMALL_FIELD_LEN;
               
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
@@ -1848,10 +1636,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         printf("[OK]  Server: Told client they were permitted in the room.\n");  
     }
 
-
-    printf("\n\n[OK]  Server: SUCCESS - Permitted a user in a chatroom!!\n\n");
     printf("Now sending the new guest's PubKey and name to current people.\n");
-    
     
     /* Add the new room guest's id and pubkey as a pending MSG to each user. */
 
@@ -1889,13 +1674,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
             goto label_cleanup;
         }
         
-
-        printf("---> [DEBUG] Server: KAB/KBA for sending to kev obtained from\n"
-               "                     clients[%lu].shared_secret. CHECK IT!!\n"
-               "                     Which came from user_ixs_in_room[%lu]\n"
-               ,user_ixs_in_room[i], i
-              );
-
         /* Get session keys KBA, KAB of this already-present room guest. */
         if(
            bigint_compare2( &(clients[user_ixs_in_room[i]].client_pubkey)
@@ -1950,57 +1728,12 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         nonce_bigint.size_bits = MAX_BIGINT_SIZ;
         nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
 
-
-    
-        printf("[DEBUG] Server: Pend for kev, encrypting K into KC:\n");
-        printf("              : Fetched original starter nonce: \n"
-               "              : Will be incremented %lu times.\n"
-               ,clients[user_ixs_in_room[i]].nonce_counter
-              );
-
-        for(uint32_t x = 0; x < LONG_NONCE_LEN; ++x){
-            if(x % 16 == 0 && x > 0){printf("\n");}
-            printf("%02X ", nonce_bigint.bits[x]);
-        }
-        printf("\n\n");
-
-
-   
         /* Increment nonce as many times as needed. */
         for(u64 j = 0; j < clients[user_ixs_in_room[i]].nonce_counter; ++j){
             bigint_add_fast(&nonce_bigint, &one, &aux1);
             bigint_equate2(&nonce_bigint, &aux1);     
         }
         
-        printf("\n---> [DEBUG] Server: nonce counter for kev, encrypting\n"
-               "                       one-time key K into KC: %lu\n"
-               ,clients[user_ixs_in_room[i]].nonce_counter
-               );
-    
-    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting K into KC:\n");
-    printf("                : Nonce is:\n");
-    for(uint32_t x = 0; x < LONG_NONCE_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", nonce_bigint.bits[x]);
-    }
-    printf("\n\n");
-
-    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting K into KC:\n");
-    printf("                : Key KBA is:\n");
-    for(uint32_t x = 0; x < SESSION_KEY_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", KBA[x]);
-    }
-    printf("\n\n");
-    
-    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting K into KC:\n");
-    printf("                : UNencrypted key K:\n");
-    for(uint32_t x = 0; x < ONE_TIME_KEY_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", send_K[x]);
-    }
-    printf("\n\n");
-
         chacha20(
             send_K                                  /* text - one-time key K  */
            ,ONE_TIME_KEY_LEN                        /* text_len in bytes      */
@@ -2028,43 +1761,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
                ,PUBKEY_LEN
         );
 
-        printf("\n---> [DEBUG] Server: Placed current guest name for pend: %s\n"
-               ,type21_encrypted_part
-              );
-
-        printf("\n---> [DEBUG] Server: nonce counter for kev, encrypting\n"
-               "                       lev's name and pubkey: %lu\n"
-               ,clients[user_ixs_in_room[i]].nonce_counter
-               );
-
-
-    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting name +key:\n");
-    printf("                : Nonce is:\n");
-    for(uint32_t x = 0; x < SHORT_NONCE_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", nonce_bigint.bits[x]);
-    }
-    printf("\n\n");
-
-    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting name +key:\n");
-    printf("                : Key K is:\n");
-    for(uint32_t x = 0; x < ONE_TIME_KEY_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", send_K[x]);
-    }
-    printf("\n\n");
-
-    printf("\n[DEBUG] Server: lev join, pend for kev, encrypting name +key:\n");
-    printf("                : UNencrypted buffer of len %lu bytes:\n"
-           ,(u64)(SMALL_FIELD_LEN + PUBKEY_LEN)
-          );
-    for(uint32_t x = 0; x < SMALL_FIELD_LEN + PUBKEY_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", type21_encrypted_part[x]);
-    }
-    printf("\n\n");
-
-
         /* Encrypt it with chacha20, place the result ciphertext in response. */
         chacha20( 
          type21_encrypted_part                      /* text: user_ix + pubkey */
@@ -2082,10 +1778,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         /* Final part of TYPE_21 replies - signature itself. */
         /* Compute the signature itself of everything so far.*/
         
-        printf("\n---> [DEBUG] Server: Offset for signature: %lu\n"
-               , (buf_type_21_len - SIGNATURE_LEN)
-              );
-
         signature_generate
         (     M, Q, Gm, buf_type_21
              ,buf_type_21_len - SIGNATURE_LEN
@@ -2105,14 +1797,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
 --------------------------------------------------------------------------------
 
 */
-        printf("[DEBUG] Server : Adding pending message for: \n");
-        printf("--> user index : %lu\n", user_ixs_in_room[i]);
-        printf("--> pkt_21_len : %lu\n", buf_type_21_len);
-        printf("--> username   : %s \n", clients[user_ixs_in_room[i]].user_id);
-        printf("--> Inner signature computed over %lu bytes.\n"
-               ,buf_type_21_len - SIGNATURE_LEN
-              );
-
         add_pending_msg(user_ixs_in_room[i], buf_type_21_len, buf_type_21);
     }
 
@@ -2206,27 +1890,11 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
      * packet, including the sender's cryptographic signature!
      */
 
-    printf("[DEBUG] Server: Upgrade MSG_30 -- signature 2 generation:\n");
-    printf("              : Signature 2 computed on: %lu bytes:\n"
-           ,packet_siz
-          );
-    for(int64_t x = 0; x < packet_siz; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", reply_buf[x]);
-    }    
-    printf("\n\n");
-
     signature_generate
                     (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
                     ,&server_privkey_bigint, PRIVKEY_LEN
     );
         
-    printf("[DEBUG] Server: Upgrade MSG_30 -- Signature 2 generated:\n");
-    for(u64 x = 0; x < SIGNATURE_LEN; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", (reply_buf + packet_siz)[x]);
-    }
-    printf("\n\n");
 
     /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
     /*
@@ -2335,11 +2003,7 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
          reply_len += clients[poller_ix].pending_msg_sizes[i] + SMALL_FIELD_LEN;
         } 
-
-        printf("[DEBUG] Server: Sending pending messages payload.\n");
-        printf("              : reply_len: %lu\n", reply_len);
-        printf("              : sign over: %lu\n", (reply_len - SIGNATURE_LEN));
-         
+ 
         reply_buf = calloc(1, reply_len);
         
         uint64_t* aux_ptr64_replybuf = (u64*)reply_buf;
@@ -2383,9 +2047,6 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
                           ,&server_privkey_bigint, PRIVKEY_LEN
         );
         
-        printf("[DEBUG] Server: Sending PENDING message:\n");
-        printf("--> Outer signature on %lu bytes\n", reply_len - SIGNATURE_LEN);
-
         clients[poller_ix].num_pending_msgs = 0;
 /*
 
@@ -2407,8 +2068,6 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
                                                                                  
         if(ret)                                                                  
             printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");    
-        else                                                                     
-            printf("[OK]  Server: Replied to client with PACKET_ID_41 msg.\n");  
 
         if(room_owner_left_bitmask & (1ULL << (63ULL - poller_ix))) {
             room_owner_left_bitmask &= ~(1ULL << (63ULL - poller_ix));
