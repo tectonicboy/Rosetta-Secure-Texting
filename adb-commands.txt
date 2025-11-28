@@ -1,1 +1,0 @@
-adb push one-buf-rotate-bitmap /data/local/tmp/

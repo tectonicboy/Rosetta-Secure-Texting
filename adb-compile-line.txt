@@ -1,1 +1,0 @@
-/home/users/mms00723/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang one-buf-rotate-bitmap.c -O3 -Wall -Wextra -Wno-trigraphs -march=armv9-a -o one-buf-rotate-bitmap -flto
