@@ -119,46 +119,6 @@ u8 self_init(u8* password, int password_len, char* save_dir){
         goto label_cleanup;
     }
 
-    printf("[DEBUG] Client: Nonce 16 bytes:\n");
-
-    for(u32 i = 0; i < LONG_NONCE_LEN; ++i){
-        printf("%03u ", saved_nonce[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("[DEBUG] Client: Encrypted privkey 40 bytes:\n");
-
-    for(u32 i = 0; i < PRIVKEY_LEN; ++i){
-        printf("%03u ", saved_privkey[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("[DEBUG] Client: Plaintext pubkey 384 bytes:\n");
-
-    for(u32 i = 0; i < PUBKEY_LEN; ++i){
-        printf("%03u ", saved_pubkey[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("[DEBUG] Client: Argon Salt String 8 bytes:\n");
-
-        for(u32 i = 0; i < ARGON_STRING_LEN; ++i){
-        printf("%03u ", saved_string[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     /* Now decrypt the saved private key. Call Argon2, then call ChaCha20. */
 
     /* Fill in the parameters to Argon2. */
@@ -196,36 +156,6 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     prms.len_K = 0;                       /* unused here, so set length to 0  */
     prms.len_X = 0;                       /* unused here, so set length to 0  */
 
-    printf("[DEBUG] Client: Before calling argon2 in LOGIN, parms:\n");
-    printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
-
-    for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
-        u8* aux_ptr8_argon2parms = ((u8*)(&prms)) + i;
-        printf("%03u ", *aux_ptr8_argon2parms );
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("Password buffer of len %lu:\n", prms.len_P);
-    for(u32 i = 0; i < prms.len_P; ++i){
-        printf("%03u ", prms.P[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("Salt buffer of len %lu:\n", prms.len_S);
-    for(u32 i = 0; i < prms.len_S; ++i){
-        printf("%03u ", prms.S[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     Argon2_MAIN(&prms, argon2_output_tag);
 
     /* Let V be the leftmost 32 (chacha_key_len) bytes of Argon2's output hash.
@@ -254,8 +184,6 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);
     own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN);
     own_pubkey.free_bits = MAX_BIGINT_SIZ - own_pubkey.used_bits;
-
-    printf("[OK] Client: Checking decrypted private key...\n");
 
     /* Compute a public key with that private key and M, Q, G. If it's the same
      * as the public key stored on the filesystem, the private key was
@@ -480,7 +408,6 @@ void* begin_polling(__attribute__((unused)) void* input)
         /* NEW: Handle here replies for join_room and create_room commands. */
         
     if( *reply_type_ptr == PACKET_ID_10 ){
-        printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
         
         status = process_msg_10(reply_buf);
         
@@ -495,8 +422,6 @@ void* begin_polling(__attribute__((unused)) void* input)
     }
 
     else if( *reply_type_ptr == PACKET_ID_11 ){
-
-        printf("[OK]  Client: Received reply to MSG_10: %lu bytes.\n", reply_len);
 
         status = process_msg_11(reply_buf);
 
@@ -513,8 +438,6 @@ void* begin_polling(__attribute__((unused)) void* input)
 
     else if(*reply_type_ptr == PACKET_ID_20){
 
-        printf("[OK]  Client: Received reply to MSG_20: %lu bytes.\n", reply_len);
-
         status = process_msg_20(reply_buf, reply_len);
 
         if (status){
@@ -523,8 +446,7 @@ void* begin_polling(__attribute__((unused)) void* input)
             goto thread_cleanup;
         }
 
-        printf("[OK]  Client: Rosetta told us we've now joined the room!\n\n");
-        printf("\n\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");           
+        printf("\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");           
                                                                                  
         /* ALSO, here is one of 2 possible places where GUI renders the graphics     
          * for the messages sub-window and "exit room" button. GUI code will         
@@ -580,13 +502,9 @@ void* begin_polling(__attribute__((unused)) void* input)
 --------------------------------------------------------------------------------
 
 */
-        if ( *reply_type_ptr == PACKET_ID_41 ) {
-           
+        if ( *reply_type_ptr == PACKET_ID_41 ) {           
             aux_ptr64_replybuf = (u64*)(reply_buf + SMALL_FIELD_LEN);
-
             pending_messages = *aux_ptr64_replybuf;
-
-            printf("[DEBUG] Client: Pending messages: %lu\n", pending_messages);
 
             read_ix = 2 * SMALL_FIELD_LEN;
 
@@ -594,21 +512,11 @@ void* begin_polling(__attribute__((unused)) void* input)
             for(u64 i = 0; i < pending_messages; ++i){
                 aux_ptr64_replybuf = (u64*)(reply_buf + read_ix);
                 block_len = *aux_ptr64_replybuf;
-                printf("[DEBUG] Client: Pending msgs: block_len[%lu] = %lu\n"
-                       ,i, block_len
-                      );
                 read_ix += block_len + SMALL_FIELD_LEN;
-                printf("and read_ix is now: %lu\n", read_ix);
             }
-
-            printf("[DEBUG] Client: PEND - Signature is computed on %lu bytes\n"
-                   ,read_ix
-                  );
 
             /* Verify the cryptographic signature now. */
             status = authenticate_server(reply_buf, read_ix, read_ix);
-
-            printf("[DEBUG] Client: Authentication passed OK!\n");
 
             if(status == 1){
                 printf("[ERR] Client: Bad signature in polling reply.\n\n");
@@ -631,25 +539,21 @@ void* begin_polling(__attribute__((unused)) void* input)
                 curr_msg_len = *aux_ptr64_replybuf;
 
                 if(curr_msg_type == PACKET_ID_50){
-                    printf("[DEBUG] Client: PEND - Found ID_50. Process it.\n");
                     process_msg_50(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_51){
-                    printf("[DEBUG] Client: PEND - Found ID_51. Process it.\n");
                     process_msg_51(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_21){
-                    printf("[DEBUG] Client: PEND - Found ID_21. Process it.\n");
                     process_msg_21(reply_buf + read_ix);
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
                 else if(curr_msg_type == PACKET_ID_30){
-                    printf("[DEBUG] Client: PEND - Found ID_30. Process it.\n");
                     process_msg_30( reply_buf + read_ix
                                    ,text_message_line
                                    ,&obtained_text_message_line_len
@@ -678,7 +582,6 @@ thread_cleanup:
     curr_msg_type    = 0;
     free(msg_buf);
     pthread_mutex_unlock(&poll_mutex);
-    printf("\n-->[DEBUG] Client: poll thread returning NULL now.\n");
 
     return NULL;
 }
@@ -741,10 +644,6 @@ u8 reg(u8* password, int password_len, char* save_dir){
 
     memset(&prms, 0, sizeof(struct Argon2_parms));
 
-    printf("[OK]  TCP_Client obtained user's register password from GUI!\n");
-    printf("      password_len = %d\n", password_len);
-    printf("      password: %s\n\n", password);
-
     /* Registration step 1: Generate a long-term private/public keys a/A. */
 
     /* a = random in the range [1, Q) */
@@ -761,11 +660,6 @@ u8 reg(u8* password, int password_len, char* save_dir){
 
     /* A = G^a mod M */
     A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
-
-    printf("Public key right after generating it w/ gen_pub_key():\n");
-
-    bigint_print_info(A_longterm);
-    bigint_print_all_bits(A_longterm);
 
     /* Registration step 2: Use the password as a secret key in Argon2 hashing
      *                      algorithm, whose output hash we use as a
@@ -819,36 +713,6 @@ u8 reg(u8* password, int password_len, char* save_dir){
     prms.len_S = (8 + 64);  /* 8-byte string plus 64-byte output of blake2b. */
     prms.len_K = 0;         /* unused here, so set length to 0               */
     prms.len_X = 0;         /* unused here, so set length to 0               */
-
-    printf("[DEBUG] Client: Before calling argon2 in REGISTER, parms:\n");
-    printf("sizeof(argon2_parms) = %lu\n\n", sizeof(struct Argon2_parms));
-
-    for(u32 i = 0; i < sizeof(struct Argon2_parms); ++i){
-        u8* aux_ptr8_argon2parms = ((u8*)(&prms)) + i;
-        printf("%03u ", *aux_ptr8_argon2parms);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("Password buffer of len %lu:\n", prms.len_P);
-    for(u32 i = 0; i < prms.len_P; ++i){
-        printf("%03u ", prms.P[i]);
-        if(((i+1) % 8 == 0) && i > 6){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
-    printf("Salt buffer of len %lu:\n", prms.len_S);
-    for(u32 i = 0; i < prms.len_S; ++i){
-        printf("%03u ", prms.S[i]);
-        if(((i+1) % 8 == 0) && i >= 7){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
 
     Argon2_MAIN(&prms, argon2_output_tag);
 
@@ -910,23 +774,6 @@ u8 reg(u8* password, int password_len, char* save_dir){
 
     memcpy(user_save_buf + save_offset, argon2_salt_string, 8);
 
-    printf("[DEBUG] REG: save file buf (siz = %lu bytes) before writing it:\n\n"
-           ,save_len
-    );
-
-    for(u64 i = 0; i < save_len; ++i){
-        printf("%03u ", user_save_buf[i]);
-        if(((i+1) % 8 == 0) && i >= 7){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-    printf("[DEBUG] REG: It has 4 parts that are placed like so:\n\n");
-    printf("[DEBUG] REG: ChaCha20  Nonce  : size = 16  bytes.\n");
-    printf("[DEBUG] REG: Encrypted privkey: size = 40  bytes.\n");
-    printf("[DEBUG] REG: Plaintext pubkey : size = 384 bytes.\n");
-    printf("[DEBUG] REG: Argon Salt String: size = 8   bytes.\n\n");
-
     fwrite(user_save_buf, 1, save_len, user_save);
 
 label_cleanup:
@@ -983,9 +830,6 @@ u8 login(u8* password, int password_len, char* save_dir){
         printf("[ERR] Client: Couldn't construct MSG_00 for Login. Abort.\n");
         goto label_cleanup;
     }
-    printf("[OK]  Client: Constructed MSG_00: %lu bytes\n", msg_len);
-
-
 
     status = transmit_payload(msg_buf, msg_len);
 
@@ -993,7 +837,6 @@ u8 login(u8* password, int password_len, char* save_dir){
         printf("[ERR] Client: Couldn't send MSG_00 for Login. Abort.\n");
         goto label_cleanup;
     }
-    printf("[OK]  Client: Transmitted MSG_00 to the Rosetta server.\n");
 
     status = receive_payload(reply_buf, (uint64_t*)&reply_len);
 
@@ -1001,9 +844,6 @@ u8 login(u8* password, int password_len, char* save_dir){
         printf("[ERR] Client: Couldn't receive MSG_00 reply by server.\n\n");
         goto label_cleanup;
     }
-    printf("[OK]  Client: Received reply to MSG_00: %lu bytes.\n", reply_len);
-
-
 
     if(*reply_type_ptr != PACKET_ID_02 && *reply_type_ptr != PACKET_ID_00){
         printf("[ERR] Client: Unexpected reply by the server to msg_00\n\n");
@@ -1027,8 +867,6 @@ u8 login(u8* password, int password_len, char* save_dir){
             printf("[ERR] Client: process_msg_00 failed. Abort login.\n\n");
             goto label_cleanup;
         }
-        printf("[OK]  Client: REPLY to MSG_00 is valid. Constructed MSG_01!\n");
-
 
 
 /*  Now send the reply back to the Rosetta server:
@@ -1046,9 +884,6 @@ u8 login(u8* password, int password_len, char* save_dir){
             printf("[ERR] Client: Sending MSG_01 failed.");
             goto label_cleanup;
         }
-        printf("[OK]  Client: Sent MSG_01 to server.\n\n");
-
-
     }
     else{
         printf("[OK]  Client: Server told us to try login later.\n\n");
@@ -1070,8 +905,6 @@ u8 login(u8* password, int password_len, char* save_dir){
         printf("[ERR] Client: Couldn't receive a reply to msg_01.\n\n");
         goto label_cleanup;
     }
-
-    printf("[OK]  Client: Received reply to msg_01: %u bytes.\n", status);
 
     if(*reply_type_ptr == PACKET_ID_01){
 
@@ -1224,17 +1057,12 @@ label_cleanup:
 uint8_t send_text(unsigned char* text, uint64_t text_len){
 
     u64 msg_len;
-
     u8  status = 0;
     u8* msg_buf = NULL;
 
     /**************************************************************************/
 
-    printf("[DEBUG] Client: in send_text(), before construct_msg_30().\n");
-
     status = construct_msg_30(text, text_len, &msg_buf, &msg_len);
-
-    printf("[DEBUG] Client: in send_text(), construct_msg_30 done!\n");
 
     if(status){
         printf("[ERR] Client: Could not construct msg_30 to send a text!\n\n");
@@ -1249,7 +1077,6 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
         printf("\n[ERR] Client: Couldn't send MSG_30 (send_text). Abort.\n");
         goto label_cleanup;
     }
-    printf("[OK]  Client: Sent MSG_30 (send_text) to Rosetta server.\n");
 
     /* There is no server reply here. Our own text msg will be sent to us
      * by the server and detected by the polling thread, just like the
