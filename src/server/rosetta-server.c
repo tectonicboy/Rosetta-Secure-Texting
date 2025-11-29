@@ -180,7 +180,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     /* A client tried to log in Rosetta */
     case(PACKET_ID_00):{
-        printf("[OK]  Server: Found a matching packet_ID = 00\n\n");
         expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN;
         
         strncpy(msg_type_str, "00\0", 3);
@@ -202,7 +201,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     /* Login part 2 - client sent their encrypted long-term public key. */
     case(PACKET_ID_01):{  
-        printf("[OK]  Server: Found a matching packet_ID = 01\n\n");
         expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
         
         strncpy(msg_type_str, "01\0", 3); 
@@ -223,7 +221,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     /* A client wants to create a new chatroom of their own. */
     case(PACKET_ID_10):{
-        printf("[OK]  Server: Found a matching packet_ID = 10\n\n");
         expected_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
         
         strncpy(msg_type_str, "10\0", 3);
@@ -241,7 +238,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     
     /* A client wants to join an existing chatroom. */
     case(PACKET_ID_20):{
-        printf("[OK]  Server: Found a matching packet_ID = 20\n\n");
         expected_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
         
         strncpy(msg_type_str, "20\0", 3);
@@ -258,7 +254,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     }
     /* A client wants to send a text message to everyone else in the chatroom */
         case(PACKET_ID_30):{
-        printf("[OK]  Server: Found a matching packet_ID = 30\n\n");
         strncpy(msg_type_str, "30\0", 3);
         
         /* Size must be in bytes: 

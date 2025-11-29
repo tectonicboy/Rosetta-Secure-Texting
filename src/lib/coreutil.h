@@ -27,7 +27,7 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
     /* Set the most significant bit to 0 - make sure it's always less than Q. */
     *(buf + (len_bytes - 1)) &= ~ (1 << 7);
 
-    printf("[OK] utilities: Generated a %u-byte private key!\n\n", len_bytes);
+    printf("[OK]  Utils : Generated a %u-byte private key!\n\n", len_bytes);
 
     fclose(ran);
 
@@ -67,14 +67,6 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
           ,12800
          );
 
-    printf("CORE UTIL gen_pub_key: Gm after reading it from file:\n");
-    bigint_print_info(Gm);
-    bigint_print_bits(Gm);
-
-    printf("CORE UTIL gen_pub_key: M after reading it from file:\n");
-    bigint_print_info(M);
-    bigint_print_bits(M);
-
     if(privkey_dat == NULL){
         printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
         goto label_cleanup;
@@ -92,15 +84,6 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
         goto label_cleanup;
     }
     
-    printf("[DEBUG] coreutil: Read %lu bytes from privkeyfile:\n", bytes_read);
-    for(u64 i = 0; i < bytes_read; ++i){
-        printf("%u ", privkey_buf[i]);
-        if(i % 16 == 0 && i > 15){
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-
     privkey_bigint.bits = privkey_buf;
     privkey_bigint.size_bits = resbits;
     privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
@@ -110,11 +93,6 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     bigint_create(R, M->size_bits, 0);
     
     mont_pow_mod_m(Gm, &privkey_bigint, M, R); 
-
-    
-    printf("CORE_UTIL gen_pub_key: R (public key) after mont_pow_mod_m():\n");
-    bigint_print_info(R);
-    bigint_print_bits(R);
 
 label_cleanup:
 

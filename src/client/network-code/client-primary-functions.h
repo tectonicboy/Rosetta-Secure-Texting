@@ -943,7 +943,7 @@ u8 login(u8* password, int password_len, char* save_dir){
    
     start_polling_thread();
 
-    printf("\n\n\n******** LOGIN COMPLETED *********\n\n\n");
+    printf("******** LOGIN COMPLETED *********\n");
 
 label_cleanup:
 

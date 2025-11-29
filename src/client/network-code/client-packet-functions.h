@@ -274,7 +274,6 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
 
     memcpy((*msg_buf) + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
-    printf("[OK]  Client: MSG_00 constructed: %lu bytes\n", *msg_len);
 
 /* Unused for now, but on error from a library call, set STATUS + jump here. */
 /* For now the code path just naturally reaches this cleanup code.           */

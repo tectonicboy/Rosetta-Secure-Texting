@@ -1680,8 +1680,6 @@ void get_mont_form(bigint* src, bigint* target, bigint* M){
     target->used_bits = get_used_bits(target->bits, (uint32_t)(M->size_bits/8));
     target->free_bits = target->size_bits - target->used_bits;
     
-    printf("[OK] Cryptolib: Montgomery Form computed successfully.\n");
-
     /* Cleanup. */
 
     free(two.bits);
