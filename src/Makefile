@@ -25,7 +25,7 @@ CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
 
-.PHONY: server server_asan client client_asan
+.PHONY: server server_asan client client_asan tests
 
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
 	server server_gen_priv_key server_gen_pub_key
@@ -37,26 +37,26 @@ prod: server client
 tests: test_signatures test_chacha20 test_blake2b test_argon2
 
 
-test_signatures: tests/Simple_Tests/test_signatures.c
-	gcc tests/Simple_Tests/test_signatures.c \
+test_signatures:
+	gcc tests/simple-tests/test_signatures.c \
 	-o ../bin/test_signatures -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 
-test_chacha20: tests/Simple_Tests/test_chacha20.c
-	gcc tests/Simple_Tests/test_chacha20.c \
+test_chacha20:
+	gcc tests/simple-tests/test_chacha20.c \
 	-o ../bin/test_chacha20 -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 
-test_blake2b: tests/Simple_Tests/test_blake2b.c
-	gcc tests/Simple_Tests/test_blake2b.c \
+test_blake2b:
+	gcc tests/simple-tests/test_blake2b.c \
 	-o ../bin/test_blake2b -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
 
-test_argon2: tests/Simple_Tests/test_argon2.c
-	gcc tests/Simple_Tests/test_argon2.c \
+test_argon2:
+	gcc tests/simple-tests/test_argon2.c \
 	-o ../bin/test_argon2 -march=native -lm \
 	-pthread -O2 $(CFLAGS)
 
@@ -66,12 +66,12 @@ server:
 	-pthread -O2 $(CFLAGS)
 
 
-server_gen_priv_key: server/server_gen_priv_key.c
+server_gen_priv_key:
 	gcc server/server_gen_priv_key.c -o ../bin/server_gen_priv_key \
 	-march=native -lm -pthread -O2 $(CFLAGS)
 	
 	
-server_gen_pub_key: server/server_gen_pub_key.c
+server_gen_pub_key:
 	gcc server/server_gen_pub_key.c -o ../bin/server_gen_pub_key \
 	-march=native -lm -pthread -O2 $(CFLAGS)
 	
@@ -84,12 +84,12 @@ client:
 client_asan:
 	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp      \
 	`wx-config --cxxflags --libs` -o ../bin/tcp-client-asan $(CFLAGS) \
-	-lm -pthread -O2 -march=native 								      \
+	-lm -pthread -O2 -march=native                                    \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
 server_asan:
-	gcc server/rosetta-tcp-server.c -o ../bin/tcp-server_asan -march=native -lm \
-	-pthread -O2 $(CFLAGS)										        \
+	gcc server/rosetta-tcp-server.c -o ../bin/tcp-server_asan -lm \
+	-march=native -pthread -O2 $(CFLAGS)	                      \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
 clean:
