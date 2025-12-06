@@ -21,7 +21,7 @@ CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
-CFLAGS += -Wstrict-aliasing
+CFLAGS += -Wstrict-aliasing=2
 CFLAGS += -Wformat-security
 CFLAGS += -Wno-stringop-truncation
 
@@ -30,7 +30,7 @@ CFLAGS += -Wno-stringop-truncation
 #-Wunused-function -Wunused-label -Wunused-value -Wunused-variable
 #-Wsign-compare -Wmissing-prototypes -Wmissing-declarations
 
-OPTIMIZATION_LEVEL = -O2
+OPTIMIZATION_LEVEL = -O3
 
 # Ask GCC to tell us of any vectorization and loop optimizations it performed.
 OPTIMIZATION_REPORT += -fopt-info-vec-optimized
@@ -40,7 +40,6 @@ LINKER_FLAGS += -pthread
 LINKER_FLAGS += -lm
 
 ARCHITECTURE_FLAGS += -march=native
-
 
 all:
 	gcc rosetta-test-framework.c -o rtf $(OPTIMIZATION_REPORT) \

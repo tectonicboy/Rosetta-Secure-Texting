@@ -11,28 +11,11 @@
 [ Completed ✓ ]
 
 5. Implement the rest of the Rosetta Test Framework with AF_UNIX communication.
-[ In progress ]
-
-          TODO: Test more connection timeout scenarios with CTRL+Z to the side
-                we want to "lose connection" without the OS alerting connected
-                processes or TCP sending FIN packets to connected machines.
-
-          BUG:  Scenario is:
-
-                1. kevin, levin, devin log in, in that order.
-                2. kev makes a room.
-                3. levin joins it, devi joins it, in that order.
-                4. they send some messages.
-                5. kev (room owner) abruptly loses connection to server (CTRL+Z)
-                6. Others are notified of it, get booted.
-                7. Others press ENTER a few times to fix scanf, back to menu.
-                8. devi creates a new room, without logging out.
-                9. levin joins devi's new room.
-               10. kev logs back in, joins devi's new room too.
-               --> BUGGED. Find out why. 
+[ Completed ✓ ]
 
 6. If a user relogs quickly, server says Public Key already exists and does not
    permit the user to log back in. Fix it.
+[ Completed ✓ ]
 
 7. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
 

@@ -12,7 +12,7 @@ void user_loop(void){
     int           scanf_status;
     uint8_t       status;
     const char* GUI_string_helper = ": ";
-    char name_with_msg_string[127 + 2 + SMALL_FIELD_LEN];
+    char name_with_msg_str[127 + 2 + SMALL_FIELD_LEN];
 
     /* Beginning - login has just succeeded. At this point:
      *
@@ -84,6 +84,7 @@ label_try_again1:
              * in the infinite loop, before it gets blocks on scanf again.
              */
             pthread_mutex_lock(&poll_mutex);
+
             if(texting_should_stop == 1){
                 printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
                 pthread_mutex_unlock(&poll_mutex);
@@ -124,21 +125,23 @@ label_try_again1:
                     printf("[OK]  User Spawner: Leave chatroom: COMPLETED.\n");
                 break;
             }                        
-            printf("[DEBUG] User spawner: [MAKE] reached send_text() call.\n"); 
-            printf("[DEBUG] User spawner: [MAKE] msg_len: %lu\n"                
-                   ,(uint64_t)strlen((const char*)message)                      
-                  );                                                            
-            printf("[DEBUG] User spawner: [MAKE] message: %s\n", message);      
+      
             send_text(message, (uint64_t)strlen((const char*)message));  
 
-            /* Construct the string with name and message to be displayed on the GUI. */
-            memset(name_with_msg_string, 0x00, 127 + 2 + SMALL_FIELD_LEN);
-            memset(name_with_msg_string, 0x20, (SMALL_FIELD_LEN - strlen( (const char*)(input_user_name) )));
-            memcpy(name_with_msg_string + (SMALL_FIELD_LEN - strlen( (const char*)(input_user_name) )), input_user_name, strlen( (const char*)(input_user_name) ));
-            memcpy(name_with_msg_string + SMALL_FIELD_LEN, GUI_string_helper, 2);
-            memcpy(name_with_msg_string + SMALL_FIELD_LEN + 2, message, strlen((const char*)message));
-            printf("%s\n", name_with_msg_string);
+            size_t name_len = strlen((const char*)input_user_name);
+            size_t mesg_len = strlen((const char*)message);
 
+            /* Construct the string with name and message to display on GUI. */
+            memset(name_with_msg_str, 0x00, 127 + 2 + SMALL_FIELD_LEN);
+            memset(name_with_msg_str, 0x20, (SMALL_FIELD_LEN - name_len));
+
+            memcpy( name_with_msg_str + (SMALL_FIELD_LEN - name_len)
+                   ,input_user_name
+                   ,name_len);
+
+            memcpy(name_with_msg_str + SMALL_FIELD_LEN, GUI_string_helper, 2);
+            memcpy(name_with_msg_str + SMALL_FIELD_LEN + 2, message, mesg_len);
+            printf("%s\n", name_with_msg_str);
         }
         goto label_begin_user;
     }
@@ -181,13 +184,12 @@ label_try_again1:
              * in the infinite loop, before it gets blocks on scanf again.
              */
             pthread_mutex_lock(&poll_mutex);
+
             if(texting_should_stop == 1){
-                printf("{CASE 1} [OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
                 pthread_mutex_unlock(&poll_mutex);
-                //pthread_join(poller_threadID, NULL);
-                printf("{CASE 1} [DEBUG] RTF User Spawner: got past pthread_join() !\n");
                 break;
             }
+
             pthread_mutex_unlock(&poll_mutex);
 
             memset(message, 0x00, 128);
@@ -196,16 +198,18 @@ label_try_again1:
             scanf_status = scanf("%127s", message);
 
             if(scanf_status == -1 && errno == EINTR){
-                printf("{CASE 2} [OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
-                //pthread_join(poller_threadID, NULL);
-                clearerr(stdin);                                                 
-                /* Get rid of any invalid residual input in the buffer. */       
-                while ((c = getchar()) != '\n' && c != EOF); 
-                printf("{CASE 2} [DEBUG] RTF User Spawner: got past pthread_join() !\n");
+                clearerr(stdin);
+
+                /* Get rid of any invalid residual input in the buffer. */
+
+                while ((c = getchar()) != '\n' && c != EOF);
+ 
                 break;
             }
             else if(strncmp((const char*)message, "__logout__", 10) == 0){
+
                 status = logout();
+
                 if(status)
                     printf("[ERR] User Spawner: Error during Logout().\n");
                 else
@@ -226,13 +230,21 @@ label_try_again1:
 
             /* Display it in that user's own client too */
             
-            /* Construct the string with name and message to be displayed on the GUI. */
-            memset(name_with_msg_string, 0x00, 127 + 2 + SMALL_FIELD_LEN);
-            memset(name_with_msg_string, 0x20, (SMALL_FIELD_LEN - strlen( (const char*)(input_user_name) )));
-            memcpy(name_with_msg_string + (SMALL_FIELD_LEN - strlen( (const char*)(input_user_name) )), input_user_name, strlen( (const char*)(input_user_name) ));
-            memcpy(name_with_msg_string + SMALL_FIELD_LEN, GUI_string_helper, 2);       
-            memcpy(name_with_msg_string + SMALL_FIELD_LEN + 2, message, strlen((const char*)message));
-            printf("%s\n", name_with_msg_string);
+            size_t name_len = strlen((const char*)input_user_name);
+            size_t mesg_len = strlen((const char*)message);
+
+            /* Construct the string with name and message to display on GUI. */
+            memset(name_with_msg_str, 0x00, 127 + 2 + SMALL_FIELD_LEN);
+            memset(name_with_msg_str, 0x20, (SMALL_FIELD_LEN - name_len));
+
+            memcpy( name_with_msg_str + (SMALL_FIELD_LEN - name_len)
+                   ,input_user_name
+                   ,name_len);
+
+            memcpy(name_with_msg_str + SMALL_FIELD_LEN, GUI_string_helper, 2);       
+            memcpy(name_with_msg_str + SMALL_FIELD_LEN + 2, message, mesg_len);
+
+            printf("%s\n", name_with_msg_str);
         }
         goto label_begin_user;
     }
@@ -310,7 +322,6 @@ int main(void){
     printf("\n[OK]  User Spawner: Login completed successfully!\n\n");
 
     user_loop();
-
 
     return 0;
 }
