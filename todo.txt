@@ -18,6 +18,7 @@
 [ Completed ✓ ]
 
 7. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
+[ Completed ✓ ]
 
 8. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
 

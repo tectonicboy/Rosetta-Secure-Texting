@@ -18,7 +18,7 @@ the rest of the system a clean generalized communication API.
 The 4 big components of Rosetta:
 
 - BigInt math engine
-- Cryptograhy engine
+- Cryptography engine
 - TCP Server
 - TCP Client
 
@@ -58,7 +58,7 @@ Schnorr Signatures are computed on every transmission and verified by the other
 side, both by the sending client and by the server as a mediator, so receivers
 can be assured that:
 
-1) The message really did arrive, unaltered, by the receiver's friend.
-2) The message really was relayed by the real Rosetta server, unaltered.
+1) The message really was sent by their friend and were untouched en route.
+2) The message really was relayed by the real Rosetta server unaltered en route.
 
 

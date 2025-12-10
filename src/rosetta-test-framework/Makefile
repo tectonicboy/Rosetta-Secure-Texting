@@ -21,7 +21,7 @@ CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
-CFLAGS += -Wstrict-aliasing=2
+CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wformat-security
 CFLAGS += -Wno-stringop-truncation
 
