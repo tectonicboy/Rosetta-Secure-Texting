@@ -19,11 +19,11 @@ CFLAGS += -Wunreachable-code
 CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
-CFLAGS += -Wstrict-aliasing
-CFLAGS += -Wno-unused-function
-CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
+CFLAGS += -Wstrict-aliasing
+CFLAGS += -Wformat-security
+CFLAGS += -Wno-stringop-truncation
 
 .PHONY: server server_asan client client_asan tests
 
@@ -63,7 +63,7 @@ test_argon2:
 
 server:
 	gcc server/rosetta-server.c -o ../bin/rosetta-server -march=native -lm \
-	-pthread -O2 $(CFLAGS)
+	-pthread -O3 $(CFLAGS)
 
 
 server_gen_priv_key:
@@ -77,12 +77,12 @@ server_gen_pub_key:
 	
 
 client:
-	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp \
+	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
 	`wx-config --cxxflags --libs` -o ../bin/tcp-client $(CFLAGS) \
-	-lm -pthread -O2 -march=native
+	-lm -pthread -O3 -march=native
 
 client_asan:
-	g++ -pipe client/GUI_Code/cApp.cpp client/GUI_Code/cMain.cpp      \
+	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp      \
 	`wx-config --cxxflags --libs` -o ../bin/tcp-client-asan $(CFLAGS) \
 	-lm -pthread -O2 -march=native                                    \
 	-fsanitize=address -static-libasan -g -fstack-usage

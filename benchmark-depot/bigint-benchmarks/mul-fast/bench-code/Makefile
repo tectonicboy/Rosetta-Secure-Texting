@@ -31,8 +31,8 @@ CFLAGS += -Wno-unused-variable
 
 bench:
 	cat /dev/null > ../compiler-report.txt && \
-	cc bench.c -O2 -lm -march=native $(CFLAGS) -o bench \
+	cc bench.c -O3 -lm -march=native $(CFLAGS) -o bench \
 	-fopt-info-loop-optimized=../compiler-report.txt
 
 debug:
-	cc bench.c -O2 -g -lm -march=native $(CFLAGS) -o bench-debug
+	cc bench.c -O3 -g -lm -march=native $(CFLAGS) -o bench-debug
