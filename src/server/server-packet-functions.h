@@ -1,3 +1,7 @@
+
+#include <sys/time.h>
+#include <time.h>
+
 #define PRIVKEY_LEN      40
 #define PUBKEY_LEN       384
 #define MAX_CLIENTS      64
@@ -1943,14 +1947,24 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
     u64 poller_ix;
     
     memcpy(&poller_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
- 
+
+    struct timeval tv1, tv2;
+
+    gettimeofday(&tv1, NULL);
+
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         goto label_cleanup;       
     }
     
-    clients[poller_ix].time_last_polled = clock();
+    gettimeofday(&tv2, NULL);
+
+    printf( "SERVER: Polled: auth timing: SEC: %lu -> %lu | MICROS: %lu -> %lu (%lu)\n"
+	   ,tv1.tv_sec, tv2.tv_sec, tv1.tv_usec, tv2.tv_usec, tv2.tv_usec - tv1.tv_usec	    
+           );
+     
+    //clients[poller_ix].time_last_polled = clock();
     
     /* If no pending messages, simply send the NO_PENDING packet type_40. */
     if(clients[poller_ix].num_pending_msgs == 0){

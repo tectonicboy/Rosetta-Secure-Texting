@@ -4,6 +4,8 @@
 #include "client-communications.h"
 #include "client-packet-functions.h"
 
+#include <sys/time.h>
+#include <time.h>
 
 /* These function pointers tell the client whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the client was started
@@ -1061,8 +1063,16 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
     u8* msg_buf = NULL;
 
     /**************************************************************************/
+    struct timeval tv1, tv2;
 
+
+    gettimeofday(&tv1, NULL);
     status = construct_msg_30(text, text_len, &msg_buf, &msg_len);
+    gettimeofday(&tv2, NULL);
+
+    printf( "construct_30: TIME: secs: %lu -> %lu | MICROS: %lu -> %lu (%lu)\n"
+	   ,tv1.tv_sec,tv2.tv_sec,tv1.tv_usec,tv2.tv_usec, tv2.tv_usec - tv1.tv_usec 
+          );
 
     if(status){
         printf("[ERR] Client: Could not construct msg_30 to send a text!\n\n");
@@ -1070,8 +1080,6 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
     }
 
     status = transmit_payload(msg_buf, msg_len);
-
-    printf("[DEBUG] Client: in send_text(), transmit_payload done!\n");
 
     if(status){
         printf("\n[ERR] Client: Couldn't send MSG_30 (send_text). Abort.\n");

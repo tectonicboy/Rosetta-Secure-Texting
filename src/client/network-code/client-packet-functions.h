@@ -1,6 +1,9 @@
 #include <signal.h>
 #include <errno.h>
 
+#include <sys/time.h>
+#include <time.h>
+
 /* All bitmasks are 64-bit and begin with their leftmost bit. */
 
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
@@ -1820,8 +1823,16 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     }
 
     /* Validate the authenticity of the server AND the sending client. */
+    
+    struct timeval tv1, tv2;
 
+    gettimeofday(&tv1, NULL);
     status = authenticate_server(payload, sign2_offset, sign2_offset);
+    gettimeofday(&tv2, NULL);
+
+    printf( "CLIENT: process_30: authenticate_server() time diff: SEC %lu  --  MICROS %lu\n"
+           ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec	    
+	  );
 
     if(status){
         printf("[ERR] Client: Invalid server signature in process_msg_30.\n\n");
@@ -1850,12 +1861,19 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
            ,PRIVKEY_LEN
     );
 
+    
+    gettimeofday(&tv1, NULL);
     /* Verify the sender's cryptographic signature. */
     status = signature_validate(
                      Gm, &(roommates[sender_ix].guest_pubkey_mont)
                     ,M, Q, recv_s, recv_e
                     ,payload, sign1_offset
     );
+    gettimeofday(&tv2, NULL);
+
+    printf( "CLIENT: process_30, client's signature_validate(): sec %lu -- micros %lu\n"
+	   ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec	    
+          );
 
     if(status) {
         printf("[ERR] Client: Invalid sender signature in msg_30 Drop.\n\n");
@@ -2005,10 +2023,12 @@ u8 construct_msg_40(u8** msg_buf, u64* msg_len){
     memcpy((*msg_buf) + SMALL_FIELD_LEN, &own_ix, SMALL_FIELD_LEN);
 
     /* Compute a cryptographic signature so Rosetta server authenticates us. */
+
     signature_generate(
         M, Q, Gm, *msg_buf, 2 * SMALL_FIELD_LEN,
         (*msg_buf) + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
+    
 
 label_cleanup:
 

@@ -3,6 +3,7 @@
 #include <adxintrin.h> /* for _addcarryx_u64() */
 #include "bigint.h"
 #include <time.h> /* for basic performance measurements */
+#include <sys/time.h>
 
 /* Constants used in the implementation of Montgomery Modular Multiplication. */
 #define MONT_LIMB_SIZ 8                   /* Bytes in a Montgomery-space limb */
@@ -1949,10 +1950,25 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     /* Compute the signature validation prehash. Same as during generation. */ 
       
     blake2b_init(data, data_len, 0, prehash_len, prehash);
-      
+
+    struct timeval tv1, tv2;
+
+    gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Gmont, s, M, &R_aux1); 
+    gettimeofday(&tv2,NULL);
+
+    printf( "CRYPT: verify_sig: mont_pow 1 TIME: SEC %lu -- MICROS %lu\n"
+	   ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec	    
+	  );
+
+    gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Amont, e, M, &R_aux2);
-    
+    gettimeofday(&tv2,NULL);
+
+    printf( "CRYPT: verify_sig: mont_pow 2 TIME: SEC %lu -- MICROS %lu\n"
+           ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec    
+	  );
+
     bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
 
     bigint_div2(&R_aux3, M, &div_res, &R);
