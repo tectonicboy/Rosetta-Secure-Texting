@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <math.h>
 
+#include <sys/time.h>
+
 /******************************************************************************/
 
 #define u8  uint8_t
@@ -1025,7 +1027,7 @@ label_ret:
     return;    
 }
 
-/* Implementation of Algorithm 20.4 "Multiple Precision Division" in Handbook of
+/* Implementation of Algorithm 14.20 Multiple Precision Division in Handbook of
  * Applied Cryptography. Using 16-bit limbs so that u64 storage is sufficient. 
  */        
 void bigint_div2( const bigint* const A
@@ -1090,11 +1092,22 @@ void bigint_div2( const bigint* const A
     --t;
 
     /* Initialize the bigints that will stay constant during the algorithm. */
+    
+    struct timeval tv1, tv2;
+
+    gettimeofday(&tv1, NULL);
+
     bigint_remake(&(big_temps[5]),  A->size_bits, (u32)1);
     bigint_remake(&(big_temps[6]),  A->size_bits, (u32)b);
     bigint_remake(&(big_temps[7]),  A->size_bits, (u32)n);
     bigint_remake(&(big_temps[8]),  A->size_bits, (u32)t);
     bigint_remake(&(big_temps[10]), A->size_bits, (u32)(n-t));
+
+    gettimeofday(&tv2, NULL);
+
+    printf("Timing initial remake() calls in DIV:  SEC: %lu -- MICROS: %lu\n"
+           ,(tv2.tv_sec - tv1.tv_sec),(tv2.tv_usec - tv1.tv_usec)
+    );
 
     bigint_pow(&(big_temps[6]), &(big_temps[10]), &(big_temps[11]));
 
@@ -1115,6 +1128,8 @@ void bigint_div2( const bigint* const A
 
     /**** ============= HELPER POINTER DECLARATIONS END   =================== */
 
+    gettimeofday(&tv1, NULL);
+
     /* Part 2 */
     while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 3){
         aux_ptr16_temp3bits[n-t] += 1;
@@ -1122,6 +1137,21 @@ void bigint_div2( const bigint* const A
         bigint_sub2(&(big_temps[1]), &(big_temps[12]), &(big_temps[0]));
     }
     
+    gettimeofday(&tv2, NULL);                                                    
+                                                                                 
+    printf("Timing part 2 WHILE LOOP in DIV:  SEC: %lu -- MICROS: %lu\n"    
+           ,(tv2.tv_sec - tv1.tv_sec),(tv2.tv_usec - tv1.tv_usec)                
+    );    
+
+    printf("[DEBUG] bigint: DIV: part 3 FOR LOOP -- %lu to %lu "
+           "(16-bit limbs in A and B)\n"
+           ,n,(t+1)
+          );
+
+
+
+    gettimeofday(&tv1, NULL);
+
     /* Part 3 */
     for(i = n; i >= (t+1); --i){
          
@@ -1205,6 +1235,12 @@ void bigint_div2( const bigint* const A
         bigint_sub2(&(big_temps[1]), &(big_temps[18]), &(big_temps[0])); 
     }
     
+    gettimeofday(&tv2, NULL);                                                    
+                                                                                 
+    printf("Timing part 3 FOR LOOP in DIV:  SEC: %lu -- MICROS: %lu\n"         
+           ,(tv2.tv_sec - tv1.tv_sec),(tv2.tv_usec - tv1.tv_usec)                
+    ); 
+
     big_temps[0].used_bits = get_used_bits( big_temps[0].bits,
                                             (u32)((A->size_bits)/8)
                                           );
