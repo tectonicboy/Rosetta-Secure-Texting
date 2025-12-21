@@ -1953,16 +1953,21 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
     gettimeofday(&tv1, NULL);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 ){
+    if( __builtin_expect(
+           authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 
+          ,0
+        )
+      ) 
+    {
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         goto label_cleanup;       
     }
     
     gettimeofday(&tv2, NULL);
 
-    printf( "SERVER: Polled: auth timing: SEC: %lu -> %lu | MICROS: %lu -> %lu (%lu)\n"
-	   ,tv1.tv_sec, tv2.tv_sec, tv1.tv_usec, tv2.tv_usec, tv2.tv_usec - tv1.tv_usec	    
-           );
+    printf( "SERVER: Polled: auth timing: MICROS: %lu\n"
+	        ,tv2.tv_usec - tv1.tv_usec	    
+          );
      
     //clients[poller_ix].time_last_polled = clock();
     

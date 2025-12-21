@@ -1095,19 +1095,11 @@ void bigint_div2( const bigint* const A
     
     struct timeval tv1, tv2;
 
-    gettimeofday(&tv1, NULL);
-
     bigint_remake(&(big_temps[5]),  A->size_bits, (u32)1);
     bigint_remake(&(big_temps[6]),  A->size_bits, (u32)b);
     bigint_remake(&(big_temps[7]),  A->size_bits, (u32)n);
     bigint_remake(&(big_temps[8]),  A->size_bits, (u32)t);
     bigint_remake(&(big_temps[10]), A->size_bits, (u32)(n-t));
-
-    gettimeofday(&tv2, NULL);
-
-    printf("Timing initial remake() calls in DIV:  SEC: %lu -- MICROS: %lu\n"
-           ,(tv2.tv_sec - tv1.tv_sec),(tv2.tv_usec - tv1.tv_usec)
-    );
 
     bigint_pow(&(big_temps[6]), &(big_temps[10]), &(big_temps[11]));
 
@@ -1128,8 +1120,6 @@ void bigint_div2( const bigint* const A
 
     /**** ============= HELPER POINTER DECLARATIONS END   =================== */
 
-    gettimeofday(&tv1, NULL);
-
     /* Part 2 */
     while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 3){
         aux_ptr16_temp3bits[n-t] += 1;
@@ -1137,20 +1127,18 @@ void bigint_div2( const bigint* const A
         bigint_sub2(&(big_temps[1]), &(big_temps[12]), &(big_temps[0]));
     }
     
-    gettimeofday(&tv2, NULL);                                                    
-                                                                                 
-    printf("Timing part 2 WHILE LOOP in DIV:  SEC: %lu -- MICROS: %lu\n"    
-           ,(tv2.tv_sec - tv1.tv_sec),(tv2.tv_usec - tv1.tv_usec)                
-    );    
-
     printf("[DEBUG] bigint: DIV: part 3 FOR LOOP -- %lu to %lu "
            "(16-bit limbs in A and B)\n"
            ,n,(t+1)
           );
 
-
-
     gettimeofday(&tv1, NULL);
+
+    struct timeval tv3, tv4;
+
+    /* TESTING VAR ONLY */
+    uint64_t pow_total_micros = 0;
+    uint64_t sub_total_micros = 0;
 
     /* Part 3 */
     for(i = n; i >= (t+1); --i){
@@ -1169,7 +1157,7 @@ void bigint_div2( const bigint* const A
                     + (u64)(aux_ptr16_temp0bits[i-1]) 
                   )
                   / ( (u64)(aux_ptr16_temp2bits[t]) )
-              );
+              ); 
         }
         
         while(
@@ -1194,29 +1182,39 @@ void bigint_div2( const bigint* const A
          * 
          * x -= q_(i-t-1) * y * b^(i-t-1) ;
          */
+        
         big_temps[0].used_bits = get_used_bits( big_temps[0].bits,
                                                 (u32)((A->size_bits)/8)
                                               );
-                                              
+                  
         big_temps[0].free_bits = A->size_bits - big_temps[0].used_bits; 
         
         bigint_remake(&(big_temps[9]), A->size_bits, (u32)i);
 
-        bigint_sub2(&(big_temps[ 9]), &(big_temps[8]), &(big_temps[13]));
-
+        gettimeofday(&tv3, NULL);
+        bigint_sub2(&(big_temps[ 9]), &(big_temps[8]), &(big_temps[13])); 
         bigint_sub2(&(big_temps[13]), &(big_temps[5]), &(big_temps[14]));
+        gettimeofday(&tv4, NULL);
 
+        if(__builtin_expect(tv4.tv_sec == tv3.tv_sec, 1))                        
+            sub_total_micros += (tv4.tv_usec - tv3.tv_usec);
+
+        gettimeofday(&tv3, NULL); 
         bigint_pow(&(big_temps[6]), &(big_temps[14]), &(big_temps[15]));
+        gettimeofday(&tv4, NULL);               
+
+        if(__builtin_expect(tv4.tv_sec == tv3.tv_sec, 1))
+            pow_total_micros += (tv4.tv_usec - tv3.tv_usec);
 
         bigint_mul_fast(&(big_temps[2]), &(big_temps[15]), &(big_temps[16]));
-        
+
         bigint_remake(&(big_temps[17])
                      ,A->size_bits
                      ,(u32)(aux_ptr16_temp3bits[i-t-1])
                      );
-                     
+
         bigint_mul_fast(&(big_temps[16]), &(big_temps[17]), &(big_temps[18]));
-        
+
         if(bigint_compare2(&(big_temps[0]), &(big_temps[18])) == 3){
         
             aux_ptr16_temp3bits[i-t-1] -= 1;
@@ -1225,14 +1223,19 @@ void bigint_div2( const bigint* const A
                          ,A->size_bits
                          ,(u32)(aux_ptr16_temp3bits[i-t-1])
                          );
-            
+
             bigint_mul_fast
                (&(big_temps[16]), &(big_temps[17]), &(big_temps[18]));
         }
-        
+
         bigint_equate2(&(big_temps[1]), &(big_temps[0]));
 
-        bigint_sub2(&(big_temps[1]), &(big_temps[18]), &(big_temps[0])); 
+        gettimeofday(&tv3,NULL);
+        bigint_sub2(&(big_temps[1]), &(big_temps[18]), &(big_temps[0]));
+        gettimeofday(&tv4,NULL);
+
+        if(__builtin_expect(tv4.tv_sec == tv3.tv_sec, 1))                        
+            sub_total_micros += (tv4.tv_usec - tv3.tv_usec); 
     }
     
     gettimeofday(&tv2, NULL);                                                    
@@ -1240,6 +1243,13 @@ void bigint_div2( const bigint* const A
     printf("Timing part 3 FOR LOOP in DIV:  SEC: %lu -- MICROS: %lu\n"         
            ,(tv2.tv_sec - tv1.tv_sec),(tv2.tv_usec - tv1.tv_usec)                
     ); 
+
+    printf("Cumulative POW micros: %lu\n", pow_total_micros);
+    
+    printf("Cumulative SUB micros: "); 
+    output_red(); 
+    printf("%lu\n", sub_total_micros);
+    output_rst();
 
     big_temps[0].used_bits = get_used_bits( big_temps[0].bits,
                                             (u32)((A->size_bits)/8)

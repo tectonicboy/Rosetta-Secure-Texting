@@ -1957,28 +1957,28 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     mont_pow_mod_m(Gmont, s, M, &R_aux1); 
     gettimeofday(&tv2,NULL);
 
-    printf( "CRYPT: verify_sig: mont_pow 1 TIME: SEC %lu -- MICROS %lu\n"
-	   ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec	    
+    printf( "CRYPT: verify_sig: mont_pow 1 TIME: MICROS %lu\n"
+	   ,tv2.tv_usec - tv1.tv_usec	    
 	  );
 
     gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Amont, e, M, &R_aux2);
     gettimeofday(&tv2,NULL);
 
-    printf( "CRYPT: verify_sig: mont_pow 2 TIME: SEC %lu -- MICROS %lu\n"
-           ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec    
+    printf( "CRYPT: verify_sig: mont_pow 2 TIME: MICROS %lu\n"
+           ,tv2.tv_usec - tv1.tv_usec    
 	  );
 
     bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
-
 
     gettimeofday(&tv1,NULL);
     bigint_div2(&R_aux3, M, &div_res, &R);
     gettimeofday(&tv2,NULL);
 
-    printf("CRYPT: verify_sig: division by M: SEC %lu -- MICROS %lu\n"
-        ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec		    
-    );
+    printf("CRYPT: verify_sig: division by M: MICROS ");
+    output_yel();
+    printf("%lu\n", tv2.tv_usec - tv1.tv_usec);
+    output_rst();
 
     R_used_bytes = R.used_bits;
       
