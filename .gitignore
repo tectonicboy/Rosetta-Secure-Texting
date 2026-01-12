@@ -16,3 +16,4 @@ bin/test_blake2b
 bin/test_chacha20
 bin/test_signatures
 bin/rosetta-server
+correctness-tests/calc-results/*
