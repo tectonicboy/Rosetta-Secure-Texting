@@ -338,7 +338,6 @@ void save_bigint_to_dat(const char* const fn, const bigint* const num,
 {
     FILE* dat_file = NULL;
     u32 file_bytes;
-    const char* mode;
 
     if(mode == 0)
         dat_file = fopen(fn, "w");
