@@ -323,32 +323,66 @@ bigint* get_bigint_from_dat( const u32    file_bits
     return big_n_ptr;
 }
 
-void save_bigint_to_dat(const char* const fn, const bigint* const num){  
+/* Enhancement: The BigInt saving to and loading integers from a file API now
+ *              supports having multiple BigInts in the same file.
+ *
+ *              Here, the mode argument can be:
+ *              
+ *              0 - This BigInt is the only item that this file shall contain.
+ *              1 - Write the BigInt to a specified byte offset within the file.
+ *
+ *              For 0, the byte_offset argument is meaningless and ignored.
+ */
+void save_bigint_to_dat(const char* const fn, const bigint* const num,
+                        uint8_t mode, int64_t byte_offset)
+{
+    FILE* dat_file = NULL;
+    u32 file_bytes;
+    const char* mode;
 
-    FILE* dat_file;
-    u32   file_bytes;
-    
-    if ( (dat_file = fopen(fn, "w")) == NULL){
+    if(mode == 0)
+        dat_file = fopen(fn, "w");
+    else if(mode == 1)
+        dat_file = fopen(fn, "a");
+    else{
+        printf("[ERR] BigInt: Bad mode passed to save_to_dat. Not saving.\n");
+        return;
+    }
+    if(dat_file == NULL){
         printf("[ERR] BigInt: Could not open DAT file for writing:%s\n\n", fn);
         return;
     }
-    
+ 
     file_bytes = num->used_bits;
     
-    while(file_bytes % 8 != 0){
+    while(file_bytes % 8 != 0)
         ++file_bytes;
-    }
 
     file_bytes /= 8;
-        
+
+    if(mode == 1){
+        if(byte_offset < 0){
+            if(byte_offset != -1){
+                printf("[ERR] BigInt: SAVE, bad offset: %ld\n", byte_offset);
+                goto label_cleanup;
+            }
+            
+            /* fopen mode 'a' has already set position indicator at EOF. */
+                
+            
+        }
+    }
+
+    
     if( fwrite(num->bits, 1, file_bytes, dat_file) != file_bytes ){
         printf("[ERR] BigInt: Could not write bigint to DAT file: %s\n\n", fn);
     }
-    
-    if( fclose(dat_file) != 0){
-        printf("[ERR] BigInt: Could not close DAT file for bigint:%s\n\n", fn);
-    }
-    
+
+label_cleanup:
+
+    if(dat_file != NULL)
+        fclose(dat_file);
+
     return;
 }
 
