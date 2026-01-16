@@ -14,8 +14,8 @@ def generate_and_add_large_ints(initial_kick, count, nr_operand_bits):
     results    = [0] * count
 
     for i in range(count):
-        operands_1[i] = initial_kick + (17_000_000 * pow(i, 90))
-        operands_2[i] = initial_kick + (12_111_222 * pow(i, 90))
+        operands_1[i] = initial_kick + (17_000_000 * pow(i, 90)) - i
+        operands_2[i] = initial_kick + (12_111_222 * pow(i, 90)) - i
 
     os.makedirs(os.path.dirname(full_filename_str), exist_ok=True)
     with open(full_filename_str, 'wb') as f:

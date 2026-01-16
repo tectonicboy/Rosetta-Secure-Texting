@@ -2,7 +2,7 @@
 
 #define TEST_MAX_BYTES 512
 
-void generate_and_add_large_ints(bigint* __restrict__ initial_kick, 
+void generate_and_add_large_ints(bigint* __restrict__ initial_kick,
                                  const uint64_t count)
 {
     char filename[128];
@@ -18,6 +18,7 @@ void generate_and_add_large_ints(bigint* __restrict__ initial_kick,
     bigint i_big;
     bigint temp1;
     bigint temp2;
+    bigint temp3;
     bigint one;
 
     bigint_create(&operand1,     TEST_MAX_BYTES * 8, 0);
@@ -29,21 +30,24 @@ void generate_and_add_large_ints(bigint* __restrict__ initial_kick,
     bigint_create(&i_big,        TEST_MAX_BYTES * 8, 0);
     bigint_create(&temp1,        TEST_MAX_BYTES * 8, 0);
     bigint_create(&temp2,        TEST_MAX_BYTES * 8, 0);
+    bigint_create(&temp3,        TEST_MAX_BYTES * 8, 0);
     bigint_create(&one,          TEST_MAX_BYTES * 8, 1);
 
     if( system("rm -f ../calc-results/add-test-0-result-my-*") < 0){
         printf("[ERR] Could not delete existing C code result DAT files.\n");
         exit(1);
     }
-   
+
     for(uint64_t i = 0; i < count;  ++i){
         bigint_pow(&i_big, &ninety_big, &temp1);
 
         bigint_mul_fast(&temp1, &temp_op1_mul, &temp2);
-        bigint_add_fast(&temp2, initial_kick, &operand1);
+        bigint_add_fast(&temp2, initial_kick, &temp3);
+        bigint_sub_fast(&temp3, &i_big, &operand1);
 
         bigint_mul_fast(&temp1, &temp_op2_mul, &temp2);
-        bigint_add_fast(&temp2, initial_kick, &operand2);
+        bigint_add_fast(&temp2, initial_kick, &temp3);
+        bigint_sub_fast(&temp3, &i_big, &operand2);
 
         /* The big final addition to produce test results. */
         bigint_add_fast(&operand1, &operand2, &result);
@@ -56,11 +60,11 @@ void generate_and_add_large_ints(bigint* __restrict__ initial_kick,
             perror("[ERR] fwrite() failed. errno: ");
             exit(1);
         }
-        
+
         fclose(results_fd);
 
-        bigint_add_fast(&i_big, &one, &temp1);                                   
-        bigint_equate2(&i_big, &temp1); 
+        bigint_add_fast(&i_big, &one, &temp1);
+        bigint_equate2(&i_big, &temp1);
     }
 
     return;
@@ -87,7 +91,7 @@ int main(){
     printf("Computed the initial kick number! Results calculation startingg\n");
 
     generate_and_add_large_ints(&start_bigint, nr_add_results);
-    
+
     printf("BigInt ADD Test 1 - Own engine finished generating results.\n");
 
     return 0;
