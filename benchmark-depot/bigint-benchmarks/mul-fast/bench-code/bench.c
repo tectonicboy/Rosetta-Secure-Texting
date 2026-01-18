@@ -158,22 +158,23 @@ int main(){
 
 
     for(size_t j = 0; j < batch_size; ++j){
-	    free(batch_op1[j].bits);
-	    free(batch_op2[j].bits);
-	    free(batch_res[j].bits);
+	    bigint_cleanup(&(batch_op1[j]));
+	    bigint_cleanup(&(batch_op2[j]));
+	    bigint_cleanup(&(batch_res[j]));
 	}
 	
     free(batch_op1);
 	free(batch_op2);
-	free(batch_res);      
+	free(batch_res);
 
-			
+    /**************************************************************************/
 
-/******************************************************************************/
     fclose(ran);
-    free(a.bits);
-    free(b.bits);
-    free(r.bits);    
+
+    bigint_cleanup(&a);
+    bigint_cleanup(&b);
+    bigint_cleanup(&r);    
+
     printf("\n\n");
     printf("**************************************************************\n"
            "*                                                            *\n"

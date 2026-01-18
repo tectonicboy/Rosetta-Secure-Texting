@@ -207,8 +207,8 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
         Gm, &server_pubkey_mont, M, Q, recv_s, recv_e, signed_ptr, signed_len
     );
 
-    free(recv_s->bits);
-    free(recv_e->bits);
+    bigint_cleanup(recv_s);
+    bigint_cleanup(recv_e);
 
     return status;
 }
@@ -566,9 +566,9 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
 
 label_cleanup:
 
-    free(X_s.bits);
-    free(zero.bits);
-    free(B_sM.bits);
+    bigint_cleanup(&X_s);
+    bigint_cleanup(&zero);
+    bigint_cleanup(&B_sM);
 
     return status;
 }
@@ -642,10 +642,10 @@ label_cleanup:
     //release_handshake_memory_region();
 
     temp_ptr = (bigint*)temp_handshake_buf;
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     temp_ptr = (bigint*)(temp_handshake_buf + sizeof(bigint));
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     /* If we WEREN'T told to try login later right after msg_00, but rather
      * after msg_01, which means rosetta is full right now, then the client
@@ -654,7 +654,7 @@ label_cleanup:
      */
     if(handshake_memory_region_state == 2){
         temp_ptr = (bigint*)(temp_handshake_buf + (2 * sizeof(bigint)));
-        free(temp_ptr->bits);
+        bigint_cleanup(temp_ptr);
     }
 
     memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
@@ -708,10 +708,10 @@ u8 process_msg_02(u8* msg){
     bigint* temp_ptr;
 
     temp_ptr = (bigint*)temp_handshake_buf;
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     temp_ptr = (bigint*)(temp_handshake_buf + sizeof(bigint));
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     /* If we WEREN'T told to try login later right after msg_00, but rather
      * after msg_01, which means rosetta is full right now, then the client
@@ -720,7 +720,7 @@ u8 process_msg_02(u8* msg){
      */
     if(handshake_memory_region_state == 2){
         temp_ptr = (bigint*)(temp_handshake_buf + (2 * sizeof(bigint)));
-        free(temp_ptr->bits);
+        bigint_cleanup(temp_ptr);
     }
 
     memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
@@ -866,8 +866,8 @@ label_cleanup:
         fclose(ran_file);
     }
 
-    free(one.bits);
-    free(aux1.bits);
+    bigint_cleanup(&one);
+    bigint_cleanup(&aux1);
 
     return status;
 }
@@ -1082,8 +1082,8 @@ label_cleanup:
         fclose(ran_file);
     }
 
-    free(one.bits);
-    free(aux1.bits);
+    bigint_cleanup(&one);
+    bigint_cleanup(&aux1);
 
     return status;
 }
@@ -1306,9 +1306,10 @@ u8 process_msg_20(u8* msg, u64 msg_len){
 
 label_cleanup:
 
-    free(one.bits);
-    free(aux1.bits);
-    free(temp_shared_secret.bits);
+    bigint_cleanup(&one);
+    bigint_cleanup(&aux1);
+    bigint_cleanup(&temp_shared_secret);
+    
     free(buf_decrypted_AD);
     
     return status;
@@ -1503,9 +1504,9 @@ void process_msg_21(u8* msg){
 
 label_cleanup:
 
-    free(one.bits);
-    free(aux1.bits);
-    free(temp_shared_secret.bits);
+    bigint_cleanup(&one);
+    bigint_cleanup(&aux1);
+    bigint_cleanup(&temp_shared_secret);
 
     return;
 }
@@ -1693,9 +1694,9 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
 
 label_cleanup:
 
-    free(guest_nonce_bigint.bits);
-    free(one.bits);
-    free(aux1.bits);
+    bigint_cleanup(&guest_nonce_bigint);
+    bigint_cleanup(&one);
+    bigint_cleanup(&aux1);
 
     free(associated_data);
 
@@ -1968,17 +1969,16 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
 
 label_cleanup:
 
-    if(recv_s != NULL) {
-        free(recv_s->bits);
-    }
+    if(recv_s != NULL)
+        bigint_cleanup(recv_s);
 
-    if(recv_e != NULL) {
-        free(recv_e->bits);
-    }
+    if(recv_e != NULL)
+        bigint_cleanup(recv_e);
 
-    free(guest_nonce_bigint.bits);
-    free(one.bits);
-    free(aux1.bits);
+    bigint_cleanup(&guest_nonce_bigint);
+    bigint_cleanup(&one);
+    bigint_cleanup(&aux1);
+
     free(decrypted_msg);
 
     return;
@@ -2146,8 +2146,8 @@ void process_msg_50(u8* payload){
     n_bytes_to_erase = (uint64_t)(MAX_BIGINT_SIZ / 8);
     erase_mem_secure(secure_erase_ptr, n_bytes_to_erase);
 
-    free(roommates[sender_ix].guest_pubkey.bits);
-    free(roommates[sender_ix].guest_pubkey_mont.bits);
+    bigint_cleanup(&(roommates[sender_ix].guest_pubkey));
+    bigint_cleanup(&(roommates[sender_ix].guest_pubkey_mont));
 
     secure_erase_ptr = (volatile u8*)roommates[sender_ix].guest_KBA;
     n_bytes_to_erase = SESSION_KEY_LEN;
@@ -2218,8 +2218,9 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
             memset(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);       
             memset(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );
 
-            free(roommates[i].guest_pubkey.bits);
-            free(roommates[i].guest_pubkey_mont.bits);
+            bigint_cleanup(&(roommates[i].guest_pubkey));
+            bigint_cleanup(&(roommates[i].guest_pubkey_mont));
+
             free(roommates[i].guest_KBA);
             free(roommates[i].guest_KAB);
             free(roommates[i].guest_Nonce);
@@ -2296,11 +2297,12 @@ void process_msg_51(u8* payload){
             memset(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);       
             memset(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );       
                                                                                  
-            free(roommates[i].guest_pubkey.bits);                                
-            free(roommates[i].guest_pubkey_mont.bits);                           
-            free(roommates[i].guest_KBA);                                        
-            free(roommates[i].guest_KAB);                                        
-            free(roommates[i].guest_Nonce); 
+            bigint_cleanup(&(roommates[i].guest_pubkey));
+            bigint_cleanup(&(roommates[i].guest_pubkey_mont));
+
+            free(roommates[i].guest_KBA);
+            free(roommates[i].guest_KAB);
+            free(roommates[i].guest_Nonce);
         }
     }
 

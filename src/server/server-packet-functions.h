@@ -320,8 +320,8 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
                     ,M, Q, recv_s, recv_e, signed_ptr, signed_len
     );
 
-    free(recv_s->bits);
-    free(recv_e->bits);
+    bigint_cleanup(recv_s);
+    bigint_cleanup(recv_e);
 
     return ret;
 }
@@ -333,7 +333,7 @@ void remove_user(u64 removing_user_ix){
      * or simply from the server if they weren't in a room.
      */
     if(clients[removing_user_ix].room_ix != 0){
-        remove_user_from_room(removing_user_ix);                                      
+        remove_user_from_room(removing_user_ix); 
     }
 
     /* Clear the user's descriptor, free their global user index slot. */
@@ -345,15 +345,15 @@ void remove_user(u64 removing_user_ix){
 
     /* Deallocate the bits buffer of the client's long-term public key. */
     bigint_nullify( & (clients[removing_user_ix].client_pubkey) );
-    free(clients[removing_user_ix].client_pubkey.bits);
+    bigint_cleanup(&(clients[removing_user_ix].client_pubkey));
 
     /* Deallocate the bits buffer of the their public key's Montgomery form. */
     bigint_nullify( & (clients[removing_user_ix].client_pubkey_mont) );
-    free(clients[removing_user_ix].client_pubkey_mont.bits);
+    bigint_cleanup(&(clients[removing_user_ix].client_pubkey_mont));
 
     /* Deallocate the bits buffer holding our shared secret with this client. */
     bigint_nullify( & (clients[removing_user_ix].shared_secret) );
-    free(clients[removing_user_ix].shared_secret.bits);
+    bigint_cleanup(&(clients[removing_user_ix].shared_secret));
 
     memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
@@ -513,7 +513,7 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
      *       Y_s   = X_s[64 .. 95 ]
      *       N_s   = X_s[96 .. 107] <--- 12-byte Nonce for ChaCha20.
      *
-     *  These 6 things are all stored in the designated locked memory region.
+     *  These 7 things are all stored in the designated locked memory region.
      *  It already had the client's short-term public key in it, so that's 8
      *  cryptographic artifacts in the memory region in total.
      */
@@ -627,10 +627,11 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 
 label_cleanup: 
 
-    free(zero.bits);
-    free(Am.bits);
+    bigint_cleanup(&zero);
+    bigint_cleanup(&Am);
+    bigint_cleanup(&X_s);
+
     free(reply_buf);
-    free(X_s.bits);
     free(B_s);
     
     system("rm temp_privkey.dat");
@@ -973,13 +974,13 @@ label_cleanup:
 
     /* Now it's time to clear and unlock the temporary login memory region. */
     temp_ptr = (bigint*)temp_handshake_buf;
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     temp_ptr = (bigint*)(temp_handshake_buf + sizeof(bigint));
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     temp_ptr = (bigint*)(temp_handshake_buf + (2 * sizeof(bigint)));
-    free(temp_ptr->bits);
+    bigint_cleanup(temp_ptr);
 
     memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
 
@@ -1239,11 +1240,12 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
 
 label_cleanup:
 
-    free(nonce_bigint.bits);
-    free(one.bits);
-    free(aux1.bits); 
+    bigint_cleanup(&nonce_bigint);    
+    bigint_cleanup(&one);    
+    bigint_cleanup(&aux1);
+
     free(reply_buf);
-    
+
     return;
 }
  
@@ -1803,10 +1805,11 @@ label_cleanup:
 
     free(reply_buf);
     free(buf_ixs_pubkeys);
-    free(nonce_bigint.bits);
-    free(one.bits);
-    free(aux1.bits); 
-    
+
+    bigint_cleanup(&nonce_bigint);
+    bigint_cleanup(&one);    
+    bigint_cleanup(&aux1);
+
     return;
 }
 

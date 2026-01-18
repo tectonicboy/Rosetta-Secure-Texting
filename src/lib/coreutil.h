@@ -99,6 +99,8 @@ label_cleanup:
     }
 
     free(privkey_buf);
+    bigint_cleanup(M);
+    bigint_cleanup(Gm);
     free(M);
     free(Gm);
 
@@ -137,10 +139,10 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
         ret = 1;
     }
     
-    free(M_over_Q.bits);
-    free(one.bits);
-    free(div_rem.bits);
-    free(mod_pow_res.bits);
-    
+    bigint_cleanup(&M_over_Q);
+    bigint_cleanup(&one);
+    bigint_cleanup(&div_rem);
+    bigint_cleanup(&mod_pow_res);
+
     return ret;
 }

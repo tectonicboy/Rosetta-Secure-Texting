@@ -20,9 +20,13 @@
 7. Get a clean compile with -O3 on all 10,000+ lines of code, not just -O2.
 [ Completed ✓ ]
 
-8. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+8. Get rid of having to manually free the .bits buffer of bigints. Instead,
+   implement some bigint destruction strategy or at least a simple API.
+[ Completed ✓ ]
 
-9. Montgomery Modular Multiplication is currently hardcoded to use the same      
+9. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+
+?. Montgomery Modular Multiplication is currently hardcoded to use the same      
    Diffie-Hellman modulus M as its multiplication modulus. It doesn't have to be 
    that way. Computing MU and L (the 2 parameters that depend on the Montgomery  
    Modulus) is simple - L is the number of 64-bit limbs (8-byte chunks) in the   
@@ -33,27 +37,14 @@
    will be usable even in Rabin-Miller primality test, which will significantly  
    speed it up I assume. 
 
-?. Replace if(ret_err){print_err; return;}else{print_good;} with a #define that
-   uses __LINE__ and __FILE__ instead of specific strings for all error types.
-
-?. Fix argon2 implementation to work for further passes too.
-
 ?. Write benchmarks and correctness tests for BigInt/Cryptography algorithms.
-
-?. Rewrite Montgomery Modular Multiplication w/ intrinsics for more CPUs.
 
 ?. Make cryptography algorithms constant-time to avoid side channel attacks.
 
 ?. Write a full fledged documentation + description for Rosetta.
-
-?. Specify exactly what global/local state bookkeeping is needed by each
-   function (especially packet processing) in Server and Client.
 
 ?. Come up with a better unique packet ID numbering. Currently the same packet
    ID exists in server and in client. BAD!
 
 ?. Make a better interface for gen_pub_key to not require the private key
    in a temporary file.
-
-?. Get rid of having to manually free the .bits buffer of bigints. Instead,
-   implement some bigint destruction strategy or at least a simple API.

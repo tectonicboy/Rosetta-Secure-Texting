@@ -93,6 +93,19 @@ void bigint_create_from_u32(bigint* const __restrict__ num,
     return;
 }
 
+/* Release the heap memory allocated for the bits buffer of a BigInt.
+ *
+ * Intentionally not zeroing out the big integer itself beforehand, as this
+ * would be a significant slowdown and it's not always a requirement - in places
+ * where zeroing out is required, e.g. for cryptographic artifacts, it should be
+ * done with bigint_nullify() before cleaning the bigint up.
+ */
+void bigint_cleanup(bigint* n)
+{
+    free(n->bits);
+    return;
+}
+
 /* Make a BigInt equal to zero. */
 void bigint_nullify(bigint* const __restrict__ num){
 
@@ -110,7 +123,7 @@ void bigint_remake(bigint* const num, const u32 bitsize, const u32 initial)
         num->used_bits = get_used_bits(num->bits, sizeof(u32));
     }
     else{
-        free(num->bits);
+        bigint_cleanup(num);
         bigint_create_from_u32(num, bitsize, initial);
     }
 
@@ -752,14 +765,15 @@ void bigint_pow( const bigint* const n1
     }
 
 ret_label:
-    free(n1_used_bits.bits);
-    free(R_req_bits.bits);
-    free(zero.bits);
-    free(one.bits);
-    free(R_res_bits.bits);
-    free(R_temp.bits);
-    free(starter.bits);
-    free(starter_temp.bits);
+
+    bigint_cleanup(&n1_used_bits);
+    bigint_cleanup(&R_req_bits);
+    bigint_cleanup(&zero);
+    bigint_cleanup(&one);
+    bigint_cleanup(&R_res_bits);
+    bigint_cleanup(&R_temp);
+    bigint_cleanup(&starter);
+    bigint_cleanup(&starter_temp);
 
     return;
 }
@@ -1062,7 +1076,7 @@ void bigint_div2( const bigint* const A
 label_cleanup:
 
     for(i = 0; i < num_temps; ++i){
-        free(big_temps[i].bits);
+        bigint_cleanup(&(big_temps[i]));
     }
 
     return;
@@ -1113,9 +1127,10 @@ void bigint_mod_mul( bigint** nums
     }
 
 label_ret:
-    free(mul_res.bits);
-    free(div_res.bits);
-    free(rem.bits);
+    
+    bigint_cleanup(&mul_res);
+    bigint_cleanup(&div_res);
+    bigint_cleanup(&rem);
 
     return;
 }
@@ -1244,24 +1259,28 @@ void bigint_mod_pow( const bigint* const N
 label_ret:
 
     for(u32 i = 0; i < c1; ++i){
-        free(arr2[i].bits);
+        bigint_cleanup(&(arr2[i]));
     }
 
     free(arr2);
     free(arr_ptrs);
     free(arr1);
-    free(aux1.bits);
-    free(aux2.bits);
-    free(div_res.bits);
-    free(zero.bits);
-    free(one.bits);
-    free(two.bits);
+
+    bigint_cleanup(&aux1);
+    bigint_cleanup(&aux2);
+    bigint_cleanup(&div_res);
+    bigint_cleanup(&zero);
+    bigint_cleanup(&one);
+    bigint_cleanup(&two);
 
     return;
 }
 
-/* Fast algorithm for determining whether a BigInt is prime or not. */
-/* Returns 1 if the big number is prime, or 0 otherwise. */
+/* Fast algorithm for determining whether a BigInt is prime or not.
+ * Returns 1 if the big number is prime, or 0 otherwise.
+ * For the 2nd argument, normally 50 passes is more than enough to be assured
+ * with astronomically large certainty that the number is prime.
+ */
 u8 rabin_miller(const bigint* const N, const u32 passes){
 
     bigint  N_minus_one;
@@ -1391,20 +1410,20 @@ label_B0:
 
 label_ret:
 
-    free(N_minus_one.bits);
-    free(one.bits);
-    free(two.bits);
-    free(M.bits);
-    free(B0.bits);
-    free(Bi_prev.bits);
-    free(Bi.bits);
-    free(div_res.bits);
-    free(rem.bits);
-    free(zero.bits);
-    free(aux1.bits);
+    bigint_cleanup(&N_minus_one);
+    bigint_cleanup(&one);
+    bigint_cleanup(&two);
+    bigint_cleanup(&M);
+    bigint_cleanup(&B0);
+    bigint_cleanup(&Bi_prev);
+    bigint_cleanup(&Bi);
+    bigint_cleanup(&div_res);
+    bigint_cleanup(&rem);
+    bigint_cleanup(&zero);
+    bigint_cleanup(&aux1);
 
     for(u32 i = 0; i < (passes * 2) + 1; ++i){
-        free(As[i].bits);
+        bigint_cleanup(&(As[i]));
     }
 
     free(As);

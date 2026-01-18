@@ -210,16 +210,16 @@ label_cleanup:
     if(rand_fd != NULL)
         fclose(rand_fd);
 
-    free(M.bits);
-    free(Q.bits);
-    free(two.bits);
-    free(aux.bits); 
-    free(tmp.bits);
-    free(one.bits);
+    bigint_cleanup(&M);
+    bigint_cleanup(&Q);
+    bigint_cleanup(&two);
+    bigint_cleanup(&aux); 
+    bigint_cleanup(&tmp);
+    bigint_cleanup(&one);
 
     for(uint64_t i = 0; i < NUM_THREADS; ++i){
         free(thread_func_inputs[i]);
-        free(test_Ms[i].bits);
+        bigint_cleanup(&(test_Ms[i]));
     }
 
     return 0;

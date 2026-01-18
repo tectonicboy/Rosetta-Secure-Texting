@@ -1633,7 +1633,7 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         bigint_sub_fast(&R_aux, N, R);
     }
 
-    free(R_aux.bits);
+    bigint_cleanup(&R_aux);
 
     return;
 }
@@ -1680,11 +1680,11 @@ void get_mont_form(bigint* src, bigint* target, bigint* M){
 
     /* Cleanup. */
 
-    free(two.bits);
-    free(sixtyfour.bits);
-    free(beta.bits);
-    free(aux.bits);
-    free(two_L.bits);
+    bigint_cleanup(&two);
+    bigint_cleanup(&sixtyfour);
+    bigint_cleanup(&beta);
+    bigint_cleanup(&aux);
+    bigint_cleanup(&two_L);
 
     return;
 }
@@ -1739,11 +1739,11 @@ void mont_pow_mod_m(bigint* B, bigint* P, bigint* M, bigint* R){
 
     bigint_div2(&R_1, M, &div_res, R);
 
-    free(X.bits);
-    free(Y.bits);
-    free(R_1.bits);
-    free(one.bits);
-    free(div_res.bits);
+    bigint_cleanup(&X);
+    bigint_cleanup(&Y);
+    bigint_cleanup(&R_1);
+    bigint_cleanup(&one);
+    bigint_cleanup(&div_res);
 
     return;
 }
@@ -1875,19 +1875,20 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont
     offset += sizeof(bigint);
     memcpy(signature + offset, e.bits, 40);
 
-    /* Cleanup. */
-    free(second_btb_outnum.bits);
-    free(one.bits);
-    free(Q_minus_one.bits);
-    free(reduced_btb_res.bits);
-    free(k.bits);
-    free(R.bits);
-    free(s.bits);
-    free(div_res.bits);
-    free(aux1.bits);
-    free(aux2.bits);
-    free(aux3.bits);
-    free(e.bits);
+    /* Cleanup. */ 
+    bigint_cleanup(&second_btb_outnum);
+    bigint_cleanup(&one);
+    bigint_cleanup(&Q_minus_one);
+    bigint_cleanup(&reduced_btb_res);
+    bigint_cleanup(&k);
+    bigint_cleanup(&R);
+    bigint_cleanup(&s);
+    bigint_cleanup(&div_res);
+    bigint_cleanup(&aux1);
+    bigint_cleanup(&aux2);
+    bigint_cleanup(&aux3);
+    bigint_cleanup(&e);
+
     free(second_btb_inbuf);
     free(R_with_prehash);
 
@@ -2014,12 +2015,12 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
 label_cleanup:
 
-    free(R.bits);
-    free(R_aux1.bits);
-    free(R_aux2.bits);
-    free(R_aux3.bits);
-    free(div_res.bits);
-    free(val_e.bits);
+    bigint_cleanup(&R);
+    bigint_cleanup(&R_aux1);
+    bigint_cleanup(&R_aux2);
+    bigint_cleanup(&R_aux3);
+    bigint_cleanup(&div_res);
+    bigint_cleanup(&val_e);
 
     free(R_with_prehash);
 

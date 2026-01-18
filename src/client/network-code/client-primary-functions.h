@@ -1,5 +1,3 @@
-/******************************************************************************/
-
 #include "../../lib/coreutil.h"
 #include "client-communications.h"
 #include "client-packet-functions.h"
@@ -338,7 +336,7 @@ label_cleanup:
     }
 
     if(calculated_A != NULL){
-        free(calculated_A->bits);
+        bigint_cleanup(calculated_A);
         free(calculated_A);
     }
 
@@ -774,19 +772,18 @@ u8 reg(u8* password, int password_len, char* save_dir){
 
 label_cleanup:
 
-    free(A_longterm->bits);
+    bigint_cleanup(A_longterm);
     free(A_longterm);
-    free(temp_privkey.bits);
+
+    bigint_cleanup(&temp_privkey);
 
     system("rm temp_privkey.dat");
 
-    if(ranfile){
+    if(ranfile)
         fclose(ranfile);
-    }
 
-    if(user_save){
+    if(user_save)
         fclose(user_save);
-    }
 
     return status;
 }
