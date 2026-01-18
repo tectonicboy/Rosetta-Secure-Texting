@@ -80,9 +80,6 @@ u8 self_init(){
     server_privkey_bigint.used_bits = 
                             get_used_bits(server_privkey, PRIVKEY_LEN);
                             
-    server_privkey_bigint.free_bits = 
-                            MAX_BIGINT_SIZ - server_privkey_bigint.used_bits;
-            
     /* Load in other BigInts needed for the cryptography to work. */
     
     /* Diffie-Hellman modulus M, 3071-bit prime number */                        

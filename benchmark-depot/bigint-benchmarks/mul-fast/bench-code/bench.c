@@ -69,8 +69,6 @@ int main(){
 
         a.used_bits = get_used_bits(a.bits, BIGINT_SIZ / 8);
         b.used_bits = get_used_bits(b.bits, BIGINT_SIZ / 8);
-        a.free_bits = a.size_bits - a.used_bits;
-        b.free_bits = b.size_bits - b.used_bits;
 
         gettimeofday(&tv1, NULL);
      
@@ -141,9 +139,6 @@ int main(){
 
 		batch_op1[j].used_bits = get_used_bits(batch_op1[j].bits, BIGINT_SIZ/8);
 		batch_op2[j].used_bits = get_used_bits(batch_op2[j].bits, BIGINT_SIZ/8);
-		batch_op1[j].free_bits = batch_op1[j].size_bits -batch_op1[j].used_bits;
-		batch_op2[j].free_bits = batch_op2[j].size_bits -batch_op2[j].used_bits;
-
 	}
 
 	gettimeofday(&tv1, NULL);

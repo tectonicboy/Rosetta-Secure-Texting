@@ -32,7 +32,6 @@ typedef struct bigint{
     u8* bits;
     u32 size_bits;
     u32 used_bits;
-    u32 free_bits;
 } bigint;
 
 void print_buffer(uint8_t* buf, uint64_t len){
@@ -63,8 +62,6 @@ void bigint_create(bigint* const num, const u32 bitsize, const u32 initial){
             break;
         }
     }
-
-    num->free_bits = (bitsize - num->used_bits);
 
     for(u32 i = 0; i < 32; ++i){
         uint32_t* helper_ptr = (uint32_t*)(num->bits);
@@ -240,13 +237,11 @@ void bigint_print_info(const bigint* const num){
            "*******************************\n"
            "  BIGINT INFO                  \n"
            "                               \n"
-           "  Bits size :  %u              \n"
-           "  Used bits :  %u              \n"
-           "  Free bits :  %u              \n"
+           "  Size bits:  %u               \n"
+           "  Used bits:  %u               \n"
            "*******************************\n\n"
            ,num->size_bits
            ,num->used_bits
-           ,num->free_bits
     );
 
     return;
@@ -310,7 +305,6 @@ bigint* get_bigint_from_dat( const u32    file_bits
     file_bytes /= 8;
 
     big_n_ptr->used_bits = used_bits;
-    big_n_ptr->free_bits = reserve_bits - used_bits;
 
     if(fread(big_n_ptr->bits, 1, file_bytes, dat_file) != file_bytes){
         printf("[ERR] BigInt: Could not read bigint DAT file: %s\n\n", fn);
@@ -364,7 +358,6 @@ void save_bigint_to_dat(const char* const fn, const bigint* const num)
 void bigint_nullify(bigint* const num){
 
     memset(num->bits, 0, num->size_bits / 8);
-    num->free_bits = num->size_bits;
     num->used_bits = 0;
 
     return;
@@ -448,7 +441,6 @@ void bigint_equate2(bigint* const n1, const bigint* const n2){
     aux /= 8;
 
     n1->used_bits = n2->used_bits;
-    n1->free_bits = n2->free_bits;
 
     for(u32 i = 0; i < aux; ++i){
         *(n1->bits + i) = *(n2->bits + i);
@@ -576,8 +568,6 @@ void bigint_add_fast( const bigint* const n1
         R->used_bits = C;
     }
 
-    R->free_bits = R->size_bits - R->used_bits;
-
     return;
 }
 
@@ -667,8 +657,6 @@ void bigint_mul_fast( const bigint* const n1
     if (!(temp_res & ((u64)1 << bit_to_check) )){
         --R->used_bits;
     }
-
-    R->free_bits = R->size_bits - R->used_bits;
 
     return;
 }
@@ -826,7 +814,7 @@ void bigint_sub_fast( const bigint* const n1
     }
 
     R->used_bits = get_used_bits(R->bits, R->size_bits / 8);
-    R->free_bits = R->size_bits - R->used_bits;
+    
     return;
 }
 
@@ -990,8 +978,6 @@ void bigint_div2( const bigint* const A
                                                 (u32)((A->size_bits)/8)
                                               );
 
-        big_temps[0].free_bits = A->size_bits - big_temps[0].used_bits;
-
         bigint_remake(&(big_temps[9]), A->size_bits, (u32)i);
 
         gettimeofday(&tv3, NULL);
@@ -1058,13 +1044,9 @@ void bigint_div2( const bigint* const A
                                             (u32)((A->size_bits)/8)
                                           );
 
-    big_temps[0].free_bits = A->size_bits - big_temps[0].used_bits;
-
     big_temps[3].used_bits = get_used_bits( big_temps[3].bits,
                                             (u32)((A->size_bits)/8)
                                           );
-
-    big_temps[3].free_bits = A->size_bits - big_temps[3].used_bits;
 
     bigint_equate2(Rem, &(big_temps[0]));
     bigint_equate2(Res, &(big_temps[3]));

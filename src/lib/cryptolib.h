@@ -1625,8 +1625,6 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
     /* 7. */
     R->used_bits = get_used_bits(R->bits, (u32)(R->size_bits / 8));
 
-    R->free_bits = R->size_bits - R->used_bits;
-
     uint64_t temp_limb;
     memcpy(&temp_limb, (R->bits + (MONT_L * MONT_LIMB_SIZ)), sizeof(u64));
 
@@ -1679,7 +1677,6 @@ void get_mont_form(bigint* src, bigint* target, bigint* M){
     montgomery_mul(&aux, src, M, target);
 
     target->used_bits = get_used_bits(target->bits, (uint32_t)(M->size_bits/8));
-    target->free_bits = target->size_bits - target->used_bits;
 
     /* Cleanup. */
 
@@ -1826,9 +1823,6 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont
 
     second_btb_outnum.used_bits = get_used_bits(second_btb_outnum.bits, 64);
 
-    second_btb_outnum.free_bits =
-      second_btb_outnum.size_bits - second_btb_outnum.used_bits;
-
     bigint_sub_fast(Q, &one, &Q_minus_one);
     bigint_div2(&second_btb_outnum, &Q_minus_one, &div_res, &reduced_btb_res);
     bigint_add_fast(&reduced_btb_res, &one, &k);  /* <----- k */
@@ -1858,7 +1852,6 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont
     memcpy(e.bits, third_btb_outbuf, 40);
 
     e.used_bits = get_used_bits(e.bits, 40);
-    e.free_bits = e.size_bits - e.used_bits;
 
     /* Lastly, compute s = ( k + ((Q-a)×e) ) mod Q */
     bigint_sub_fast(Q, private_key, &aux1);
@@ -2004,7 +1997,6 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     memcpy(val_e.bits, blake2b_outbuf, 40);
 
     val_e.used_bits = get_used_bits(val_e.bits, 40);
-    val_e.free_bits = val_e.size_bits - val_e.used_bits;
 
     if( bigint_compare2(e, &val_e) != 2 ){
         printf("[WARN] Cryptolib: SIG_VAL: val_e != passed e. Ret 0.\n");

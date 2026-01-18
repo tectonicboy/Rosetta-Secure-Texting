@@ -253,7 +253,6 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
     memcpy(temp_privkey.bits, temp_handshake_buf, PRIVKEY_LEN);
     temp_privkey.size_bits = MAX_BIGINT_SIZ;
     temp_privkey.used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
-    temp_privkey.free_bits = MAX_BIGINT_SIZ - temp_privkey.used_bits;
 
     memset(temp_handshake_buf, 0, PRIVKEY_LEN);
 
@@ -351,7 +350,6 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
     memcpy(B_s.bits, received_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
     B_s.size_bits = MAX_BIGINT_SIZ;
     B_s.used_bits = get_used_bits(B_s.bits, PUBKEY_LEN);
-    B_s.free_bits = B_s.size_bits - B_s.used_bits;
 
     /* Compute a short-term shared secret with the server, extract a pair of
      * symmetric bidirectional keys and the symmetric ChaCha Nonce, as well as
@@ -1261,7 +1259,6 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         /* Now initialize the rest of this guest's descriptor structure. */
         this_pubkey->size_bits = MAX_BIGINT_SIZ;
         this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
-        this_pubkey->free_bits =this_pubkey->size_bits - this_pubkey->used_bits;
 
         bigint_create(&(roommates[i].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
         get_mont_form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
@@ -1453,7 +1450,6 @@ void process_msg_21(u8* msg){
     /* Now initialize the rest of the new guest's descriptor structure. */
     this_pubkey->size_bits = MAX_BIGINT_SIZ;
     this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
-    this_pubkey->free_bits = this_pubkey->size_bits - this_pubkey->used_bits;
 
     bigint_create(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
     get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
@@ -1635,9 +1631,6 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
                 get_used_bits(guest_nonce_bigint.bits, LONG_NONCE_LEN);
 
             guest_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-
-            guest_nonce_bigint.free_bits =
-                MAX_BIGINT_SIZ - guest_nonce_bigint.used_bits;
 
             /* Increment nonce as many times as counter says for this guest. */
             for(u64 j = 0; j < roommates[i].guest_nonce_counter; ++j){
@@ -1920,10 +1913,6 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
         get_used_bits(guest_nonce_bigint.bits, LONG_NONCE_LEN);
 
     guest_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-
-    guest_nonce_bigint.free_bits =
-                    guest_nonce_bigint.size_bits - guest_nonce_bigint.used_bits;
-
 
     /* Increment nonce as many times as counter says for this guest. */
     for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter; ++j){

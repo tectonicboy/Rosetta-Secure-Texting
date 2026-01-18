@@ -91,7 +91,6 @@ int main(void){
     Q.bits[0] |= (1 << 0);
 
     Q.used_bits = get_used_bits(Q.bits, SIZE_Q_BYTES);
-    Q.free_bits = Q.size_bits - Q.used_bits;
 
     while(is_prime == 0){
         printf("Finding 320-bit prime  Q  --  numbers checked: %lu\n", counter);
@@ -141,7 +140,6 @@ label_keep_searching:
         aux.bits[SIZE_M_BYTES - SIZE_Q_BYTES - 1] |= (1 << 7);                 
         aux.bits[0] &= ~(1 << 0);                                              
         aux.used_bits = get_used_bits(aux.bits, SIZE_M_BYTES - SIZE_Q_BYTES);  
-        aux.free_bits = aux.size_bits - aux.used_bits;                         
         
         bigint_mul_fast(&Q, &aux, &(test_Ms[i]));
         bigint_equate2(&tmp, &(test_Ms[i]));

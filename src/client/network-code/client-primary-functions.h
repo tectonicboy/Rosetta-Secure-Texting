@@ -180,12 +180,10 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     bigint_create(&own_privkey, MAX_BIGINT_SIZ, 0);
     memcpy(own_privkey.bits, decrypted_privkey_buf, PRIVKEY_LEN);
     own_privkey.used_bits = get_used_bits(decrypted_privkey_buf, PRIVKEY_LEN);
-    own_privkey.free_bits = MAX_BIGINT_SIZ - own_privkey.used_bits;
 
     bigint_create(&own_pubkey, MAX_BIGINT_SIZ, 0);
     memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);
     own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN);
-    own_pubkey.free_bits = MAX_BIGINT_SIZ - own_pubkey.used_bits;
 
     /* Compute a public key with that private key and M, Q, G. If it's the same
      * as the public key stored on the filesystem, the private key was
@@ -318,9 +316,6 @@ u8 self_init(u8* password, int password_len, char* save_dir){
                                      (server_nonce_bigint.bits, LONG_NONCE_LEN);
 
     server_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-
-    server_nonce_bigint.free_bits = 
-                                 MAX_BIGINT_SIZ - server_nonce_bigint.used_bits;
 
     /* Initialize the mutex that will be used to prevent the main thread and
      * the poller thread from writing/reading the same data in parallel.
@@ -656,7 +651,6 @@ u8 reg(u8* password, int password_len, char* save_dir){
     memcpy(temp_privkey.bits, privkey_buf, PRIVKEY_LEN);
     temp_privkey.size_bits = MAX_BIGINT_SIZ;
     temp_privkey.used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
-    temp_privkey.free_bits = MAX_BIGINT_SIZ - temp_privkey.used_bits;
 
     save_bigint_to_dat("temp_privkey.dat", &temp_privkey);
 

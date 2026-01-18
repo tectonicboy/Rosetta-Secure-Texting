@@ -474,8 +474,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     
     A_s->used_bits = get_used_bits(msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
                      
-    A_s->free_bits = A_s->size_bits - A_s->used_bits;
-    
     /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
     
     /* A "check non zero" function in the BigInt library would also be useful */
@@ -528,7 +526,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 
     b_s.size_bits = MAX_BIGINT_SIZ;
     b_s.used_bits = get_used_bits(b_s.bits, PRIVKEY_LEN);
-    b_s.free_bits = b_s.size_bits - b_s.used_bits;
     
     memset(temp_handshake_buf + sizeof(bigint), 0,    PRIVKEY_LEN);
     memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
@@ -909,10 +906,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     
     (clients[user_ix].client_pubkey).used_bits 
        = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
-     
-    (clients[user_ix].client_pubkey).free_bits
-       = MAX_BIGINT_SIZ - (clients[user_ix].client_pubkey).used_bits;
-    
+      
     /* Calculate the Montgomery Form of the client's long-term public key. */ 
     bigint_create( &(clients[user_ix].client_pubkey_mont)
                   ,MAX_BIGINT_SIZ
@@ -1056,7 +1050,6 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
      
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
     
     bigint_create(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
@@ -1394,7 +1387,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
           
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-    nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
        
     /* Increment nonce as many times as needed. */
     for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
@@ -1730,7 +1722,6 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
             get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
             
         nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-        nonce_bigint.free_bits = MAX_BIGINT_SIZ - nonce_bigint.used_bits;
 
         /* Increment nonce as many times as needed. */
         for(u64 j = 0; j < clients[user_ixs_in_room[i]].nonce_counter; ++j){
