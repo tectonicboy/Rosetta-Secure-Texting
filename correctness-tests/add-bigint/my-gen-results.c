@@ -21,17 +21,17 @@ void generate_and_add_large_ints(bigint* __restrict__ initial_kick,
     bigint temp3;
     bigint one;
 
-    bigint_create(&operand1,     TEST_MAX_BYTES * 8, 0);
-    bigint_create(&operand2,     TEST_MAX_BYTES * 8, 0);
-    bigint_create(&result,       TEST_MAX_BYTES * 8, 0);
-    bigint_create(&temp_op1_mul, TEST_MAX_BYTES * 8, 17000000);
-    bigint_create(&temp_op2_mul, TEST_MAX_BYTES * 8, 12111222);
-    bigint_create(&ninety_big,   TEST_MAX_BYTES * 8, 90);
-    bigint_create(&i_big,        TEST_MAX_BYTES * 8, 0);
-    bigint_create(&temp1,        TEST_MAX_BYTES * 8, 0);
-    bigint_create(&temp2,        TEST_MAX_BYTES * 8, 0);
-    bigint_create(&temp3,        TEST_MAX_BYTES * 8, 0);
-    bigint_create(&one,          TEST_MAX_BYTES * 8, 1);
+    bigint_create_from_u32(&operand1,     TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&operand2,     TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&result,       TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&temp_op1_mul, TEST_MAX_BYTES * 8, 17000000);
+    bigint_create_from_u32(&temp_op2_mul, TEST_MAX_BYTES * 8, 12111222);
+    bigint_create_from_u32(&ninety_big,   TEST_MAX_BYTES * 8, 90);
+    bigint_create_from_u32(&i_big,        TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&temp1,        TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&temp2,        TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&temp3,        TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&one,          TEST_MAX_BYTES * 8, 1);
 
     if( system("rm -f ../calc-results/add-test-0-result-my-*") < 0){
         printf("[ERR] Could not delete existing C code result DAT files.\n");
@@ -76,9 +76,9 @@ int main(){
     bigint temp_mul_result;
     const uint64_t nr_add_results = 10000000;
 
-    bigint_create(&start_bigint,    TEST_MAX_BYTES * 8, 0xFF000000);
-    bigint_create(&multiplier,      TEST_MAX_BYTES * 8, 0xFF000000);
-    bigint_create(&temp_mul_result, TEST_MAX_BYTES * 8, 0);
+    bigint_create_from_u32(&start_bigint,    TEST_MAX_BYTES * 8, 0xFF000000);
+    bigint_create_from_u32(&multiplier,      TEST_MAX_BYTES * 8, 0xFF000000);
+    bigint_create_from_u32(&temp_mul_result, TEST_MAX_BYTES * 8, 0);
 
     printf("Our own BigInt engine starting to generate test integers.\n");
 

@@ -463,7 +463,7 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
      */
     temp_handshake_memory_region_isLocked = 1;
 
-    bigint_create(&X_s, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&X_s, MAX_BIGINT_SIZ, 0);
     
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
@@ -478,8 +478,8 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     
     /* A "check non zero" function in the BigInt library would also be useful */
     
-    bigint_create(&zero, MAX_BIGINT_SIZ, 0);
-    bigint_create(&Am,   MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&zero, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&Am,   MAX_BIGINT_SIZ, 0);
     
     get_mont_form(A_s, &Am, M);
     
@@ -894,7 +894,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
           );
 
     /* Transport the client's long-term public key into their slot. */
-    bigint_create( &(clients[user_ix].client_pubkey)
+    bigint_create_from_u32( &(clients[user_ix].client_pubkey)
                   ,MAX_BIGINT_SIZ
                   ,0
                  ); 
@@ -908,7 +908,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
        = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
       
     /* Calculate the Montgomery Form of the client's long-term public key. */ 
-    bigint_create( &(clients[user_ix].client_pubkey_mont)
+    bigint_create_from_u32( &(clients[user_ix].client_pubkey_mont)
                   ,MAX_BIGINT_SIZ
                   ,0
                  );      
@@ -932,7 +932,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
      * it in that client's structure entry, just like it keeps the client's
      * public key there too.
      */
-    bigint_create( &(clients[user_ix].shared_secret)
+    bigint_create_from_u32( &(clients[user_ix].shared_secret)
                   ,MAX_BIGINT_SIZ
                   ,0
                  );
@@ -1051,8 +1051,8 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
     
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) == 1){
@@ -1315,8 +1315,8 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
     memset(type21_encrypted_part, 0, SMALL_FIELD_LEN + PUBKEY_LEN);
     memset(user_ixs_in_room,      0, MAX_CLIENTS * SMALL_FIELD_LEN);
 
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 

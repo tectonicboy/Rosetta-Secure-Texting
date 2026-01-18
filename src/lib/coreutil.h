@@ -88,7 +88,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     privkey_bigint.size_bits = resbits;
     privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
                 
-    bigint_create(R, M->size_bits, 0);
+    bigint_create_from_u32(R, M->size_bits, 0);
     
     mont_pow_mod_m(Gm, &privkey_bigint, M, R); 
 
@@ -123,10 +123,10 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
           
     bool ret = 0;
     
-    bigint_create(&M_over_Q,    12800, 0);
-    bigint_create(&one,         12800, 1);
-    bigint_create(&div_rem,     12800, 0);
-    bigint_create(&mod_pow_res, 12800, 0); 
+    bigint_create_from_u32(&M_over_Q,    12800, 0);
+    bigint_create_from_u32(&one,         12800, 1);
+    bigint_create_from_u32(&div_rem,     12800, 0);
+    bigint_create_from_u32(&mod_pow_res, 12800, 0); 
        
     bigint_div2(M, Q, &M_over_Q, &div_rem);
     

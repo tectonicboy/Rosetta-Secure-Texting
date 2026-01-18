@@ -44,38 +44,75 @@ void print_buffer(uint8_t* buf, uint64_t len){
     return;
 }
 
-/* First constructor - from a u32. */
-void bigint_create(bigint* const num, const u32 bitsize, const u32 initial){
+/* Given a buffer of bytes, get the index of the biggest ON bit. This would be
+ * the "used_bits" count of a BigInt represented by this buffer.
+ */
+u32 get_used_bits(const u8* const buf, const u32 siz_bytes){
 
-    if( (bitsize % 8) || (bitsize < 64) || (bitsize > MAX_BITS) ){
-        printf("[ERR] Bigint: Invalid bitsize of new BigInt. (from uint32)\n");
-        return;
+    u32 used_bits = siz_bytes * 8;
+
+    /* Start from the rightmost byte, as this is biggest in little-endian. */
+    for(int64_t i = siz_bytes - 1; i >= 0; --i){
+        for(u8 j = 0; j < 8; ++j){  /* Examine each bit individually. */
+            if(buf[i] & ( 1 << ( 7 - j))){
+                return used_bits;
+            }
+            --used_bits;
+        }
+    }
+
+    return used_bits;
+}
+
+/* First constructor - from a u32. */
+void bigint_create_from_u32(bigint* const __restrict__ num,
+                            const u32 bitsize,
+                            const u32 initial)
+{
+    if( __builtin_expect
+         ( (bitsize % 8 != 0) || (bitsize <= 64) || (bitsize > MAX_BITS), 0 )
+      )
+    {
+        printf("[ERR] Bigint: Invalid new max bitsize in u32 constructor.\n");
+        printf("              Must be > 64, divisible by 8 and < 4290000000");
+        exit(1);
     }
 
     num->size_bits = bitsize;
     num->bits = (u8*)calloc(1, bitsize / 8);
     num->used_bits = 0;
 
-    for(u32 i = 0; i < 32; ++i){ /* most significant bit of u32 set. */
-        if ( (initial << i) & (uint32_t)0x80000000 ){
-            num->used_bits = 32 - i;
-            break;
-        }
+    if( __builtin_expect(num->bits == NULL, 0) ){
+        perror("Memory allocation failed for a new bigint's bit buffer: ");
+        exit(1);
     }
 
-    for(u32 i = 0; i < 32; ++i){
-        uint32_t* helper_ptr = (uint32_t*)(num->bits);
-        if( initial & (1 << i) ){
-             (*helper_ptr) |= 1 << i;
-        }
-    }
+    memcpy(num->bits, &initial, sizeof(u32));
+    num->used_bits = get_used_bits(num->bits, sizeof(u32));
+
+    return;
 }
 
-void bigint_remake(bigint* const num, const u32 bitsize, const u32 initial){
+/* Make a BigInt equal to zero. */
+void bigint_nullify(bigint* const __restrict__ num){
 
-    free(num->bits);
+    memset(num->bits, 0, num->size_bits / 8);
+    num->used_bits = 0;
 
-    bigint_create(num, bitsize, initial);
+    return;
+}
+
+void bigint_remake(bigint* const num, const u32 bitsize, const u32 initial)
+{
+    if( __builtin_expect(num->size_bits == bitsize, 1) ){
+        bigint_nullify(num);
+        memcpy(num->bits, &initial, sizeof(u32));
+        num->used_bits = get_used_bits(num->bits, sizeof(u32));
+    }
+    else{
+        free(num->bits);
+        bigint_create_from_u32(num, bitsize, initial);
+    }
 
     return;
 }
@@ -247,26 +284,6 @@ void bigint_print_info(const bigint* const num){
     return;
 }
 
-/* Given a buffer of bytes, get the index of the biggest ON bit. This would be
- * the "used_bits" count of a BigInt represented by this buffer.
- */
-u32 get_used_bits(const u8* const buf, const u32 siz_bytes){
-
-    u32 used_bits = siz_bytes * 8;
-
-    /* Start from the rightmost byte, as this is biggest in little-endian. */
-    for(int64_t i = siz_bytes - 1; i >= 0; --i){
-        for(u8 j = 0; j < 8; ++j){  /* Examine each bit individually. */
-            if(buf[i] & ( 1 << ( 7 - j))){
-                return used_bits;
-            }
-            --used_bits;
-        }
-    }
-
-    return used_bits;
-}
-
 /* To view the bytes of the DAT files from linux terminal window: */
 /* xxd -b G_raw_bytes.dat                                         */
 bigint* get_bigint_from_dat( const u32    file_bits
@@ -279,7 +296,7 @@ bigint* get_bigint_from_dat( const u32    file_bits
     u32     file_bytes;
 
     big_n_ptr = (bigint*)calloc(1, sizeof(bigint));
-    bigint_create(big_n_ptr, reserve_bits, 0);
+    bigint_create_from_u32(big_n_ptr, reserve_bits, 0);
 
     if(reserve_bits % 8 || reserve_bits < 64 || reserve_bits > MAX_BITS){
         printf("[ERR] BigInt: get_bigint_from_dat - Invalid reserve_bits\n");
@@ -350,15 +367,6 @@ void save_bigint_to_dat(const char* const fn, const bigint* const num)
 
     if(dat_file != NULL)
         fclose(dat_file);
-
-    return;
-}
-
-/* Make a BigInt equal to zero. */
-void bigint_nullify(bigint* const num){
-
-    memset(num->bits, 0, num->size_bits / 8);
-    num->used_bits = 0;
 
     return;
 }
@@ -675,14 +683,14 @@ void bigint_pow( const bigint* const n1
     bigint starter;
     bigint starter_temp;
 
-    bigint_create(&R_temp,       n2->size_bits, 0);
-    bigint_create(&starter,      n2->size_bits, 1);
-    bigint_create(&starter_temp, n2->size_bits, 1);
-    bigint_create(&zero,         n2->size_bits, 0);
-    bigint_create(&one,          n2->size_bits, 1);
-    bigint_create(&R_req_bits,   n2->size_bits, 0);
-    bigint_create(&n1_used_bits, n2->size_bits, n1->used_bits);
-    bigint_create(&R_res_bits,   n2->size_bits, R->size_bits);
+    bigint_create_from_u32(&R_temp,       n2->size_bits, 0);
+    bigint_create_from_u32(&starter,      n2->size_bits, 1);
+    bigint_create_from_u32(&starter_temp, n2->size_bits, 1);
+    bigint_create_from_u32(&zero,         n2->size_bits, 0);
+    bigint_create_from_u32(&one,          n2->size_bits, 1);
+    bigint_create_from_u32(&R_req_bits,   n2->size_bits, 0);
+    bigint_create_from_u32(&n1_used_bits, n2->size_bits, n1->used_bits);
+    bigint_create_from_u32(&R_res_bits,   n2->size_bits, R->size_bits);
 
     bigint_nullify(R);
 
@@ -837,7 +845,7 @@ void bigint_div2( const bigint* const A
     bigint big_temps[num_temps];
 
     for(i = 0; i < num_temps; ++i){
-        bigint_create(&(big_temps[i]), A->size_bits, 0);
+        bigint_create_from_u32(&(big_temps[i]), A->size_bits, 0);
     }
 
     /* Quickly check if A or B are zero. */
@@ -900,7 +908,7 @@ void bigint_div2( const bigint* const A
 
     /* IMPORTANT NOTE: The algorithm REMAKES big_temps [17] and [9].
      *                 This means a new bits pointer returned by calloc
-     *                 in the bigint_create() in REMAKE. So, if they exist,
+     *                 in the bigint_create_from_u32() in REMAKE. So, if they exist,
      *                 update any auxilliary different-type pointers to
      *                 to their bits buffer (equalling .bits ptr struct field)!
      */
@@ -1072,9 +1080,9 @@ void bigint_mod_mul( bigint** nums
 
     u8 compare_res;
 
-    bigint_create(&div_res, nums[0]->size_bits, 1);
-    bigint_create(&mul_res, nums[0]->size_bits, 1);
-    bigint_create(&rem,     nums[0]->size_bits, 1);
+    bigint_create_from_u32(&div_res, nums[0]->size_bits, 1);
+    bigint_create_from_u32(&mul_res, nums[0]->size_bits, 1);
+    bigint_create_from_u32(&rem,     nums[0]->size_bits, 1);
 
     bigint_equate2(R, &rem);
 
@@ -1152,18 +1160,18 @@ void bigint_mod_pow( const bigint* const N
 
     bigint_nullify(R);
 
-    bigint_create(&aux1,    M->size_bits, 1);
-    bigint_create(&aux2,    M->size_bits, 1);
-    bigint_create(&two,     M->size_bits, 2);
-    bigint_create(&one,     M->size_bits, 1);
-    bigint_create(&zero,    M->size_bits, 0);
-    bigint_create(&div_res, M->size_bits, 1);
+    bigint_create_from_u32(&aux1,    M->size_bits, 1);
+    bigint_create_from_u32(&aux2,    M->size_bits, 1);
+    bigint_create_from_u32(&two,     M->size_bits, 2);
+    bigint_create_from_u32(&one,     M->size_bits, 1);
+    bigint_create_from_u32(&zero,    M->size_bits, 0);
+    bigint_create_from_u32(&div_res, M->size_bits, 1);
 
     arr2     = (bigint*) calloc(1, c1 * sizeof(bigint));
     arr_ptrs = (bigint**)calloc(1, c1 * sizeof(bigint*));
 
     for(u32 i = 0; i < c1; ++i){
-        bigint_create(&(arr2[i]), M->size_bits, 1);
+        bigint_create_from_u32(&(arr2[i]), M->size_bits, 1);
         arr_ptrs[i] = &arr2[i];
     }
 
@@ -1279,17 +1287,17 @@ u8 rabin_miller(const bigint* const N, const u32 passes){
     u8 lab_b0_flag = 0;
     u8 lab_ret_flag = 0;
 
-    bigint_create(&N_minus_one, N->size_bits, 0);
-    bigint_create(&one,         N->size_bits, 1);
-    bigint_create(&two,         N->size_bits, 2);
-    bigint_create(&M,           N->size_bits, 0);
-    bigint_create(&B0,          N->size_bits, 0);
-    bigint_create(&Bi_prev,     N->size_bits, 0);
-    bigint_create(&Bi,          N->size_bits, 0);
-    bigint_create(&div_res,     N->size_bits, 0);
-    bigint_create(&rem,         N->size_bits, 0);
-    bigint_create(&zero,        N->size_bits, 0);
-    bigint_create(&aux1,        N->size_bits, 0);
+    bigint_create_from_u32(&N_minus_one, N->size_bits, 0);
+    bigint_create_from_u32(&one,         N->size_bits, 1);
+    bigint_create_from_u32(&two,         N->size_bits, 2);
+    bigint_create_from_u32(&M,           N->size_bits, 0);
+    bigint_create_from_u32(&B0,          N->size_bits, 0);
+    bigint_create_from_u32(&Bi_prev,     N->size_bits, 0);
+    bigint_create_from_u32(&Bi,          N->size_bits, 0);
+    bigint_create_from_u32(&div_res,     N->size_bits, 0);
+    bigint_create_from_u32(&rem,         N->size_bits, 0);
+    bigint_create_from_u32(&zero,        N->size_bits, 0);
+    bigint_create_from_u32(&aux1,        N->size_bits, 0);
 
     bigint_sub_fast(N, &one, &N_minus_one);
 
@@ -1314,7 +1322,7 @@ u8 rabin_miller(const bigint* const N, const u32 passes){
     As = (bigint*)calloc(1, ( (passes * 2) + 1) * sizeof(bigint));
 
     for(u32 i = 0; i < (passes * 2) + 1; ++i){
-        bigint_create(&(As[i]), N->size_bits, A_val);
+        bigint_create_from_u32(&(As[i]), N->size_bits, A_val);
         ++A_val;
     }
 

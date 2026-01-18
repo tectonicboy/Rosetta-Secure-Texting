@@ -73,7 +73,7 @@ u8 self_init(){
     }
     
     /* Initialize the global BigInt that stores the server's private key. */
-    bigint_create(&server_privkey_bigint, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&server_privkey_bigint, MAX_BIGINT_SIZ, 0);
     
     memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_LEN); 
     

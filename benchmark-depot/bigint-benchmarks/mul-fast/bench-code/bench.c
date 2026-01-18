@@ -29,9 +29,9 @@ int main(){
 
     if(ran == NULL){ printf("[ERR] MUL Bench: fopen ran failed.\n"); return 1; }
 
-    bigint_create(&a, BIGINT_SIZ,     0);
-    bigint_create(&b, BIGINT_SIZ,     0);
-    bigint_create(&r, BIGINT_SIZ * 2, 0);
+    bigint_create_from_u32(&a, BIGINT_SIZ,     0);
+    bigint_create_from_u32(&b, BIGINT_SIZ,     0);
+    bigint_create_from_u32(&r, BIGINT_SIZ * 2, 0);
    
     total_time = 0;
 
@@ -128,9 +128,9 @@ int main(){
 	bigint* batch_res = (bigint*)calloc(1, batch_size * sizeof(bigint));
 
 	for(size_t j = 0; j < batch_size; ++j){
-		bigint_create(batch_op1 + j, BIGINT_SIZ,     0);
-		bigint_create(batch_op2 + j, BIGINT_SIZ,     0);
-		bigint_create(batch_res + j, BIGINT_SIZ * 2, 0);
+		bigint_create_from_u32(batch_op1 + j, BIGINT_SIZ,     0);
+		bigint_create_from_u32(batch_op2 + j, BIGINT_SIZ,     0);
+		bigint_create_from_u32(batch_res + j, BIGINT_SIZ * 2, 0);
 
 		if(fread(batch_op1[j].bits, 1, BIGINT_SIZ / 8, ran) != (BIGINT_SIZ / 8))
 			printf("\n\n   ----->  [ERR] fread() failed!  <-----\n\n");

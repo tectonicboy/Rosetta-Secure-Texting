@@ -57,15 +57,15 @@ int main(void){
     uint8_t keep_searching = 1;
     uint8_t is_prime = 0;
 
-    bigint_create(&M,   MAXIMUM_BITS, 0);
-    bigint_create(&Q,   MAXIMUM_BITS, 0);
-    bigint_create(&one, MAXIMUM_BITS, 1);
-    bigint_create(&two, MAXIMUM_BITS, 2);
-    bigint_create(&tmp, MAXIMUM_BITS, 0);
-    bigint_create(&aux, MAXIMUM_BITS, 0);
+    bigint_create_from_u32(&M,   MAXIMUM_BITS, 0);
+    bigint_create_from_u32(&Q,   MAXIMUM_BITS, 0);
+    bigint_create_from_u32(&one, MAXIMUM_BITS, 1);
+    bigint_create_from_u32(&two, MAXIMUM_BITS, 2);
+    bigint_create_from_u32(&tmp, MAXIMUM_BITS, 0);
+    bigint_create_from_u32(&aux, MAXIMUM_BITS, 0);
 
     for(uint64_t i = 0; i < NUM_THREADS; ++i){
-        bigint_create(&(test_Ms[i]), MAXIMUM_BITS, 0);
+        bigint_create_from_u32(&(test_Ms[i]), MAXIMUM_BITS, 0);
         thread_func_inputs[i] = calloc( 1, sizeof(uint64_t) + sizeof(bigint) );
         is_dh_modulus_found[i] = 0;
     }

@@ -1513,7 +1513,7 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
 
     bigint R_aux;
 
-    bigint_create(&R_aux, R->size_bits, 0);
+    bigint_create_from_u32(&R_aux, R->size_bits, 0);
 
     /* Set R = 0, all of its (L+1) limbs. Limb indices [0] to [L] inclusive. */
     bigint_nullify(R);
@@ -1659,11 +1659,11 @@ void get_mont_form(bigint* src, bigint* target, bigint* M){
     bigint two_L;
     bigint aux;
 
-    bigint_create(&two,       M->size_bits, 2 );
-    bigint_create(&sixtyfour, M->size_bits, 64);
-    bigint_create(&beta,      M->size_bits, 0 );
-    bigint_create(&aux,       M->size_bits, 0 );
-    bigint_create(&two_L,     M->size_bits, 2 * MONT_L );
+    bigint_create_from_u32(&two,       M->size_bits, 2 );
+    bigint_create_from_u32(&sixtyfour, M->size_bits, 64);
+    bigint_create_from_u32(&beta,      M->size_bits, 0 );
+    bigint_create_from_u32(&aux,       M->size_bits, 0 );
+    bigint_create_from_u32(&two_L,     M->size_bits, 2 * MONT_L );
 
     bigint_nullify(target);
 
@@ -1714,11 +1714,11 @@ void mont_pow_mod_m(bigint* B, bigint* P, bigint* M, bigint* R){
     bigint one;
     bigint div_res;
 
-    bigint_create(&X,       M->size_bits, 0);
-    bigint_create(&Y,       M->size_bits, 0);
-    bigint_create(&R_1,     M->size_bits, 0);
-    bigint_create(&one,     M->size_bits, 1);
-    bigint_create(&div_res, M->size_bits, 0);
+    bigint_create_from_u32(&X,       M->size_bits, 0);
+    bigint_create_from_u32(&Y,       M->size_bits, 0);
+    bigint_create_from_u32(&R_1,     M->size_bits, 0);
+    bigint_create_from_u32(&one,     M->size_bits, 1);
+    bigint_create_from_u32(&div_res, M->size_bits, 0);
 
     /* X and Y both become equal to the passed base B */
     bigint_equate2(&X, B);
@@ -1794,18 +1794,18 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont
     u8* R_with_prehash;
     u8 third_btb_outbuf[64];
 
-    bigint_create(&second_btb_outnum, M->size_bits, 0);
-    bigint_create(&Q_minus_one,       M->size_bits, 0);
-    bigint_create(&reduced_btb_res,   M->size_bits, 0);
-    bigint_create(&div_res,           M->size_bits, 0);
-    bigint_create(&one,               M->size_bits, 1);
-    bigint_create(&k,                 M->size_bits, 0);
-    bigint_create(&R,                 M->size_bits, 0);
-    bigint_create(&e,                 M->size_bits, 0);
-    bigint_create(&s,                 M->size_bits, 0);
-    bigint_create(&aux1,              M->size_bits, 0);
-    bigint_create(&aux2,              M->size_bits, 0);
-    bigint_create(&aux3,              M->size_bits, 0);
+    bigint_create_from_u32(&second_btb_outnum, M->size_bits, 0);
+    bigint_create_from_u32(&Q_minus_one,       M->size_bits, 0);
+    bigint_create_from_u32(&reduced_btb_res,   M->size_bits, 0);
+    bigint_create_from_u32(&div_res,           M->size_bits, 0);
+    bigint_create_from_u32(&one,               M->size_bits, 1);
+    bigint_create_from_u32(&k,                 M->size_bits, 0);
+    bigint_create_from_u32(&R,                 M->size_bits, 0);
+    bigint_create_from_u32(&e,                 M->size_bits, 0);
+    bigint_create_from_u32(&s,                 M->size_bits, 0);
+    bigint_create_from_u32(&aux1,              M->size_bits, 0);
+    bigint_create_from_u32(&aux2,              M->size_bits, 0);
+    bigint_create_from_u32(&aux3,              M->size_bits, 0);
 
     memset(prehash, 0, prehash_len);
 
@@ -1927,12 +1927,12 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
     memset(prehash, 0, prehash_len);
 
-    bigint_create(&R,       M->size_bits, 0);
-    bigint_create(&R_aux1,  M->size_bits, 0);
-    bigint_create(&R_aux2,  M->size_bits, 0);
-    bigint_create(&R_aux3,  M->size_bits, 0);
-    bigint_create(&div_res, M->size_bits, 0);
-    bigint_create(&val_e,   M->size_bits, 0);
+    bigint_create_from_u32(&R,       M->size_bits, 0);
+    bigint_create_from_u32(&R_aux1,  M->size_bits, 0);
+    bigint_create_from_u32(&R_aux2,  M->size_bits, 0);
+    bigint_create_from_u32(&R_aux3,  M->size_bits, 0);
+    bigint_create_from_u32(&div_res, M->size_bits, 0);
+    bigint_create_from_u32(&val_e,   M->size_bits, 0);
 
     if(bigint_compare2(s, Q) != 3){
         printf("[WARN] Cryptolib: sig_validate: input s != input Q.\n");

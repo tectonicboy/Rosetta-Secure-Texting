@@ -364,9 +364,9 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
      *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
      */
 
-    bigint_create(&X_s,  MAX_BIGINT_SIZ, 0);
-    bigint_create(&zero, MAX_BIGINT_SIZ, 0);
-    bigint_create(&B_sM, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&X_s,  MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&zero, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&B_sM, MAX_BIGINT_SIZ, 0);
 
     get_mont_form(&B_s, &B_sM, M);
 
@@ -769,8 +769,8 @@ u8 construct_msg_10( unsigned char* requested_userid
     memset(send_K,        0, ONE_TIME_KEY_LEN);
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
 
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
      * with a different key - the session key KAB from the pair of bidirectional
@@ -985,8 +985,8 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     *msg_buf = calloc(1, *msg_len);
 
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
      * with a different key - the session key KAB from the pair of bidirectional
@@ -1137,9 +1137,9 @@ u8 process_msg_20(u8* msg, u64 msg_len){
 
     memset(recv_K, 0, ONE_TIME_KEY_LEN);
 
-    bigint_create(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* First validate the signature the server sent us to authenaticate it. */
 
@@ -1260,7 +1260,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
         this_pubkey->size_bits = MAX_BIGINT_SIZ;
         this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
 
-        bigint_create(&(roommates[i].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
+        bigint_create_from_u32(&(roommates[i].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
         get_mont_form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
 
         roommates[i].guest_nonce_counter = 0;
@@ -1349,9 +1349,9 @@ void process_msg_21(u8* msg){
     memset(recv_K, 0, ONE_TIME_KEY_LEN);
     memset(buf_decrypted_guest_info, 0, new_guest_info_len);
 
-    bigint_create(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     /* First, verify the Schnorr signature in the packet, in order to validate
      * the authenticity of the message, ensure it was not edited in trasnit and
@@ -1451,7 +1451,7 @@ void process_msg_21(u8* msg){
     this_pubkey->size_bits = MAX_BIGINT_SIZ;
     this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
 
-    bigint_create(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&(roommates[guest_ix].guest_pubkey_mont), MAX_BIGINT_SIZ, 0);
     get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
 
     roommates[guest_ix].guest_nonce_counter = 0;
@@ -1562,8 +1562,8 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
 
     memset(send_K, 0, ONE_TIME_KEY_LEN);
 
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     guest_nonce_bigint.bits =
     (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
@@ -1773,8 +1773,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     bigint  one;
     bigint  aux1;
 
-    bigint_create(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
+    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     guest_nonce_bigint.bits = (u8*)calloc(1, MAX_BIGINT_SIZ / 8);
 

@@ -177,11 +177,11 @@ u8 self_init(u8* password, int password_len, char* save_dir){
             );
 
     /* Initialize the global BigInts storing user's public and private keys. */
-    bigint_create(&own_privkey, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&own_privkey, MAX_BIGINT_SIZ, 0);
     memcpy(own_privkey.bits, decrypted_privkey_buf, PRIVKEY_LEN);
     own_privkey.used_bits = get_used_bits(decrypted_privkey_buf, PRIVKEY_LEN);
 
-    bigint_create(&own_pubkey, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&own_pubkey, MAX_BIGINT_SIZ, 0);
     memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);
     own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN);
 
@@ -278,8 +278,8 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     }
 
     /* Initialize the shared secret with the server. */
-    bigint_create(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);
-    bigint_create(&server_shared_secret, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&server_shared_secret, MAX_BIGINT_SIZ, 0);
 
     get_mont_form(server_pubkey, &server_pubkey_mont, M);
 

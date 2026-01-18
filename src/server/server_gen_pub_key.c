@@ -17,7 +17,7 @@ int main(int argc, char* argv[]){
                                   
     M = get_bigint_from_dat(3072, "../../bin/saved_M.dat", 3071, 12800);
                  
-    bigint_create(pubkey_montform, 12800, 0);
+    bigint_create_from_u32(pubkey_montform, 12800, 0);
     
     pubkey_bigint = 
              gen_pub_key(privkey_len_bytes, "server_privkey.dat", 12800);
