@@ -1,8 +1,0 @@
-You can use these two if you're wondering what the package name string is
-for a package in apt that needs to be installed to meet a dependancy that
-you're missing while installing something and it only tells you roughly
-what the dependancy is, like "needs OpenGL but not found", not a package string:
-
-apt-cache 'whatever'
-
-apt-file 'header file'

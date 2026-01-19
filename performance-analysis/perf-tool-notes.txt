@@ -1,0 +1,96 @@
+General notes on how to use Linux Perf to analyze performance.
+
+- If your machine has a "performance mode", along with balanced, power-saving
+  or others, make sure it's set to performance mode for better measurements.
+
+- There's a magic number that can be too high and locks performance counters.
+  Set it to -1 with:
+
+sudo sysctl -w kernel.perf_event_paranoid=-1
+
+- Performance counters exist for both performance cores and power-saving cores.
+  You want to focus on performance cores: cpu_core/<EVENT>
+
+================================================================================
+
+Linux Perf has built-in support for Top-down performance analysis methodology.
+
+Page 131 of my 2nd edition Performance Analysis and Tuning on Modern CPUs book
+has a nice diagram showing the 4 top level buckets, along with the drilled down
+buckets under them.
+
+------
+
+Start by analysing the 4 top level buckets in Top-down analysis:
+
+sudo perf stat --topdown -- ./test-server 1
+
+In my current example from January 19 2026, this gave:
+
+Retiring:        71.6%
+Backend-bound:   15.7%
+Frontend-bound:  6.6%
+Bad speculation: 6.1%
+
+This is already pretty good, and any optimization work should focus on the
+backend-bound bucket.
+
+------
+
+Drill down one level deeper into the level 2 buckets of Backend-bound:
+
+sudo perf stat -M TopdownL2 -- ./test-server 1
+
+Further reveals:
+
+BE-bound sub-bucket 1: Core-bound   = 9.8%
+BE-bound sub-bucket 2: Memory-bound = 5.5%
+
+This suggests the system is utilizing the cache hierarchy very well, and that
+any optimization efforts should focus on the CPU execution engines. Perhaps
+a dependency chain meant not all micro-op units could be utilised, or other
+issues related to microcode execution.
+
+================================================================================
+
+Separate performance counters of interest:
+
+01) event: cpu_core/instructions/u
+    means: Total number of retired instructions. (for performance cores)
+
+02) event: cpu_core/iTLB-load-misses
+    means: Total times the virtual-to-physical address translation of an
+           assembly instruction could not be found in the instruction-TLB.
+
+03) event: mem_inst_retired.all_loads/u
+    means: Total times we had to load stuff from any memory (caches + RAM).
+
+04) event: mem_load_retired.l3_miss/u
+    means: How many (data + instructions) memory accesses missed in L3 cache.
+
+05) event: cpu_core/L1-dcache/loads
+    means: All memory accesses to the L1 data cache. (performance cores)
+
+06) event: cpu_core/L1-dcache-load-misses
+    means: Total cache misses in the L1 data cache. (performance cores)
+
+07) event: cpu_core/L1-icache-load-misses/
+    means: Total cache misses in the L1 instruction cache. (performance cores)
+
+08) event: cpu_core/l2_rqsts.references/
+    means: Total L2 cache accesses. (performance cores)
+
+09) event: cpu_core/l2_rqsts.miss/
+    means: Total L2 cache misses. (performance cores)
+
+10) event: cpu_core/LLC-loads/
+    means: Total cache accesses to the last-level cache (L3 for my test machine)
+
+11) event: cpu_core/LLC-load-misses/
+    means: Total cache misses in the last-level cache (L3 for my test machine)
+
+IMPORTANT NOTE: There is only a small number of performance counters that Perf
+                can track at once, such as 4 to 6, but you can still give it
+                more events to count than your limit, and it will simply divide
+                the runtime of your program equally between one batch and
+                another batch of events that fit.

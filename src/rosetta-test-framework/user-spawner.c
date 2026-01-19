@@ -9,7 +9,7 @@ void user_loop(void){
     unsigned char message[128];
     int           room_name_len;
     int           user_name_len;
-    int           scanf_status;
+    int           scanf_status = 0;
     uint8_t       status;
     const char* GUI_string_helper = ": ";
     char name_with_msg_str[127 + 2 + SMALL_FIELD_LEN];
@@ -25,10 +25,10 @@ label_begin_user:
 
     texting_should_stop = 0;
 
-    int c;                                                                       
-    while ((c = getchar()) != '\n' && c != EOF) {                                
-        ; /* Empty body: discard input until end of line. */                     
-    } 
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {
+        ; /* Empty body: discard input until end of line. */
+    }
 
     printf("\nNow you can select one of 3 test user options:\n");
     printf("1  --  Make a chatroom.\n");
@@ -38,7 +38,16 @@ label_begin_user:
 
 label_try_again1:
 
-    scanf("%1s", input_user_option);
+    scanf_status = scanf("%1s", input_user_option);
+
+    if(scanf_status == -1 && errno == EINTR){
+        printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
+        clearerr(stdin);
+        /* Get rid of any invalid residual input in the buffer. */
+        //while ((c = getchar()) != '\n' && c != EOF);
+        exit(1);
+    }
+
     user_option = atoi(input_user_option);
 
     if( ! ((1 <= user_option) && (user_option <= 3)) ){
@@ -47,18 +56,18 @@ label_try_again1:
     }
     if(user_option == 1){
         printf("Pick a room name and user name, up to 7 characters each.\n");
-   
-        memset(input_room_name, 0x00, 8);    
+
+        memset(input_room_name, 0x00, 8);
         printf("Room name: ");
         scanf("%7s", input_room_name);
 
-        memset(input_user_name, 0x00, 8); 
+        memset(input_user_name, 0x00, 8);
         printf("User name: ");
         scanf("%7s", input_user_name);
 
         room_name_len = strlen((const char*)input_room_name);
         user_name_len = strlen((const char*)input_user_name);
- 
+
         status = make_new_chatroom
                 (input_room_name, room_name_len,input_user_name, user_name_len);
 
@@ -74,7 +83,7 @@ label_try_again1:
         }
 
         while(1){
-  
+
             /* This boolean is for handling the case where the polling thread
              * told us that the room owner has closed the chatroom and we should
              * no longer be allowed to send messages in it, but it happened not
@@ -103,19 +112,19 @@ label_try_again1:
                 printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
                 clearerr(stdin);
                 /* Get rid of any invalid residual input in the buffer. */
-                while ((c = getchar()) != '\n' && c != EOF);
+                //while ((c = getchar()) != '\n' && c != EOF);
                 //pthread_join(poller_threadID, NULL);
-                break;
+                exit(1);
             }
-            else if(strncmp((const char*)message, "__logout__", 10) == 0){           
-                status = logout();                                              
-                if(status){                                                     
-                    printf("[ERR] User Spawner: Error during Logout().\n");     
-                }                                                               
-                else{                                                           
-                    printf("[OK]  User Spawner: Successfully logged out.\n");   
-                }                                                               
-                exit(1);                                                          
+            else if(strncmp((const char*)message, "__logout__", 10) == 0){
+                status = logout();
+                if(status){
+                    printf("[ERR] User Spawner: Error during Logout().\n");
+                }
+                else{
+                    printf("[OK]  User Spawner: Successfully logged out.\n");
+                }
+                exit(1);
             }
             else if(strncmp((const char*)message, "__leaveroom__", 13) == 0){
                 status = leave_chatroom();
@@ -124,9 +133,9 @@ label_try_again1:
                 else
                     printf("[OK]  User Spawner: Leave chatroom: COMPLETED.\n");
                 break;
-            }                        
-      
-            send_text(message, (uint64_t)strlen((const char*)message));  
+            }
+
+            send_text(message, (uint64_t)strlen((const char*)message));
 
             size_t name_len = strlen((const char*)input_user_name);
             size_t mesg_len = strlen((const char*)message);
@@ -170,9 +179,9 @@ label_try_again1:
             goto label_begin_user;
         }
         else{
-            printf("[OK]  RTF User Spawner: Chatroom joined successfully!\n"); 
+            printf("[OK]  RTF User Spawner: Chatroom joined successfully!\n");
         }
- 
+
         while(1){
 
             /* This boolean is for handling the case where the polling thread
@@ -198,13 +207,11 @@ label_try_again1:
             scanf_status = scanf("%127s", message);
 
             if(scanf_status == -1 && errno == EINTR){
+                printf("[OK] RTF User Spawner: Cleanly stopped scanf() loop\n");
                 clearerr(stdin);
-
                 /* Get rid of any invalid residual input in the buffer. */
-
-                while ((c = getchar()) != '\n' && c != EOF);
- 
-                break;
+                //while ((c = getchar()) != '\n' && c != EOF);
+                exit(1);
             }
             else if(strncmp((const char*)message, "__logout__", 10) == 0){
 
@@ -229,7 +236,7 @@ label_try_again1:
             send_text(message, (uint64_t)strlen((const char*)message));
 
             /* Display it in that user's own client too */
-            
+
             size_t name_len = strlen((const char*)input_user_name);
             size_t mesg_len = strlen((const char*)message);
 
@@ -241,7 +248,7 @@ label_try_again1:
                    ,input_user_name
                    ,name_len);
 
-            memcpy(name_with_msg_str + SMALL_FIELD_LEN, GUI_string_helper, 2);       
+            memcpy(name_with_msg_str + SMALL_FIELD_LEN, GUI_string_helper, 2);
             memcpy(name_with_msg_str + SMALL_FIELD_LEN + 2, message, mesg_len);
 
             printf("%s\n", name_with_msg_str);
@@ -299,7 +306,7 @@ int main(void){
           calloc(1, strlen(savedir) + strlen((const char*)savefilename));
 
     memcpy(full_save_dir, savedir, strlen(savedir));
- 
+
     memcpy( full_save_dir + strlen(savedir)
            ,savefilename
            ,strlen((const char*)savefilename)
@@ -318,10 +325,11 @@ int main(void){
         printf("\n[ERR] User Spawner: login() failed.\n\n");
         exit(1);
     }
-    
+
     printf("\n[OK]  User Spawner: Login completed successfully!\n\n");
 
     user_loop();
 
     return 0;
 }
+

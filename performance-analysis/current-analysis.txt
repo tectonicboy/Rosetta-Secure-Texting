@@ -1,0 +1,47 @@
+================================================================================
+Jan 19, 2026 |
+--------------
+
+Top-down performance analysis method showed us that the Rosetta server is
+already well optimized.
+
+Level 1 buckets:
+
+Retiring:        71.6% [Very good]
+Backend-bound:   15.7%
+Frontend-bound:  6.6%
+Bad speculation: 6.1%
+
+This is already pretty good and any optimization work should probably focus on
+the backend-bound bucket.
+
+Drill down one level deeper into the level 2 buckets of Backend-bound:
+
+Further reveals:
+
+BE-bound sub-bucket 1: Core-bound   = 9.8% <--- Focus optimization efforts here.
+BE-bound sub-bucket 2: Memory-bound = 5.5%
+
+This suggests the system is utilizing the cache hierarchy very well, and that
+any optimization efforts should focus on the CPU execution engines. Perhaps
+a dependency chain meant not all micro-op units could be utilised, or other
+issues related to microcode execution.
+
+Additionally, with individual performance counters captured, I revealed:
+
+- Extremely low L1 DATA cache misses as a % to all accesses. [GOOD]
+
+- Noticable L1 INSTRUCTION cache misses, unable to get a % to all accesses. [?]
+
+- Very low L3 combined cache misses as a % to accesses, indicating the L1 icache
+  misses do get resolved by the time L3 cache is reached. [GOOD]
+
+- Very small branch misprediction ratio to all branch events. [GOOD]
+
+-----------------
+NEXT STEPS:
+
+- Repeat this analysis several times to make sure stable results are presisting.
+- Improve function profiling code to report stable execution time averages.
+
+================================================================================

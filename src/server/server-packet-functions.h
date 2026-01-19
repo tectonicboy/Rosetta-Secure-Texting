@@ -57,12 +57,12 @@ struct chatroom{
  */
 u64 users_status_bitmask    = 0;
 u64 rooms_status_bitmask    = 0;
-u64 room_owner_left_bitmask = 0; 
+u64 room_owner_left_bitmask = 0;
 /* Bitmask telling the server which socket file descriptors are free to be
  * used to accept a new connection to a client machine and begin its recv() loop
  * thread function which it will be stuck on until they exit Rosetta.
  */
- 
+
 u64 next_free_user_ix = 1;
 u64 next_free_room_ix = 1;
 
@@ -229,7 +229,7 @@ void remove_user_from_room(u64 sender_ix){
     else{
         printf
            ("[NFO] Removing OWNER of room[%lu]!\n", clients[sender_ix].room_ix);
-        
+
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
 
@@ -270,7 +270,7 @@ void remove_user_from_room(u64 sender_ix){
         rooms[clients[sender_ix].room_ix].room_id    = 0;
 
         /* Move next free room slot to here if it was before. */
- 
+
         if(clients[sender_ix].room_ix < next_free_room_ix){
             next_free_room_ix = clients[sender_ix].room_ix;
         }
@@ -328,12 +328,12 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
 
 void remove_user(u64 removing_user_ix){
     int status = 0;
-    
+
     /* Might have to remove them from a room (as a guest or as the owner)
      * or simply from the server if they weren't in a room.
      */
     if(clients[removing_user_ix].room_ix != 0){
-        remove_user_from_room(removing_user_ix); 
+        remove_user_from_room(removing_user_ix);
     }
 
     /* Clear the user's descriptor, free their global user index slot. */
@@ -357,7 +357,7 @@ void remove_user(u64 removing_user_ix){
 
     memset(&(clients[removing_user_ix]), 0, sizeof(struct connected_client));
     users_status_bitmask &= ~(1ULL << (63ULL - removing_user_ix));
-    
+
     status = close(client_socket_fd[removing_user_ix]);
 
     if(status != 0){
@@ -386,21 +386,21 @@ void remove_user(u64 removing_user_ix){
 uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 
     bigint  zero;
-    bigint  Am; 
+    bigint  Am;
     bigint* A_s;
     bigint  b_s;
     bigint* B_s = NULL;
     bigint  X_s;
-            
+
     u64  tempbuf_byte_offset = 0;
     u64  replybuf_byte_offset = 0;
-    u64  status = 0;     
-   
+    u64  status = 0;
+
     u64 PACKET_ID02 = PACKET_ID_02;
     u64 reply_len = SMALL_FIELD_LEN + PUBKEY_LEN + SIGNATURE_LEN;
 
     u8* reply_buf = calloc(1, reply_len);
-    u8  signature_buf[SIGNATURE_LEN]; 
+    u8  signature_buf[SIGNATURE_LEN];
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
     u8* Y_s;
     u8  ret = 0;
@@ -421,26 +421,26 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         free(reply_buf);
         reply_buf = calloc(1, reply_len);
-    
+
         memcpy(reply_buf, &PACKET_ID02, SMALL_FIELD_LEN);
-        
-        signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
+
+        signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN
                             ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
-                          
+
 /* A client tried logging in but should try later.
- 
+
     Server ----> Client
-  
+
 ================================================================================
-| packet ID 02 |                         SIGNATURE                             | 
+| packet ID 02 |                         SIGNATURE                             |
 |==============|===============================================================|
 |  SMALL_LEN   |                          SIG_LEN                              |
 --------------------------------------------------------------------------------
 
 */
-        
+
         ret = transmit_payload(user_ix, reply_buf, reply_len);
 
         if(ret)
@@ -456,7 +456,7 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     /* Construct a bigint out of the client's short-term public key.          */
     /* Here's where a constructor from a memory buffer and its length is good */
     /* Find time to implement one as part of the BigInt library.              */
-    
+
     /* Allocate any short-term keys and other cryptographic artifacts needed for
      * the initial login handshake protocol in the designated memory region and
      * lock it, disallowing another parallel login attempt to corrupt them.
@@ -464,30 +464,30 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     temp_handshake_memory_region_isLocked = 1;
 
     bigint_create_from_u32(&X_s, MAX_BIGINT_SIZ, 0);
-    
+
     A_s = (bigint*)(temp_handshake_buf);
     A_s->bits = calloc(1, MAX_BIGINT_SIZ);
 
     memcpy(A_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
 
     A_s->size_bits = MAX_BIGINT_SIZ;
-    
+
     A_s->used_bits = get_used_bits(msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
-                     
+
     /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
-    
+
     /* A "check non zero" function in the BigInt library would also be useful */
-    
+
     bigint_create_from_u32(&zero, MAX_BIGINT_SIZ, 0);
     bigint_create_from_u32(&Am,   MAX_BIGINT_SIZ, 0);
-    
+
     get_mont_form(A_s, &Am, M);
-    
-    if(   ((bigint_compare2(&zero, A_s)) != 3) 
-        || 
+
+    if(   ((bigint_compare2(&zero, A_s)) != 3)
+        ||
           ((bigint_compare2(M, A_s)) != 1)
         //||
-        //  (check_pubkey_form(&Am, M, Q) == 1) 
+        //  (check_pubkey_form(&Am, M, Q) == 1)
       )
     {
         printf("[ERR] Server: Client's short-term public key is invalid.\n");
@@ -496,14 +496,14 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
         bigint_print_all_bits(A_s);
         status = 1;
         goto label_cleanup;
-    } 
-    
+    }
+
     /*  Server generates its own short-term DH keys and a shared secret X:
-     *    
+     *
      *       b_s = random in the range [1, Q)
-     * 
+     *
      *       B_s = G^b_s mod M     <--- Montgomery Form of G.
-     *   
+     *
      *       X_s = A_s^b_s mod M   <--- Montgomery Form of A_s.
      *
      *  Server extracts two keys and two values Y, N from byte regions in X:
@@ -520,60 +520,60 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 
     /* Places only the BITS of the private key, not a BigInt object!! */
     gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
-   
+
     b_s.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
     memcpy(b_s.bits, temp_handshake_buf + sizeof(bigint), PRIVKEY_LEN);
 
     b_s.size_bits = MAX_BIGINT_SIZ;
     b_s.used_bits = get_used_bits(b_s.bits, PRIVKEY_LEN);
-    
+
     memset(temp_handshake_buf + sizeof(bigint), 0,    PRIVKEY_LEN);
     memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
 
     /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
     save_bigint_to_dat("temp_privkey.dat", &b_s);
-  
+
     B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
-    
+
     /* Place the server short-term pub_key also in the locked memory region. */
     memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
-    
+
    /* X_s = A_s^b_s mod M */
    // X_s = (bigint*)(temp_handshake_buf + (3 * sizeof(bigint)));
-    
+
     mont_pow_mod_m(&Am, &b_s, M, &X_s);
-    
+
     /* Extract KAB_s, KBA_s, Y_s and N_s into the locked memory region. */
     tempbuf_byte_offset = 3 * sizeof(bigint);
-    
+
     memcpy( temp_handshake_buf + tempbuf_byte_offset
            ,X_s.bits
            ,SESSION_KEY_LEN
     );
 
     tempbuf_byte_offset += SESSION_KEY_LEN;
-    
+
     memcpy( temp_handshake_buf + tempbuf_byte_offset
            ,X_s.bits + SESSION_KEY_LEN
            ,SESSION_KEY_LEN
     );
- 
+
     tempbuf_byte_offset += SESSION_KEY_LEN;
-    
+
     memcpy( temp_handshake_buf + tempbuf_byte_offset
            ,X_s.bits + (2 * SESSION_KEY_LEN)
            ,INIT_AUTH_LEN
     );
-    
+
     Y_s = temp_handshake_buf + tempbuf_byte_offset;
-        
+
     tempbuf_byte_offset += INIT_AUTH_LEN;
-    
+
     memcpy( temp_handshake_buf + tempbuf_byte_offset
            ,X_s.bits + ((2 * SESSION_KEY_LEN) + (INIT_AUTH_LEN))
            ,SHORT_NONCE_LEN
     );
-   
+
     /* Compute a signature of Y_s using LONG-TERM private key b, yielding SB. */
     signature_generate( M, Q, Gm, Y_s, INIT_AUTH_LEN, signature_buf
                        ,&server_privkey_bigint, PRIVKEY_LEN
@@ -582,17 +582,17 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 
 
     /* Server sends in the clear (B_s, SB) to the client. */
-    
+
     /* Find time to change the signature generation to only place the actual
      * bits of s and e, excluding their bigint structs, because we reconstruct
      * their bigint structs easily with get_used_bits(). TODO.
      */
-    
-    /* Construct the reply buffer. */ 
-    
+
+    /* Construct the reply buffer. */
+
 /* Send the client our short-term public key, so their software can compute a
    shared secret and transport their long-term public key in encrypted form.
-   
+
     Server ----> Client
 
 ================================================================================
@@ -601,31 +601,31 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 |  SMALL_LEN   |       PUBKEY_LEN         |             SIGNATURE_LEN          |
 --------------------------------------------------------------------------------
 
-*/  
+*/
     replybuf_byte_offset = 0;
-     
+
     uint64_t PACKET_ID00 = PACKET_ID_00;
 
     memcpy(reply_buf, &PACKET_ID00, SMALL_FIELD_LEN);
-    
+
     replybuf_byte_offset += SMALL_FIELD_LEN;
 
     memcpy(reply_buf + replybuf_byte_offset, B_s->bits, PUBKEY_LEN);
-    
+
     replybuf_byte_offset += PUBKEY_LEN;
 
     memcpy(reply_buf + replybuf_byte_offset, signature_buf, SIGNATURE_LEN);
-    
+
     /* Send the reply back to the client. */
-    
-    ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                 
-    if(ret){                                                                  
-        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");   
+
+    ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+    if(ret){
+        printf("[ERR] Server: Couldn't reply with PACKET_ID_00 msg.\n");
         status = 1;
     }
 
-label_cleanup: 
+label_cleanup:
 
     bigint_cleanup(&zero);
     bigint_cleanup(&Am);
@@ -633,16 +633,16 @@ label_cleanup:
 
     free(reply_buf);
     free(B_s);
-    
+
     system("rm temp_privkey.dat");
-  
+
     return status;
 }
 /* A user who's logging in continued the login protocol, sending us their long
    term public key encrypted by the short-term shared secret with the server.
- 
+
     Client ----> Server
- 
+
 ================================================================================
 |  packet ID 01   | Client's encrypted long-term PubKey |  HMAC authenticator  |
 |=================|=====================================|======================|
@@ -658,17 +658,17 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     const u64 B = 64;
     const u64 L = 64;
     u64 PACKET_ID02 = PACKET_ID_02;
-    u64 PACKET_ID01 = PACKET_ID_01; 
+    u64 PACKET_ID01 = PACKET_ID_01;
     u64 recv_HMAC_offset = SMALL_FIELD_LEN + PUBKEY_LEN;
     u64 reply_len;
-    
+
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
     u8* PACKET_ID01_addr = (u8*)(&PACKET_ID01);
     u8  K0[B];
     u8  ipad[B];
     u8  opad[B];
     u8  K0_XOR_ipad_TEXT[(B + PUBKEY_LEN)];
-    u8  BLAKE2B_output[L]; 
+    u8  BLAKE2B_output[L];
     u8  last_BLAKE2B_input[B + L];
     u8  K0_XOR_ipad[B];
     u8  K0_XOR_opad[B];
@@ -690,12 +690,12 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
 
     memset(opad, 0x5c, B);
     memset(ipad, 0x36, B);
-    
-    /*  Use what's already in the locked memory region to compute HMAC and 
+
+    /*  Use what's already in the locked memory region to compute HMAC and
      *  to decrypt the user's long-term public key
      *
      *  Server uses KAB_s to compute the same HMAC on A_x (client's long-term
-     *  public key in encrypted form) as the client did. 
+     *  public key in encrypted form) as the client did.
      *
      *  HMAC parameters here:
      *
@@ -707,10 +707,10 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
      *  L    = output block size in bytes of BLAKE2B = 64
      *  opad = buffer of the 0x5c byte repeated B=64 times
      *  text = A_x
-     */ 
-     
+     */
+
     /* Step 3 of HMAC construction */
-    
+
     /* Length of K is less than B so append 0s to it until it's long enough. */
     /* This was done during K0's initialization. Now place the actual key.    */
     memcpy( K0
@@ -722,33 +722,33 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     for(u64 i = 0; i < B; ++i){
         K0_XOR_ipad[i] = (K0[i] ^ ipad[i]);
     }
-    
+
     /* step 5 of HMAC construction */
     memcpy(K0_XOR_ipad_TEXT, K0_XOR_ipad, B);
     memcpy(K0_XOR_ipad_TEXT + B, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
-    
+
     /* step 6 of HMAC construction */
-    /* Call BLAKE2B on K0_XOR_ipad_TEXT */ 
+    /* Call BLAKE2B on K0_XOR_ipad_TEXT */
     blake2b_init(K0_XOR_ipad_TEXT, B + PUBKEY_LEN, 0, L, BLAKE2B_output);
-    
+
     /* Step 7 of HMAC construction */
     for(u64 i = 0; i < B; ++i){
         K0_XOR_opad[i] = (K0[i] ^ opad[i]);
     }
-    
+
     /* Step 8 of HMAC construction */
     /* Combine first BLAKE2B output buffer with K0_XOR_opad. */
     /* B + L bytes total length */
     memcpy(last_BLAKE2B_input + 0, K0_XOR_opad,    B);
     memcpy(last_BLAKE2B_input + B, BLAKE2B_output, L);
-    
-    /* Step 9 of HMAC construction */ 
+
+    /* Step 9 of HMAC construction */
     /* Call BLAKE2B on the combined buffer in step 8. */
     blake2b_init(last_BLAKE2B_input, B + L, 0, L, BLAKE2B_output);
-    
+
     /* Take the HMAC_TRUNC_BYTES leftmost bytes to form the HMAC output. */
     memcpy(HMAC_output, BLAKE2B_output, HMAC_TRUNC_BYTES);
-    
+
     /* Now compare calculated HMAC with the HMAC the client sent us */
     for(u64 i = 0; i < HMAC_TRUNC_BYTES; ++i){
         if(HMAC_output[i] != msg_buf[recv_HMAC_offset + i]){
@@ -758,19 +758,19 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
             goto label_cleanup;
         }
     }
-    
+
     printf("[OK]  Server: HMAC authentication for logging-in client passed!\n");
-    
+
     /*  Server uses KAB_s as key and 12-byte N_s as Nonce in ChaCha20 to
      *  decrypt A_x, revealing the client's long-term DH public key A.
      *
-     *  Server then destroys all cryptographic artifacts for handshake. 
+     *  Server then destroys all cryptographic artifacts for handshake.
      */
     handshake_buf_nonce_offset
        = (3 * sizeof(bigint)) + (2 * SESSION_KEY_LEN) + INIT_AUTH_LEN;
 
     handshake_buf_key_offset =  3 * sizeof(bigint);
-    
+
     /* Passed parameters to this call to ChaCha20:
      *
      *  1. INPUT TEXT   : Client's encrypted long-term public key.
@@ -784,85 +784,85 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     chacha20(msg_buf + SMALL_FIELD_LEN
             ,PUBKEY_LEN
             ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
-            ,(u32)(SHORT_NONCE_LEN / sizeof(u32))       
+            ,(u32)(SHORT_NONCE_LEN / sizeof(u32))
             ,(u32*)(temp_handshake_buf + handshake_buf_key_offset)
             ,(u32)(SESSION_KEY_LEN / sizeof(u32))
             ,client_pubkey_buf
             );
-    
+
     /* Increment the Nonce to not reuse it when encrypting the user's index. */
-    
+
     uint64_t* aux_ptr64_tempbuf =
                        (u64*)(temp_handshake_buf + handshake_buf_nonce_offset);
 
     ++(*aux_ptr64_tempbuf);
-        
-     
+
+
     /* Now we have the decrypted client's long-term public key. */
-     
+
     /* If a message arrived to permit a newly arrived user to use Rosetta, but
      * currently the maximum number of clients are using it ---> Try later.
      */
     if(user_ix == MAX_CLIENTS){
         printf("[ERR] Server: Not enough client slots to let a user in.\n");
         printf("              Letting the user know and to try later.  \n");
-        
+
         /* Construct the ROSETTA FULL reply message buffer */
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
-    
+
         uint64_t packet_id02 = PACKET_ID_02;
         memcpy(reply_buf, &packet_id02, SMALL_FIELD_LEN);
- 
-        signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN 
+
+        signature_generate( M, Q, Gm, PACKET_ID02_addr, SMALL_FIELD_LEN
                             ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
-                          
+
 /* A client tried logging in but should try later.
- 
+
     Server ----> Client
-  
+
 ================================================================================
-| packet ID 02 |                         SIGNATURE                             | 
+| packet ID 02 |                         SIGNATURE                             |
 |==============|===============================================================|
 |  SMALL_LEN   |                          SIG_LEN                              |
 --------------------------------------------------------------------------------
 
 */
-        
-        ret = transmit_payload(user_ix, reply_buf, reply_len);                       
-                                                                                 
-        if(ret)                                                                      
+
+        ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+        if(ret)
             printf("[ERR] Server: Couldn't send try-login-later message.\n");
-        else{                                                                  
-            printf("[OK]  Server: Told client to try login later.\n"); 
-            
+        else{
+            printf("[OK]  Server: Told client to try login later.\n");
+
         }
         status = 1;
         goto label_cleanup;
     }
-    
+
     if( (check_pubkey_exists(client_pubkey_buf, PUBKEY_LEN)) != 0){
         printf("[ERR] Server: Obtained login public key already exists.\n");
         printf("[OK]  Server: Discarding transmission.\n");
         status = 1;
         goto label_cleanup;
     }
-    
+
     /* Construct the login OK reply message buffer. */
     /* It will contain the user index */
     /* Encrypt the index with chacha20 and KBA key and N_s nonce! */
-    
+
     /* Try using a chacha counter even with less than 64 bytes of input. */
     reply_len  = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
-     
+
     uint64_t packet_id01 = PACKET_ID_01;
     memcpy(reply_buf, &packet_id01, SMALL_FIELD_LEN);
 
     handshake_buf_key_offset  = (3 * sizeof(bigint)) + (1 * SESSION_KEY_LEN);
-    
+
     chacha20((u8*)(&user_ix)
              ,SMALL_FIELD_LEN
              ,(u32*)(temp_handshake_buf + handshake_buf_nonce_offset)
@@ -871,15 +871,15 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))
              ,(reply_buf + SMALL_FIELD_LEN)
              );
-             
+
     /* No need to increment this Nonce because it will be destroyed */
     signature_generate( M, Q, Gm, PACKET_ID01_addr, SMALL_FIELD_LEN
                        ,(reply_buf+ (2 * SMALL_FIELD_LEN))
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
-    
+
     /* Server bookkeeping - populate this user's slot, find next free slot. */
-  
+
     clients[user_ix].room_ix          = 0;
     clients[user_ix].num_pending_msgs = 0;
     clients[user_ix].nonce_counter    = 0;
@@ -888,7 +888,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
         clients[user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
     }
-    
+
     memset( clients[user_ix].pending_msg_sizes
            ,0
            ,(MAX_PEND_MSGS * SMALL_FIELD_LEN)
@@ -898,28 +898,28 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     bigint_create_from_u32( &(clients[user_ix].client_pubkey)
                   ,MAX_BIGINT_SIZ
                   ,0
-                 ); 
-    
+                 );
+
     memcpy( (clients[user_ix].client_pubkey).bits
             ,client_pubkey_buf
             ,PUBKEY_LEN
           );
-    
-    (clients[user_ix].client_pubkey).used_bits 
+
+    (clients[user_ix].client_pubkey).used_bits
        = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
-      
-    /* Calculate the Montgomery Form of the client's long-term public key. */ 
+
+    /* Calculate the Montgomery Form of the client's long-term public key. */
     bigint_create_from_u32( &(clients[user_ix].client_pubkey_mont)
                   ,MAX_BIGINT_SIZ
                   ,0
-                 );      
-          
+                 );
+
     get_mont_form( &(clients[user_ix].client_pubkey)
                   ,&(clients[user_ix].client_pubkey_mont)
                   ,M
-                 );      
-               
-     
+                 );
+
+
     /* Compute a client-to-server encryption shared secret which will be used
      * to encrypt transmissions that occur before the client has started to
      * actually talk to other clients, so before the client-to-client encryption
@@ -937,33 +937,33 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
                   ,MAX_BIGINT_SIZ
                   ,0
                  );
-    
+
     mont_pow_mod_m( &(clients[user_ix].client_pubkey_mont)
                   ,&server_privkey_bigint
                   ,M
                   ,&(clients[user_ix].shared_secret)
                  );
-    
+
     /* Reflect the new taken user slot in the global user status bitmask. */
-    users_status_bitmask |= 
+    users_status_bitmask |=
                        (1ULL << (63ULL - user_ix));
-    
-/* A client successfully logged in. Let them know what their user_ix is.    
- 
+
+/* A client successfully logged in. Let them know what their user_ix is.
+
     Server ----> Client
-  
+
 ================================================================================
-| packet ID 01 |  user_ix  |                    SIGNATURE                      | 
+| packet ID 01 |  user_ix  |                    SIGNATURE                      |
 |==============|===========|===================================================|
 |  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
 --------------------------------------------------------------------------------
 
 */
- 
-    ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                 
-    if(ret){                                                                  
-        printf("[ERR] Server: Couldn't send Login-Finished message.\n");    
+
+    ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+    if(ret){
+        printf("[ERR] Server: Couldn't send Login-Finished message.\n");
         status = 1;
         goto label_cleanup;
     }
@@ -984,17 +984,17 @@ label_cleanup:
 
     memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
 
-    temp_handshake_memory_region_isLocked = 0;     
+    temp_handshake_memory_region_isLocked = 0;
 
     login_not_finished = 0;
- 
+
     free(reply_buf);
-        
+
     return status;
 }
 
 /* A client requested to create a new chatroom.
- 
+
                                           ENCRYPTED
                             /\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 ================================================================================
@@ -1005,7 +1005,7 @@ label_cleanup:
 
 */
 void process_msg_10(u8* msg_buf, u32 user_ix){
-        
+
     u8  nonce[LONG_NONCE_LEN];
     u8  KAB[SESSION_KEY_LEN];
     u8  KBA[SESSION_KEY_LEN];
@@ -1034,7 +1034,7 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
     memset(room_user_ID_buf, 0, 2 * SMALL_FIELD_LEN);
 
     //uint64_t* aux_ptr64_msgbuf = (u64*)(msg_buf + SMALL_FIELD_LEN);
-   
+
 
     /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
      * - Turn it into a temporary BigInt
@@ -1043,15 +1043,15 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
     /* Another instance of a BigInt constructor from mem. Find time for it. */
     /* MAX_BIGINT_SIZ is in bits, so divide by 8 to get the reserved BYTES. */
     nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
-    
+
     memcpy( nonce_bigint.bits
            ,clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN)
            ,LONG_NONCE_LEN
     );
-     
+
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-    
+
     bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
@@ -1060,8 +1060,8 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
-    
-    /*  On server's side: 
+
+    /*  On server's side:
      *       - KBA = least significant 32 bytes of shared secret
      *       - KAB = next 32 bytes of shared secret
      *       - swap KBA with KAB if A > B.
@@ -1069,9 +1069,9 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
      *  Here the server needs KAB to decrypt KB into one-time-use key K, behind
      *  which is hidden the desired room index of the room they want to create.
      */
-    
+
     if(
-       bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint) 
+       bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint)
         == 3
       )
     {
@@ -1086,7 +1086,7 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
     }
     else{
       /* KAB is the FIRST 32 bytes of shared secret in this case, not next. */
-      /* KBA is next 32 bytes. */   
+      /* KBA is next 32 bytes. */
         memcpy( KAB
                ,(clients[user_ix].shared_secret).bits
                ,SESSION_KEY_LEN
@@ -1094,9 +1094,9 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
         memcpy( KBA
                ,(clients[user_ix].shared_secret).bits + SESSION_KEY_LEN
                ,SESSION_KEY_LEN
-        ); 
+        );
     }
-    
+
      /*
      * - Add 1 to it as many times as this user_ix's nonce_counter says
      * - Turn that incremented nonce back into a buffer pointed to by a u32*
@@ -1109,13 +1109,13 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
      *      - Do any required server bookkeeping for global arrays and indices.
      *      - Send a reply either saying OK, or not enough space for new rooms.
      */
-     
+
     /* Increment nonce as many times as needed. */
     for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
         bigint_add_fast(&nonce_bigint, &one, &aux1);
-        bigint_equate2(&nonce_bigint, &aux1);     
+        bigint_equate2(&nonce_bigint, &aux1);
     }
-    
+
     chacha20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - key KB           */
              ,SESSION_KEY_LEN                      /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1124,13 +1124,13 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
              ,recv_K                               /* output target buffer    */
              );
-   
+
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter);
-   
+
     /* Now use the decrypted key to decrypt room_ID and user_ID. */
-   
+
     chacha20( msg_buf + room_id_offset             /* text: encr room+user_ID */
              ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1139,17 +1139,17 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* key_len in uint32_t's   */
              ,room_user_ID_buf                     /* output target buffer    */
             );
-  
+
     /* Increment nonce counter again to prepare the nonce for its next use. */
-    ++(clients[user_ix].nonce_counter); 
+    ++(clients[user_ix].nonce_counter);
 
     /* Now that we have the room_ID, create a new chatroom if space allows. */
-    
+
     /* If not enough space for new chatrooms currently, tell the client. */
     if(next_free_room_ix == MAX_CHATROOMS){
         printf("[ERR] Server: Not enough room slots to make a new chatroom.\n");
         printf("              Letting the user know and to try later.  \n");
-        
+
         /* Construct the NO ROOM SPACE AVAILABLE reply msg buffer:
 
 ================================================================================
@@ -1157,7 +1157,7 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
 |=================|============================================================|
 | SMALL_FIELD_LEN |                     SIGNATURE_LEN                          |
 --------------------------------------------------------------------------------
-        
+
         */
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
@@ -1168,17 +1168,17 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
                            ,reply_buf + SMALL_FIELD_LEN
                            ,&server_privkey_bigint, PRIVKEY_LEN
                           );
-        
-        ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                 
-        if(ret)                                                                  
-            printf("[ERR] Server: Couldn't send No-Room-Space message.\n");    
-        else                                                                     
-            printf("[OK]  Server: Told client No Room Space, try later.\n");  
 
-        goto label_cleanup;  
+        ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+        if(ret)
+            printf("[ERR] Server: Couldn't send No-Room-Space message.\n");
+        else
+            printf("[OK]  Server: Told client No Room Space, try later.\n");
+
+        goto label_cleanup;
     }
-    
+
         /* Construct the ROOM CREATION WENT OKAY reply message buffer:
 
 ================================================================================
@@ -1186,38 +1186,38 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
 |=================|============================================================|
 | SMALL_FIELD_LEN |                     SIGNATURE_LEN                          |
 --------------------------------------------------------------------------------
-        
+
         */
     reply_len  = SMALL_FIELD_LEN + SIGNATURE_LEN;
     reply_buf  = calloc(1, reply_len);
-           
+
     memcpy(reply_buf, &PACKET_ID10, SMALL_FIELD_LEN);
-    
+
     signature_generate( M, Q, Gm, (u8*)(&PACKET_ID10), SMALL_FIELD_LEN
                        ,(reply_buf + SMALL_FIELD_LEN)
                        ,&server_privkey_bigint, PRIVKEY_LEN
                       );
-    
+
     /* Server bookkeeping - populate this room's slot, find next free slot. */
     rooms[next_free_room_ix].num_people = 1;
-    rooms[next_free_room_ix].owner_ix = user_ix; 
+    rooms[next_free_room_ix].owner_ix = user_ix;
     memcpy(&(rooms[next_free_room_ix].room_id), room_user_ID_buf, sizeof(u64));
-    
+
     clients[user_ix].room_ix = next_free_room_ix;
-    
+
     memcpy( clients[user_ix].user_id
-           ,(room_user_ID_buf + SMALL_FIELD_LEN) 
+           ,(room_user_ID_buf + SMALL_FIELD_LEN)
            ,SMALL_FIELD_LEN
           );
 
     /* Reflect the new taken room slot in the global room status bitmask. */
     rooms_status_bitmask |= (1ULL << (63ULL - next_free_room_ix));
-    
+
     /* Similar indexing logic to the one described by the large comment for
      * the user slot creation code.
      */
     ++next_free_room_ix;
-    
+
     while(next_free_room_ix < MAX_CHATROOMS){
         if(!(rooms_status_bitmask & (1ULL << (63ULL - next_free_room_ix))))
         {
@@ -1225,32 +1225,32 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
         }
         ++next_free_room_ix;
     }
-    
-    /* Transmit the server's ROOM CREATION OK reply back to the client. */    
 
-    ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                 
-    if(ret){                                                                  
-        printf("[ERR] Server: Couldn't send Room-Creation-OK message.\n");    
+    /* Transmit the server's ROOM CREATION OK reply back to the client. */
+
+    ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+    if(ret){
+        printf("[ERR] Server: Couldn't send Room-Creation-OK message.\n");
         goto label_cleanup;
     }
-    else{                                                                     
-        printf("[OK]  Server: Told client room creation finished!\n");  
+    else{
+        printf("[OK]  Server: Told client room creation finished!\n");
     }
 
 label_cleanup:
 
-    bigint_cleanup(&nonce_bigint);    
-    bigint_cleanup(&one);    
+    bigint_cleanup(&nonce_bigint);
+    bigint_cleanup(&one);
     bigint_cleanup(&aux1);
 
     free(reply_buf);
 
     return;
 }
- 
+
 /* A client requested to join an existing chatroom.
- 
+
                                           ENCRYPTED
                             /\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 ================================================================================
@@ -1264,7 +1264,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
 
     FILE* ran_file = NULL;
 
-    const u64 buf_type_21_len = 
+    const u64 buf_type_21_len =
           (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN + PUBKEY_LEN;
 
     //u64 user_ix;
@@ -1281,7 +1281,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
     u64 encrypted_roomID_offset      = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     u64 sign_offset                  = ONE_TIME_KEY_LEN + (4 * SMALL_FIELD_LEN);
     u64 signed_len                   = sign_offset;
-                              
+
     u8  buf_type_21[buf_type_21_len];
     u8  room_user_ID_buf[2 * SMALL_FIELD_LEN];
     u8  KAB[SESSION_KEY_LEN];
@@ -1292,14 +1292,14 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
     u8* buf_ixs_pubkeys = NULL;
     u8* reply_buf = NULL;
     u8  room_found;
-    u8  ret = 0;    
+    u8  ret = 0;
 
     size_t ret_val;
-       
+
     bigint nonce_bigint;
     bigint one;
     bigint aux1;
-        
+
     //memcpy(&user_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     /* Early initializations and heap allocations. */
@@ -1328,7 +1328,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         goto label_cleanup;
     }
 
-    /*  On server's side: 
+    /*  On server's side:
      *       - KBA = least significant 32 bytes of shared secret
      *       - KAB = next 32 bytes of shared secret
      *       - swap KBA with KAB if A > B.
@@ -1336,9 +1336,9 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
      *  Here the server needs KAB to decrypt KB into one-time-use key K, behind
      *  which is hidden the desired room index of the room they want to create.
      */
-   
+
     if(
-       bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint) 
+       bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint)
         == 3
       )
     {
@@ -1353,7 +1353,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
     }
     else{
         /* KAB is the FIRST 32 bytes of shared secret in this case, not next. */
-        /* KBA is next 32 bytes. */   
+        /* KBA is next 32 bytes. */
         memcpy( KAB
                ,(clients[user_ix].shared_secret).bits
                ,SESSION_KEY_LEN
@@ -1361,9 +1361,9 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         memcpy( KBA
                ,(clients[user_ix].shared_secret).bits + SESSION_KEY_LEN
                ,SESSION_KEY_LEN
-        ); 
+        );
     }
-    
+
     /* - Fetch this user_ix's nonce from shared secret at byte [64] for 16 bytes
      * - Turn it into a temporary BigInt
      * - Add 1 to it as many times as this user_ix's nonce_counter says
@@ -1377,25 +1377,25 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
      *      - Do any required server bookkeeping for global arrays and indices.
      *      - Send a reply either saying OK, or not enough space for new rooms.
      */
-    
+
     /* Another instance of a BigInt constructor from mem. Find time for it. */
     /* MAX_BIGINT_SIZ is in bits, so divide by 8 to get the bytes.          */
-    
-    
+
+
     memcpy( nonce_bigint.bits
            ,clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN)
            ,LONG_NONCE_LEN
-          ); 
-          
+          );
+
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
     nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-       
+
     /* Increment nonce as many times as needed. */
     for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
         bigint_add_fast(&nonce_bigint, &one, &aux1);
-        bigint_equate2(&nonce_bigint, &aux1);     
+        bigint_equate2(&nonce_bigint, &aux1);
     }
-    
+
     chacha20( msg_buf + (2 * SMALL_FIELD_LEN)      /* text - one-time key KB  */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1404,13 +1404,13 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
              ,recv_K                               /* output target buffer    */
              );
-   
+
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
     ++(clients[user_ix].nonce_counter);
-   
+
     /* Use the incremented nonce in the other call to chacha for user+roomID. */
-   
+
     chacha20( msg_buf + encrypted_roomID_offset    /* text: encr room+user_ID */
              ,2 * SMALL_FIELD_LEN                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1419,15 +1419,15 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* key_len in uint32_t's   */
              ,room_user_ID_buf                     /* output target buffer    */
             );
-  
+
     /* Increment nonce counter again to prepare the nonce for its next use. */
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
-    ++(clients[user_ix].nonce_counter); 
+    ++(clients[user_ix].nonce_counter);
 
     /* Now that we have room_id, check that it really exists. */
     room_found = 0;
-    
+
     uint64_t cur_room_id = 0;
     memcpy(&cur_room_id, room_user_ID_buf, SMALL_FIELD_LEN);
     for(u64 i = 0; i < MAX_CHATROOMS; ++i){
@@ -1435,9 +1435,9 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
             room_found = 1;
             room_ix = i;
             break;
-        } 
+        }
     }
-    
+
     /* If no room was found with this ID, silently drop communication. */
     if(!room_found){
         /* Don't tell the client that the room wasn't found.         */
@@ -1448,55 +1448,55 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
     }
 
     /* Server bookkeeping */
-    
+
     ++(rooms[room_ix].num_people);
-    
+
     memcpy( clients[user_ix].user_id
            ,(room_user_ID_buf + SMALL_FIELD_LEN)
            ,SMALL_FIELD_LEN
-          ); 
+          );
 
     //clients[user_ix].room_ix = room_ix;
 
     /* Send (encrypted and signed) the public keys of all users currently in the
-     * chatroom, to the user who is now wanting to join it, as well as the new 
-     * client's public key to all people who are currently in the chatroom so 
-     * they can derive shared secrets and pairs of bidirectional symmetric keys 
+     * chatroom, to the user who is now wanting to join it, as well as the new
+     * client's public key to all people who are currently in the chatroom so
+     * they can derive shared secrets and pairs of bidirectional symmetric keys
      * and other cryptographic artifacts like ChaCha encryption nonces.
      */
-     
+
     /* First do the public keys of everyone in the room to new client part. */
-     
+
     /* Iterate over all user indices, for the number of people in the room. */
-    
+
     next_free_room_users_ix = 0;
-    
+
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if(clients[i].room_ix == room_ix){
             ++num_users_in_room;
             user_ixs_in_room[next_free_room_users_ix] = i;
             ++next_free_room_users_ix;
         }
-    }  
-      
+    }
+
     clients[user_ix].room_ix = room_ix;
 
     /* Construct the message buffer. */
     buf_ixs_pubkeys_len = num_users_in_room * (SMALL_FIELD_LEN + PUBKEY_LEN);
-    
-    reply_len = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN 
-                  + 
-                 SIGNATURE_LEN + buf_ixs_pubkeys_len;
-                  
-    reply_buf = calloc(1, reply_len);
-           
-    uint64_t packet_id20 = PACKET_ID_20;
-    memcpy(reply_buf, &packet_id20, SMALL_FIELD_LEN);    
 
-    
+    reply_len = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN
+                  +
+                 SIGNATURE_LEN + buf_ixs_pubkeys_len;
+
+    reply_buf = calloc(1, reply_len);
+
+    uint64_t packet_id20 = PACKET_ID_20;
+    memcpy(reply_buf, &packet_id20, SMALL_FIELD_LEN);
+
+
     /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
      * KBA as chacha key and the server-client-maintained incremented Nonce from
-     * the two's DH shared secret. Increment the Nonce. 
+     * the two's DH shared secret. Increment the Nonce.
      *
      * Concatenate the encrypted one-time use key K, now KA, to PACKET_ID_2O.
      *
@@ -1509,23 +1509,23 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
      *
      * whose length in bytes is exactly:
      *
-     * (8 + num_keys*(8 + PUB_KEY_LEN)) 
+     * (8 + num_keys*(8 + PUB_KEY_LEN))
      */
-    
+
     ran_file = fopen("/dev/urandom", "r");
-    
+
     if(!ran_file){
         printf("[ERR] Server: Couldn't open urandom. Dropping transmission.\n");
         goto label_cleanup;
     }
-    
+
     ret_val = fread(send_K, 1, ONE_TIME_KEY_LEN, ran_file);
-    
+
     if(ret_val != ONE_TIME_KEY_LEN){
         printf("[ERR] Server: Couldn't read urandom. Dropping transmission.\n");
         goto label_cleanup;
     }
-     
+
     chacha20( send_K                               /* text: one-time key K    */
              ,ONE_TIME_KEY_LEN                     /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1534,42 +1534,42 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
              ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_t's   */
              ,reply_buf + SMALL_FIELD_LEN          /* output target buffer    */
              );
-    
+
     /* Increment nonce counter again to prepare the nonce for its next use. */
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
-    ++(clients[user_ix].nonce_counter); 
-   
-     
+    ++(clients[user_ix].nonce_counter);
+
+
     memcpy( reply_buf + (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN)
            ,&num_users_in_room
            ,SMALL_FIELD_LEN
           );
 
     buf_ixs_pubkeys = calloc(1, buf_ixs_pubkeys_len);
-    
+
     /* Iterate over all users in this chatroom, to grab their public keys. */
     buf_ixs_pubkeys_write_offset = 0;
-    
+
     for(u64 i = 0; i < num_users_in_room; ++i){
-    
+
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
                ,clients[user_ixs_in_room[i]].user_id
                ,SMALL_FIELD_LEN
               );
-        
+
         buf_ixs_pubkeys_write_offset += SMALL_FIELD_LEN;
-              
+
         memcpy( buf_ixs_pubkeys + buf_ixs_pubkeys_write_offset
                ,clients[user_ixs_in_room[i]].client_pubkey.bits
                ,PUBKEY_LEN
               );
-        
-        buf_ixs_pubkeys_write_offset += PUBKEY_LEN;            
+
+        buf_ixs_pubkeys_write_offset += PUBKEY_LEN;
     }
-    
+
     /* We need a counter for this ChaCha use, to encrypt big public keys. */
-    
+
     chacha20( buf_ixs_pubkeys                      /* text - room people info */
              ,buf_ixs_pubkeys_len                  /* text_len in bytes       */
              ,(u32*)(nonce_bigint.bits)            /* Nonce                   */
@@ -1578,71 +1578,71 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
              ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_t's   */
              ,reply_buf + send_type20_AD_offset    /* output target buffer    */
              );
-    
+
     /* Increment nonce counter again to prepare the nonce for its next use. */
     bigint_add_fast(&nonce_bigint, &one, &aux1);
     bigint_equate2(&nonce_bigint, &aux1);
-    ++(clients[user_ix].nonce_counter); 
-       
-    send_type20_signed_len = (2 * SMALL_FIELD_LEN) 
-                              + ONE_TIME_KEY_LEN 
+    ++(clients[user_ix].nonce_counter);
+
+    send_type20_signed_len = (2 * SMALL_FIELD_LEN)
+                              + ONE_TIME_KEY_LEN
                               + buf_ixs_pubkeys_len;
-    
+
     signature_generate
         (M, Q, Gm, reply_buf, send_type20_signed_len
         ,reply_buf + send_type20_signed_len
         ,&server_privkey_bigint, PRIVKEY_LEN);
-    
-    /* The reply buffer is ready. Transmit it to the chatroom's new client. */  
 
-    /* Reply to client with the user index and public key of all room guests. 
+    /* The reply buffer is ready. Transmit it to the chatroom's new client. */
+
+    /* Reply to client with the user index and public key of all room guests.
      * in encrypted form. The key to decrypt them itself is also encrypted
      * and hidden behind a deeper-level key extracted from the shared secret.
      */
-    
+
     /*
-    
+
     Server ---> Client
 
     Main packet structure:
 
 ================================================================================
-| packetID 20 |        KC        |     N     | Associated Data |   Signature   |  
+| packetID 20 |        KC        |     N     | Associated Data |   Signature   |
 |=============|==================|===========|=================|===============|
 |  SMALL_LEN  | ONE_TIME_KEY_LEN | SMALL_LEN |      L bytes    | SIGNATURE_LEN |
---------------------------------------------------------------------------------    
+--------------------------------------------------------------------------------
 
     where Associated Data of length L bytes:
-    
+
 ================================================================================
-| user_id1  | long-term_public_key1 | ... | user_idN  | long-term_public_keyN  |    
+| user_id1  | long-term_public_key1 | ... | user_idN  | long-term_public_keyN  |
 |===========|=======================|=====|===========|========================|
 | SMALL_LEN |      PUBKEY_LEN       | ... | SMALL_LEN |      PUBKEY_LEN        |
--------------------------------------------------------------------------------- 
+--------------------------------------------------------------------------------
 
-    L = N * (SMALL_FIELD_LEN + PUBKEY_LEN). 
-    
+    L = N * (SMALL_FIELD_LEN + PUBKEY_LEN).
+
     */
- 
-    ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                
-    if(ret){                                                                 
-        printf("[ERR] Server: Couldn't send Room-Joined-OK message.\n");    
+
+    ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+    if(ret){
+        printf("[ERR] Server: Couldn't send Room-Joined-OK message.\n");
         goto label_cleanup;
     }
-    else{                                                                     
-        printf("[OK]  Server: Told client they were permitted in the room.\n");  
+    else{
+        printf("[OK]  Server: Told client they were permitted in the room.\n");
     }
 
     printf("Now sending the new guest's PubKey and name to current people.\n");
-    
+
     /* Add the new room guest's id and pubkey as a pending MSG to each user. */
 
     /* Construct the buffer before populating it into the users' structures. */
-    
+
     /* Draw a random one-time use 32-byte key K, encrypt it with ChaCha20 using
      * KBA as chacha key and the server-client-maintained incremented Nonce from
-     * the two's DH shared secret. Increment the Nonce. 
+     * the two's DH shared secret. Increment the Nonce.
      *
      * Concatenate the encrypted one-time use key K, now KA, to PACKET_ID_2O.
      * Use un-encrypted key K as ChaCha key to encrypt the actual protected part
@@ -1652,26 +1652,26 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
      *
      * whose length in bytes is exactly:
      *
-     * (8 + PUB_KEY_LEN) 
+     * (8 + PUB_KEY_LEN)
      */
-       
+
     for(u64 i = 0; i < num_users_in_room; ++i){
-    
+
         /* Clear the reply buf to prepare it for next response by the server. */
         memset(buf_type_21, 0, buf_type_21_len);
-       
+
         /* Place the network packet identifier 21 constant. */
         uint64_t packet_id21 = PACKET_ID_21;
         memcpy(buf_type_21, &packet_id21, SMALL_FIELD_LEN);
-        
+
         /* Draw the random one-time use 32-byte key K. */
         ret_val = fread(send_K, 1, ONE_TIME_KEY_LEN, ran_file);
-    
+
         if(ret_val != ONE_TIME_KEY_LEN){
             printf("[ERR] Server: Couldn't read urandom. Dropping message.\n");
             goto label_cleanup;
         }
-        
+
         /* Get session keys KBA, KAB of this already-present room guest. */
         if(
            bigint_compare2( &(clients[user_ixs_in_room[i]].client_pubkey)
@@ -1679,13 +1679,13 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
            ) == 3
           )
         {
-            memcpy( 
+            memcpy(
              KBA
             ,(clients[user_ixs_in_room[i]].shared_secret).bits
             ,SESSION_KEY_LEN
             );
-            
-            memcpy( 
+
+            memcpy(
              KAB
             ,(clients[user_ixs_in_room[i]].shared_secret).bits + SESSION_KEY_LEN
             ,SESSION_KEY_LEN
@@ -1693,18 +1693,18 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         }
         else{
             /* KAB is FIRST 32 bytes of shared secret in this case, not next. */
-            /* KBA is next 32 bytes. */   
-            memcpy( 
+            /* KBA is next 32 bytes. */
+            memcpy(
              KAB
             ,(clients[user_ixs_in_room[i]].shared_secret).bits
             ,SESSION_KEY_LEN
             );
-            
-            memcpy( 
+
+            memcpy(
              KBA
             ,(clients[user_ixs_in_room[i]].shared_secret).bits + SESSION_KEY_LEN
             ,SESSION_KEY_LEN
-            ); 
+            );
         }
 
         /* Another instance of BigInt constructor from mem. Find time for it. */
@@ -1713,24 +1713,24 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
                ,0
                ,((size_t)((double)MAX_BIGINT_SIZ/(double)8))
         );
-        
-        memcpy( 
+
+        memcpy(
          nonce_bigint.bits
         ,clients[user_ixs_in_room[i]].shared_secret.bits + (2 * SESSION_KEY_LEN)
         ,LONG_NONCE_LEN
-        ); 
-          
-        nonce_bigint.used_bits = 
+        );
+
+        nonce_bigint.used_bits =
             get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
-            
+
         nonce_bigint.size_bits = MAX_BIGINT_SIZ;
 
         /* Increment nonce as many times as needed. */
         for(u64 j = 0; j < clients[user_ixs_in_room[i]].nonce_counter; ++j){
             bigint_add_fast(&nonce_bigint, &one, &aux1);
-            bigint_equate2(&nonce_bigint, &aux1);     
+            bigint_equate2(&nonce_bigint, &aux1);
         }
-        
+
         chacha20(
             send_K                                  /* text - one-time key K  */
            ,ONE_TIME_KEY_LEN                        /* text_len in bytes      */
@@ -1740,26 +1740,26 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
            ,(u32)(SESSION_KEY_LEN / sizeof(u32))    /* Key_len in uint32_t's  */
            ,buf_type_21 + SMALL_FIELD_LEN           /* output target buffer   */
         );
-        
+
         /* Increment nonce counter again to prepare it for its next use. */
         bigint_add_fast(&nonce_bigint, &one, &aux1);
         bigint_equate2(&nonce_bigint, &aux1);
-        ++(clients[user_ixs_in_room[i]].nonce_counter); 
-        
+        ++(clients[user_ixs_in_room[i]].nonce_counter);
+
         /* Place the part that has to be encrypted in a buffer. */
 
         memcpy( type21_encrypted_part
                ,clients[user_ix].user_id
                ,SMALL_FIELD_LEN
         );
-        
+
         memcpy( type21_encrypted_part + SMALL_FIELD_LEN
                ,clients[user_ix].client_pubkey.bits
                ,PUBKEY_LEN
         );
 
         /* Encrypt it with chacha20, place the result ciphertext in response. */
-        chacha20( 
+        chacha20(
          type21_encrypted_part                      /* text: user_ix + pubkey */
         ,(SMALL_FIELD_LEN + PUBKEY_LEN)             /* text_len in bytes      */
         ,(u32*)(nonce_bigint.bits)                  /* Nonce                  */
@@ -1768,13 +1768,13 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))      /* Key_len in uint32t's   */
         ,buf_type_21 + send_type21_encr_part_offset /* output target buffer   */
         );
-        
+
         /* Increment nonce counter again to prepare it for its next use. */
-        ++(clients[user_ixs_in_room[i]].nonce_counter); 
-        
+        ++(clients[user_ixs_in_room[i]].nonce_counter);
+
         /* Final part of TYPE_21 replies - signature itself. */
         /* Compute the signature itself of everything so far.*/
-        
+
         signature_generate
         (     M, Q, Gm, buf_type_21
              ,buf_type_21_len - SIGNATURE_LEN
@@ -1782,11 +1782,11 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
              ,&server_privkey_bigint
              ,PRIVKEY_LEN
         );
-        
+
 /* Send the new room guest's name and public key to all room participants.
- 
+
     Server ----> Client
-  
+
 ================================================================================
 | packet ID 21 |        KC       | new_guest_ID | new_guest_PubKey | Signature |
 |==============|=================|==============|==================|===========|
@@ -1799,28 +1799,28 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
 
 label_cleanup:
 
-    if(ran_file){ 
-        fclose(ran_file); 
+    if(ran_file){
+        fclose(ran_file);
     }
 
     free(reply_buf);
     free(buf_ixs_pubkeys);
 
     bigint_cleanup(&nonce_bigint);
-    bigint_cleanup(&one);    
+    bigint_cleanup(&one);
     bigint_cleanup(&aux1);
 
     return;
 }
 
 /* A client requested to send a text message to everyone else in their chatroom.
- 
+
  Client ----> Server
- 
+
  Main packet structure:
- 
+
 ================================================================================
-| packetID 30 |  user_id  |  TXT_LEN   |    AD   |          Signature1         | 
+| packetID 30 |  user_id  |  TXT_LEN   |    AD   |          Signature1         |
 |=============|===========|============|=========|=============================|
 |  SMALL_LEN  | SMALL_LEN | SMALL_LEN  | L bytes |            SIG_LEN          |
 --------------------------------------------------------------------------------
@@ -1828,7 +1828,7 @@ label_cleanup:
  AD - Associated Data, of length L bytes: From T = 1 to num_guests:
 
 ================================================================================
-| guestID_1 | encr_key_1 | encr_msg_1| ... |guestID_T | encr_key_T | encr_msg_T| 
+| guestID_1 | encr_key_1 | encr_msg_1| ... |guestID_T | encr_key_T | encr_msg_T|
 |===========|============|===========|=====|==========|============|===========|
 | SMALL_LEN |  X bytes   |  TXT_LEN  | ... |SMALL_LEN |  X bytes   |  TXT_LEN  |
 --------------------------------------------------------------------------------
@@ -1850,7 +1850,7 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
 
     memset(userid, 0, SMALL_FIELD_LEN);
 
-    receiver_ixs = 
+    receiver_ixs =
     calloc(1, (rooms[clients[sender_ix].room_ix].num_people -1) * sizeof(u64));
 
     reply_buf  = calloc(1, reply_len);
@@ -1860,20 +1860,20 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
     }
-    
+
     /* Iterate over all user indices to find the other chatroom participants. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if(
-              (clients[i].room_ix == clients[sender_ix].room_ix) 
-            && 
+              (clients[i].room_ix == clients[sender_ix].room_ix)
+            &&
               (i != sender_ix)
           )
         {
             receiver_ixs[next_free_receivers_ix] = i;
             ++next_free_receivers_ix;
         }
-    }  
-      
+    }
+
     /* Place the already received packet into the upgraded type_30 packet */
     memcpy(reply_buf, msg_buf, packet_siz);
 
@@ -1883,8 +1883,8 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
     //memcpy(userid, clients[sender_ix].user_id, SMALL_FIELD_LEN);
     //memcpy(reply_buf + SMALL_FIELD_LEN, userid, SMALL_FIELD_LEN);
 
-        
-    /* Compute the server's cryptographic signature of the entire received  
+
+    /* Compute the server's cryptographic signature of the entire received
      * packet, including the sender's cryptographic signature!
      */
 
@@ -1892,45 +1892,45 @@ void process_msg_30(u8* msg_buf, s64 packet_siz, u64 sign_offset, u64 sender_ix)
                     (M, Q, Gm, reply_buf, packet_siz, (reply_buf + packet_siz)
                     ,&server_privkey_bigint, PRIVKEY_LEN
     );
-        
+
 
     /* Add upgraded type_30 packet to the intended receivers' pending MSGs. */
     /*
-    
+
     Server ---> Client
-    
+
 ================================================================================
-| packetID 30 | sender_id |  TXT_LEN  |    AD   |     Sign1     |    Sign2     |  
+| packetID 30 | sender_id |  TXT_LEN  |    AD   |     Sign1     |    Sign2     |
 |=============|===========|===========|=========|===============|==============|
 |  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L bytes |    SIG_LEN    |   SIG_LEN    |
---------------------------------------------------------------------------------    
-    
+--------------------------------------------------------------------------------
+
     */
     for(u64 i = 0; i < rooms[clients[sender_ix].room_ix].num_people - 1; ++i){
         add_pending_msg(receiver_ixs[i], reply_len, reply_buf);
     }
-    
+
 label_cleanup:
-    
+
     free(reply_buf);
     free(receiver_ixs);
-    
+
     return;
 }
 
 /* A client polled the server for any pending unreceived messages.
- 
+
  Client ----> Server
-  
+
 ================================================================================
-| packet ID 40 |  user_ix  |                    SIGNATURE                      | 
+| packet ID 40 |  user_ix  |                    SIGNATURE                      |
 |==============|===========|===================================================|
 |  SMALL_LEN   | SMALL_LEN |                     SIG_LEN                       |
 --------------------------------------------------------------------------------
 
 */
 void process_msg_40(u8* msg_buf, u32 user_ix){
-        
+
     u8* reply_buf = NULL;
     u8  ret = 0;
 
@@ -1939,148 +1939,148 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len = sign_offset;
     u64 poller_ix;
-    
+
     memcpy(&poller_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
-    struct timeval tv1, tv2;
+    //struct timeval tv1, tv2;
 
-    gettimeofday(&tv1, NULL);
+    //gettimeofday(&tv1, NULL);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( __builtin_expect(
-           authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1 
+           authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1
           ,0
         )
-      ) 
+      )
     {
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        goto label_cleanup;       
+        goto label_cleanup;
     }
-    
-    gettimeofday(&tv2, NULL);
 
-    printf( "SERVER: Polled: auth timing: MICROS: %lu\n"
-	        ,tv2.tv_usec - tv1.tv_usec	    
-          );
-     
+    //gettimeofday(&tv2, NULL);
+
+    //printf( "SERVER: Polled: auth timing: MICROS: %lu\n"
+	//        ,tv2.tv_usec - tv1.tv_usec
+    //      );
+
     //clients[poller_ix].time_last_polled = clock();
-    
+
     /* If no pending messages, simply send the NO_PENDING packet type_40. */
     if(clients[poller_ix].num_pending_msgs == 0){
-    
+
         reply_len = SMALL_FIELD_LEN + SIGNATURE_LEN;
         reply_buf = calloc(1, reply_len);
-        
+
         uint64_t packet_id40 = PACKET_ID_40;
         memcpy(reply_buf, &packet_id40, SMALL_FIELD_LEN);
-        
+
         /* Compute a cryptographic signature so the client can authenticate us*/
         signature_generate
              ( M, Q, Gm, reply_buf, SMALL_FIELD_LEN, reply_buf + SMALL_FIELD_LEN
               ,&server_privkey_bigint, PRIVKEY_LEN
         );
-        
+
 /*
 
  No pending messages for the polling client were found.
- 
+
  Server ----> Client
-  
+
 ================================================================================
-| packet ID 40 |                         SIGNATURE                             | 
+| packet ID 40 |                         SIGNATURE                             |
 |==============|===============================================================|
 |  SMALL_LEN   |                          SIG_LEN                              |
 --------------------------------------------------------------------------------
 
-*/        
+*/
         /* Send the reply back to the client. */
-        
-        ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                 
-        if(ret)                                                                  
-            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");    
+
+        ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+        if(ret)
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_40 message.\n");
 
         goto label_cleanup;
     }
     /* If there are pending messages, construct a buffer containing them all. */
     else{
-    
+
         /* We need to allocate enough memory for the reply buffer. This can only
          * happen if we preemptively iterate over the sender's array of lengths
-         * of pending messages, even if we will need to do it again later to 
+         * of pending messages, even if we will need to do it again later to
          * actually fetch their pending messages. Doable in one pass over it?
          */
         reply_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
         reply_write_offset = 2 * SMALL_FIELD_LEN;
-        
+
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
          reply_len += clients[poller_ix].pending_msg_sizes[i] + SMALL_FIELD_LEN;
-        } 
- 
+        }
+
         reply_buf = calloc(1, reply_len);
-        
+
         uint64_t* aux_ptr64_replybuf = (u64*)reply_buf;
-        
+
         *aux_ptr64_replybuf = PACKET_ID_41;
-        
+
         aux_ptr64_replybuf  = (u64*)(reply_buf + SMALL_FIELD_LEN);
 
         *aux_ptr64_replybuf = clients[poller_ix].num_pending_msgs;
-        
+
         /* Iterate over this client's array of pending transmissions, as well */
         /* as their array of lengths to transport them to the reply buffer.   */
         for(u64 i = 0; i < clients[poller_ix].num_pending_msgs; ++i){
-            
+
             memcpy( reply_buf + reply_write_offset
                    ,(clients[poller_ix].pending_msg_sizes) + i
                    ,SMALL_FIELD_LEN
-                  );         
-  
+                  );
+
             reply_write_offset += SMALL_FIELD_LEN;
-                   
+
             memcpy( reply_buf + reply_write_offset
-                   ,clients[poller_ix].pending_msgs[i] 
-                   ,clients[poller_ix].pending_msg_sizes[i] 
+                   ,clients[poller_ix].pending_msgs[i]
+                   ,clients[poller_ix].pending_msg_sizes[i]
             );
-                 
+
             reply_write_offset += clients[poller_ix].pending_msg_sizes[i];
-            
+
             clients[poller_ix].pending_msg_sizes[i] = 0;
-            
+
             memset( clients[poller_ix].pending_msgs[i]
                    ,0
-                   ,clients[poller_ix].pending_msg_sizes[i] 
+                   ,clients[poller_ix].pending_msg_sizes[i]
             );
         }
 
         /* Compute a cryptographic signature so the client can authenticate us*/
         signature_generate
-                         ( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN, 
+                         ( M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN,
                            reply_buf + (reply_len - SIGNATURE_LEN)
                           ,&server_privkey_bigint, PRIVKEY_LEN
         );
-        
+
         clients[poller_ix].num_pending_msgs = 0;
 /*
 
  One or more pending messages were found for the polling client.
  Send them all at once.
- 
+
  Server ----> Client
-  
+
 ================================================================================
 | packetID 41 |     T     |    L_1    | MSG1 |...|    L_T    | MSG_T|  Signat  |
 |=============|===========|===========|======|===|===========|======|==========|
 |  SMALL_LEN  | SMALL_LEN | SMALL_LEN | L_1  |...| SMALL_LEN |  L_T | SIG_LEN  |
 --------------------------------------------------------------------------------
 
-*/              
+*/
         /* Send the reply back to the client. */
-        
-        ret = transmit_payload(user_ix, reply_buf, reply_len);                   
-                                                                                 
-        if(ret)                                                                  
-            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");    
+
+        ret = transmit_payload(user_ix, reply_buf, reply_len);
+
+        if(ret)
+            printf("[ERR] Server: Couldn't reply with PACKET_ID_41 msg.\n");
 
         if(room_owner_left_bitmask & (1ULL << (63ULL - poller_ix))) {
             room_owner_left_bitmask &= ~(1ULL << (63ULL - poller_ix));
@@ -2097,27 +2097,27 @@ void process_msg_40(u8* msg_buf, u32 user_ix){
 
         goto label_cleanup;
     }
-  
+
 label_cleanup:
 
     free(reply_buf);
-    
+
     return;
 }
 
 /* A client decided to leave the chatroom they're currently in. */
 void process_msg_50(u8* msg_buf){
-    
+
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len = sign_offset;
     u64 sender_ix;
-    
+
     memcpy(&sender_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        return;      
+        return;
     }
 
     remove_user_from_room(sender_ix);
@@ -2127,17 +2127,17 @@ void process_msg_50(u8* msg_buf){
 
 /* A client decided to log off Rosetta. */
 void process_msg_60(u8* msg_buf){
-  
+
     u64 sign_offset = 2 * SMALL_FIELD_LEN;
     u64 signed_len  = sign_offset;
     u64 sender_ix;
 
     memcpy(&sender_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
-    
+
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(sender_ix, msg_buf, signed_len, sign_offset) == 1 ){
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
-        return;     
+        return;
     }
 
     remove_user(sender_ix);
