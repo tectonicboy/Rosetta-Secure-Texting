@@ -483,11 +483,11 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
 
     get_mont_form(A_s, &Am, M);
 
-    if(   ((bigint_compare2(&zero, A_s)) != 3)
+    if(   ((bigint_compare2(&zero, A_s)) != CMP_SECOND_BIGGER)
         ||
-          ((bigint_compare2(M, A_s)) != 1)
+          ((bigint_compare2(M, A_s)) != CMP_FIRST_BIGGER)
         //||
-        //  (check_pubkey_form(&Am, M, Q) == 1)
+        //  (check_pubkey_form(&Am, M, Q) == CMP_FIRST_BIGGER)
       )
     {
         printf("[ERR] Server: Client's short-term public key is invalid.\n");
@@ -1072,7 +1072,7 @@ void process_msg_10(u8* msg_buf, u32 user_ix){
 
     if(
        bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint)
-        == 3
+        == CMP_SECOND_BIGGER
       )
     {
         memcpy( KBA
@@ -1339,7 +1339,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
 
     if(
        bigint_compare2(&(clients[user_ix].client_pubkey), server_pubkey_bigint)
-        == 3
+        == CMP_SECOND_BIGGER
       )
     {
         memcpy( KBA
@@ -1676,7 +1676,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         if(
            bigint_compare2( &(clients[user_ixs_in_room[i]].client_pubkey)
                            ,server_pubkey_bigint
-           ) == 3
+           ) == CMP_SECOND_BIGGER
           )
         {
             memcpy(

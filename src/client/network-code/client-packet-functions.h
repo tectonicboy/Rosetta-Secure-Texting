@@ -233,7 +233,7 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
 
     *msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
 
-    *msg_buf = calloc(1, *msg_len);
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     /* Manual construction of a BigInt - UGLY!! Add to the Library when time. */
 
@@ -302,8 +302,11 @@ label_cleanup:
 */
 u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
 
-    u64 handshake_buf_key_offset;
-    u64 handshake_buf_nonce_offset;
+    u64* aux_ptr64_tempbuf = NULL;
+    u64  handshake_buf_key_offset;
+    u64  handshake_buf_nonce_offset;
+    u64  packet_id01 = PACKET_ID_01;
+
     const u64 B = 64;
     const u64 L = 64;
 
@@ -332,7 +335,7 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
     *msg_01_len = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
 
     free(*msg_01_buf);
-    *msg_01_buf = calloc(1, *msg_01_len);
+    *msg_01_buf = (u8*)(void*)calloc(1, *msg_01_len);
 
     memset(K0,                  0, B);
     memset(ipad,                0, B);
@@ -371,9 +374,9 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
     get_mont_form(&B_s, &B_sM, M);
 
     /* Check the other side's public key for security flaws and consistency. */
-    if(   ((bigint_compare2(&zero, &B_s)) != 3)
+    if(   ((bigint_compare2(&zero, &B_s)) != CMP_SECOND_BIGGER)
         ||
-          ((bigint_compare2(M, &B_s)) != 1)
+          ((bigint_compare2(M, &B_s)) != CMP_FIRST_BIGGER)
         //||
         // (check_pubkey_form(&B_sM, M, Q) == 1)
       )
@@ -463,7 +466,6 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
 
     /* Ready to start constructing the reply buffer to the server. */
 
-    u64 packet_id01 = PACKET_ID_01;
     memcpy(*msg_01_buf, &packet_id01, SMALL_FIELD_LEN);
 
 
@@ -501,8 +503,7 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len){
     /* And it should have the same effect unless we lucked out with all 1s. */
     /* But generating 64 1s in a row with no 0s should be extremely rare.   */
 
-    u64* aux_ptr64_tempbuf = 
-                        (u64*)(temp_handshake_buf + handshake_buf_nonce_offset);
+    aux_ptr64_tempbuf = (u64*)(temp_handshake_buf + handshake_buf_nonce_offset);
 
     *aux_ptr64_tempbuf += 1;
 
@@ -602,7 +603,7 @@ u8 process_msg_01(u8* msg){
     u64 key_offset;
 
     bigint* temp_ptr;
-    
+
     u8 status = 0;
 
     /* Validate the incoming signature with the server's long-term public key
@@ -745,7 +746,7 @@ label_cleanup:
 
 */
 u8 construct_msg_10( unsigned char* requested_userid
-                    ,unsigned char* requested_roomid 
+                    ,unsigned char* requested_roomid
 		    ,uint8_t**      msg_buf
 		    ,uint64_t*      msg_len
 		    )
@@ -755,16 +756,17 @@ u8 construct_msg_10( unsigned char* requested_userid
 
     const u64 sendbuf_roomID_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     const u64 signed_len            = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
-    
+
+    u64 packet_id10 = PACKET_ID_10;
+
     FILE* ran_file = NULL;
 
     u8 status = 0;
-    
     u8 send_K[ONE_TIME_KEY_LEN];
     u8 roomID_userID[2 * SMALL_FIELD_LEN];
 
     *msg_len = signed_len + SIGNATURE_LEN;
-    *msg_buf = calloc(1, *msg_len);
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     memset(send_K,        0, ONE_TIME_KEY_LEN);
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
@@ -806,7 +808,7 @@ u8 construct_msg_10( unsigned char* requested_userid
         bigint_equate2(&server_nonce_bigint, &aux1);
     }
     */
-    
+
     /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
 
     chacha20( send_K                               /* text: one-time key K    */
@@ -847,8 +849,6 @@ u8 construct_msg_10( unsigned char* requested_userid
     //++server_nonce_counter;
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
-
-    u64 packet_id10 = PACKET_ID_10;
 
     memcpy(*msg_buf, &packet_id10, SMALL_FIELD_LEN);
 
@@ -953,7 +953,7 @@ u8 process_msg_10(u8* msg){
 */
 
 u8 construct_msg_20( unsigned char* requested_userid
-                    ,unsigned char* requested_roomid 
+                    ,unsigned char* requested_roomid
                     ,uint8_t**      msg_buf
 		    ,uint64_t*      msg_len
 		   )
@@ -970,7 +970,9 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     const u64 sendbuf_roomID_offset = (2 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
     const u64 signed_len            = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN;
-    
+
+    u64 packet_id20 = PACKET_ID_20;
+
     *msg_len = signed_len + SIGNATURE_LEN;
 
     FILE* ran_file = NULL;
@@ -983,7 +985,7 @@ u8 construct_msg_20( unsigned char* requested_userid
     memset(send_K,        0, ONE_TIME_KEY_LEN);
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
 
-    *msg_buf = calloc(1, *msg_len);
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
     bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
@@ -1022,7 +1024,7 @@ u8 construct_msg_20( unsigned char* requested_userid
         bigint_equate2(&server_nonce_bigint, &aux1);
     }
     */
-    
+
     /* Encrypt the one-time key which itself encrypts the room_ID and user_ID */
 
     chacha20( send_K                               /* text: one-time key K    */
@@ -1064,7 +1066,6 @@ u8 construct_msg_20( unsigned char* requested_userid
 
     /* Construct the first 2 parts of this packet - identifier and user_ix. */
 
-    u64 packet_id20 = PACKET_ID_20;
 
     memcpy(*msg_buf, &packet_id20, SMALL_FIELD_LEN);
     memcpy((*msg_buf) + SMALL_FIELD_LEN, &own_ix, SMALL_FIELD_LEN);
@@ -1309,9 +1310,9 @@ label_cleanup:
     bigint_cleanup(&one);
     bigint_cleanup(&aux1);
     bigint_cleanup(&temp_shared_secret);
-    
+
     free(buf_decrypted_AD);
-    
+
     return status;
 }
 
@@ -1469,7 +1470,7 @@ void process_msg_21(u8* msg){
 
     roommates[guest_ix].guest_KBA   = (u8*)calloc(1, SESSION_KEY_LEN);
     roommates[guest_ix].guest_KAB   = (u8*)calloc(1, SESSION_KEY_LEN);
-    roommates[guest_ix].guest_Nonce = (u8*)calloc(1, LONG_NONCE_LEN); 
+    roommates[guest_ix].guest_Nonce = (u8*)calloc(1, LONG_NONCE_LEN);
 
     /* Now extract guest_KBA, guest_KAB and guest's symmetric Nonce. */
     memcpy( roommates[guest_ix].guest_KBA
@@ -1559,7 +1560,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
 
     *msg_len = L + (3 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
     signed_len = *msg_len - SIGNATURE_LEN;
-    *msg_buf = calloc(1, *msg_len);  
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     memset(send_K, 0, ONE_TIME_KEY_LEN);
 
@@ -1567,7 +1568,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
     bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
 
     guest_nonce_bigint.bits =
-    (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    (u8*)(void*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
 
     /* Construct the first 3 sections of the payload. */
 
@@ -1677,7 +1678,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len
                 guest_nonce_bigint.bits
                ,0
                ,((size_t)((double)MAX_BIGINT_SIZ/(double)8))
-            );    
+            );
         }
     }
 
@@ -1700,8 +1701,8 @@ label_cleanup:
 
     free(associated_data);
 
-    if(ran_file != NULL){ 
-        fclose(ran_file); 
+    if(ran_file != NULL){
+        fclose(ran_file);
     }
 
     return status;
@@ -1796,7 +1797,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     /* Find the index of the guest with this userID. */
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
         if( roommate_slots_bitmask & BITMASK_BIT_ON_AT(i) ){
-            
+
             /* if userIDs match. */
             if(strncmp( (char*)(roommates[i].guest_user_id)
                        ,(char*)(payload + SMALL_FIELD_LEN)
@@ -1817,7 +1818,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     }
 
     /* Validate the authenticity of the server AND the sending client. */
-    
+
     struct timeval tv1, tv2;
 
     gettimeofday(&tv1, NULL);
@@ -1825,7 +1826,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     gettimeofday(&tv2, NULL);
 
     printf( "CLIENT: process_30: authenticate_server() time diff: SEC %lu  --  MICROS %lu\n"
-           ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec	    
+           ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec
 	  );
 
     if(status){
@@ -1855,7 +1856,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
            ,PRIVKEY_LEN
     );
 
-    
+
     gettimeofday(&tv1, NULL);
     /* Verify the sender's cryptographic signature. */
     status = signature_validate(
@@ -1866,7 +1867,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars){
     gettimeofday(&tv2, NULL);
 
     printf( "CLIENT: process_30, client's signature_validate(): sec %lu -- micros %lu\n"
-	   ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec	    
+	   ,tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec
           );
 
     if(status) {
@@ -2003,8 +2004,8 @@ u8 construct_msg_40(u8** msg_buf, u64* msg_len){
     *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
     u8 status = 0;
-    
-    *msg_buf = calloc(1, *msg_len); 
+
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     u64 packet_id40 = PACKET_ID_40;
 
@@ -2017,7 +2018,7 @@ u8 construct_msg_40(u8** msg_buf, u64* msg_len){
         M, Q, Gm, *msg_buf, 2 * SMALL_FIELD_LEN,
         (*msg_buf) + (2 * SMALL_FIELD_LEN), &own_privkey, PRIVKEY_LEN
     );
-    
+
 
 label_cleanup:
 
@@ -2128,14 +2129,14 @@ void process_msg_50(u8* payload){
      * sensitive information, in combination with a -O0 and noinline marked
      * function to prevent the compiler from optimizing away the memory clearing
      * upon determining that its result is not used anywhere.
-     * 
+     *
      */
 
     volatile uint8_t* secure_erase_ptr;
     uint64_t n_bytes_to_erase;
 
     secure_erase_ptr = (volatile u8*)roommates[sender_ix].guest_user_id;
-    n_bytes_to_erase = SMALL_FIELD_LEN; 
+    n_bytes_to_erase = SMALL_FIELD_LEN;
     erase_mem_secure(secure_erase_ptr, n_bytes_to_erase);
 
     secure_erase_ptr = (volatile u8*)roommates[sender_ix].guest_pubkey.bits;
@@ -2169,7 +2170,7 @@ void process_msg_50(u8* payload){
     secure_erase_ptr = (volatile u8*)&(roommates[sender_ix]);
     n_bytes_to_erase = sizeof(struct roommate);
     erase_mem_secure(secure_erase_ptr, n_bytes_to_erase);
-    
+
     roommate_slots_bitmask     &= ~(BITMASK_BIT_ON_AT(sender_ix));
     roommate_key_usage_bitmask &= ~(BITMASK_BIT_ON_AT(sender_ix));
 
@@ -2198,8 +2199,8 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
 {
     u8 status = 0;
 
-    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN; 
-    *msg_buf = calloc(1, *msg_len);
+    *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     for(u64 i = 0; i < MAX_CLIENTS; ++i){
 
@@ -2214,8 +2215,8 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
             bigint_nullify(&(roommates[i].guest_pubkey));
             bigint_nullify(&(roommates[i].guest_pubkey_mont));
 
-            memset(roommates[i].guest_KBA,   0, SESSION_KEY_LEN);       
-            memset(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);       
+            memset(roommates[i].guest_KBA,   0, SESSION_KEY_LEN);
+            memset(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);
             memset(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );
 
             bigint_cleanup(&(roommates[i].guest_pubkey));
@@ -2288,15 +2289,15 @@ void process_msg_51(u8* payload){
          */
         if(roommate_slots_bitmask & BITMASK_BIT_ON_AT(i))
         {
-            memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);     
-                                                                                 
-            bigint_nullify(&(roommates[i].guest_pubkey));                        
-            bigint_nullify(&(roommates[i].guest_pubkey_mont));                   
-                                                                                 
-            memset(roommates[i].guest_KBA,   0, SESSION_KEY_LEN);       
-            memset(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);       
-            memset(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );       
-                                                                                 
+            memset(roommates[i].guest_user_id, 0, SMALL_FIELD_LEN);
+
+            bigint_nullify(&(roommates[i].guest_pubkey));
+            bigint_nullify(&(roommates[i].guest_pubkey_mont));
+
+            memset(roommates[i].guest_KBA,   0, SESSION_KEY_LEN);
+            memset(roommates[i].guest_KAB,   0, SESSION_KEY_LEN);
+            memset(roommates[i].guest_Nonce, 0, LONG_NONCE_LEN );
+
             bigint_cleanup(&(roommates[i].guest_pubkey));
             bigint_cleanup(&(roommates[i].guest_pubkey_mont));
 
@@ -2359,7 +2360,7 @@ u8 construct_msg_60(uint8_t** msg_buf, uint64_t* msg_len){
 
     *msg_len = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
 
-    *msg_buf = calloc(1, *msg_len);
+    *msg_buf = (u8*)(void*)calloc(1, *msg_len);
 
     u64 packet_id60 = PACKET_ID_60;
 

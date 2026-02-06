@@ -19,11 +19,13 @@ CFLAGS += -Wunreachable-code
 CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
 CFLAGS += -Wwrite-strings
-CFLAGS += -Wno-unused-label
-CFLAGS += -Wno-unused-result
 CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wformat-security
 CFLAGS += -Wno-stringop-truncation
+CFLAGS += -Wno-unused-label
+CFLAGS += -Wno-unused-result
+CFLAGS += -Wno-aggregate-return
+CFLAGS += -Wno-write-strings
 
 .PHONY: server server_asan client client_asan tests
 
@@ -69,12 +71,12 @@ server:
 server_gen_priv_key:
 	gcc server/server_gen_priv_key.c -o ../bin/server_gen_priv_key \
 	-march=native -lm -pthread -O2 $(CFLAGS)
-	
-	
+
+
 server_gen_pub_key:
 	gcc server/server_gen_pub_key.c -o ../bin/server_gen_pub_key \
 	-march=native -lm -pthread -O2 $(CFLAGS)
-	
+
 
 client:
 	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
@@ -95,4 +97,4 @@ server_asan:
 clean:
 	rm ../bin/tcp-client ../bin/tcp-server ../bin/tcp-server_asan \
 	../bin/tcp-client_asan ../bin/*.su ../bin/*.out
- 
+

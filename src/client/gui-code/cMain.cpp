@@ -25,8 +25,8 @@ BEGIN_EVENT_TABLE(cMain, wxFrame)
 END_EVENT_TABLE()
 
 /* Constructor - uses constructor of wxFrame with parameters. */
-cMain::cMain() : wxFrame( 
-                   nullptr           
+cMain::cMain() : wxFrame(
+                   nullptr
                   ,wxID_ANY            /* Give it any ID, doesn't matter     */
                   ,"Rosetta"           /* Title of the window                */
                   ,wxPoint(0, 0)       /* X,Y where to spawn - top left      */
@@ -34,22 +34,22 @@ cMain::cMain() : wxFrame(
                  )
 {
     /* Construct the button member variable. */
-    btn_login = new wxButton( 
+    btn_login = new wxButton(
          this              /* Parent of the button - this window class        */
         ,10001             /* Match the ID we specified in the Event Table.   */
-        ,"Login"           /* Label of the button                             */ 
+        ,"Login"           /* Label of the button                             */
         ,wxPoint(850, 600) /* X,Y spawn relative to top left corner of parent */
         ,wxSize(200, 50)   /* Width and height in pixels                      */
     );
-    
-    btn_reg = new wxButton( 
+
+    btn_reg = new wxButton(
          this              /* Parent of the button - this window class        */
         ,10002             /* Match the ID we specified in the Event Table.   */
-        ,"Register"        /* Label of the button                             */ 
+        ,"Register"        /* Label of the button                             */
         ,wxPoint(850, 660) /* X,Y spawn relative to top left corner of parent */
         ,wxSize(200, 50)   /* Width and height in pixels                      */
     );
-    
+
     btn_login_GO = new wxButton(
         this
        ,10003
@@ -80,7 +80,7 @@ cMain::cMain() : wxFrame(
        ,"Back"
        ,wxPoint(850, 660)
        ,wxSize(200, 50)
-    ); 
+    );
 
     btn_quit = new wxButton(
         this
@@ -167,7 +167,7 @@ cMain::cMain() : wxFrame(
     btn_closeyourroom->Hide();
     btn_leavetheroom->Hide();
 
-    password_input = new wxTextCtrl( 
+    password_input = new wxTextCtrl(
         this
         ,wxID_ANY
         ,""
@@ -213,18 +213,18 @@ cMain::cMain() : wxFrame(
     userid_input->Hide();
 
     /* Similarly construct the rest of the member variables. */
-    
+
     /*
     ROSETTA_LABEL = new wxTextCtrl(
-         this 
+         this
         ,wxID_ANY
-        ,""  
+        ,""
         ,wxPoint(10, 70)
         ,wxSize(1500, 300)
     );
     */
-    
-    ROSETTA_LABEL = new wxTextCtrl( 
+
+    ROSETTA_LABEL = new wxTextCtrl(
         this
         ,wxID_ANY
         ,"RRRRRRRRRRRRRRRRR         OOOOOOOOO         SSSSSSSSSSSSSSS  EEEEEEEEEEEEEEEEEEEEEE TTTTTTTTTTTTTTTTTTTTTTT TTTTTTTTTTTTTTTTTTTTTTT          AAA               \n"
@@ -242,42 +242,42 @@ cMain::cMain() : wxFrame(
          "RR:::::R     R:::::R O:::::::OOO:::::::O SSSSSSS     S:::::S EE::::::EEEEEEEE:::::E       TT:::::::TT             TT:::::::TT    A:::::A             A:::::A   \n"
          "R::::::R     R:::::R  OO:::::::::::::OO  S::::::SSSSSS:::::S E::::::::::::::::::::E       T:::::::::T             T:::::::::T   A:::::A               A:::::A  \n"
          "R::::::R     R:::::R    OO:::::::::OO    S:::::::::::::::SS  E::::::::::::::::::::E       T:::::::::T             T:::::::::T  A:::::A                 A:::::A \n"
-         "RRRRRRRR     RRRRRRR      OOOOOOOOO       SSSSSSSSSSSSSSS    EEEEEEEEEEEEEEEEEEEEEE       TTTTTTTTTTT             TTTTTTTTTTT AAAAAAA                   AAAAAAA\n"  
+         "RRRRRRRR     RRRRRRR      OOOOOOOOO       SSSSSSSSSSSSSSS    EEEEEEEEEEEEEEEEEEEEEE       TTTTTTTTTTT             TTTTTTTTTTT AAAAAAA                   AAAAAAA\n"
         ,wxPoint(150, 10)
         ,wxSize(1600, 350)
         ,wxTE_READONLY | wxTE_MULTILINE | wxNO_BORDER
     );
-    
+
     // Create a Monospace Bold font
     wxFont Monospace_Bold( 12
                 ,wxFONTFAMILY_MODERN
                 ,wxFONTSTYLE_NORMAL
                 ,wxFONTWEIGHT_BOLD
     );
-   
+
     // Apply the font to the wxListBox
     ROSETTA_LABEL->SetFont(Monospace_Bold);
     btn_reg->SetFont(Monospace_Bold);
     btn_login->SetFont(Monospace_Bold);
-    
+
     ROSETTA_LABEL->SetForegroundColour(*wxRED);
     ROSETTA_LABEL->SetBackgroundColour(*wxBLACK);
-    
+
     this->SetBackgroundColour(*wxBLACK);
 
     // Load the JPG image from file
 
     /*
     wxImage::AddHandler(new wxPNGHandler());
-    
+
     wxImage padlock_image;
-    
+
     if ( padlock_image.LoadFile( "../resources/padlock_image.png"
                                 ,wxBITMAP_TYPE_PNG
                                )
        )
     {
-    
+
         //Convert wxImage to wxBitmap
         wxBitmap bitmap(padlock_image);
 
@@ -290,7 +290,7 @@ cMain::cMain() : wxFrame(
             ,wxSize(626, 626)
         );
     }
-    
+
     else{
         wxMessageBox("Failed to load image!", "Error", wxICON_ERROR);
     }
@@ -299,13 +299,13 @@ cMain::cMain() : wxFrame(
     /* do the second padlock image now.*/
     /*
     wxImage padlock_image2;
-    
+
     if ( padlock_image2.LoadFile( "../resources/padlock_image.png"
                                 ,wxBITMAP_TYPE_PNG
                                )
        )
     {
-    
+
         //Convert wxImage to wxBitmap
         wxBitmap bitmap2(padlock_image2);
 
@@ -318,14 +318,14 @@ cMain::cMain() : wxFrame(
             ,wxSize(626, 626)
         );
     }
-    
+
     else{
         wxMessageBox("Failed to load image!", "Error", wxICON_ERROR);
-    }    
+    }
     */
 }
-    
-    
+
+
 /* Destructor - no parameters, no code in function body */
 cMain::~cMain(){
     /* empty destructor function body */
@@ -344,7 +344,7 @@ void cMain::BtnClickLogin(wxCommandEvent &evt){
 
     /* End the event. */
     evt.Skip();
-    
+
     return;
 }
 
@@ -380,11 +380,11 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
     /* 3 function pointers for Internet sockets need to be set here. */
 
     init_communication = tcp_init_communication;
-    transmit_payload   = tcp_transmit_payload;    
+    transmit_payload   = tcp_transmit_payload;
     receive_payload    = tcp_receive_payload;
     end_communication  = tcp_end_communication;
 
-    login_status = login(password, password_len);
+    login_status = login(password, password_len, "./user-save.dat");
 
     if(login_status == 1){
         /* Add code to render 'could not login rosetta' msg on user's screen. */
@@ -400,10 +400,10 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
     }
     else{
         /* Add code to render OK msg and buttons to join/create a chatroom. */
-        /* And to hide the rendering of the login stuff. */      
+        /* And to hide the rendering of the login stuff. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Success! You are now logged in Rosetta!");
-        info_msg_box->Show(); 
+        info_msg_box->Show();
 
         btn_makeroom->Show();
         btn_joinroom->Show();
@@ -415,7 +415,7 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
         password_input->Hide();
 
     }
-    
+
     /* End the event. */
     evt.Skip();
 
@@ -483,7 +483,7 @@ void cMain::BtnClickRegGo(wxCommandEvent &evt){
     );
 
     /* At this point we're sure the password is valid. Register the user. */
-    register_status = reg(password, password_len);
+    register_status = reg(password, password_len, "./user-save.dat");
 
     /* Display error box that something went wrong, try again. */
     if(register_status){
@@ -558,7 +558,7 @@ void cMain::BtnClickMakeRoom(wxCommandEvent &evt){
 
     /* End the event. */
     evt.Skip();
-    
+
     return;
 
 }
@@ -577,7 +577,7 @@ void cMain::BtnClickJoinRoom(wxCommandEvent &evt){
 
     /* End the event. */
     evt.Skip();
-    
+
     return;
 
 }
@@ -616,7 +616,7 @@ void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
         evt.Skip();
         return;
     }
-    
+
     strncpy( (char*)roomid
             ,(const char*)roomid_as_wxstring.mb_str(wxConvUTF8)
             ,roomid_len
@@ -682,7 +682,7 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
 
     wxString roomid_as_wxstring = "";
     wxString userid_as_wxstring = "";
-    
+
     info_msg_box->Hide();
 
     printf("?? 1\n");
@@ -738,12 +738,12 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
     }
     else{
         /* Add code to render OK msg and buttons to join/create a chatroom. */
-        /* And to hide the rendering of the login stuff. */      
+        /* And to hide the rendering of the login stuff. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Success! Your chat room has been created!");
-        info_msg_box->Show(); 
+        info_msg_box->Show();
     }
-    
+
     /* End the event. */
     evt.Skip();
 

@@ -7,7 +7,7 @@
 
 /* These function pointers tell the client whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the client was started
- * for the Rosetta Testing Framework, communication with the server (as a 
+ * for the Rosetta Testing Framework, communication with the server (as a
  * local OS process talking to other OS processes as clients and thus simulating
  * real people texting on the internet without headaches with network issues)
  * is done via locak unix interprocess communications (AF_UNIX sockets). If the
@@ -195,7 +195,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     system("rm temp_priv.dat");
 
     /* Now compare the calculated and the saved public keys. */
-    if(bigint_compare2(calculated_A, &own_pubkey) != 2){
+    if(bigint_compare2(calculated_A, &own_pubkey) != CMP_EQUALS){
         printf("[ERR] Client: Password did NOT lead to correct privkey.\n\n");
         status = 1;
         goto label_cleanup;
@@ -292,7 +292,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
      */
 
     /* if A < B */
-    if( (bigint_compare2(&own_pubkey, server_pubkey)) == 3){
+    if( (bigint_compare2(&own_pubkey, server_pubkey)) == CMP_SECOND_BIGGER){
         KAB = server_shared_secret.bits + SESSION_KEY_LEN;
         KBA = server_shared_secret.bits;
     }
@@ -377,7 +377,7 @@ void* begin_polling(__attribute__((unused)) void* input)
         usleep(POLL_INTERVAL_MICROS);
 
         status = transmit_payload(msg_buf, msg_len);
-        
+
         if(status){
             printf("[ERR] Client: Sending poll packet_40 to server failed.\n");
             continue;
@@ -401,14 +401,14 @@ void* begin_polling(__attribute__((unused)) void* input)
         /* Call the appropriate function depending on server's response. */
 
         /* NEW: Handle here replies for join_room and create_room commands. */
-        
+
     if( *reply_type_ptr == PACKET_ID_10 ){
-        
+
         status = process_msg_10(reply_buf);
-        
+
         if (status){
             printf("[ERR] Client: process_msg_10 failed.\n\n");
-            pthread_kill(main_thread_id, SIGUSR1);                               
+            pthread_kill(main_thread_id, SIGUSR1);
             goto thread_cleanup;
         }
         printf("[OK]  Client: Rosetta told us our room has been created!\n\n");
@@ -422,7 +422,7 @@ void* begin_polling(__attribute__((unused)) void* input)
 
         if (status){
             printf("[ERR] Client: process_msg_11 failed.\n\n");
-            pthread_kill(main_thread_id, SIGUSR1);                               
+            pthread_kill(main_thread_id, SIGUSR1);
             goto thread_cleanup;
         }
 
@@ -437,51 +437,51 @@ void* begin_polling(__attribute__((unused)) void* input)
 
         if (status){
             printf("[ERR] Client: process_msg_20 failed.\n\n");
-            pthread_kill(main_thread_id, SIGUSR1);                               
+            pthread_kill(main_thread_id, SIGUSR1);
             goto thread_cleanup;
         }
 
-        printf("\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");           
-                                                                                 
-        /* ALSO, here is one of 2 possible places where GUI renders the graphics     
-         * for the messages sub-window and "exit room" button. GUI code will         
-         * do that if it sees returned 0 from here.                                  
-         */ 
+        printf("\n\n******** ROOM JOINED SUCCESSFULLY *********\n\n\n");
+
+        /* ALSO, here is one of 2 possible places where GUI renders the graphics
+         * for the messages sub-window and "exit room" button. GUI code will
+         * do that if it sees returned 0 from here.
+         */
 
         flag_no_poll_reply = 1;
     }
- 
+
         /**********************************************************************/
 
         if( __builtin_expect (flag_no_poll_reply == 1, 0) ){
-            
-            memset(reply_buf, 0, MAX_TXT_LEN); 
-        
+
+            memset(reply_buf, 0, MAX_TXT_LEN);
+
             /* A reply to an asynchronously sent user command, eg. join_room,
              * transmitted by the user input thread, was received, so we need to
              * do another recv() to finish this loop cycle's poll request now.
              */
-            status = receive_payload(reply_buf, &reply_len);                         
-                                                                                 
-            if(status == 2){                                                         
-                printf("[ERR] Client: Poll thread: Server reply took too long.\n");  
-                pthread_kill(main_thread_id, SIGUSR1);                               
-                goto thread_cleanup;                                                 
-            }                                                                        
-            else if(status == 1){                                                         
-                printf("[ERR] Client: Poll thread: receive_payload() failed.\n");    
-                pthread_kill(main_thread_id, SIGUSR1);                               
-                goto thread_cleanup;                                                 
-            }  
+            status = receive_payload(reply_buf, &reply_len);
+
+            if(status == 2){
+                printf("[ERR] Client: Poll thread: Server reply took too long.\n");
+                pthread_kill(main_thread_id, SIGUSR1);
+                goto thread_cleanup;
+            }
+            else if(status == 1){
+                printf("[ERR] Client: Poll thread: receive_payload() failed.\n");
+                pthread_kill(main_thread_id, SIGUSR1);
+                goto thread_cleanup;
+            }
         }
-        
+
         if( *reply_type_ptr == PACKET_ID_40 ){
 
             status = process_msg_40(reply_buf);
 
             if(status){
                 printf("[ERR] Client: Packet_40_Reply auth failed!\n");
-                pthread_kill(main_thread_id, SIGUSR1);                               
+                pthread_kill(main_thread_id, SIGUSR1);
                 goto thread_cleanup;
             }
             //printf("[OK]  Client: Server said nothing new after polling.\n\n");
@@ -497,7 +497,7 @@ void* begin_polling(__attribute__((unused)) void* input)
 --------------------------------------------------------------------------------
 
 */
-        if ( *reply_type_ptr == PACKET_ID_41 ) {           
+        if ( *reply_type_ptr == PACKET_ID_41 ) {
             aux_ptr64_replybuf = (u64*)(reply_buf + SMALL_FIELD_LEN);
             pending_messages = *aux_ptr64_replybuf;
 
@@ -515,7 +515,7 @@ void* begin_polling(__attribute__((unused)) void* input)
 
             if(status == 1){
                 printf("[ERR] Client: Bad signature in polling reply.\n\n");
-                pthread_kill(main_thread_id, SIGUSR1);                               
+                pthread_kill(main_thread_id, SIGUSR1);
                 goto thread_cleanup;
             }
 
@@ -526,10 +526,10 @@ void* begin_polling(__attribute__((unused)) void* input)
 
             /* packet_ID and signature are valid - process each pending MSG.  */
             for(u64 i = 0; i < pending_messages; ++i){
-                
+
                 aux_ptr64_replybuf = (u64*)(reply_buf + read_ix);
                 curr_msg_type = *aux_ptr64_replybuf;
-                
+
                 aux_ptr64_replybuf =(u64*)(reply_buf +read_ix -SMALL_FIELD_LEN);
                 curr_msg_len = *aux_ptr64_replybuf;
 
@@ -561,7 +561,7 @@ void* begin_polling(__attribute__((unused)) void* input)
                     continue;
                 }
             }
-        }    
+        }
     }
 
 thread_cleanup:
@@ -933,7 +933,7 @@ u8 login(u8* password, int password_len, char* save_dir){
     }
 
     texting_should_stop = 0;
-   
+
     start_polling_thread();
 
     printf("******** LOGIN COMPLETED *********\n");
@@ -990,9 +990,9 @@ u8 make_new_chatroom(unsigned char* roomid, int roomid_len,
 
 
 label_cleanup:
-   
+
     free(msg_buf);
-    
+
     return status;
 }
 
@@ -1062,7 +1062,7 @@ uint8_t send_text(unsigned char* text, uint64_t text_len){
     gettimeofday(&tv2, NULL);
 
     printf( "construct_30: TIME: secs: %lu -> %lu | MICROS: %lu -> %lu (%lu)\n"
-	   ,tv1.tv_sec,tv2.tv_sec,tv1.tv_usec,tv2.tv_usec, tv2.tv_usec - tv1.tv_usec 
+	   ,tv1.tv_sec,tv2.tv_sec,tv1.tv_usec,tv2.tv_usec, tv2.tv_usec - tv1.tv_usec
           );
 
     if(status){
@@ -1099,14 +1099,14 @@ u8 leave_chatroom(void){
     u8* msg_buf = NULL;
 
     /**************************************************************************/
-    
+
     status = construct_msg_50(&msg_buf, &msg_len);
-    
+
     if(status){
         printf("[ERR] Client: Could not construct msg_50 (exit_room).\n\n");
         goto label_cleanup;
     }
-    
+
     status = transmit_payload(msg_buf, msg_len);
 
     if(status){
@@ -1127,14 +1127,14 @@ label_cleanup:
 }
 
 u8 logout(void){
-    
+
     u64 msg_len;
 
     u8  status = 0;
     u8* msg_buf = NULL;
 
     /**************************************************************************/
-    
+
     status = construct_msg_60(&msg_buf, &msg_len);
 
     if(status){

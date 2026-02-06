@@ -2,7 +2,7 @@
 
 /* Generate a new pseudorandom private key. */
 void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
-    
+
     size_t bytes_read;
 
     FILE* ran = fopen("/dev/urandom", "r");
@@ -11,7 +11,7 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
         printf("[ERR] utilities: gen_priv_key - couldn't open urandom.\n\n");
         return;
     }
-    
+
     if ( (bytes_read = fread((void*)buf, 1, len_bytes, ran)) != len_bytes ){
 
         printf("[ERR] utilities: gen_priv_key - couldn't read %u bytes "
@@ -23,7 +23,7 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
 
         return;
     }
-    
+
     /* Set the most significant bit to 0 - make sure it's always less than Q. */
     *(buf + (len_bytes - 1)) &= ~ (1 << 7);
 
@@ -50,9 +50,9 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     size_t bytes_read;
 
     FILE* privkey_dat;
-    
+
     privkey_dat = fopen(privkey_filename, "r");
-    
+
     M  = get_bigint_from_dat
          ( 3072
           ,"../../bin/saved_M.dat"
@@ -72,7 +72,7 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
         goto label_cleanup;
     }
 
-    if ( (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat)) 
+    if ( (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat))
          != privkey_len_bytes
        )
     {
@@ -83,14 +83,14 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
 
         goto label_cleanup;
     }
-    
+
     privkey_bigint.bits = privkey_buf;
     privkey_bigint.size_bits = resbits;
     privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
-                
+
     bigint_create_from_u32(R, M->size_bits, 0);
-    
-    mont_pow_mod_m(Gm, &privkey_bigint, M, R); 
+
+    mont_pow_mod_m(Gm, &privkey_bigint, M, R);
 
 label_cleanup:
 
@@ -104,41 +104,41 @@ label_cleanup:
     free(M);
     free(Gm);
 
-    return R;    
+    return R;
 }
 
-/* Check that a public key is of the correct form given our DH parameters. 
+/* Check that a public key is of the correct form given our DH parameters.
  *
- * The check is: 
+ * The check is:
  *
- *      pub_key^(M/Q) mod M == 1 
+ *      pub_key^(M/Q) mod M == 1
  *
  *  Return 1 for valid and 0 for invalid public key.
  */
- 
+
 bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
 {
     bigint M_over_Q;
     bigint one;
     bigint div_rem;
     bigint mod_pow_res;
-          
+
     bool ret = 0;
-    
+
     bigint_create_from_u32(&M_over_Q,    12800, 0);
     bigint_create_from_u32(&one,         12800, 1);
     bigint_create_from_u32(&div_rem,     12800, 0);
-    bigint_create_from_u32(&mod_pow_res, 12800, 0); 
-       
+    bigint_create_from_u32(&mod_pow_res, 12800, 0);
+
     bigint_div2(M, Q, &M_over_Q, &div_rem);
-    
+
     mont_pow_mod_m(Km, &M_over_Q, M, &mod_pow_res);
-    
-    if(bigint_compare2(&mod_pow_res, &one) != 2){
+
+    if(bigint_compare2(&mod_pow_res, &one) != CMP_EQUALS){
         printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
         ret = 1;
     }
-    
+
     bigint_cleanup(&M_over_Q);
     bigint_cleanup(&one);
     bigint_cleanup(&div_rem);

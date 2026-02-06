@@ -16,6 +16,10 @@
 #define u64 uint64_t
 #define s64 int64_t
 
+#define CMP_FIRST_BIGGER  1
+#define CMP_EQUALS        2
+#define CMP_SECOND_BIGGER 3
+
 #define MAX_BITS 4290000000
 
 /* Get the i-th bit of BigInt n and store it in buffer identified by target.  */
@@ -45,7 +49,7 @@ void print_buffer(uint8_t* buf, uint64_t len){
 }
 
 /* Given a buffer of bytes, get the index of the biggest ON bit. This would be
- * the "used_bits" count of a BigInt represented by this buffer.
+ * the "used_bits" count of a BigInt represented in little-endian by the buffer.
  */
 u32 get_used_bits(const u8* const buf, const u32 siz_bytes){
 
@@ -712,33 +716,33 @@ void bigint_pow( const bigint* const n1
         goto ret_label;
     }
 
-    if( bigint_compare2(n2, &zero) == 2){
+    if( bigint_compare2(n2, &zero) == CMP_EQUALS){
         bigint_equate2(R, &one);
         goto ret_label;
     }
 
-    if( bigint_compare2(n1, &zero) == 2){
+    if( bigint_compare2(n1, &zero) == CMP_EQUALS){
         goto ret_label;
     }
 
-    if( bigint_compare2(n2, &one) == 2){
+    if( bigint_compare2(n2, &one) == CMP_EQUALS){
         bigint_equate2(R, n1);
         goto ret_label;
     }
 
-    if( bigint_compare2(n1, &one) == 2){
+    if( bigint_compare2(n1, &one) == CMP_EQUALS){
         bigint_equate2(R, &one);
         goto ret_label;
     }
 
     bigint_mul_fast(&n1_used_bits, n2, &R_req_bits);
 
-    if( bigint_compare2(&R_req_bits, &zero) == 2){
+    if( bigint_compare2(&R_req_bits, &zero) == CMP_EQUALS){
         printf("[ERR] BigInt: Bitlegnth of POW result exceeds max allowed.\n");
         goto ret_label;
     }
 
-    if( bigint_compare2(&R_res_bits, &R_req_bits) == 3){
+    if( bigint_compare2(&R_res_bits, &R_req_bits) == CMP_SECOND_BIGGER){
         printf("[ERR] BigInt: Not enough bits to store the result of POW.\n");
         printf("POW() operands:\nn1:\n");
         bigint_print_info(n1);
@@ -757,7 +761,7 @@ void bigint_pow( const bigint* const n1
 
     bigint_equate2(R, n1);
 
-    while( bigint_compare2(&starter, n2) == 3){
+    while( bigint_compare2(&starter, n2) == CMP_SECOND_BIGGER){
         bigint_equate2(&R_temp, R);
         bigint_equate2(&starter_temp, &starter);
         bigint_add_fast(&starter_temp, &one, &starter);
@@ -778,7 +782,7 @@ ret_label:
     return;
 }
 
-/* Algorithm Multiple-precision subtraction - Handbook of applied cryptography*/
+/* Algorithm Multiple-precision subtraction, Handbook of applied cryptography */
 void bigint_sub_fast( const bigint* const n1
                      ,const bigint* const n2
                      ,bigint* const R)
@@ -795,11 +799,11 @@ void bigint_sub_fast( const bigint* const n1
     bigint_nullify(R);
     const uint8_t operand_comparison = bigint_compare2(n1, n2);
 
-    if( operand_comparison == 3){
+    if( operand_comparison == CMP_SECOND_BIGGER){
         printf("[ERR] Bigint: n1 was smaller than n2 in a SUB operation.\n");
         return;
     }
-    if( operand_comparison == 2)
+    if( operand_comparison == CMP_EQUALS)
         return;
 
     if( n2->used_bits == 0){
@@ -863,26 +867,29 @@ void bigint_div2( const bigint* const A
 
     bigint big_temps[num_temps];
 
-    for(i = 0; i < num_temps; ++i){
+    uint16_t* aux_ptr16_temp3bits = NULL;
+    uint16_t* aux_ptr16_temp0bits = NULL;
+    uint16_t* aux_ptr16_temp2bits = NULL;
+
+    for(i = 0; i < num_temps; ++i)
         bigint_create_from_u32(&(big_temps[i]), A->size_bits, 0);
-    }
 
     /* Quickly check if A or B are zero. */
-    if(bigint_compare2(B, &(big_temps[0])) == 2){
+    if(bigint_compare2(B, &(big_temps[0])) == CMP_EQUALS){
         printf("\n\n[ERR] BIGINT - Division by ZERO.\n\nOPERAND 1:\n");
         bigint_print_info(A);
         bigint_print_bits(A);
         goto label_cleanup;
     }
 
-    if(bigint_compare2(A, &(big_temps[0])) == 2){
+    if(bigint_compare2(A, &(big_temps[0])) == CMP_EQUALS){
         bigint_nullify(Res);
         bigint_nullify(Rem);
         goto label_cleanup;
     }
 
     /* if B > A, return RES=0, REM=A  */
-    if(bigint_compare2(A, B) == 3){
+    if(bigint_compare2(A, B) == CMP_SECOND_BIGGER){
         bigint_nullify(Res);
         bigint_equate2(Rem, A);
         goto label_cleanup;
@@ -893,18 +900,14 @@ void bigint_div2( const bigint* const A
 
     n = big_temps[0].used_bits;
 
-    while(n % 16){
-        ++n;
-    }
+    while(n % 16) ++n;
 
     n /= 16;
     --n;
 
     t = big_temps[2].used_bits;
 
-    while(t % 16){
-        ++t;
-    }
+    while(t % 16) ++t;
 
     t /= 16;
     --t;
@@ -930,14 +933,16 @@ void bigint_div2( const bigint* const A
      *                 to their bits buffer (equalling .bits ptr struct field)!
      */
 
-    uint16_t* aux_ptr16_temp3bits = (uint16_t*)(big_temps[3].bits);
-    uint16_t* aux_ptr16_temp0bits = (uint16_t*)(big_temps[0].bits);
-    uint16_t* aux_ptr16_temp2bits = (uint16_t*)(big_temps[2].bits);
+    aux_ptr16_temp3bits = (uint16_t*)(big_temps[3].bits);
+    aux_ptr16_temp0bits = (uint16_t*)(big_temps[0].bits);
+    aux_ptr16_temp2bits = (uint16_t*)(big_temps[2].bits);
 
     /**** ============= HELPER POINTER DECLARATIONS END   =================== */
 
     /* Part 2 */
-    while(bigint_compare2(&(big_temps[0]), &(big_temps[12])) != 3){
+    while(bigint_compare2(&(big_temps[0]), &(big_temps[12]))
+           != CMP_SECOND_BIGGER)
+    {
         aux_ptr16_temp3bits[n-t] += 1;
         bigint_equate2(&(big_temps[1]), &(big_temps[0]));
         bigint_sub_fast(&(big_temps[1]), &(big_temps[12]), &(big_temps[0]));
@@ -1023,8 +1028,9 @@ void bigint_div2( const bigint* const A
 
         bigint_mul_fast(&(big_temps[16]), &(big_temps[17]), &(big_temps[18]));
 
-        if(bigint_compare2(&(big_temps[0]), &(big_temps[18])) == 3){
-
+        if(bigint_compare2(&(big_temps[0]), &(big_temps[18]))
+            == CMP_SECOND_BIGGER)
+        {
             aux_ptr16_temp3bits[i-t-1] -= 1;
 
             bigint_remake(&(big_temps[17])
@@ -1114,7 +1120,7 @@ void bigint_mod_mul( bigint** nums
         */
         bigint_mul_fast(R, nums[i], &mul_res);
 
-        if( (compare_res = bigint_compare2(&mul_res, mod)) != 3){
+        if((compare_res = bigint_compare2(&mul_res, mod)) != CMP_SECOND_BIGGER){
             bigint_div2(&mul_res, mod, &div_res, &rem);
             bigint_equate2(R, &rem);
         }
@@ -1197,29 +1203,29 @@ void bigint_mod_pow( const bigint* const N
         goto label_ret;
     }
 
-    if(bigint_compare2(M, &zero) == 2){
+    if(bigint_compare2(M, &zero) == CMP_EQUALS){
         printf("[ERR] BigInt: Mod_Pow: Division by zero.\n");
         goto label_ret;
     }
 
-    if(bigint_compare2(M, &one) == 2){
+    if(bigint_compare2(M, &one) == CMP_EQUALS){
         goto label_ret;
     }
 
-    if(bigint_compare2(P, &zero) == 2){
+    if(bigint_compare2(P, &zero) == CMP_EQUALS){
         bigint_equate2(R, &one);
         goto label_ret;
     }
 
-    if(bigint_compare2(P, &one) == 2){
+    if(bigint_compare2(P, &one) == CMP_EQUALS){
         bigint_div2(N, M, &div_res, R);
         goto label_ret;
     }
-    if(bigint_compare2(N, &zero) == 2){
+    if(bigint_compare2(N, &zero) == CMP_EQUALS){
         goto label_ret;
     }
 
-    if(bigint_compare2(N, &one) == 2){
+    if(bigint_compare2(N, &one) == CMP_EQUALS){
         bigint_equate2(R, &one);
         goto label_ret;
     }
@@ -1324,7 +1330,7 @@ u8 rabin_miller(const bigint* const N, const u32 passes){
 
         bigint_div2(&aux1, &two, &div_res, &rem);
 
-        if(bigint_compare2(&rem, &zero) == 2){
+        if(bigint_compare2(&rem, &zero) == CMP_EQUALS){
             ++K;
             bigint_equate2(&aux1, &div_res);
             bigint_equate2(&M, &div_res);
@@ -1349,8 +1355,8 @@ label_B0:
     bigint_mod_pow(&(As[curr_A_ind]), &M, N, &B0);
 
     if(
-          (bigint_compare2(&B0, &one) == 2)
-       || (bigint_compare2(&B0, &N_minus_one) == 2)
+          (bigint_compare2(&B0, &one) == CMP_EQUALS)
+       || (bigint_compare2(&B0, &N_minus_one) == CMP_EQUALS)
       )
     {
         ++prime_votes;
@@ -1374,7 +1380,7 @@ label_B0:
             bigint_equate2(&Bi_prev, &Bi);
             bigint_mod_pow(&Bi_prev, &two, N, &Bi);
 
-            if(bigint_compare2(&Bi, &N_minus_one) == 2){
+            if(bigint_compare2(&Bi, &N_minus_one) == CMP_EQUALS){
 
                 ++prime_votes;
 

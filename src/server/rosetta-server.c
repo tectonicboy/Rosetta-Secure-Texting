@@ -1,6 +1,6 @@
-#include <stdint.h>                                                              
-#include <stddef.h>                                                              
-#include <sys/types.h> 
+#include <stdint.h>
+#include <stddef.h>
+#include <sys/types.h>
 
 /* These function pointers tell the server whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the server was started
@@ -51,18 +51,18 @@ u8 self_init(){
     /* Allocate memory for the temporary login handshake memory region. */
     temp_handshake_buf = calloc(1, TEMP_BUF_SIZ);
 
-    /*  Server will use its private key to compute cryptographic signatures of 
+    /*  Server will use its private key to compute cryptographic signatures of
      *  everything it transmits, so all users can authenticate it using the
      *  server's long-term public key they already have at install time.
      */
    privkey_dat = fopen( "../../bin/server_privkey.dat", "r");
-    
+
     if(!privkey_dat){
-        printf("[ERR] Server: couldn't open private key DAT file. Aborting.\n");
+        perror("[ERR] Server: couldn't open private key DAT file:\n");
         status = 1;
 	    goto label_cleanup;
     }
-    
+
     if(fread(server_privkey, 1, PRIVKEY_LEN, privkey_dat) != PRIVKEY_LEN){
         printf("[ERR] Server: couldn't get private key from file. Aborting.\n");
         status = 1;
@@ -71,24 +71,24 @@ u8 self_init(){
     else{
         printf("[OK]  Server: Successfully loaded private key.\n");
     }
-    
+
     /* Initialize the global BigInt that stores the server's private key. */
     bigint_create_from_u32(&server_privkey_bigint, MAX_BIGINT_SIZ, 0);
-    
-    memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_LEN); 
-    
-    server_privkey_bigint.used_bits = 
+
+    memcpy(server_privkey_bigint.bits, server_privkey, PRIVKEY_LEN);
+
+    server_privkey_bigint.used_bits =
                             get_used_bits(server_privkey, PRIVKEY_LEN);
-                            
+
     /* Load in other BigInts needed for the cryptography to work. */
-    
-    /* Diffie-Hellman modulus M, 3071-bit prime number */                        
+
+    /* Diffie-Hellman modulus M, 3071-bit prime number */
     M = get_bigint_from_dat
                    (3072, "../../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
-    
+
     /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
     Q = get_bigint_from_dat(320, "../../bin/saved_Q.dat", 320, MAX_BIGINT_SIZ);
-    
+
     /* Diffie-Hellman generator G = 2^((M-1)/Q) */
     G = get_bigint_from_dat
      ( 3072
@@ -104,38 +104,38 @@ u8 self_init(){
       ,3071
       ,MAX_BIGINT_SIZ
      );
-    
+
     server_pubkey_bigint = get_bigint_from_dat
      ( 3072
       ,"../../bin/server_pubkey.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
-    
+
     /* Initialize the mutex that will be used to prevent the main thread and
      * the connection checker thread from getting into a race condition.
      */
-    if(pthread_mutex_init(&mutex, NULL) != 0) { 
-        printf("[ERR] Server: Mutex could not be initialized. Aborting.\n"); 
+    if(pthread_mutex_init(&mutex, NULL) != 0) {
+        printf("[ERR] Server: Mutex could not be initialized. Aborting.\n");
         status = 1;
         goto label_cleanup;
-    } 
-    
+    }
+
 label_cleanup:
-    
+
     if(privkey_dat){
         fclose(privkey_dat);
     }
 
     free(temp_handshake_buf);
-    
+
     return status;
 }
 
 
 /******************************************************************************/
 
-/*  To make the server design more elegant, this top-level message processor 
+/*  To make the server design more elegant, this top-level message processor
  *  only checks whether the message is legit or not, and which of the predefined
  *  accepted types it is.
  *
@@ -165,28 +165,28 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
     u32 status = 0;
 
     char *msg_type_str = calloc(1, 3);
-   
+
     /*
     printf("[OK]  Server: Inside packet identifier for socket[%lu]\n", sock_ix);
     */
-    
+
     /* Read the first 8 bytes to see what type of init transmission it is. */
     memcpy(&transmission_type, client_msg_buf, SMALL_FIELD_LEN);
-    
+
     switch(transmission_type){
-    
+
     /* A client tried to log in Rosetta */
     case(PACKET_ID_00):{
         expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN;
-        
+
         strncpy(msg_type_str, "00\0", 3);
-        
+
         if(bytes_read != expected_siz){
             status = 200;
             login_not_finished = 0;
             goto label_error;
         }
-        
+
         /* If transmission is of a valid type and size, process it. */
         status = (uint32_t)process_msg_00(client_msg_buf, sock_ix);
         if(status){
@@ -195,65 +195,65 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         }
         break;
     }
-    
+
     /* Login part 2 - client sent their encrypted long-term public key. */
-    case(PACKET_ID_01):{  
+    case(PACKET_ID_01):{
         expected_siz = SMALL_FIELD_LEN + PUBKEY_LEN + HMAC_TRUNC_BYTES;
-        
-        strncpy(msg_type_str, "01\0", 3); 
-        
-        if(bytes_read != expected_siz){           
+
+        strncpy(msg_type_str, "01\0", 3);
+
+        if(bytes_read != expected_siz){
             status = 1;
             goto label_error;
         }
-    
+
         /* If transmission is of a valid type and size, process it. */
-        status = (uint32_t)process_msg_01(client_msg_buf, sock_ix); 
-        
+        status = (uint32_t)process_msg_01(client_msg_buf, sock_ix);
+
         if(status)
             status = 200;
 
-        break;           
+        break;
     }
-    
+
     /* A client wants to create a new chatroom of their own. */
     case(PACKET_ID_10):{
         expected_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
-        
+
         strncpy(msg_type_str, "10\0", 3);
-        
+
         if(bytes_read != expected_siz){
             status = 1;
             goto label_error;
         }
-        
+
         /* If transmission is of a valid type and size, process it. */
         process_msg_10(client_msg_buf, sock_ix);
-        
+
         break;
-    } 
-    
+    }
+
     /* A client wants to join an existing chatroom. */
     case(PACKET_ID_20):{
         expected_siz = (4 * SMALL_FIELD_LEN) + ONE_TIME_KEY_LEN + SIGNATURE_LEN;
-        
+
         strncpy(msg_type_str, "20\0", 3);
-        
+
         if(bytes_read != expected_siz){
             status = 1;
             goto label_error;
         }
-        
+
         /* If transmission is of a valid type and size, process it. */
         process_msg_20(client_msg_buf, sock_ix);
-        
+
         break;
     }
     /* A client wants to send a text message to everyone else in the chatroom */
         case(PACKET_ID_30):{
         strncpy(msg_type_str, "30\0", 3);
-        
-        /* Size must be in bytes: 
+
+        /* Size must be in bytes:
          *
          *   (3 * SMALL_FIELD_LEN) + L + SIG_LEN
          *
@@ -263,7 +263,7 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
          *
          *   where TXT_LEN is given in the 3rd SMALL_FIELD_LEN field.
          */
-         
+
         /*
         memcpy( &found_user_ix
                ,client_msg_buf + SMALL_FIELD_LEN
@@ -289,18 +289,18 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
               );
 
         expected_siz =   (3 * SMALL_FIELD_LEN)
-                       + ( 
+                       + (
                           (rooms[clients[found_user_ix].room_ix].num_people - 1)
                           *
                           (SMALL_FIELD_LEN + ONE_TIME_KEY_LEN + text_msg_len)
-                         ) 
+                         )
                        + SIGNATURE_LEN;
-                    
+
         if(bytes_read != expected_siz){
             status = 1;
             goto label_error;
         }
-        
+
         /* If transmission is of a valid type and size, process it. */
         process_msg_30( client_msg_buf
                        ,expected_siz
@@ -309,89 +309,89 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
                       );
         break;
     }
-    
+
     /* A client polled the server asking for any pending unreceived messages. */
     case(PACKET_ID_40):{
         //printf("[OK]  Server: Found a matching packet_ID = 40\n\n");
-        strncpy(msg_type_str, "40\0", 3);    
-    
+        strncpy(msg_type_str, "40\0", 3);
+
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
-        
+
         if(bytes_read != expected_siz){
             status = 1;
             goto label_error;
         }
-        
+
         /* If transmission is of a valid type and size, process it. */
         process_msg_40(client_msg_buf, sock_ix);
-        
+
         break;
     }
-    
+
     /* A client decided to exit the chatroom they're currently in. */
     case(PACKET_ID_50):{
-        strncpy(msg_type_str, "50\0", 3);    
-    
+        strncpy(msg_type_str, "50\0", 3);
+
         expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
-        
+
         if(bytes_read != expected_siz){
             status = 1;
             goto label_error;
         }
-        
+
         /* If transmission is of a valid type and size, process it. */
         process_msg_50(client_msg_buf);
-    
-        /* Indicate to this client's poll listening thread function to return */ 
-        status = 100;
-    
-        break;        
-    }
-    
-    /* A client decided to log off Rosetta. */
-    case(PACKET_ID_60):{
-        strncpy(msg_type_str, "60\0", 3);    
-        expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
-        
-        if(bytes_read != expected_siz){
-            status = 1;
-            goto label_error;
-        }
-        
-        /* If transmission is of a valid type and size, process it. */
-        process_msg_60(client_msg_buf);
-       
+
         /* Indicate to this client's poll listening thread function to return */
         status = 100;
 
-        break;            
-    
+        break;
     }
-    
+
+    /* A client decided to log off Rosetta. */
+    case(PACKET_ID_60):{
+        strncpy(msg_type_str, "60\0", 3);
+        expected_siz = (2 * SMALL_FIELD_LEN) + SIGNATURE_LEN;
+
+        if(bytes_read != expected_siz){
+            status = 1;
+            goto label_error;
+        }
+
+        /* If transmission is of a valid type and size, process it. */
+        process_msg_60(client_msg_buf);
+
+        /* Indicate to this client's poll listening thread function to return */
+        status = 100;
+
+        break;
+
+    }
+
     /* Also do something in case it was a bad unrecognized transmission.  */
-    
+
     default:{
         /* DO NOT REACT TO BAD PACKETS!! Drop them silently instead. */
         // printf("[WAR] Server: No valid packet type found in request.\n\n");
-        break;    
+        break;
     }
-    
+
     } /* end switch */
-    
+
     goto label_cleanup;
-    
+
 label_error:
 
     printf("[ERR] Server: MSG Type was %s but of wrong size or contents\n"
            "              or another error occurred, check log.\n\n"
            ,msg_type_str
           );
-          
+
     printf("              Size was: %ld\n", bytes_read);
     printf("              Expected: %ld\n", expected_siz);
     printf("\n[OK]  Server: Discarding transmission.\n\n ");
-           
-label_cleanup: 
+
+label_cleanup:
 
     free(msg_type_str);
     return status;
@@ -412,10 +412,10 @@ void* start_new_client_thread(void* ix_ptr){
     memset(client_msg_buf, 0, MAX_MSG_LEN);
 
     while(1){
-  
+
         /* Blocking. TIMES OUT automatically via SO_RCVTIMEO socket option. */
         bytes_read = receive_payload(ix, client_msg_buf, MAX_MSG_LEN);
-        
+
         if( __builtin_expect (bytes_read <= 0, 0) ){
             if(temp_handshake_memory_region_isLocked == 1){
                 /* At various points of this buffer's lifetime, various pointers
@@ -442,7 +442,7 @@ void* start_new_client_thread(void* ix_ptr){
 
         status = identify_new_transmission(client_msg_buf, bytes_read, ix);
 
-        /* 200 - login can not proceed. Remove the user. No struct slot has 
+        /* 200 - login can not proceed. Remove the user. No struct slot has
          *       been allocated yet, but a socket is used and next_free_user_ix
          *       has been moved. Move it back, release the socket, stop this
          *       thread.
@@ -472,7 +472,7 @@ void* start_new_client_thread(void* ix_ptr){
             printf("[ERR] Server: identifying new transmission went bad!\n");
             remove_user(ix);
             pthread_mutex_unlock(&mutex);
-            break;  
+            break;
         }
 
         /* (5)
@@ -488,7 +488,7 @@ void* start_new_client_thread(void* ix_ptr){
             pthread_mutex_unlock(&mutex);
             break;
         }
-                       
+
         memset(client_msg_buf, 0, bytes_read);
 
         pthread_mutex_unlock(&mutex);
@@ -508,14 +508,14 @@ int main(int argc, char* argv[]){
     uint8_t thread_func_arg_buf[sizeof(curr_free_socket_ix)];
 
     /* Function pointer set to respective socket initialization routine. */
-    
+
     int arg1;
 
     if(argc != 2){
         printf("[ERR] Server: Needs 1 cmd line arg: 0 = regular, 1 = RTF.\n");
         exit(1);
     }
- 
+
     arg1 = atoi(argv[1]);
 
     /* Set 4 function pointers for the communication mechanism (socket type)  */
@@ -524,15 +524,15 @@ int main(int argc, char* argv[]){
     if(arg1 == 1){
         init_communication = ipc_init_communication;
         transmit_payload   = ipc_transmit_payload;
-        receive_payload    = ipc_receive_payload;  
-        onboard_new_client = ipc_onboard_new_client;  
+        receive_payload    = ipc_receive_payload;
+        onboard_new_client = ipc_onboard_new_client;
     }
     /* If server started for normal Rosetta texting, use Internet sockets. */
     else if(arg1 == 0){
-        init_communication = tcp_init_communication;                             
-        transmit_payload   = tcp_transmit_payload;                               
-        receive_payload    = tcp_receive_payload;                                
-        onboard_new_client = tcp_onboard_new_client;  
+        init_communication = tcp_init_communication;
+        transmit_payload   = tcp_transmit_payload;
+        receive_payload    = tcp_receive_payload;
+        onboard_new_client = tcp_onboard_new_client;
     }
     else{
         printf("[ERR] Server: command line argument must be 0 or 1.\n");
@@ -540,17 +540,17 @@ int main(int argc, char* argv[]){
     }
 
     /**************************************************************************/
-        
-    /* Initialize Linux Sockets API stuff, load cryptographic artifacts. */ 
+
+    /* Initialize Linux Sockets API stuff, load cryptographic artifacts. */
     status = self_init();
-    
+
     if(status){
         printf("\n[ERR] Server: Could not complete self initialization!\n\n");
         exit(1);
     }
-    
+
     printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
- 
+
     while(1){
 
         curr_free_socket_ix = next_free_user_ix;
@@ -604,8 +604,8 @@ int main(int argc, char* argv[]){
 
         pthread_detach(client_thread_ids[curr_free_socket_ix]);
 
-        pthread_mutex_unlock(&mutex);                  
+        pthread_mutex_unlock(&mutex);
     }
-                 
+
     return 0;
 }

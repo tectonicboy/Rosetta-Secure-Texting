@@ -1935,7 +1935,7 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     bigint_create_from_u32(&div_res, M->size_bits, 0);
     bigint_create_from_u32(&val_e,   M->size_bits, 0);
 
-    if(bigint_compare2(s, Q) != 3){
+    if(bigint_compare2(s, Q) != CMP_SECOND_BIGGER){
         printf("[WARN] Cryptolib: sig_validate: input s != input Q.\n");
 	retval = 1;
         goto label_cleanup;
@@ -1999,7 +1999,7 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
     val_e.used_bits = get_used_bits(val_e.bits, 40);
 
-    if( bigint_compare2(e, &val_e) != 2 ){
+    if( bigint_compare2(e, &val_e) != CMP_EQUALS ){
         printf("[WARN] Cryptolib: SIG_VAL: val_e != passed e. Ret 0.\n");
 
         printf("Passed e:\n");
