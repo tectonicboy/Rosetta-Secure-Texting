@@ -24,16 +24,37 @@
    implement some bigint destruction strategy or at least a simple API.
 [ Completed ✓ ]
 
-9. Improve the Rosetta Test Framework with automatic tests. All actions, from
+9. Remove code for Argon2 further passes. One pass will suffice.
+
+10. Make a special memory allocation scheme where instead of bigint_create()
+    spamming malloc in the hot path of authenticate_client()/server(), we have
+    a preallocated memory arena for bigints that we know will be required for
+    the functions in that hot path, and tell the functions how to access the
+    bigints from the preallocated arena. Create this arena at initialization,
+    free it at shutdown. Look at the before and after perf report analysis, cuz
+    now with the malloc spam, it was saying some large numbers about malloc.
+    Heap allocation spam in the hot path is highly disliked in performance
+    analysis.
+
+11. C++ wxWidgets GUI for message sending when joining/creating a chatroom.
+    Try using the AF_UNIX communication code for this too.
+
+12. Profile-guided optimization, __restrict__, const wherever I can.
+
+13. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+
+14. Write the project whitepaper report.
+
+?. Improve the Rosetta Test Framework with automatic tests. All actions, from
    creating and logging in a test user account, to creating and joining a
    chatroom, to sending a text message, should be done automatically when you
    start a test case. The function APIs for all of these are already made.
 
-10. Improve handling of fundamental cryptographic artifacts like M, Q and G.
+?. Improve handling of fundamental cryptographic artifacts like M, Q and G.
     Make sure only one place in the Server and Client loads them at init time.
     lib/coreutils.h should probably be removed/reworked entirely anyway.
 
-11. Montgomery Modular Multiplication is currently hardcoded to use the same      
+?. Montgomery Modular Multiplication is currently hardcoded to use the same      
    Diffie-Hellman modulus M as its multiplication modulus. It doesn't have to be 
    that way. Computing MU and L (the 2 parameters that depend on the Montgomery  
    Modulus) is simple - L is the number of 64-bit limbs (8-byte chunks) in the   
@@ -43,10 +64,6 @@
    and successfully performs fast modular multiplication and powering. Then it   
    will be usable even in Rabin-Miller primality test, which will significantly  
    speed it up I assume. 
-
-12. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
-
-?. Write benchmarks and correctness tests for BigInt/Cryptography algorithms.
 
 ?. Make cryptography algorithms constant-time to avoid side channel attacks.
 
