@@ -1,4 +1,4 @@
-bin/user_save.dat
+bin/
 src/user-save.dat
 *.swp
 src/rosetta-test-framework/test-accounts/*
@@ -10,20 +10,5 @@ src/rosetta-test-framework/test-server
 src/rosetta-test-framework/user-spawner
 benchmark-depot/*/*/bench-code/bench
 benchmark-depot/bigint-benchmarks/mul-fast/bench-code/bench
-bin/server_gen_priv_key
-bin/server_gen_pub_key
-bin/test_argon2
-bin/test_blake2b
-bin/test_chacha20
-bin/test_signatures
-bin/rosetta-server
 correctness-tests/calc-results/*
 correctness-tests/add-bigint/my-gen-results
-bin/rosetta-server
-bin/server_gen_priv_key
-bin/server_gen_pub_key
-bin/tcp-client
-bin/test_argon2
-bin/test_blake2b
-bin/test_chacha20
-bin/test_signatures
