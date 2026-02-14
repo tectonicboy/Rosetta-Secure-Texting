@@ -25,6 +25,7 @@
 [ Completed ✓ ]
 
 9. Remove code for Argon2 further passes. One pass will suffice.
+[ Completed ✓ ]
 
 10. Make a special memory allocation scheme where instead of bigint_create()
     spamming malloc in the hot path of authenticate_client()/server(), we have
@@ -39,7 +40,7 @@
 11. C++ wxWidgets GUI for message sending when joining/creating a chatroom.
     Try using the AF_UNIX communication code for this too.
 
-12. Profile-guided optimization, __restrict__, const wherever I can.
+12. Profile-guided optimization, __restrict__, const, static functions.
 
 13. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
 

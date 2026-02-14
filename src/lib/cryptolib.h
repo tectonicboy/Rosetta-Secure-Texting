@@ -392,8 +392,6 @@ void blake2b_g(u64* v, u64 a, u64 b, u64 c ,u64 d, u64 x, u64 y){
 
 void blake2b_f(uint64_t* h, uint64_t* m, uint64_t t, uint8_t f){
 
-    __builtin_prefetch(BLAKE2B_sigma);
-
     uint64_t v[16];
     uint64_t s[16];
 
@@ -594,7 +592,7 @@ void argon2_gb(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d){
 /* Takes eight 16-byte inputs and constructs a 2D array of 4x4 uint64_t's.
  * Input is in the form of a 128-byte contiguous memory block.
  * It comes from rows or columns of the 2D array of 8x8 16-byte numbers
- * that was constructed in Argon2's G() from its 1024-byte input.
+ * that was constructed in the Argon2 G function from its 1024-byte input.
  *
  * NOTE: 2D arrays[][] are simply contiguos 1D arrays in memory, where
  *       the next row starts right beside the previous row, literally
@@ -750,8 +748,6 @@ void argon2_h_dash(uint8_t* input,   uint8_t* output
         }
 
         memcpy(output + (32*r), V[r].block_data, 64);
-
-
     }
 
     /* Cleanup. */
@@ -761,8 +757,8 @@ void argon2_h_dash(uint8_t* input,   uint8_t* output
     return;
 }
 
-void argon2_initJ1J2_blockpool_for2i(u8* Z, block1024_t* blocks, u64 num_blocks){
-
+void argon2_initJ1J2_blockpool_for2i(u8* Z, block1024_t* blocks, u64 num_blocks)
+{
     /* We are about to compute ( q / (128*SL) ) 1024-byte blocks. SL=4 slices.*/
     /* Allocate memory for them after working out exactly how many to compute.*/
     uint64_t G_inner_counter = 0;
@@ -899,12 +895,9 @@ void* argon2_transform_segment(void* thread_input){
 
     u64  num_blocks = ceil((double)q / (double)(128 * 4));
 
-
     /* The first thing in the thread's input buffer
      * is a pointer to an array of pointers, each pointing to the start of
      * the respective lane in the working memory matrix B[][].
-     *
-     * First ever actual necessary use of a triple pointer. Wow.
      */
     block1024_t** B;
     memcpy(&B, thread_input, sizeof(B));
@@ -912,7 +905,6 @@ void* argon2_transform_segment(void* thread_input){
     block1024_t*  G_input_one;
     block1024_t*  G_input_two;
     block1024_t*  G_output;
-    block1024_t   old_block;
     block1024_t*  J1J2blockpool = (block1024_t*)calloc(1, num_blocks * (1024));
 
     u8 Z_buf[6 * sizeof(uint64_t)];
@@ -935,10 +927,6 @@ void* argon2_transform_segment(void* thread_input){
     /* Last  block transformed relative to lane start will be (n * (sl + 1))-1*/
     j_start = n *  sl;
     j_end   = n * (sl + 1);
-
-    if(r > 0){
-        goto label_further_passes;
-    }
 
     /* If at first slice (sl=0), we will do 2 fewer cycles of threaded loop, */
     /* as the first 2 loop cycles in pass 0 are hardcoded and different.     */
@@ -1000,91 +988,6 @@ void* argon2_transform_segment(void* thread_input){
         ++computed_blocks;
     }
 
-    goto label_finish_segment;
-
-label_further_passes:
-    /* Always compute them for Argon2d here, as pass number r > 0 always. */
-
-    /* STRANGE THING IN RFC EXPLANATION:
-     *
-     * It asks you to compute J_1 and J_2 for Argon2d for further passes, and
-     * this includes the process of computing the 0th block of the lane, but
-     * for Argon2d, J_1 and J_2 are the first and next 32 bits of the previous
-     * block, but in this case we're already at block index [0], so what did
-     * they mean here as the previous block?? Do we use this block or go back
-     * one lane up or what??
-     *
-     * UPDATE: For now I just assume they're basing the block from which we
-     *         take bytes for J1 and J2 on the first argument to G(), not
-     *         the target block. Which would mean for block 0 here we take
-     *         bytes from the LAST block of that lane for J1 and J2.
-     *
-     */
-     if(sl == 0){
-        memcpy(&J_1, ((uint32_t*)(&(B[cur_lane][q-1]))) + 0, sizeof(u32));
-        memcpy(&J_2, ((uint32_t*)(&(B[cur_lane][q-1]))) + 1, sizeof(u32));
-
-        /* We're populating W[] (the set of block indices we pick from when
-         * computing indices l and z) in this case from all blocks in this
-         * lane. I think? The RFC doesn't say anything specific about this.
-         */
-        computed_blocks = n;
-        sl = 3;
-        z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
-
-        G_input_one = (B[0] + (cur_lane*q)) + (q-1);
-        G_output    = (B[0] + (cur_lane*q));
-        G_input_two =  B[0] + z_ix;
-
-        /* Before we let G() write to the output block, copy it over and save it
-         * here so we can later XOR the result G() wrote there with the old
-         * block that was there before G() overwrote it. XORing it with its old
-         * contents is the NEW NEW block that will ultimately reside there.
-         */
-        memcpy(&old_block, G_output, sizeof(block1024_t));
-
-        argon2_g((u8*)G_input_one, (u8*)G_input_two, (u8*)G_output);
-
-        /* XOR the result of G() with the old block. This is now the new block*/
-        for(size_t xr = 0; xr < 128; ++xr){
-            ((uint64_t*)G_output)[xr] ^= ((uint64_t*)(&old_block))[xr];
-        }
-
-        /* If at first slice (sl=0), we will do 1 cycle less of threaded loop */
-        /* as the first 1024-byte block in passes 1+ is hardcoded.            */
-        j_start = 1;
-        computed_blocks = 1;
-        sl = 0;
-    }
-
-    for(j = j_start; j < j_end; ++j){
-
-        memcpy(&J_1, ((uint32_t*)(&(B[cur_lane][j-1]))) + 0, sizeof(u32));
-        memcpy(&J_2, ((uint32_t*)(&(B[cur_lane][j-1]))) + 1, sizeof(u32));
-
-        z_ix = Argon2_getLZ(r, sl, cur_lane, p, J_1, J_2, n, q,computed_blocks);
-
-        G_input_one = (B[0] + (cur_lane*q)) + (j-1);
-        G_output    = (B[0] + (cur_lane*q)) + (j);
-        G_input_two =  B[0] + z_ix;
-
-        /* Before we let G() write to the output block, copy it over and save it
-         * here so we can later XOR the result G() wrote there with the old
-         * block that was there before G() overwrote it. XORing it with its old
-         * contents is the NEW NEW block that will ultimately reside there.
-         */
-        memcpy(&old_block, G_output, sizeof(block1024_t));
-
-        argon2_g((u8*)G_input_one, (u8*)G_input_two, (u8*)G_output);
-
-        /* XOR the result of G() with the old block. This is now the new block*/
-        for(size_t xr = 0; xr < 128; ++xr){
-            memcpy(((u64*)G_output) + xr, ((u64*)(&old_block)) + xr , 8);
-        }
-
-        ++computed_blocks;
-    }
-
 label_finish_segment:
 
     free(J1J2blockpool);
@@ -1092,6 +995,7 @@ label_finish_segment:
     return NULL;
 }
 
+/* For now only the first pass of Argon2id is implemented. */
 void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
 
     void** thread_inputs;
@@ -1128,6 +1032,11 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
     size_t thread_in_offset;
 
     block1024_t** B;
+
+    if(parms->t != 1){
+        printf("[ERR] Argon2 parameter t must be set to 1. One pass only.\n");
+        exit(1);
+    }
 
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
     /* The order has to be exactly as specified in the RFC.             */
@@ -1263,12 +1172,9 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag){
 
 label_start_pass:
 
-    // printf("ARGON2id at CURRENT PASS r = %lu\n", r);
-
-    for (uint64_t sl = 0; sl < 4; ++sl){ /* slice number. */
-        //printf("\tARGON2id at CURRENT SLICE sl = %lu\n", sl);
+    for (uint64_t sl = 0; sl < 4; ++sl){        /* slice number.       */
         for(uint64_t i = 0; i < parms->p; ++i){ /* lane/thread number. */
-           // printf("\t\tARGON2id now starting LANE = %lu\n", i);
+            
             /*  Third for-loop 3.1 that will:
              *  Set loose a thread for each row of blocks in the matrix.
              *  21845 1024-byte blocks will be processed by each thread.
@@ -1388,25 +1294,19 @@ label_start_pass:
         printf("------------- ARGON2: Slice %lu finished. -------------\n", sl);
     } /* End of one slice. */
 
-    /*
-    printf("END OF PASS [%lu] BLOCK 0:\n\n", r);
-       for(uint32_t i = 0; i < 1024; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", ( ((uint8_t*)(&(B[0][0])))[i] )) ;
-    }
-    printf("\n\n");
-    printf("END OF PASS [%lu] BLOCK 31:\n\n", r);
-       for(uint32_t i = 0; i < 1024; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", ( ((uint8_t*)(&(B[3][7])))[i] )) ;
-    }
-    printf("\n\n");
-    */
-
     /* Finished all 4 slices of a pass. Increment pass number.*/
     ++r;
 
-    /* If Argon2 is to perform more than the zeroth pass, do them. */
+    /* If Argon2 is to perform more than the zeroth pass, do them.
+     * 
+     * NOTE: For now, I only implement one-pass Argon2id.
+     *
+     *       This is enough for the security of the hash to work and for further
+     *       passes the RFC has a weird hole in the explanation, basically it
+     *       tells you that memory chunk X is based "on the previous" memory
+     *       chunk, but it never tells you what to do if you're already at the
+     *       zeroth X and there isn't a previous X-1 to base it on.
+     */
     if (r < parms->t){
         goto label_start_pass;
     }
@@ -1416,32 +1316,7 @@ label_start_pass:
 
     memcpy(final_block_C, &(B[0][q-1]), 1024);
 
-    /*
-    printf("last column blocks of B[][] at end of 1st pass:\n");
-    for(size_t ln = 0; ln < parms->p; ++ln){
-            printf("LAST 1024-byte BLOCK IN LANE %lu:\n", ln);
-               for(uint32_t i = 0; i < 1024; ++i){
-                if(i % 16 == 0 && i > 0){printf("\n");}
-                printf("%02x ", ( ((uint8_t*)(&(B[ln][q-1])))[i] )) ;
-            }
-            printf("\n\n");
-
-    }
-    */
-
     for(size_t ln = 1; ln < parms->p; ++ln){
-
-    /*
-        printf("\n\n***** final block before XORing with last block of ln"
-               " = %lu *****\n\n"
-              ,ln);
-
-        for(uint32_t i = 0; i < 1024; ++i){
-            if(i % 16 == 0 && i > 0){printf("\n");}
-            printf("%02x ", (uint8_t)final_block_C[i]);
-        }
-        printf("\n\n");
-     */
 
         uint64_t* aux_ptr64_finalblock = (uint64_t*)final_block_C;
         uint64_t* aux_ptr64_lastcolblk = (uint64_t*)(&(B[ln][q-1]));
@@ -1454,15 +1329,6 @@ label_start_pass:
     /* Finally, feed final block C to H' producing Tag-length bytes of output:
      * Result = H'{T}(C)
      */
-     /*
-    printf("\n\n***** input 1024-byte block to H_dash calling B2B: *****\n\n");
-
-    for(uint32_t i = 0; i < 1024; ++i){
-        if(i % 16 == 0 && i > 0){printf("\n");}
-        printf("%02x ", (uint8_t)final_block_C[i]);
-    }
-    printf("\n\n");
-    */
     argon2_h_dash(final_block_C, output_tag, parms->T, 1024);
 
     /* Cleanup. */
@@ -1492,11 +1358,12 @@ label_start_pass:
  * I use base-2^64 Montgomery representatives, which means beta=2^64. This leads
  * to having 64-bit limbs in the Montgomery representatives of numbers. It also
  * leads to having 64-bit MUL and ADD operations, which are not directly
- * supported in C, instead most C compilers provide intrinsics for it, which we
+ * supported, instead most C compilers provide intrinsics for it, which we
  * make use of here to boost performance. Here, L = ceil(N_used_bits / 64).
  *
  * Note: beta is ignored everywhere where we'd multiply by it, so don't even
- *       pass it here.
+ *       pass it here. This is because we operate in base 2^64 and our storage
+ *       type is already uint64_t.
  */
 void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
 
@@ -1605,12 +1472,7 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         memcpy(&addcarryx_arg3, R->bits +(MONT_L * MONT_LIMB_SIZ), sizeof(u64));
 
         /* 5. */
-        C = _addcarryx_u64(
-                    (u8)0
-                   ,*(T + 1)
-                   ,addcarryx_arg3
-                   , (T + 0)
-                  );
+        C = _addcarryx_u64((u8)0, *(T + 1), addcarryx_arg3, (T + 0));
 
         *(T + 1) = (u64)C + *(T + 2);
         *(T + 2) = 0;
@@ -1648,8 +1510,7 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
  *
  *  Note: Sometimes a Montgomery form of a number can be larger than the number
  *        itself in regular positional notation. This is fine and is still a
- *        valid Montgomery form of that number. Also, a number can have several
- *        valid Montgomery forms, not necessarily just one. I think.
+ *        valid Montgomery form of that number.
  */
 void get_mont_form(bigint* src, bigint* target, bigint* M){
 
@@ -1864,7 +1725,7 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont
 
     /* signature buffer must have been allocated with exactly
      * ( (2 * sizeof(bigint)) + (2 * bytewidth(Q)) )
-     * bytes of memory. No checks performed for performance.
+     * bytes of memory. No checks done for performance.
      */
 
     memcpy(signature + offset, &s, sizeof(bigint));
@@ -1937,7 +1798,7 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
     if(bigint_compare2(s, Q) != CMP_SECOND_BIGGER){
         printf("[WARN] Cryptolib: sig_validate: input s != input Q.\n");
-	retval = 1;
+	    retval = 1;
         goto label_cleanup;
     }
 
@@ -1945,34 +1806,36 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
     blake2b_init(data, data_len, 0, prehash_len, prehash);
 
-    //struct timeval tv1, tv2;
+    struct timeval tv1, tv2;
 
-    //gettimeofday(&tv1,NULL);
+    gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Gmont, s, M, &R_aux1);
-    //gettimeofday(&tv2,NULL);
+    gettimeofday(&tv2,NULL);
+    
+    printf("\n=============================================================\n");
+    printf( "CRYPT: verify_sig FIRST PART: mont_pow 1 TIME: MICROS %lu\n"
+	       ,tv2.tv_usec - tv1.tv_usec
+	      );
 
-    //printf( "CRYPT: verify_sig: mont_pow 1 TIME: MICROS %lu\n"
-	//   ,tv2.tv_usec - tv1.tv_usec
-	//  );
-
-    //gettimeofday(&tv1,NULL);
+    gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Amont, e, M, &R_aux2);
-    //gettimeofday(&tv2,NULL);
+    gettimeofday(&tv2,NULL);
 
-    //printf( "CRYPT: verify_sig: mont_pow 2 TIME: MICROS %lu\n"
-    //       ,tv2.tv_usec - tv1.tv_usec
-	//  );
+    printf( "CRYPT: verify_sig SECOND PART: mont_pow 2 TIME: MICROS %lu\n"
+           ,tv2.tv_usec - tv1.tv_usec
+	      );
 
     bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
 
-    //gettimeofday(&tv1,NULL);
+    gettimeofday(&tv1,NULL);
     bigint_div2(&R_aux3, M, &div_res, &R);
-    //gettimeofday(&tv2,NULL);
+    gettimeofday(&tv2,NULL);
 
-    //printf("CRYPT: verify_sig: division by M: MICROS ");
-    //output_yel();
-    //printf("%lu\n", tv2.tv_usec - tv1.tv_usec);
-    //output_rst();
+    printf("CRYPT: verify_sig THIRD PART: division by M: MICROS ");
+    output_yel();
+    printf("%lu\n", tv2.tv_usec - tv1.tv_usec);
+    output_rst();
+    printf("=============================================================\n\n");
 
     R_used_bytes = R.used_bits;
 
