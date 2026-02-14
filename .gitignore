@@ -1,5 +1,5 @@
 bin/user_save.dat
-bin/*
+src/user-save.dat
 *.swp
 src/rosetta-test-framework/test-accounts/*
 tags
@@ -19,3 +19,11 @@ bin/test_signatures
 bin/rosetta-server
 correctness-tests/calc-results/*
 correctness-tests/add-bigint/my-gen-results
+bin/rosetta-server
+bin/server_gen_priv_key
+bin/server_gen_pub_key
+bin/tcp-client
+bin/test_argon2
+bin/test_blake2b
+bin/test_chacha20
+bin/test_signatures
