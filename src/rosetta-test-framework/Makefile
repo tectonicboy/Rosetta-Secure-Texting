@@ -25,11 +25,6 @@ CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wformat-security
 CFLAGS += -Wno-stringop-truncation
 
-#-Wall -Wextra -Wcast-align -Wno-multichar -Wno-unused -Wstrict-aliasing=2
-#-Wstrict-overflow=1 -Wswitch -Wtrigraphs -Wuninitialized -Wunknown-pragmas
-#-Wunused-function -Wunused-label -Wunused-value -Wunused-variable
-#-Wsign-compare -Wmissing-prototypes -Wmissing-declarations
-
 OPTIMIZATION_LEVEL = -O3
 
 # Ask GCC to tell us of any vectorization and loop optimizations it performed.
@@ -50,5 +45,14 @@ all:
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS)
 
 debug:
-	gcc -g rosetta-test-framework.c -O0 -o debugrtf \
-	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(LINKER_FLAGS)
+	gcc -g rosetta-test-framework.c -o rtf-debug $(OPTIMIZATION_REPORT) \
+	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS) && \
+	gcc -g user-spawner.c -o user-spawner-debug $(OPTIMIZATION_REPORT) \
+	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS) && \
+	gcc -g ../server/rosetta-server.c -o test-server-debug \
+	$(OPTIMIZATION_REPORT) \
+	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS)
+
+clean:
+	rm -rf rtf && rm -rf user-spawner && rm -rf test-server && \
+	rm -rf rtf-debug && rm -rf user-spawner-debug && rm -rf test-server-debug

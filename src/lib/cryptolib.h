@@ -1174,7 +1174,7 @@ label_start_pass:
 
     for (uint64_t sl = 0; sl < 4; ++sl){        /* slice number.       */
         for(uint64_t i = 0; i < parms->p; ++i){ /* lane/thread number. */
-            
+
             /*  Third for-loop 3.1 that will:
              *  Set loose a thread for each row of blocks in the matrix.
              *  21845 1024-byte blocks will be processed by each thread.
@@ -1298,7 +1298,7 @@ label_start_pass:
     ++r;
 
     /* If Argon2 is to perform more than the zeroth pass, do them.
-     * 
+     *
      * NOTE: For now, I only implement one-pass Argon2id.
      *
      *       This is enough for the security of the hash to work and for further
@@ -1376,7 +1376,8 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
     unsigned long long  Vh;
     unsigned long long  W;
     unsigned long long  q;
-    unsigned long long* T;
+
+    unsigned long long* __restrict__ T;
 
     bigint R_aux;
 
@@ -1394,21 +1395,37 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
 
     memset(T, 0, (3 * MONT_LIMB_SIZ));
 
+    /* For this outer loop and the inner loop inside it, after analysing all
+     * accesses to the bit buffers of bigints X, Y, N and R, I concluded that
+     * it is safe to have restricted pointers to these 4 memory regions for the
+     * duration of the entire outer loop. In the context of this loop, you never
+     * get the need for two separate pointers to access these 4 memory regions.
+     *
+     * Thus, to potentially allow for better compiler optimizations and reduced
+     * runtime latency of this loop, have 4 restricted pointers make all the
+     * accesses to the bit buffers of these 4 bigints. In fact, one pointer can
+     * be used to access the bit buffers of both N and X here.
+     */
     for(uint64_t i = 0; i < MONT_L; ++i){
 
-        uint64_t mulx_arg1;
-        uint64_t mulx_arg2;
-        uint64_t addcarryx_arg3;
+        uint64_t* __restrict__ X_N_bit_buffer_ptr;
+        uint64_t* __restrict__ Y_bit_buffer_ptr;
+        uint64_t* __restrict__ R_bit_buffer_ptr;
 
-        memcpy(&mulx_arg1, (Y->bits + (i * MONT_LIMB_SIZ)), sizeof(mulx_arg1));
-        memcpy(&mulx_arg2, X->bits, sizeof(mulx_arg2));
+        /* A montgomery limb here is already 64 bits, a uint64_t pointer
+         * already automatically scales the pointer arithmetic by *8, so do not
+         * multiply by MONT_LIMB_SIZ here when taking the i-th limb of a bigint.
+         */
+
+        Y_bit_buffer_ptr   = ((u64*)(Y->bits)) + i;
+        X_N_bit_buffer_ptr = (u64*)(X->bits);
 
         /* 2. */
-        Ul = _mulx_u64(mulx_arg1, mulx_arg2, &Uh);
+        Ul = _mulx_u64(*Y_bit_buffer_ptr, *X_N_bit_buffer_ptr, &Uh);
 
-        memcpy(&addcarryx_arg3, R->bits, sizeof(addcarryx_arg3));
+        R_bit_buffer_ptr = (u64*)(R->bits);
 
-        C = _addcarryx_u64((u8)0, Ul, addcarryx_arg3, &Ul);
+        C = _addcarryx_u64((u8)0, Ul, *R_bit_buffer_ptr, &Ul);
 
         Uh += (u64)C;
 
@@ -1419,12 +1436,10 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         /* 3. */
         q = _mulx_u64((u64)MONT_MU, *(T + 0), &Uh);
 
-        /* Prepare arg 2 to mulx() in 3.5 without deref type-punned pointers. */
-
-        memcpy(&mulx_arg2, N->bits + (0 * MONT_LIMB_SIZ), sizeof(mulx_arg2));
+        X_N_bit_buffer_ptr = (u64*)(N->bits);
 
         /* 3.5:  T += q*n0. */
-        Vl = _mulx_u64(q, mulx_arg2, &Vh);
+        Vl = _mulx_u64(q, *X_N_bit_buffer_ptr, &Vh);
 
         C = _addcarryx_u64( (u8)0, *(T + 0), Vl, (T + 0) );
 
@@ -1435,23 +1450,19 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
         /* 4. */
         for(u64 j = 1; j < MONT_L; ++j){
 
-            memcpy(&mulx_arg2, N->bits + (j* MONT_LIMB_SIZ), sizeof(mulx_arg2));
+            X_N_bit_buffer_ptr = ((u64*)(N->bits)) + j;
 
             /* Compute T limb by limb. */
-            Ul = _mulx_u64(q, mulx_arg2, &Uh);
+            Ul = _mulx_u64(q, *X_N_bit_buffer_ptr, &Uh);
 
+            Y_bit_buffer_ptr   = ((u64*)(Y->bits)) + i;
+            X_N_bit_buffer_ptr = ((u64*)(X->bits)) + j;
 
-            memcpy(&mulx_arg1, Y->bits + (i* MONT_LIMB_SIZ), sizeof(mulx_arg1));
-            memcpy(&mulx_arg2, X->bits + (j* MONT_LIMB_SIZ), sizeof(mulx_arg2));
+            Vl = _mulx_u64(*Y_bit_buffer_ptr, *X_N_bit_buffer_ptr, &Vh);
 
-            Vl = _mulx_u64(mulx_arg1, mulx_arg2, &Vh);
+            R_bit_buffer_ptr = ((u64*)(R->bits)) + j;
 
-            memcpy( &addcarryx_arg3
-                   ,R->bits + (j * MONT_LIMB_SIZ)
-                   ,sizeof(addcarryx_arg3)
-                  );
-
-            C = _addcarryx_u64((u8)0, Ul, addcarryx_arg3, &Ul);
+            C = _addcarryx_u64((u8)0, Ul, *R_bit_buffer_ptr, &Ul);
 
             Uh += (u64)C;
 
@@ -1466,20 +1477,23 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
             *(T + 2) = (u64)C + (u64)D;
 
             /* Set r_(j-1) = t_0  */
-            memcpy((R->bits + ((j-1) * MONT_LIMB_SIZ)), T, sizeof(uint64_t));
+            R_bit_buffer_ptr = ((u64*)(R->bits)) + (j-1);
+            memcpy(R_bit_buffer_ptr, T, MONT_LIMB_SIZ);
         }
 
-        memcpy(&addcarryx_arg3, R->bits +(MONT_L * MONT_LIMB_SIZ), sizeof(u64));
+        R_bit_buffer_ptr = ((u64*)(R->bits)) + MONT_L;
 
         /* 5. */
-        C = _addcarryx_u64((u8)0, *(T + 1), addcarryx_arg3, (T + 0));
+        C = _addcarryx_u64((u8)0, *(T + 1), *R_bit_buffer_ptr, (T + 0));
 
         *(T + 1) = (u64)C + *(T + 2);
         *(T + 2) = 0;
 
         /* 6. */
-        memcpy((R->bits+((MONT_L - 1) * MONT_LIMB_SIZ)), T + 0, sizeof(u64));
-        memcpy((R->bits+((MONT_L - 0) * MONT_LIMB_SIZ)), T + 1, sizeof(u64));
+
+        R_bit_buffer_ptr = ((u64*)(R->bits)) + (MONT_L - 1);
+
+        memcpy(R_bit_buffer_ptr, T, 2 * MONT_LIMB_SIZ);
     }
 
     memset((u8*)T, 0, 3 * MONT_LIMB_SIZ);
@@ -1488,7 +1502,7 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R){
     R->used_bits = get_used_bits(R->bits, (u32)(R->size_bits / 8));
 
     uint64_t temp_limb;
-    memcpy(&temp_limb, (R->bits + (MONT_L * MONT_LIMB_SIZ)), sizeof(u64));
+    memcpy(&temp_limb, (R->bits + (MONT_L * MONT_LIMB_SIZ)), MONT_LIMB_SIZ);
 
     if ( temp_limb != 0){
         bigint_equate2(&R_aux, R);
@@ -1768,6 +1782,11 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont
  *   RETURNS: 0 if signature is valid for this message, 1 for invalid signature.
  *
  */
+
+/*DEBUG ONLY */
+    double nr_timepoints = 0;
+    double total_times   = 0;
+
 uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
                            ,bigint* s, bigint* e, u8* data, u32 data_len)
 {
@@ -1806,16 +1825,23 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 
     blake2b_init(data, data_len, 0, prehash_len, prehash);
 
+    /* DEBUG ONLY */
     struct timeval tv1, tv2;
 
     gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Gmont, s, M, &R_aux1);
     gettimeofday(&tv2,NULL);
-    
+
     printf("\n=============================================================\n");
     printf( "CRYPT: verify_sig FIRST PART: mont_pow 1 TIME: MICROS %lu\n"
 	       ,tv2.tv_usec - tv1.tv_usec
 	      );
+    if(tv2.tv_usec > tv1.tv_usec){
+        total_times = total_times + ((double)(tv2.tv_usec - tv1.tv_usec));
+        ++nr_timepoints;
+        printf("CRYPT: - - - - - - -- - - - - - - - - - - AVERAGE: %lf\n"
+               ,(total_times / nr_timepoints));
+    }
 
     gettimeofday(&tv1,NULL);
     mont_pow_mod_m(Amont, e, M, &R_aux2);
