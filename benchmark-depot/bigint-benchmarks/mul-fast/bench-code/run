@@ -1,1 +1,0 @@
-taskset -c 18 ./bench > ../bench-result.txt
