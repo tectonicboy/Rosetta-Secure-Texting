@@ -8,7 +8,7 @@
 
 #define SERVER_PORT             54746
 #define MAX_SOCK_QUEUE          1024
-#define SERVER_IP_ADDR          "192.168.0.112"
+#define SERVER_IP_ADDR          "16.16.203.73"
 #define MAX_RECV_RETRIES        400
 #define RECV_RETRY_AFTER_MICROS 5000
 #define POLL_INTERVAL_MICROS    100000 /* Poll the server every 0.1 seconds */
@@ -58,20 +58,20 @@ uint8_t tcp_init_communication(){
         goto label_cleanup;
     }
 
-    struct timeval tv;                                                           
-    tv.tv_sec  = 3;                                                              
-    tv.tv_usec = 0;                                                              
-                                                                                 
-    if(setsockopt                                                                
-       (                                                                         
-        own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)    
-       )                                                                         
-       < 0                                                                       
-      )                                                                          
-    {                                                                            
-        perror("[ERR] Server: TCP setsockopt() failed: ");                       
+    struct timeval tv;
+    tv.tv_sec  = 3;
+    tv.tv_usec = 0;
+
+    if(setsockopt
+       (
+        own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
+       )
+       < 0
+      )
+    {
+        perror("[ERR] Server: TCP setsockopt() failed: ");
         close(own_socket_fd);
-    } 
+    }
 
     printf("[OK]  Client: Socket file descriptor obtained!\n");
 
@@ -116,41 +116,41 @@ u8 tcp_transmit_payload(u8* msg_buf, u64 msg_len){
 u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
 
     uint8_t  ret = 0;
-    ssize_t  status = 0;    
+    ssize_t  status = 0;
 
     status = recv(own_socket_fd, reply_buf, 8192, 0);
 
-    if( __builtin_expect (status == 0, 0) ){                                     
-        printf("[OK]  Client: IPC Server gracefully ended communication.\n");    
-        ret = 1;                                                                 
-        *reply_len = 0;                                                           
-    }                                                                            
-    else if( __builtin_expect (status < 0, 0) ){                                 
+    if( __builtin_expect (status == 0, 0) ){
+        printf("[OK]  Client: TCP Server gracefully ended communication.\n");
+        ret = 1;
+        *reply_len = 0;
+    }
+    else if( __builtin_expect (status < 0, 0) ){
         if(errno != EAGAIN
            #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
            && errno != EWOULDBLOCK
            #endif
           )
-        {                             
-            perror("[ERR] Client: IPC recv() from server failed unexpectedly:"); 
-            ret = 1;                                                             
-        }                                                                        
-        else{                                                                    
-            printf("[ERR] Client: IPC recv() from server TIMED OUT!\n");         
-            ret = 2;                                                             
-        }                                                                        
-        *reply_len = 0;                                                           
-    }                                                                            
-    else{                                                                        
-        *reply_len = status;                                                      
-    }      
+        {
+            perror("[ERR] Client: TCP recv() from server failed unexpectedly:");
+            ret = 1;
+        }
+        else{
+            printf("[ERR] Client: TCP recv() from server TIMED OUT!\n");
+            ret = 2;
+        }
+        *reply_len = 0;
+    }
+    else{
+        *reply_len = status;
+    }
 
     return ret;
 }
 
 void tcp_end_communication(void)
 {
-    close(own_socket_fd);       
+    close(own_socket_fd);
     return;
 }
 
@@ -172,19 +172,19 @@ uint8_t ipc_init_communication(){
     }
     printf("[OK]  Client: AF_UNIX socket() call is OK.\n");
 
-    struct timeval tv;                                                           
-    tv.tv_sec  = 3;                                                              
-    tv.tv_usec = 0;                                                              
-                                                                                 
-    if(setsockopt                                                                
-        (                                                                         
+    struct timeval tv;
+    tv.tv_sec  = 3;
+    tv.tv_usec = 0;
+
+    if(setsockopt
+        (
          own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
-        )                                                                         
-        < 0                                                                       
-      )                                                                          
-    {                                                                            
-        perror("[ERR] Server: TCP setsockopt() failed: ");                       
-        close(own_socket_fd);                                                    
+        )
+        < 0
+      )
+    {
+        perror("[ERR] Server: TCP setsockopt() failed: ");
+        close(own_socket_fd);
     }
 
     /**************************************************************************/
@@ -243,13 +243,13 @@ uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
         *recv_len = 0;
     }
     else if( __builtin_expect (status < 0, 0) ){
-        if(errno != EAGAIN 
+        if(errno != EAGAIN
            #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
            && errno != EWOULDBLOCK
            #endif
           )
         {
-            perror("[ERR] Client: IPC recv() from server failed unexpectedly:");   
+            perror("[ERR] Client: IPC recv() from server failed unexpectedly:");
             ret = 1;
         }
         else{
@@ -265,9 +265,9 @@ uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
     return ret;
 }
 
-void ipc_end_communication(void)                                                 
-{                                                                                
-    close(own_socket_fd);                                                        
-    return;                                                                      
-}  
+void ipc_end_communication(void)
+{
+    close(own_socket_fd);
+    return;
+}
 

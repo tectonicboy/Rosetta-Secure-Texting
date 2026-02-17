@@ -140,13 +140,13 @@ uint8_t tcp_onboard_new_client(uint64_t socket_ix){
     if(setsockopt
        (
         client_socket_fd[socket_ix], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
-       ) 
+       )
        < 0
       )
     {
         perror("[ERR] Server: TCP setsockopt() failed: ");
         close(client_socket_fd[socket_ix]);
-    } 
+    }
 
     return 0;
 }
@@ -171,13 +171,13 @@ ssize_t tcp_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
 
     /* Handle terminated communication - both graceful and unexpected. */
 
-    if( __builtin_expect (bytes_read < 0, 0) ){                              
-        if(errno != EAGAIN 
+    if( __builtin_expect (bytes_read < 0, 0) ){
+        if(errno != EAGAIN
            #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
            && errno != EWOULDBLOCK
            #endif
           )
-        {    
+        {
             printf("[ERR] Server: client_socket[%lu] poll recv  failed.\n"
                    ,socket_ix
                   );
@@ -186,15 +186,15 @@ ssize_t tcp_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
         else{
             printf("[ERR] Server: client_socket[%lu] poll recv() timed out.\n"
                    ,socket_ix
-                  ); 
+                  );
         }
-    }                                                                        
+    }
 
-    if( __builtin_expect (bytes_read == 0, 0) ){                              
+    if( __builtin_expect (bytes_read == 0, 0) ){
         printf("[OK]  Server: Notified by client OS:\n"
                "              gracefully ended communication.\n"
-              ); 
-    }   
+              );
+    }
 
     return bytes_read;
 }
@@ -213,7 +213,7 @@ uint8_t ipc_init_communication()
         goto label_cleanup;
     }
     printf("[OK]  Server: AF_UNIX socket() call is OK.\n");
-  
+
     unlink(SOCK_PATH);
 
     /**************************************************************************/
@@ -267,27 +267,27 @@ uint8_t ipc_onboard_new_client(uint64_t socket_ix){
 
     client_socket_fd[socket_ix] = accept(listening_socket, NULL, NULL);
 
-    if (client_socket_fd[socket_ix] == -1) {                                    
+    if (client_socket_fd[socket_ix] == -1) {
         perror("[ERR] Server: AF_UNIX accept() call failed!\n");
         return 1;
     }
     else
         printf("[OK]  Server: AF_UNIX accept() is OK. Accepted new client!\n");
 
-    struct timeval tv;                                                           
-    tv.tv_sec  = 3;                                                              
-    tv.tv_usec = 0;                                                              
-                                                                                 
-    if(setsockopt                                                                
-       (                                                                         
-        client_socket_fd[socket_ix], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)    
-       )                                                                         
-       < 0                                                                       
-      )                                                                          
-    {                                                                            
-        perror("[ERR] Server: TCP setsockopt() failed: ");                       
-        close(client_socket_fd[socket_ix]);                                      
-    }  
+    struct timeval tv;
+    tv.tv_sec  = 3;
+    tv.tv_usec = 0;
+
+    if(setsockopt
+       (
+        client_socket_fd[socket_ix], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
+       )
+       < 0
+      )
+    {
+        perror("[ERR] Server: TCP setsockopt() failed: ");
+        close(client_socket_fd[socket_ix]);
+    }
 
     return 0;
 }
@@ -311,8 +311,8 @@ ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
     num_read = recv(client_socket_fd[socket_ix], buf, max_len, 0);
 
     /* Handle terminated communication - both graceful and unexpected cases. */
-                                                                                 
-    if( __builtin_expect (num_read < 0, 0) ){                                  
+
+    if( __builtin_expect (num_read < 0, 0) ){
         if(errno != EAGAIN
            #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
            && errno != EWOULDBLOCK
@@ -322,21 +322,21 @@ ssize_t ipc_receive_payload(uint64_t socket_ix, uint8_t* buf, size_t max_len){
             printf("[ERR] Server: client_socket[%lu] poll recv() failed.\n"
                    ,socket_ix
                   );
-            perror("errno: "); 
+            perror("errno: ");
         }
-        else{                                                                     
+        else{
             printf("[ERR] Server: client_socket[%lu] poll recv() timed out.\n"
                    ,socket_ix
-                  );    
-        }                                                                    
-    }                                                                            
-                                                                                 
-    if( __builtin_expect(num_read == 0, 0) ){                                  
-        printf("[OK]  Server: Notified by client OS:\n"                          
-               "              gracefully ended communication.\n"                 
-              );                                                                 
-                                                                                 
-    }                  
+                  );
+        }
+    }
+
+    if( __builtin_expect(num_read == 0, 0) ){
+        printf("[OK]  Server: Notified by client OS:\n"
+               "              gracefully ended communication.\n"
+              );
+
+    }
 
     return num_read;
 }

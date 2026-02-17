@@ -644,7 +644,7 @@ void bigint_mul_fast( const bigint* const n1
     A  /= 32;
     AA /= 32;
 
-    for(i = 0; i < A; ++i){i
+    for(i = 0; i < A; ++i){
 
         uint32_t* __restrict__ aux_ptr_tempres = (uint32_t*)(&temp_res);
         uint32_t* __restrict__ aux_ptr_n1bits  = (uint32_t*)(n1->bits);

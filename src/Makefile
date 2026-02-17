@@ -80,12 +80,14 @@ server_gen_pub_key:
 
 client:
 	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
-	`wx-config --cxxflags --libs` -o ../bin/tcp-client $(CFLAGS) \
+	`/usr/bin/wx-config --version=3.2 --cxxflags --libs` -o \
+	../bin/tcp-client $(CFLAGS) \
 	-lm -pthread -O3 -march=native
 
 client_asan:
 	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp      \
-	`wx-config --cxxflags --libs` -o ../bin/tcp-client-asan $(CFLAGS) \
+	`/usr/bin/wx-config --version=3.2 --cxxflags --libs` -o  \
+	../bin/tcp-client-asan $(CFLAGS) \
 	-lm -pthread -O2 -march=native                                    \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
