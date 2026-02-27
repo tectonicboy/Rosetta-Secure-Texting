@@ -248,14 +248,14 @@ cMain::cMain() : wxFrame(
         ,wxTE_READONLY | wxTE_MULTILINE | wxNO_BORDER
     );
 
-    // Create a Monospace Bold font
+    /* Create a Monospace Bold font */
     wxFont Monospace_Bold( 12
                 ,wxFONTFAMILY_MODERN
                 ,wxFONTSTYLE_NORMAL
                 ,wxFONTWEIGHT_BOLD
     );
 
-    // Apply the font to the wxListBox
+    /* Apply the font */
     ROSETTA_LABEL->SetFont(Monospace_Bold);
     btn_reg->SetFont(Monospace_Bold);
     btn_login->SetFont(Monospace_Bold);
@@ -264,71 +264,12 @@ cMain::cMain() : wxFrame(
     ROSETTA_LABEL->SetBackgroundColour(*wxBLACK);
 
     this->SetBackgroundColour(*wxBLACK);
-
-    // Load the JPG image from file
-
-    /*
-    wxImage::AddHandler(new wxPNGHandler());
-
-    wxImage padlock_image;
-
-    if ( padlock_image.LoadFile( "../resources/padlock_image.png"
-                                ,wxBITMAP_TYPE_PNG
-                               )
-       )
-    {
-
-        //Convert wxImage to wxBitmap
-        wxBitmap bitmap(padlock_image);
-
-        //Create a wxStaticBitmap to display the image
-        wxStaticBitmap* imageCtrl = new wxStaticBitmap(
-            this
-            ,wxID_ANY
-            ,bitmap
-            ,wxPoint(10, 330)
-            ,wxSize(626, 626)
-        );
-    }
-
-    else{
-        wxMessageBox("Failed to load image!", "Error", wxICON_ERROR);
-    }
-    */
-
-    /* do the second padlock image now.*/
-    /*
-    wxImage padlock_image2;
-
-    if ( padlock_image2.LoadFile( "../resources/padlock_image.png"
-                                ,wxBITMAP_TYPE_PNG
-                               )
-       )
-    {
-
-        //Convert wxImage to wxBitmap
-        wxBitmap bitmap2(padlock_image2);
-
-        //Create a wxStaticBitmap to display the image
-        wxStaticBitmap* imageCtrl2 = new wxStaticBitmap(
-            this
-            ,wxID_ANY
-            ,bitmap2
-            ,wxPoint(1290, 330)
-            ,wxSize(626, 626)
-        );
-    }
-
-    else{
-        wxMessageBox("Failed to load image!", "Error", wxICON_ERROR);
-    }
-    */
 }
 
 
 /* Destructor - no parameters, no code in function body */
 cMain::~cMain(){
-    /* empty destructor function body */
+ 
 }
 
 void cMain::BtnClickLogin(wxCommandEvent &evt){
