@@ -55,7 +55,8 @@ u8 self_init(){
      *  everything it transmits, so all users can authenticate it using the
      *  server's long-term public key they already have at install time.
      */
-   privkey_dat = fopen( "../../bin/server_privkey.dat", "r");
+   privkey_dat = fopen
+   ("../../bin/server_privkey.dat", "r");
 
     if(!privkey_dat){
         perror("[ERR] Server: couldn't open private key DAT file:\n");
