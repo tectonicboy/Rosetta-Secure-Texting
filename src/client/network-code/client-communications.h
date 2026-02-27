@@ -8,7 +8,7 @@
 
 #define SERVER_PORT             54746
 #define MAX_SOCK_QUEUE          1024
-#define SERVER_IP_ADDR          "16.16.203.73"
+#define SERVER_IP_ADDR          "16.170.209.175"
 #define MAX_RECV_RETRIES        400
 #define RECV_RETRY_AFTER_MICROS 5000
 #define POLL_INTERVAL_MICROS    100000 /* Poll the server every 0.1 seconds */

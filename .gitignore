@@ -1,5 +1,6 @@
 bin/
 src/user-save.dat
+src/client/user-save.dat
 *.swp
 src/rosetta-test-framework/test-accounts/*
 tags
