@@ -56,7 +56,7 @@ u8 self_init(){
      *  server's long-term public key they already have at install time.
      */
    privkey_dat = fopen
-   ("../../bin/server_privkey.dat", "r");
+   ("./materials/cryptography/server_privkey.dat", "r");
 
     if(!privkey_dat){
         perror("[ERR] Server: couldn't open private key DAT file:\n");
