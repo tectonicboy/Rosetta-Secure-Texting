@@ -11,7 +11,8 @@ int main(int argc, char* argv[]){
     
     printf("Obtained req_key_bytes arg as uint32_t: %u\n", req_key_len_bytes);
     
-    FILE* server_privkey_dat = fopen("server_privkey.dat","w");
+    FILE* server_privkey_dat = 
+      fopen("./materials/cryptography/server_privkey.dat","w");
     
     if(server_privkey_dat == NULL){
         printf("[ERROR] - gen_priv_key couldn't open server_privkey.dat\n");

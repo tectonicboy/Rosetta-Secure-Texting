@@ -29,7 +29,9 @@ int main(int argc, char* argv[]){
     }
     pubkey_used_bytes /= 8;
     
-    FILE* server_pubkey_dat = fopen("server_pubkey.dat","w");
+    FILE* server_pubkey_dat = 
+      fopen("./materials/cryptography/server_pubkey.dat","w");
+
     size_t bytes_wr;
     bytes_wr = 
          fwrite(pubkey_bigint->bits, 1, pubkey_used_bytes, server_pubkey_dat);
@@ -56,7 +58,8 @@ int main(int argc, char* argv[]){
     }
     pubkeymont_used_bytes /= 8;
     
-    FILE* server_pubkeymont_dat = fopen("server_pubkeymont.dat","w");
+    FILE* server_pubkeymont_dat = 
+      fopen("./materials/cryptography/server_pubkeymont.dat","w");
 
     bytes_wr = 
          fwrite(pubkey_montform->bits, 1, pubkeymont_used_bytes

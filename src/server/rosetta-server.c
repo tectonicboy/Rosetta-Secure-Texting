@@ -85,15 +85,16 @@ u8 self_init(){
 
     /* Diffie-Hellman modulus M, 3071-bit prime number */
     M = get_bigint_from_dat
-                   (3072, "../../bin/saved_M.dat", 3071, MAX_BIGINT_SIZ);
+            (3072, "./materials/cryptographysaved_M.dat", 3071, MAX_BIGINT_SIZ);
 
     /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
-    Q = get_bigint_from_dat(320, "../../bin/saved_Q.dat", 320, MAX_BIGINT_SIZ);
+    Q = get_bigint_from_dat
+             (320, "./materials/cryptography/saved_Q.dat", 320, MAX_BIGINT_SIZ);
 
     /* Diffie-Hellman generator G = 2^((M-1)/Q) */
     G = get_bigint_from_dat
      ( 3072
-      ,"../../bin/saved_G.dat"
+      ,"./materials/cryptography/saved_G.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
@@ -101,14 +102,14 @@ u8 self_init(){
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
     Gm = get_bigint_from_dat
      ( 3072
-      ,"../../bin/saved_Gm.dat"
+      ,"./materials/cryptography/saved_Gm.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
 
     server_pubkey_bigint = get_bigint_from_dat
      ( 3072
-      ,"../../bin/server_pubkey.dat"
+      ,"./materials/cryptography/server_pubkey.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );

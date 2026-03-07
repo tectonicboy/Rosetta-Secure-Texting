@@ -32,35 +32,35 @@ int main(){
 
     M = get_bigint_from_dat
      ( 3072
-      ,"../../bin/saved_M.dat"
+      ,"./materials/cryptography/saved_M.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
 
     Q = get_bigint_from_dat
      ( 320
-      ,"../../bin/saved_Q.dat"
+      ,"./materials/cryptography/saved_Q.dat"
       ,320
       ,MAX_BIGINT_SIZ
      );
 
     G = get_bigint_from_dat
      ( 3072
-      ,"../../bin/saved_G.dat"
+      ,"./materials/cryptography/saved_G.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
 
     Gm = get_bigint_from_dat
      ( 3072
-      ,"../../bin/saved_Gm.dat"
+      ,"./materials/cryptography/saved_Gm.dat"
       ,3071
       ,MAX_BIGINT_SIZ
      );
 
     a = get_bigint_from_dat
     ( 320
-     ,"../../bin/server_privkey.dat"
+     ,"./materials/cryptography/server_privkey.dat"
      ,318
      ,MAX_BIGINT_SIZ
     );
@@ -68,7 +68,7 @@ int main(){
     Am = get_bigint_from_dat
     ( 3072
      ,"../../bin"
-        "/server_pubkeymont.dat"
+        "./materials/cryptography/server_pubkeymont.dat"
      ,3071
      ,MAX_BIGINT_SIZ
     );
