@@ -85,7 +85,7 @@ u8 self_init(){
 
     /* Diffie-Hellman modulus M, 3071-bit prime number */
     M = get_bigint_from_dat
-            (3072, "./materials/cryptographysaved_M.dat", 3071, MAX_BIGINT_SIZ);
+            (3072, "./materials/cryptography/saved_M.dat", 3071, MAX_BIGINT_SIZ);
 
     /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
     Q = get_bigint_from_dat
