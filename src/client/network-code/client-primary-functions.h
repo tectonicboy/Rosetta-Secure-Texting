@@ -16,12 +16,13 @@
  *
  * The two communication mechanisms need different code for (1) initialization,
  * (2) transmitting a message to other people and (3) receiving a message sent
- * by other people (in both cases relayed by the server as an intermediary).
+ * by other people (in both cases relayed by the server as an intermediary)
+ * and (4) closing the communication.
  *
- * The GUI means the clienht was started for the real thing, the Test Framework
+ * The GUI means the client was started for the real thing, the Test Framework
  * means it was started as a test user emulated via a local OS process.
  * This in turn sets these
- * function pointers to the actual respective functions that implement the 3
+ * function pointers to the actual respective functions that implement the 4
  * differing communication operations. This is at client initialization time.
  *
  * This allows for an elegant way to simplify in-client communication code while
@@ -33,6 +34,12 @@ uint8_t(*init_communication)(void);
 uint8_t(*transmit_payload)  (uint8_t* buf, size_t send_siz);
 uint8_t(*receive_payload)   (uint8_t* buf, uint64_t* recv_len);
 void   (*end_communication) (void);
+
+/* This function pointer is what delivers all received messages by others
+ * in our chatroom to the display mechanism used by the driver client program.
+ * That could be a TUI using printf, a GUI using wxWidgets TextCtrl, etc.
+ */
+void (*display_received_msg)(char* msg);
 
 /* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
@@ -554,10 +561,15 @@ void* begin_polling(__attribute__((unused)) void* input)
                                    ,&obtained_text_message_line_len
                                   );
 
-                    /* Tell GUI to display the message with obtained length. */
-                    printf("\n%s\n", text_message_line);
+                    /* Tell GUI/TUI to display the newly received message. */
 
-                    read_ix += SMALL_FIELD_LEN + curr_msg_len;
+                    #ifndef USE_WX_GUI
+                        printf("\n%s\n", text_message_line);
+					#else
+					    display_received_msg((char*)text_message_line);
+                    #endif
+
+  					read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
             }

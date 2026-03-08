@@ -1,3 +1,5 @@
+#define USE_WX_GUI
+
 #include "cMain.h"
 #include "../network-code/client-primary-functions.h"
 
@@ -24,6 +26,25 @@ BEGIN_EVENT_TABLE(cMain, wxFrame)
     EVT_BUTTON(10015, cMain::BtnClickLeaveTheRoom   )
 END_EVENT_TABLE()
 
+/* This gets assigned to the "this" pointer in the cMain class constructor,
+ * which means we get a pointer to whichever instantiated object of cMain
+ * this constructor ran FOR THE LAST TIME for. But since in wxWidgets, we
+ * only have 1 object of the cMain class, this means that we simply get a
+ * pointer to "the cMain object", allowing us to access its public member
+ * variables, aka msg_entries. A completely normal C function pointer is
+ * then assigned to a statically declared function here which accesses
+ * that global cMain object's msg_entries public member variable. This is how
+ * we obtain a workaround that lets the C client communications engine deliver
+ * received messages and display them on the wxWidgets C++ GUI. I hate OOP :-)
+ */
+static cMain *g_instance = nullptr;
+
+void display_gui_message(char* message_line){
+    g_instance->msg_entries->AppendText(message_line);
+    g_instance->msg_entries->AppendText("\n");
+ 	return;
+}
+
 /* Constructor - uses constructor of wxFrame with parameters. */
 cMain::cMain() : wxFrame(
                    nullptr
@@ -33,6 +54,9 @@ cMain::cMain() : wxFrame(
                   ,wxSize(1920, 1080)  /* Size of the window in pixels       */
                  )
 {
+    g_instance = this;
+//	display_received_msg = cMain::display_gui_message;
+	display_received_msg = display_gui_message;
     /* Construct the button member variable. */
     btn_login = new wxButton(
          this              /* Parent of the button - this window class        */
@@ -84,6 +108,9 @@ cMain::cMain() : wxFrame(
     btn_leavetheroom = new wxButton
 	  (this, 10015, "Leave the chat room", wxPoint(850, 900), wxSize(200, 50));
 
+    btn_send_msg = new wxButton
+	  (this, 10016, "Send", wxPoint(1660, 810), wxSize(50, 50));
+
     btn_login_GO->Hide();
     btn_login_BACK->Hide();
     btn_reg_GO->Hide();
@@ -96,6 +123,7 @@ cMain::cMain() : wxFrame(
     btn_joinroom_BACK->Hide();
     btn_closeyourroom->Hide();
     btn_leavetheroom->Hide();
+	btn_send_msg->Hide();
 
     password_input = new wxTextCtrl
 	  (this, wxID_ANY, "", wxPoint(850, 750), wxSize(200, 50), wxTE_PASSWORD);
@@ -112,10 +140,19 @@ cMain::cMain() : wxFrame(
 
     userid_input->SetHint("Your codename for this chatroom...");
 
+    usermsg_input = new wxTextCtrl
+	  (this, wxID_ANY, "", wxPoint(850, 810), wxSize(800, 50));
+
     info_msg_box = new wxTextCtrl
 	  (this, wxID_ANY, "",
        wxPoint(725, 880), wxSize(500, 150), wxTE_READONLY | wxTE_MULTILINE);
 
+    msg_entries = new wxTextCtrl
+	  (this, wxID_ANY, "",
+	   wxPoint(725, 300), wxSize(800, 500), wxTE_READONLY | wxTE_MULTILINE);
+
+	usermsg_input->Hide();
+	msg_entries->Hide();
     password_input->Hide();
     info_msg_box->Hide();
     roomid_input->Hide();
@@ -378,10 +415,6 @@ void cMain::BtnClickRegBack(wxCommandEvent &evt){
     evt.Skip();
 }
 
-void cMain::BtnClickQuit(wxCommandEvent &evt){
-    exit(0);
-}
-
 void cMain::BtnClickMakeRoom(wxCommandEvent &evt){
 
     btn_makeroom->Hide();
@@ -400,6 +433,7 @@ void cMain::BtnClickMakeRoom(wxCommandEvent &evt){
     return;
 
 }
+
 
 void cMain::BtnClickJoinRoom(wxCommandEvent &evt){
 
@@ -474,11 +508,25 @@ void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
         info_msg_box->Show();
     }
     else{
-        /* Add code to render OK msg and buttons to send chat / exit room. */
-        /* And to hide the rendering of the room create/join stuff. */
-        info_msg_box->SetValue("");
-        info_msg_box->WriteText("Success! You've now joined the chatroom!");
-        info_msg_box->Show();
+        //info_msg_box->SetValue("");
+        //info_msg_box->WriteText("Success! You've now joined the chatroom!");
+        //info_msg_box->Show();
+		/* TODO:
+         *  - Hides the current no longer wanted UI widgets.
+         *  - Shows the message area
+         *  - Shows the message input zone
+         *  - (?) Shows a list of people currently in the chatroom.
+         *  - Shows button for Leave The Room.
+         */
+		btn_joinroom_GO->Hide();
+        btn_joinroom_BACK->Hide();
+        roomid_input->Hide();
+        userid_input->Hide();
+
+		btn_leavetheroom->Show();
+		btn_send_msg->Show();
+		msg_entries->Show();
+		usermsg_input->Show();
     }
 
     /* Finish the event. */
@@ -523,19 +571,14 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
 
     info_msg_box->Hide();
 
-    printf("?? 1\n");
-
     roomid_as_wxstring = roomid_input->GetValue();
     userid_as_wxstring = userid_input->GetValue();
-
-    printf("?? 2\n");
 
     roomid_len = roomid_as_wxstring.Length();
     userid_len = userid_as_wxstring.Length();
 
-    printf("?? 3\n");
-
-    printf("[DEBUG] WX: Obtained roomid_len=%d, userid_len=%d\n", roomid_len, userid_len);
+    printf("[DEBUG] WX: Obtained roomid_len=%d, userid_len=%d\n",
+	       roomid_len, userid_len);
 
     if(roomid_len > 7 || roomid_len < 2 || userid_len > 7 || userid_len < 2){
         info_msg_box->SetValue("");
@@ -563,28 +606,41 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
     makeroom_status = make_new_chatroom(roomid, roomid_len, userid, userid_len);
 
     if(makeroom_status == 1){
-        /* Add code to render 'could not login rosetta' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Error. Room creation failed unexpectedly.");
         info_msg_box->Show();
     }
     else if(makeroom_status == 10){
-        /* Add code to render 'rosetta is full' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Rosetta is full right now. Try again later.");
         info_msg_box->Show();
     }
     else{
-        /* Add code to render OK msg and buttons to join/create a chatroom. */
         /* And to hide the rendering of the login stuff. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Success! Your chat room has been created!");
         info_msg_box->Show();
+        /* TODO: Call a function that:
+		 *  - Hides the current no longer wanted UI widgets.
+		 *  - Shows the message area
+		 *  - Shows the message input zone
+		 *  - Shows a list of people currently in the chatroom.
+		 *
+		 * TODO: Show button for Close The Room.
+		 */
+        btn_joinroom_GO->Hide();
+        btn_joinroom_BACK->Hide();
+        roomid_input->Hide();
+        userid_input->Hide();
+
+        btn_closeyourroom->Show();
+        btn_send_msg->Show();
+        msg_entries->Show();
+        usermsg_input->Show();
     }
 
     /* Finish the event. */
     evt.Skip();
-
 }
 
 void cMain::BtnClickMakeRoomBack(wxCommandEvent &evt){
@@ -607,12 +663,13 @@ void cMain::BtnClickMakeRoomBack(wxCommandEvent &evt){
 
     /* Finish the event. */
     evt.Skip();
+}
 
+void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt){
+    exit(0);
 }
 
 void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt){
-
-
 
 }
 
