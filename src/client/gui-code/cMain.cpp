@@ -147,7 +147,7 @@ cMain::cMain() : wxFrame(
     userid_input->SetHint("Your codename for this chatroom...");
 
     usermsg_input = new wxTextCtrl
-	  (this, wxID_ANY, "", wxPoint(850, 810), wxSize(800, 50));
+	  (this, wxID_ANY, "", wxPoint(725, 810), wxSize(800, 50));
 
     info_msg_box = new wxTextCtrl
 	  (this, wxID_ANY, "",
@@ -623,9 +623,9 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
     }
     else{
         /* And to hide the rendering of the login stuff. */
-        info_msg_box->SetValue("");
-        info_msg_box->WriteText("Success! Your chat room has been created!");
-        info_msg_box->Show();
+        //info_msg_box->SetValue("");
+        //info_msg_box->WriteText("Success! Your chat room has been created!");
+        //info_msg_box->Show();
         /* TODO: Call a function that:
 		 *  - Hides the current no longer wanted UI widgets.
 		 *  - Shows the message area
