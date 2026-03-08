@@ -63,5 +63,7 @@ public:
     void BtnClickCloseYourRoom(wxCommandEvent &evt);
     void BtnClickLeaveTheRoom(wxCommandEvent &evt);
 
+    void BtnClickSendMsg(wxCommandEvent &evt);
+
     wxDECLARE_EVENT_TABLE();
 };

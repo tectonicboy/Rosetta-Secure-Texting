@@ -1,3 +1,4 @@
+#pragma once
 #include "cryptolib.h"
 
 /* Generate a new pseudorandom private key. */

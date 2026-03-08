@@ -1,3 +1,8 @@
+/* This define is used in the high-level C client communications engine
+ * to distinguish between the client having been started with this GUI app
+ * and it having been started with the Rosetta Test Framework, which would not
+ * have a GUI to display messages on.
+ */
 #define USE_WX_GUI
 
 #include "cMain.h"
@@ -24,6 +29,7 @@ BEGIN_EVENT_TABLE(cMain, wxFrame)
     EVT_BUTTON(10013, cMain::BtnClickMakeRoomBack   )
     EVT_BUTTON(10014, cMain::BtnClickCloseYourRoom  )
     EVT_BUTTON(10015, cMain::BtnClickLeaveTheRoom   )
+	EVT_BUTTON(10016, cMain::BtnClickSendMsg        )
 END_EVENT_TABLE()
 
 /* This gets assigned to the "this" pointer in the cMain class constructor,
@@ -55,9 +61,9 @@ cMain::cMain() : wxFrame(
                  )
 {
     g_instance = this;
-//	display_received_msg = cMain::display_gui_message;
 	display_received_msg = display_gui_message;
-    /* Construct the button member variable. */
+
+	/* Construct the button member variable. */
     btn_login = new wxButton(
          this              /* Parent of the button - this window class        */
         ,10001             /* Match the ID we specified in the Event Table.   */
@@ -669,11 +675,17 @@ void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt){
     exit(0);
 }
 
+void cMain::BtnClickSendMsg(wxCommandEvent &evt){
+
+	evt.Skip();
+}
+
 void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt){
 
+	evt.Skip();
 }
 
 void cMain::BtnClickLeaveTheRoom(wxCommandEvent &evt){
 
-
+	evt.Skip();
 }

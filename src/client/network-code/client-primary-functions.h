@@ -1,3 +1,4 @@
+#pragma once
 #include "../../lib/coreutil.h"
 #include "client-communications.h"
 #include "client-packet-functions.h"

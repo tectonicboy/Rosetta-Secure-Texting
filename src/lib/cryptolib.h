@@ -1,3 +1,4 @@
+#pragma once
 #include <pthread.h>
 #include <immintrin.h> /* for _mulx_u64()      */
 #include <adxintrin.h> /* for _addcarryx_u64() */
