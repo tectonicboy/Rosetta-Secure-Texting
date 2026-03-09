@@ -32,6 +32,9 @@ BEGIN_EVENT_TABLE(cMain, wxFrame)
 	EVT_BUTTON(10016, cMain::BtnClickSendMsg        )
 END_EVENT_TABLE()
 
+int8_t userid[SMALL_FIELD_LEN];
+int userid_len;
+
 /* This gets assigned to the "this" pointer in the cMain class constructor,
  * which means we get a pointer to whichever instantiated object of cMain
  * this constructor ran FOR THE LAST TIME for. But since in wxWidgets, we
@@ -46,7 +49,7 @@ END_EVENT_TABLE()
 static cMain *g_instance = nullptr;
 
 void display_gui_message(char* message_line){
-    g_instance->msg_entries->AppendText(message_line);
+    g_instance->msg_entries->AppendText(wxString::FromUTF8(message_line));
     g_instance->msg_entries->AppendText("\n");
  	return;
 }
@@ -149,6 +152,8 @@ cMain::cMain() : wxFrame(
     usermsg_input = new wxTextCtrl
 	  (this, wxID_ANY, "", wxPoint(725, 810), wxSize(800, 50));
 
+    usermsg_input->SetHint("Your message...  (limit: 1024 characters)");
+
     info_msg_box = new wxTextCtrl
 	  (this, wxID_ANY, "",
        wxPoint(725, 880), wxSize(500, 150), wxTE_READONLY | wxTE_MULTILINE);
@@ -245,6 +250,7 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
 
     info_msg_box->Hide();
 
+    password_input->AppendText("\0");
     pwd_as_wxstring = password_input->GetValue();
     password_len    = pwd_as_wxstring.Length();
 
@@ -256,8 +262,6 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
         evt.Skip();
         return;
     }
-
-    password_input->AppendText("\0");
 
     strncpy( (char*)password
             ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
@@ -463,11 +467,7 @@ void cMain::BtnClickJoinRoom(wxCommandEvent &evt){
 void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
 
     uint8_t joinroom_status = 1;
-
-    uint8_t userid[SMALL_FIELD_LEN];
     uint8_t roomid[SMALL_FIELD_LEN];
-
-    int userid_len;
     int roomid_len;
 
     wxString roomid_as_wxstring = "";
@@ -500,12 +500,15 @@ void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
             ,roomid_len
     );
 
+    memset(userid, 0x00, SMALL_FIELD_LEN);
+
     strncpy( (char*)userid
             ,(const char*)userid_as_wxstring.mb_str(wxConvUTF8)
             ,userid_len
     );
 
-    joinroom_status = join_chatroom(roomid, roomid_len, userid, userid_len);
+    joinroom_status = join_chatroom(roomid, roomid_len,
+									(unsigned char*)userid, userid_len);
 
     if(joinroom_status){
         /* Add code to render 'could not join room' msg on user's screen. */
@@ -517,13 +520,7 @@ void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
         //info_msg_box->SetValue("");
         //info_msg_box->WriteText("Success! You've now joined the chatroom!");
         //info_msg_box->Show();
-		/* TODO:
-         *  - Hides the current no longer wanted UI widgets.
-         *  - Shows the message area
-         *  - Shows the message input zone
-         *  - (?) Shows a list of people currently in the chatroom.
-         *  - Shows button for Leave The Room.
-         */
+
 		btn_joinroom_GO->Hide();
         btn_joinroom_BACK->Hide();
         roomid_input->Hide();
@@ -565,11 +562,7 @@ void cMain::BtnClickJoinRoomBack(wxCommandEvent &evt){
 void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
 
     uint8_t makeroom_status = 1;
-
-    uint8_t userid[SMALL_FIELD_LEN];
     uint8_t roomid[SMALL_FIELD_LEN];
-
-    int userid_len;
     int roomid_len;
 
     wxString roomid_as_wxstring = "";
@@ -579,6 +572,7 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
 
     roomid_as_wxstring = roomid_input->GetValue();
     userid_as_wxstring = userid_input->GetValue();
+
 
     roomid_len = roomid_as_wxstring.Length();
     userid_len = userid_as_wxstring.Length();
@@ -604,12 +598,15 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
             ,roomid_len
     );
 
+    memset(userid, 0x00, SMALL_FIELD_LEN);
+
     strncpy( (char*)userid
             ,(const char*)userid_as_wxstring.mb_str(wxConvUTF8)
             ,userid_len
     );
 
-    makeroom_status = make_new_chatroom(roomid, roomid_len, userid, userid_len);
+    makeroom_status = make_new_chatroom(roomid, roomid_len,
+										(unsigned char*)userid, userid_len);
 
     if(makeroom_status == 1){
         info_msg_box->SetValue("");
@@ -626,15 +623,8 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
         //info_msg_box->SetValue("");
         //info_msg_box->WriteText("Success! Your chat room has been created!");
         //info_msg_box->Show();
-        /* TODO: Call a function that:
-		 *  - Hides the current no longer wanted UI widgets.
-		 *  - Shows the message area
-		 *  - Shows the message input zone
-		 *  - Shows a list of people currently in the chatroom.
-		 *
-		 * TODO: Show button for Close The Room.
-		 */
-        btn_joinroom_GO->Hide();
+
+		btn_joinroom_GO->Hide();
         btn_joinroom_BACK->Hide();
         roomid_input->Hide();
         userid_input->Hide();
@@ -675,9 +665,78 @@ void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt){
     exit(0);
 }
 
-void cMain::BtnClickSendMsg(wxCommandEvent &evt){
+void cMain::BtnClickSendMsg(wxCommandEvent &evt)
+{
+	/* Check message input box contents. If not empty and within length limit,
+	 * extract msg string and size and call:
+	 */
+	//uint8_t send_text(unsigned char* text, uint64_t text_len)
 
-	evt.Skip();
+    /* EXAMPLE CODE FROM PASSWORD INPUT PARSING BEGINS */
+    /*
+    uint8_t register_status = 1;
+    uint8_t password[16];
+    int password_len;
+    wxString pwd_as_wxstring = "";
+
+    info_msg_box->SetValue("");
+    info_msg_box->Hide();
+
+    password_input->AppendText("\0");
+    pwd_as_wxstring = password_input->GetValue();
+    password_len    = pwd_as_wxstring.Length();
+
+    if(password_len > 15 || password_len < 5){
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("Error: Password must be 5 to 15 characters.");
+        info_msg_box->Show();
+        goto label_exit;
+    }
+
+    strncpy( (char*)password
+            ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
+            ,password_len
+    );
+
+    register_status = reg(password, password_len, "./user-save.dat");
+	*/
+    /* EXAMPLE CODE FROM PASSWORD INPUT PARSING ENDS   */
+
+
+	uint8_t  send_msg_status;
+	uint8_t  msg_buf[MAX_TXT_LEN];
+    int      msg_len;
+	wxString msg_as_wxstring = "";
+
+    usermsg_input->AppendText("\0");
+	msg_as_wxstring = usermsg_input->GetValue();
+	msg_len = msg_as_wxstring.Length();
+
+	if(msg_len > MAX_TXT_LEN || msg_len < 1){
+        evt.Skip();
+	    return;
+    }
+
+    strncpy( (char*)msg_buf,
+			 (const char*)msg_as_wxstring.mb_str(wxConvUTF8),
+			 msg_len
+	);
+
+    send_msg_status = send_text(msg_buf, msg_len);
+
+	if(send_msg_status){
+        printf("[ERR] Sending a message failed: %u. Closing Rosetta.\n",
+			   send_msg_status);
+		exit(1);
+	}
+
+    /* Put that user's message into their own UI too. */
+	msg_entries->AppendText(wxString::FromUTF8((const char*)userid,userid_len));
+	msg_entries->AppendText(": ");
+    msg_entries->AppendText(msg_as_wxstring);
+    msg_entries->AppendText("\n");
+
+    evt.Skip();
 }
 
 void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt){
