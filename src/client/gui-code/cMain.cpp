@@ -49,6 +49,7 @@ int userid_len;
 static cMain *g_instance = nullptr;
 
 void display_gui_message(char* message_line){
+	printf("[WARNING] Called the disaply reveied msg on GUI function.\n" );
     g_instance->msg_entries->AppendText(wxString::FromUTF8(message_line));
     g_instance->msg_entries->AppendText("\n");
  	return;
@@ -250,7 +251,7 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
 
     info_msg_box->Hide();
 
-    password_input->AppendText("\0");
+    //password_input->AppendText("\0");
     pwd_as_wxstring = password_input->GetValue();
     password_len    = pwd_as_wxstring.Length();
 
@@ -360,7 +361,7 @@ void cMain::BtnClickRegGo(wxCommandEvent &evt){
         goto label_exit;
     }
 
-    password_input->AppendText("\0");
+    //password_input->AppendText("\0");
 
     strncpy( (char*)password
             ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
@@ -590,8 +591,8 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
         return;
     }
 
-    roomid_input->AppendText("\0");
-    userid_input->AppendText("\0");
+    //roomid_input->AppendText("\0");
+    //userid_input->AppendText("\0");
 
     strncpy( (char*)roomid
             ,(const char*)roomid_as_wxstring.mb_str(wxConvUTF8)
@@ -667,56 +668,27 @@ void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt){
 
 void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 {
-	/* Check message input box contents. If not empty and within length limit,
-	 * extract msg string and size and call:
-	 */
-	//uint8_t send_text(unsigned char* text, uint64_t text_len)
-
-    /* EXAMPLE CODE FROM PASSWORD INPUT PARSING BEGINS */
-    /*
-    uint8_t register_status = 1;
-    uint8_t password[16];
-    int password_len;
-    wxString pwd_as_wxstring = "";
-
-    info_msg_box->SetValue("");
-    info_msg_box->Hide();
-
-    password_input->AppendText("\0");
-    pwd_as_wxstring = password_input->GetValue();
-    password_len    = pwd_as_wxstring.Length();
-
-    if(password_len > 15 || password_len < 5){
-        info_msg_box->SetValue("");
-        info_msg_box->WriteText("Error: Password must be 5 to 15 characters.");
-        info_msg_box->Show();
-        goto label_exit;
-    }
-
-    strncpy( (char*)password
-            ,(const char*)pwd_as_wxstring.mb_str(wxConvUTF8)
-            ,password_len
-    );
-
-    register_status = reg(password, password_len, "./user-save.dat");
-	*/
-    /* EXAMPLE CODE FROM PASSWORD INPUT PARSING ENDS   */
-
+    usermsg_input->SetFocus();   // ensure the control commits its edit buffer
+    usermsg_input->Update();     // flush pending UI updates
 
 	uint8_t  send_msg_status;
 	uint8_t  msg_buf[MAX_TXT_LEN];
     int      msg_len;
 	wxString msg_as_wxstring = "";
 
-    usermsg_input->AppendText("\0");
+	memset(msg_buf, 0x00, MAX_TXT_LEN);
+    //usermsg_input->AppendText("\0");
 	msg_as_wxstring = usermsg_input->GetValue();
 	msg_len = msg_as_wxstring.Length();
+	std::cout << "Obtained entered txt message: " << msg_as_wxstring << "\n";
+	std::cout << "Length: " << msg_len << "\n";
+	usermsg_input->SetValue("");
 
 	if(msg_len > MAX_TXT_LEN || msg_len < 1){
+		std::cout << "Entered ret on error. msg_len: " << msg_len << std::endl;
         evt.Skip();
 	    return;
     }
-
     strncpy( (char*)msg_buf,
 			 (const char*)msg_as_wxstring.mb_str(wxConvUTF8),
 			 msg_len
@@ -731,10 +703,16 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 	}
 
     /* Put that user's message into their own UI too. */
+	//msg_entries->SetEditable(true);
+printf("[DEBUG] About to append to msg_entries, userid_len=%d\n", userid_len);
+msg_entries->AppendText("TEST HARDCODED STRING\n");  // try a literal first
 	msg_entries->AppendText(wxString::FromUTF8((const char*)userid,userid_len));
 	msg_entries->AppendText(": ");
     msg_entries->AppendText(msg_as_wxstring);
     msg_entries->AppendText("\n");
+	//msg_entries->Refresh();
+    //msg_entries->Update();
+	//msg_entries->SetEditable(false);
 
     evt.Skip();
 }

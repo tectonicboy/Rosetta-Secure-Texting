@@ -32,6 +32,8 @@ CFLAGS += -Wno-write-strings
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
 	server server_gen_priv_key server_gen_pub_key
 
+OPTIMIZATION_LEVEL += -O3
+
 # Ask GCC to tell us of any vectorization and loop optimizations it performed.
 OPTIMIZATION_REPORT += -fopt-info-vec-optimized
 OPTIMIZATION_REPORT += -fopt-info-loop-optimized
@@ -45,58 +47,61 @@ tests: test_signatures test_chacha20 test_blake2b test_argon2
 test_signatures:
 	gcc tests/simple-tests/test_signatures.c \
 	-o ../bin/test_signatures -march=native -lm \
-	-pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) $(OPTIMIZATION_REPORT)
 
 
 test_chacha20:
 	gcc tests/simple-tests/test_chacha20.c \
 	-o ../bin/test_chacha20 -march=native -lm \
-	-pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) $(OPTIMIZATION_REPORT)
 
 
 test_blake2b:
 	gcc tests/simple-tests/test_blake2b.c \
 	-o ../bin/test_blake2b -march=native -lm \
-	-pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) $(OPTIMIZATION_REPORT)
 
 
 test_argon2:
 	gcc tests/simple-tests/test_argon2.c \
 	-o ../bin/test_argon2 -march=native -lm \
-	-pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) $(OPTIMIZATION_REPORT)
 
 
 server:
 	gcc server/rosetta-server.c -o ../bin/rosetta-server -march=native -lm \
-	-pthread -O3 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) $(OPTIMIZATION_REPORT)
 
 
 server_gen_priv_key:
 	gcc server/server_gen_priv_key.c -o ../bin/server_gen_priv_key \
-	-march=native -lm -pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-march=native -lm -pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) \
+	$(OPTIMIZATION_REPORT)
 
 
 server_gen_pub_key:
 	gcc server/server_gen_pub_key.c -o ../bin/server_gen_pub_key \
-	-march=native -lm -pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT)
+	-march=native -lm -pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) \
+	$(OPTIMIZATION_REPORT)
 
 
 client:
 	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
-	`/usr/bin/wx-config --version=3.2 --cxxflags --libs` -o \
+	`/usr/bin/wx-config --cxxflags --libs` -o \
 	../bin/tcp-client $(CFLAGS) $(OPTIMIZATION_REPORT) \
-	-lm -pthread -O3 -march=native
+	-lm -pthread $(OPTIMIZATION_LEVEL) -march=native
 
 client_asan:
-	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp      \
-	`/usr/bin/wx-config --version=3.2 --cxxflags --libs` -o  \
+	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
+	`/usr/bin/wx-config --cxxflags --libs` -o \
 	../bin/tcp-client-asan $(CFLAGS) $(OPTIMIZATION_REPORT) \
-	-lm -pthread -O2 -march=native                                    \
+	-lm -pthread $(OPTIMIZATION_LEVEL) -march=native \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
 server_asan:
 	gcc server/rosetta-tcp-server.c -o ../bin/tcp-server_asan -lm \
-	-march=native -pthread -O2 $(CFLAGS) $(OPTIMIZATION_REPORT) \
+	-march=native -pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) \
+	$(OPTIMIZATION_REPORT) \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
 clean:
