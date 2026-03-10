@@ -701,8 +701,9 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 
     /* Put that user's message into their own UI too. */
 	//msg_entries->SetEditable(true);
-    printf("[DEBUG] Appending to msg_entries, userid_len=%d\n", userid_len);
-    msg_entries->AppendText("TEST HARDCODED STRING\n"); /* just for testing. */
+	for(uint8_t i = 0; i < (SMALL_FIELD_LEN - 1 - userid_len); ++i){
+        msg_entries->AppendText(" ");
+	}
 	msg_entries->AppendText(wxString::FromUTF8((const char*)userid,userid_len));
 	msg_entries->AppendText(": ");
     msg_entries->AppendText(msg_as_wxstring);
