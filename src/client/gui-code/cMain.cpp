@@ -668,29 +668,26 @@ void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt){
 
 void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 {
-    usermsg_input->SetFocus();   // ensure the control commits its edit buffer
-    usermsg_input->Update();     // flush pending UI updates
-
 	uint8_t  send_msg_status;
 	uint8_t  msg_buf[MAX_TXT_LEN];
     int      msg_len;
 	wxString msg_as_wxstring = "";
 
 	memset(msg_buf, 0x00, MAX_TXT_LEN);
-    //usermsg_input->AppendText("\0");
 	msg_as_wxstring = usermsg_input->GetValue();
 	msg_len = msg_as_wxstring.Length();
-	std::cout << "Obtained entered txt message: " << msg_as_wxstring << "\n";
-	std::cout << "Length: " << msg_len << "\n";
 	usermsg_input->SetValue("");
 
-	if(msg_len > MAX_TXT_LEN || msg_len < 1){
+	//std::cout << "Obtained entered txt message: " << msg_as_wxstring << "\n";
+	//std::cout << "Length: " << msg_len << "\n";
+
+	if(msg_len >= MAX_TXT_LEN || msg_len < 1){
 		std::cout << "Entered ret on error. msg_len: " << msg_len << std::endl;
         evt.Skip();
-	    return;
+        return;
     }
     strncpy( (char*)msg_buf,
-			 (const char*)msg_as_wxstring.mb_str(wxConvUTF8),
+			 (const char*)(msg_as_wxstring.mb_str(wxConvUTF8)),
 			 msg_len
 	);
 
@@ -704,17 +701,19 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 
     /* Put that user's message into their own UI too. */
 	//msg_entries->SetEditable(true);
-printf("[DEBUG] About to append to msg_entries, userid_len=%d\n", userid_len);
-msg_entries->AppendText("TEST HARDCODED STRING\n");  // try a literal first
+    printf("[DEBUG] Appending to msg_entries, userid_len=%d\n", userid_len);
+    msg_entries->AppendText("TEST HARDCODED STRING\n"); /* just for testing. */
 	msg_entries->AppendText(wxString::FromUTF8((const char*)userid,userid_len));
 	msg_entries->AppendText(": ");
     msg_entries->AppendText(msg_as_wxstring);
     msg_entries->AppendText("\n");
+
 	//msg_entries->Refresh();
     //msg_entries->Update();
 	//msg_entries->SetEditable(false);
 
     evt.Skip();
+	return;
 }
 
 void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt){
