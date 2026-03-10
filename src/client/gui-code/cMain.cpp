@@ -161,7 +161,7 @@ cMain::cMain() : wxFrame(
 
     msg_entries = new wxTextCtrl
 	  (this, wxID_ANY, "",
-	   wxPoint(725, 300), wxSize(800, 500), wxTE_READONLY | wxTE_MULTILINE);
+	   wxPoint(725, 400), wxSize(800, 400), wxTE_READONLY | wxTE_MULTILINE);
 
 	usermsg_input->Hide();
 	msg_entries->Hide();
