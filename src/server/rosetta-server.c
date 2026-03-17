@@ -478,7 +478,7 @@ void* start_new_client_thread(void* ix_ptr){
          */
         if( status == 100 ) {
             printf("[OK] Server: client poll thread [%lu] exits: "
-                   "User Logout or left room!\n"
+                   "User logged out!\n"
                    ,ix
                   );
             pthread_mutex_unlock(&mutex);

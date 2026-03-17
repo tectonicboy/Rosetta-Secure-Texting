@@ -1635,7 +1635,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix){
         printf("[OK]  Server: Told client they were permitted in the room.\n");
     }
 
-    printf("Now sending the new guest's PubKey and name to current people.\n");
+    printf("[OK]  Sending new guest's PubKey and name to current people.\n");
 
     /* Add the new room guest's id and pubkey as a pending MSG to each user. */
 
