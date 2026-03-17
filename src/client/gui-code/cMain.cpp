@@ -50,8 +50,15 @@ static cMain *g_instance = nullptr;
 
 void display_gui_message(char* message_line){
 	printf("[WARNING] Called the disaply reveied msg on GUI function.\n" );
-    g_instance->msg_entries->AppendText(wxString::FromUTF8(message_line));
-    g_instance->msg_entries->AppendText("\n");
+    wxString msgToDisplay = wxString::FromUTF8(message_line);
+    g_instance->GetEventHandler()->CallAfter([msgToDisplay]() 
+    {
+            // Everything inside these braces runs on the MAIN UI THREAD
+                g_instance->msg_entries->AppendText(msgToDisplay);
+                g_instance->msg_entries->AppendText("\n");
+    });
+    //g_instance->msg_entries->AppendText(wxString::FromUTF8(message_line));
+    //g_instance->msg_entries->AppendText("\n");
  	return;
 }
 
