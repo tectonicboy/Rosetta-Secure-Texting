@@ -344,9 +344,6 @@ u8 identify_new_transmission(u8* client_msg_buf, s64 bytes_read, u64 sock_ix){
         /* If transmission is of a valid type and size, process it. */
         process_msg_50(client_msg_buf);
 
-        /* Indicate to this client's poll listening thread function to return */
-        status = 100;
-
         break;
     }
 
@@ -467,9 +464,6 @@ void* start_new_client_thread(void* ix_ptr){
             pthread_mutex_unlock(&mutex);
             break;
         }
-        /* (4)
-         * Same as (1).
-         */
         if(status != 100 && status > 0){
             printf("[ERR] Server: identifying new transmission went bad!\n");
             remove_user(ix);

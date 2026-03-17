@@ -662,10 +662,6 @@ void cMain::BtnClickMakeRoomBack(wxCommandEvent &evt){
     evt.Skip();
 }
 
-void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt){
-    exit(0);
-}
-
 void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 {
 	uint8_t  send_msg_status;
@@ -717,12 +713,94 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 	return;
 }
 
-void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt){
+void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt)
+{
+    uint8_t status = leave_chatroom();
+
+    info_msg_box->Hide();
+
+    if(!status){
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("You have closed the chatroom for everyone.");
+        info_msg_box->Show();
+    }
+    else{
+        printf("[ERR] Closing the room returned: %u  Logging out.\n", status);
+
+		status = logout();
+
+        if(!status)
+            printf("[OK] User logged out of rosetta successfully.\n");
+        else
+            printf("[ERR] User logout returned status: %u\n", status);
+
+		exit(1);
+    }
+
+    btn_makeroom->Show();
+    btn_joinroom->Show();
+    btn_quit->Show();
+
+	btn_leavetheroom->Hide();
+	btn_closeyourroom->Hide();
+
+	btn_send_msg->Hide();
+    msg_entries->Hide();
+    usermsg_input->Hide();
 
 	evt.Skip();
+	return;
 }
 
-void cMain::BtnClickLeaveTheRoom(wxCommandEvent &evt){
+void cMain::BtnClickLeaveTheRoom(wxCommandEvent &evt)
+{
+    uint8_t status = leave_chatroom();
+
+    info_msg_box->Hide();
+
+	if(!status){
+        info_msg_box->SetValue("");
+        info_msg_box->WriteText("You have now left the chatroom.");
+        info_msg_box->Show();
+	}
+    else{
+        printf("[ERR] Leaving room returned: %u  Logging out.\n", status);
+
+		status = logout();
+
+        if(!status)
+            printf("[OK] User logged out of rosetta successfully.\n");
+        else
+            printf("[ERR] User logout returned status: %u\n", status);
+
+		exit(1);
+	}
+
+    btn_makeroom->Show();
+    btn_joinroom->Show();
+    btn_quit->Show();
+
+    btn_leavetheroom->Hide();
+    btn_closeyourroom->Hide();
+
+	btn_send_msg->Hide();
+    msg_entries->Hide();
+    usermsg_input->Hide();
 
 	evt.Skip();
+	return;
+}
+
+void cMain::BtnClickQuit(__attribute__((unused)) wxCommandEvent &evt)
+{
+    uint8_t status = logout();
+
+    if(!status){
+        printf("[OK] User logged out of rosetta successfully.\n");
+		exit(0);
+	}
+	else{
+		printf("[ERR] User logout returned status: %u\n", status);
+	    exit(1);
+	}
 }
