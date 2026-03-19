@@ -2,7 +2,7 @@
 #include "cryptolib.h"
 
 /* Generate a new pseudorandom private key. */
-void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
+uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf){
 
     size_t bytes_read;
 
@@ -10,7 +10,7 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
 
     if(ran == NULL){
         printf("[ERR] utilities: gen_priv_key - couldn't open urandom.\n\n");
-        return;
+        return 1;
     }
 
     if ( (bytes_read = fread((void*)buf, 1, len_bytes, ran)) != len_bytes ){
@@ -19,10 +19,11 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
                "from urandom.\n\n"
                ,len_bytes
         );
+        perror("Error type: ");
 
         fclose(ran);
 
-        return;
+        return 1;
     }
 
     /* Set the most significant bit to 0 - make sure it's always less than Q. */
@@ -32,7 +33,7 @@ void gen_priv_key(uint32_t len_bytes, uint8_t* buf){
 
     fclose(ran);
 
-    return;
+    return 0;
 }
 
 /* Given a private key, generate its corresponding public key. */

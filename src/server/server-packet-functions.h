@@ -405,7 +405,6 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
     u8* PACKET_ID02_addr = (u8*)(&PACKET_ID02);
     u8* Y_s;
     u8  ret = 0;
-
     memset(signature_buf, 0, SIGNATURE_LEN);
 
     /* If the login handshake memory region is locked, that means another
@@ -520,7 +519,13 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix){
      */
 
     /* Places only the BITS of the private key, not a BigInt object!! */
-    gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
+    ret = gen_priv_key(PRIVKEY_LEN, (temp_handshake_buf + sizeof(bigint)));
+
+    if(ret){
+        printf("[ERR] Server: gen_priv_key retun > 0.\n");
+        status = 1;
+        goto label_cleanup;
+    }
 
     b_s.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
     memcpy(b_s.bits, temp_handshake_buf + sizeof(bigint), PRIVKEY_LEN);

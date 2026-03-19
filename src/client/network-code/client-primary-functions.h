@@ -645,7 +645,7 @@ u8 reg(u8* password, int password_len, char* save_dir){
 
     struct Argon2_parms prms;
 
-    bigint* A_longterm;
+    bigint* A_longterm = NULL;
     bigint temp_privkey;
 
     temp_privkey.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
@@ -655,7 +655,13 @@ u8 reg(u8* password, int password_len, char* save_dir){
     /* Registration step 1: Generate a long-term private/public keys a/A. */
 
     /* a = random in the range [1, Q) */
-    gen_priv_key(PRIVKEY_LEN, privkey_buf);
+    status = gen_priv_key(PRIVKEY_LEN, privkey_buf);
+
+    if(status){
+        printf("[ERR] Client: gen_priv_key return > 0.\n");
+        status = 1;
+        goto label_cleanup;
+    }
 
     /* Interface generating a pub_key still needs priv_key in a file. TODO.  */
     /* Putting it in a file needs it in the form of bigint object. Make one. */

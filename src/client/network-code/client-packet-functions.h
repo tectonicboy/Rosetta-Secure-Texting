@@ -227,9 +227,10 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
 */
 u8 construct_msg_00(u8** msg_buf, u64* msg_len){
 
-    bigint* A_s;
+    bigint* A_s = NULL;
     bigint temp_privkey;
-
+    
+    u64 packet_id00 = PACKET_ID_00;
     u8 status = 0;
 
     *msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
@@ -249,7 +250,13 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
      */
     temp_handshake_memory_region_isLocked = 1;
 
-    gen_priv_key(PRIVKEY_LEN, temp_handshake_buf);
+    status = gen_priv_key(PRIVKEY_LEN, temp_handshake_buf);
+
+    if(status){
+        printf("[ERR] Client: Short-term gen_priv_key return > 0\n");
+        status = 0;
+        goto label_cleanup;
+    }
 
     memcpy(temp_privkey.bits, temp_handshake_buf, PRIVKEY_LEN);
     temp_privkey.size_bits = MAX_BIGINT_SIZ;
@@ -272,7 +279,6 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
 
     /* Construct and send the MSG buffer to the TCP server. */
 
-    u64 packet_id00 = PACKET_ID_00;
     memcpy(*msg_buf, &packet_id00, SMALL_FIELD_LEN);
 
     memcpy((*msg_buf) + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
