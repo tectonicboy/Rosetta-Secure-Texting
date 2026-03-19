@@ -40,6 +40,7 @@
 [ Completed ✓ ]
 
 14. Resolve guest's client segfaulting when the owner closes the chatroom.
+[ PROGRESS: Now just define the new handler function in cMain.cpp ]
 
 15. Write an easy installation bash script and a small "run" oneliner script.
 

@@ -55,7 +55,6 @@ int    userid_len;
 static cMain *g_instance = nullptr;
 
 void display_gui_message(char* message_line){
-	printf("[WARNING] Called the disaply reveied msg on GUI function.\n" );
     wxString msgToDisplay = wxString::FromUTF8(message_line);
     g_instance->GetEventHandler()->CallAfter([msgToDisplay]()
     {
@@ -63,6 +62,10 @@ void display_gui_message(char* message_line){
                 g_instance->msg_entries->AppendText("\n");
     });
  	return;
+}
+
+void display_gui_user_booted(){
+    /* Update the GUI using the g_instance pointer similar to above. */
 }
 
 /* Constructor - uses constructor of wxFrame with parameters. */
@@ -76,6 +79,7 @@ cMain::cMain() : wxFrame(
 {
     g_instance = this;
 	display_received_msg = display_gui_message;
+    force_user_out_of_room = display_gui_user_booted;
 
     /* Create a Monospace Bold font */
     wxFont Monospace_Bold

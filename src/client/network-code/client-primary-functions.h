@@ -6,7 +6,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-/* These function pointers tell the client whether to communicate through
+/* These 4 function pointers tell the client whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the client was started
  * for the Rosetta Testing Framework, communication with the server (as a
  * local OS process talking to other OS processes as clients and thus simulating
@@ -41,6 +41,11 @@ void   (*end_communication) (void);
  * That could be a TUI using printf, a GUI using wxWidgets TextCtrl, etc.
  */
 void (*display_received_msg)(char* msg);
+
+/* This function pointer is what tells the user that the owner of the chatroom
+ * they were in has decided to close it and hence they have been booted.
+ */
+void (*force_user_out_of_room)(void);
 
 /* Do everything that can be done before we construct message_00 to begin
  * the login handshake protocol to securely transport our long-term public key
@@ -548,6 +553,14 @@ void* begin_polling(__attribute__((unused)) void* input)
                 }
                 else if(curr_msg_type == PACKET_ID_51){
                     process_msg_51(reply_buf + read_ix);
+
+					/* Tell GUI to update the widgets for having been booted
+					 * from our (now closed by the owner) chatroom.
+					 */
+                    #ifdef USE_WX_GUI
+                    force_user_out_of_room();
+                    #endif
+
                     read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
@@ -594,6 +607,14 @@ thread_cleanup:
     return NULL;
 }
 
+/* This signal handler is only used by the Rosetta Test Framework to get
+ * gracefully unblocked from the TUI scanf() call that reads user messages.
+ * The GUI edition (the real Rosetta client) uses a function pointer and
+ * compile-time conditions to detect that the GUI is used and hence, said
+ * function pointer has been set to a GUI event handler for the event that
+ * the owner of the room we are in has decided to close it and hence we
+ * have been booted from it.
+ */
 void handle_signal_sigusr1(__attribute__((unused)) int sig)
 {
     write(

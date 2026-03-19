@@ -229,7 +229,7 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len){
 
     bigint* A_s = NULL;
     bigint temp_privkey;
-    
+
     u64 packet_id00 = PACKET_ID_00;
     u8 status = 0;
 
@@ -2338,9 +2338,10 @@ void process_msg_51(u8* payload){
      * to draw an info box that the room the user is in was closed by the owner
      * and retract the GUI elements that allow the user to send text messages.
      */
-    printf("\n-->[DEBUG] Client: got MSG_51: sending SIGNAL to main thread!\n");
+    #ifndef USE_WX_GUI
+	printf("\n-->[DEBUG] Client: got MSG_51: sending SIGNAL to main thread!\n");
     pthread_kill(main_thread_id, SIGUSR1);
-
+    #endif
 
     /* Cleanup. */
 label_cleanup:
