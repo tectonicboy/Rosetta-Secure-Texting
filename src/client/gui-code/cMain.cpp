@@ -81,6 +81,9 @@ cMain::cMain() : wxFrame(
     wxFont Monospace_Bold
       (12, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
 
+    wxFont Monospace_Regular
+	  (12, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
+
 	/* Construct the button member variable. */
     btn_login = new wxButton(
          this              /* Parent of the button - this window class        */
@@ -91,97 +94,97 @@ cMain::cMain() : wxFrame(
     );
     btn_login->SetBackgroundColour(BG_COLOR);
     btn_login->SetForegroundColour(FG_COLOR);
-    btn_login->SetFont(Monospace_Bold);
+    btn_login->SetFont(Monospace_Regular);
 
 	btn_reg = new wxButton
       (this, 10002, "Register", wxPoint(850, 660), wxSize(200, 50));
     btn_reg->SetBackgroundColour(BG_COLOR);
     btn_reg->SetForegroundColour(FG_COLOR);
-    btn_reg->SetFont(Monospace_Bold);
+    btn_reg->SetFont(Monospace_Regular);
 
     btn_login_GO = new wxButton
       (this, 10003, "Go", wxPoint(850, 600), wxSize(200, 50));
     btn_login_GO->SetBackgroundColour(BG_COLOR);
     btn_login_GO->SetForegroundColour(FG_COLOR);
-    btn_login_GO->SetFont(Monospace_Bold);
+    btn_login_GO->SetFont(Monospace_Regular);
 
     btn_login_BACK = new wxButton
 	  (this, 10004, "Back", wxPoint(850, 660), wxSize(200, 50));
     btn_login_BACK->SetBackgroundColour(BG_COLOR);
     btn_login_BACK->SetForegroundColour(FG_COLOR);
-    btn_login_BACK->SetFont(Monospace_Bold);
+    btn_login_BACK->SetFont(Monospace_Regular);
 
     btn_reg_GO = new wxButton
 	  (this, 10005, "Go", wxPoint(850, 600), wxSize(200, 50));
     btn_reg_GO->SetBackgroundColour(BG_COLOR);
     btn_reg_GO->SetForegroundColour(FG_COLOR);
-    btn_reg_GO->SetFont(Monospace_Bold);
+    btn_reg_GO->SetFont(Monospace_Regular);
 
     btn_reg_BACK = new wxButton
 	  (this, 10006, "Back", wxPoint(850, 660), wxSize(200, 50));
     btn_reg_BACK->SetBackgroundColour(BG_COLOR);
     btn_reg_BACK->SetForegroundColour(FG_COLOR);
-    btn_reg_BACK->SetFont(Monospace_Bold);
+    btn_reg_BACK->SetFont(Monospace_Regular);
 
     btn_quit = new wxButton
 	  (this, 10007, "Quit Rosetta", wxPoint(850, 720), wxSize(200, 50));
     btn_quit->SetBackgroundColour(BG_COLOR);
     btn_quit->SetForegroundColour(FG_COLOR);
-    btn_quit->SetFont(Monospace_Bold);
+    btn_quit->SetFont(Monospace_Regular);
 
     btn_makeroom = new wxButton
 	  (this, 10008, "Create a chat room", wxPoint(850, 600), wxSize(200, 50));
     btn_makeroom->SetBackgroundColour(BG_COLOR);
     btn_makeroom->SetForegroundColour(FG_COLOR);
-    btn_makeroom->SetFont(Monospace_Bold);
+    btn_makeroom->SetFont(Monospace_Regular);
 
     btn_joinroom = new wxButton
 	  (this, 10009, "Join a chat room", wxPoint(850, 660), wxSize(200, 50));
     btn_joinroom->SetBackgroundColour(BG_COLOR);
     btn_joinroom->SetForegroundColour(FG_COLOR);
-    btn_joinroom->SetFont(Monospace_Bold);
+    btn_joinroom->SetFont(Monospace_Regular);
 
     btn_joinroom_GO = new wxButton
 	  (this, 10010, "Go", wxPoint(850, 600), wxSize(200, 50));
     btn_joinroom_GO->SetBackgroundColour(BG_COLOR);
     btn_joinroom_GO->SetForegroundColour(FG_COLOR);
-    btn_joinroom_GO->SetFont(Monospace_Bold);
+    btn_joinroom_GO->SetFont(Monospace_Regular);
 
     btn_joinroom_BACK = new wxButton
 	  (this, 10011, "Back", wxPoint(850, 660), wxSize(200, 50));
     btn_joinroom_BACK->SetBackgroundColour(BG_COLOR);
     btn_joinroom_BACK->SetForegroundColour(FG_COLOR);
-    btn_joinroom_BACK->SetFont(Monospace_Bold);
+    btn_joinroom_BACK->SetFont(Monospace_Regular);
 
     btn_makeroom_GO = new wxButton
 	  (this, 10012, "Go", wxPoint(850, 600), wxSize(200, 50));
     btn_makeroom_GO->SetBackgroundColour(BG_COLOR);
     btn_makeroom_GO->SetForegroundColour(FG_COLOR);
-    btn_makeroom_GO->SetFont(Monospace_Bold);
+    btn_makeroom_GO->SetFont(Monospace_Regular);
 
     btn_makeroom_BACK = new wxButton
 	  (this, 10013, "Back", wxPoint(850, 660), wxSize(200, 50));
     btn_makeroom_BACK->SetBackgroundColour(BG_COLOR);
     btn_makeroom_BACK->SetForegroundColour(FG_COLOR);
-    btn_makeroom_BACK->SetFont(Monospace_Bold);
+    btn_makeroom_BACK->SetFont(Monospace_Regular);
 
     btn_closeyourroom = new wxButton
 	  (this, 10014, "Close the chat room", wxPoint(525, 910), wxSize(200, 50));
     btn_closeyourroom->SetBackgroundColour(BG_COLOR);
     btn_closeyourroom->SetForegroundColour(FG_COLOR);
-    btn_closeyourroom->SetFont(Monospace_Bold);
+    btn_closeyourroom->SetFont(Monospace_Regular);
 
     btn_leavetheroom = new wxButton
 	  (this, 10015, "Leave the chat room", wxPoint(525, 910), wxSize(200, 50));
     btn_leavetheroom->SetBackgroundColour(BG_COLOR);
     btn_leavetheroom->SetForegroundColour(FG_COLOR);
-    btn_leavetheroom->SetFont(Monospace_Bold);
+    btn_leavetheroom->SetFont(Monospace_Regular);
 
     btn_send_msg = new wxButton
 	  (this, 10016, "Send", wxPoint(1335, 850), wxSize(50, 50));
     btn_send_msg->SetBackgroundColour(BG_COLOR);
     btn_send_msg->SetForegroundColour(FG_COLOR);
-    btn_send_msg->SetFont(Monospace_Bold);
+    btn_send_msg->SetFont(Monospace_Regular);
 
     btn_login_GO->Hide();
     btn_login_BACK->Hide();
@@ -257,9 +260,6 @@ cMain::cMain() : wxFrame(
     );
 
     ROSETTA_LABEL->SetFont(Monospace_Bold);
-    btn_reg->SetFont(Monospace_Bold);
-    btn_login->SetFont(Monospace_Bold);
-
     ROSETTA_LABEL->SetForegroundColour(*wxRED);
     ROSETTA_LABEL->SetBackgroundColour(*wxBLACK);
 
