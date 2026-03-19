@@ -5,8 +5,12 @@
  */
 #define USE_WX_GUI
 
+#include "logo.h"
 #include "cMain.h"
 #include "../network-code/client-primary-functions.h"
+
+#define BG_COLOR wxColour(30, 30, 30)
+#define FG_COLOR wxColour(120, 255, 120)
 
 /* Implement what the Event Table is.
  *
@@ -14,26 +18,28 @@
  * Parm 2 - it also requires the base class that parm 1 inherited from.
  */
 BEGIN_EVENT_TABLE(cMain, wxFrame)
-    EVT_BUTTON(10001, cMain::BtnClickLogin          )
-    EVT_BUTTON(10002, cMain::BtnClickRegister       )
-    EVT_BUTTON(10003, cMain::BtnClickLoginGo        )
-    EVT_BUTTON(10004, cMain::BtnClickLoginBack      )
-    EVT_BUTTON(10005, cMain::BtnClickRegGo          )
-    EVT_BUTTON(10006, cMain::BtnClickRegBack        )
-    EVT_BUTTON(10007, cMain::BtnClickQuit           )
-    EVT_BUTTON(10008, cMain::BtnClickMakeRoom       )
-    EVT_BUTTON(10009, cMain::BtnClickJoinRoom       )
-    EVT_BUTTON(10010, cMain::BtnClickJoinRoomGo     )
-    EVT_BUTTON(10011, cMain::BtnClickJoinRoomBack   )
-    EVT_BUTTON(10012, cMain::BtnClickMakeRoomGo     )
-    EVT_BUTTON(10013, cMain::BtnClickMakeRoomBack   )
-    EVT_BUTTON(10014, cMain::BtnClickCloseYourRoom  )
-    EVT_BUTTON(10015, cMain::BtnClickLeaveTheRoom   )
-	EVT_BUTTON(10016, cMain::BtnClickSendMsg        )
+    EVT_BUTTON(10001, cMain::BtnClickLogin        )
+    EVT_BUTTON(10002, cMain::BtnClickRegister     )
+    EVT_BUTTON(10003, cMain::BtnClickLoginGo      )
+    EVT_BUTTON(10004, cMain::BtnClickLoginBack    )
+    EVT_BUTTON(10005, cMain::BtnClickRegGo        )
+    EVT_BUTTON(10006, cMain::BtnClickRegBack      )
+    EVT_BUTTON(10007, cMain::BtnClickQuit         )
+    EVT_BUTTON(10008, cMain::BtnClickMakeRoom     )
+    EVT_BUTTON(10009, cMain::BtnClickJoinRoom     )
+    EVT_BUTTON(10010, cMain::BtnClickJoinRoomGo   )
+    EVT_BUTTON(10011, cMain::BtnClickJoinRoomBack )
+    EVT_BUTTON(10012, cMain::BtnClickMakeRoomGo   )
+    EVT_BUTTON(10013, cMain::BtnClickMakeRoomBack )
+    EVT_BUTTON(10014, cMain::BtnClickCloseYourRoom)
+    EVT_BUTTON(10015, cMain::BtnClickLeaveTheRoom )
+	EVT_BUTTON(10016, cMain::BtnClickSendMsg      )
+
+	EVT_TEXT_ENTER(10017, cMain::BtnClickSendMsg  )
 END_EVENT_TABLE()
 
 int8_t userid[SMALL_FIELD_LEN];
-int userid_len;
+int    userid_len;
 
 /* This gets assigned to the "this" pointer in the cMain class constructor,
  * which means we get a pointer to whichever instantiated object of cMain
@@ -51,14 +57,11 @@ static cMain *g_instance = nullptr;
 void display_gui_message(char* message_line){
 	printf("[WARNING] Called the disaply reveied msg on GUI function.\n" );
     wxString msgToDisplay = wxString::FromUTF8(message_line);
-    g_instance->GetEventHandler()->CallAfter([msgToDisplay]() 
+    g_instance->GetEventHandler()->CallAfter([msgToDisplay]()
     {
-            // Everything inside these braces runs on the MAIN UI THREAD
                 g_instance->msg_entries->AppendText(msgToDisplay);
                 g_instance->msg_entries->AppendText("\n");
     });
-    //g_instance->msg_entries->AppendText(wxString::FromUTF8(message_line));
-    //g_instance->msg_entries->AppendText("\n");
  	return;
 }
 
@@ -74,6 +77,10 @@ cMain::cMain() : wxFrame(
     g_instance = this;
 	display_received_msg = display_gui_message;
 
+    /* Create a Monospace Bold font */
+    wxFont Monospace_Bold
+      (12, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
+
 	/* Construct the button member variable. */
     btn_login = new wxButton(
          this              /* Parent of the button - this window class        */
@@ -82,51 +89,99 @@ cMain::cMain() : wxFrame(
         ,wxPoint(850, 600) /* X,Y spawn relative to top left corner of parent */
         ,wxSize(200, 50)   /* Width and height in pixels                      */
     );
+    btn_login->SetBackgroundColour(BG_COLOR);
+    btn_login->SetForegroundColour(FG_COLOR);
+    btn_login->SetFont(Monospace_Bold);
 
-    btn_reg = new wxButton
+	btn_reg = new wxButton
       (this, 10002, "Register", wxPoint(850, 660), wxSize(200, 50));
+    btn_reg->SetBackgroundColour(BG_COLOR);
+    btn_reg->SetForegroundColour(FG_COLOR);
+    btn_reg->SetFont(Monospace_Bold);
 
     btn_login_GO = new wxButton
       (this, 10003, "Go", wxPoint(850, 600), wxSize(200, 50));
+    btn_login_GO->SetBackgroundColour(BG_COLOR);
+    btn_login_GO->SetForegroundColour(FG_COLOR);
+    btn_login_GO->SetFont(Monospace_Bold);
 
     btn_login_BACK = new wxButton
 	  (this, 10004, "Back", wxPoint(850, 660), wxSize(200, 50));
+    btn_login_BACK->SetBackgroundColour(BG_COLOR);
+    btn_login_BACK->SetForegroundColour(FG_COLOR);
+    btn_login_BACK->SetFont(Monospace_Bold);
 
     btn_reg_GO = new wxButton
 	  (this, 10005, "Go", wxPoint(850, 600), wxSize(200, 50));
+    btn_reg_GO->SetBackgroundColour(BG_COLOR);
+    btn_reg_GO->SetForegroundColour(FG_COLOR);
+    btn_reg_GO->SetFont(Monospace_Bold);
 
     btn_reg_BACK = new wxButton
 	  (this, 10006, "Back", wxPoint(850, 660), wxSize(200, 50));
+    btn_reg_BACK->SetBackgroundColour(BG_COLOR);
+    btn_reg_BACK->SetForegroundColour(FG_COLOR);
+    btn_reg_BACK->SetFont(Monospace_Bold);
 
     btn_quit = new wxButton
 	  (this, 10007, "Quit Rosetta", wxPoint(850, 720), wxSize(200, 50));
+    btn_quit->SetBackgroundColour(BG_COLOR);
+    btn_quit->SetForegroundColour(FG_COLOR);
+    btn_quit->SetFont(Monospace_Bold);
 
     btn_makeroom = new wxButton
 	  (this, 10008, "Create a chat room", wxPoint(850, 600), wxSize(200, 50));
+    btn_makeroom->SetBackgroundColour(BG_COLOR);
+    btn_makeroom->SetForegroundColour(FG_COLOR);
+    btn_makeroom->SetFont(Monospace_Bold);
 
     btn_joinroom = new wxButton
 	  (this, 10009, "Join a chat room", wxPoint(850, 660), wxSize(200, 50));
+    btn_joinroom->SetBackgroundColour(BG_COLOR);
+    btn_joinroom->SetForegroundColour(FG_COLOR);
+    btn_joinroom->SetFont(Monospace_Bold);
 
     btn_joinroom_GO = new wxButton
 	  (this, 10010, "Go", wxPoint(850, 600), wxSize(200, 50));
+    btn_joinroom_GO->SetBackgroundColour(BG_COLOR);
+    btn_joinroom_GO->SetForegroundColour(FG_COLOR);
+    btn_joinroom_GO->SetFont(Monospace_Bold);
 
     btn_joinroom_BACK = new wxButton
 	  (this, 10011, "Back", wxPoint(850, 660), wxSize(200, 50));
+    btn_joinroom_BACK->SetBackgroundColour(BG_COLOR);
+    btn_joinroom_BACK->SetForegroundColour(FG_COLOR);
+    btn_joinroom_BACK->SetFont(Monospace_Bold);
 
     btn_makeroom_GO = new wxButton
 	  (this, 10012, "Go", wxPoint(850, 600), wxSize(200, 50));
+    btn_makeroom_GO->SetBackgroundColour(BG_COLOR);
+    btn_makeroom_GO->SetForegroundColour(FG_COLOR);
+    btn_makeroom_GO->SetFont(Monospace_Bold);
 
     btn_makeroom_BACK = new wxButton
 	  (this, 10013, "Back", wxPoint(850, 660), wxSize(200, 50));
+    btn_makeroom_BACK->SetBackgroundColour(BG_COLOR);
+    btn_makeroom_BACK->SetForegroundColour(FG_COLOR);
+    btn_makeroom_BACK->SetFont(Monospace_Bold);
 
     btn_closeyourroom = new wxButton
-	  (this, 10014, "Close the chat room", wxPoint(850, 900), wxSize(200, 50));
+	  (this, 10014, "Close the chat room", wxPoint(525, 910), wxSize(200, 50));
+    btn_closeyourroom->SetBackgroundColour(BG_COLOR);
+    btn_closeyourroom->SetForegroundColour(FG_COLOR);
+    btn_closeyourroom->SetFont(Monospace_Bold);
 
     btn_leavetheroom = new wxButton
-	  (this, 10015, "Leave the chat room", wxPoint(850, 900), wxSize(200, 50));
+	  (this, 10015, "Leave the chat room", wxPoint(525, 910), wxSize(200, 50));
+    btn_leavetheroom->SetBackgroundColour(BG_COLOR);
+    btn_leavetheroom->SetForegroundColour(FG_COLOR);
+    btn_leavetheroom->SetFont(Monospace_Bold);
 
     btn_send_msg = new wxButton
-	  (this, 10016, "Send", wxPoint(1660, 810), wxSize(50, 50));
+	  (this, 10016, "Send", wxPoint(1335, 850), wxSize(50, 50));
+    btn_send_msg->SetBackgroundColour(BG_COLOR);
+    btn_send_msg->SetForegroundColour(FG_COLOR);
+    btn_send_msg->SetFont(Monospace_Bold);
 
     btn_login_GO->Hide();
     btn_login_BACK->Hide();
@@ -144,31 +199,46 @@ cMain::cMain() : wxFrame(
 
     password_input = new wxTextCtrl
 	  (this, wxID_ANY, "", wxPoint(850, 750), wxSize(200, 50), wxTE_PASSWORD);
-
+    password_input->SetBackgroundColour(BG_COLOR);
+    password_input->SetForegroundColour(FG_COLOR);
     password_input->SetHint("Your password...");
+    password_input->SetFont(Monospace_Bold);
 
     roomid_input = new wxTextCtrl
-	  (this, wxID_ANY, "", wxPoint(850, 750), wxSize(300, 50));
-
+	  (this, wxID_ANY, "", wxPoint(850, 750), wxSize(400, 50));
+    roomid_input->SetBackgroundColour(BG_COLOR);
+    roomid_input->SetForegroundColour(FG_COLOR);
     roomid_input->SetHint("Chat room's name...");
+    roomid_input->SetFont(Monospace_Bold);
 
     userid_input = new wxTextCtrl
-	  (this, wxID_ANY, "", wxPoint(850, 810), wxSize(300, 50));
-
+	  (this, wxID_ANY, "", wxPoint(850, 810), wxSize(400, 50));
+	userid_input->SetBackgroundColour(BG_COLOR);
+    userid_input->SetForegroundColour(FG_COLOR);
     userid_input->SetHint("Your codename for this chatroom...");
+    userid_input->SetFont(Monospace_Bold);
 
     usermsg_input = new wxTextCtrl
-	  (this, wxID_ANY, "", wxPoint(725, 810), wxSize(800, 50));
-
+	  (this, 10017, "", wxPoint(525, 850), wxSize(800, 50),
+	  wxTE_PROCESS_ENTER);
     usermsg_input->SetHint("Your message...  (limit: 1024 characters)");
+	usermsg_input->SetBackgroundColour(BG_COLOR);
+    usermsg_input->SetForegroundColour(FG_COLOR);
+    usermsg_input->SetFont(Monospace_Bold);
 
     info_msg_box = new wxTextCtrl
 	  (this, wxID_ANY, "",
-       wxPoint(725, 880), wxSize(500, 150), wxTE_READONLY | wxTE_MULTILINE);
+       wxPoint(725, 880), wxSize(600, 120), wxTE_READONLY | wxTE_MULTILINE);
+    info_msg_box->SetBackgroundColour(BG_COLOR);
+    info_msg_box->SetForegroundColour(FG_COLOR);
+    info_msg_box->SetFont(Monospace_Bold);
 
     msg_entries = new wxTextCtrl
 	  (this, wxID_ANY, "",
-	   wxPoint(725, 400), wxSize(800, 400), wxTE_READONLY | wxTE_MULTILINE);
+	   wxPoint(525, 440), wxSize(800, 400), wxTE_READONLY | wxTE_MULTILINE);
+    msg_entries->SetBackgroundColour(BG_COLOR);
+    msg_entries->SetForegroundColour(FG_COLOR);
+    msg_entries->SetFont(Monospace_Bold);
 
 	usermsg_input->Hide();
 	msg_entries->Hide();
@@ -177,47 +247,15 @@ cMain::cMain() : wxFrame(
     roomid_input->Hide();
     userid_input->Hide();
 
-    /* Similarly construct the rest of the member variables. */
-
-    /*
-    ROSETTA_LABEL = new wxTextCtrl(
-         this
-        ,wxID_ANY
-        ,""
-        ,wxPoint(10, 70)
-        ,wxSize(1500, 300)
-    );
-    */
-
     ROSETTA_LABEL = new wxTextCtrl(
         this
         ,wxID_ANY
-        ,"RRRRRRRRRRRRRRRRR         OOOOOOOOO         SSSSSSSSSSSSSSS  EEEEEEEEEEEEEEEEEEEEEE TTTTTTTTTTTTTTTTTTTTTTT TTTTTTTTTTTTTTTTTTTTTTT          AAA               \n"
-         "R::::::::::::::::R      OO:::::::::OO     SS:::::::::::::::S E::::::::::::::::::::E T:::::::::::::::::::::T T:::::::::::::::::::::T         A:::A              \n"
-         "R::::::RRRRRR:::::R   OO:::::::::::::OO  S:::::SSSSSS::::::S E::::::::::::::::::::E T:::::::::::::::::::::T T:::::::::::::::::::::T        A:::::A             \n"
-         "RR:::::R     R:::::R O:::::::OOO:::::::O S:::::S     SSSSSSS EE::::::EEEEEEEEE::::E T:::::TT:::::::TT:::::T T:::::TT:::::::TT:::::T       A:::::::A            \n"
-         "  R::::R     R:::::R O::::::O   O::::::O S:::::S               E:::::E       EEEEEE TTTTTT  T:::::T  TTTTTT TTTTTT  T:::::T  TTTTTT      A:::::::::A           \n"
-         "  R::::R     R:::::R O:::::O     O:::::O S:::::S               E:::::E                      T:::::T                 T:::::T             A:::::A:::::A          \n"
-         "  R::::RRRRRR:::::R  O:::::O     O:::::O  S::::SSSS            E::::::EEEEEEEEEE            T:::::T                 T:::::T            A:::::A A:::::A         \n"
-         "  R:::::::::::::RR   O:::::O     O:::::O   SS::::::SSSSS       E:::::::::::::::E            T:::::T                 T:::::T           A:::::A   A:::::A        \n"
-         "  R::::RRRRRR:::::R  O:::::O     O:::::O     SSS::::::::SS     E:::::::::::::::E            T:::::T                 T:::::T          A:::::A     A:::::A       \n"
-         "  R::::R     R:::::R O:::::O     O:::::O        SSSSSS::::S    E::::::EEEEEEEEEE            T:::::T                 T:::::T         A:::::AAAAAAAAA:::::A      \n"
-         "  R::::R     R:::::R O:::::O     O:::::O             S:::::S   E:::::E                      T:::::T                 T:::::T        A:::::::::::::::::::::A     \n"
-         "  R::::R     R:::::R O::::::O   O::::::O             S:::::S   E:::::E       EEEEEE         T:::::T                 T:::::T       A:::::AAAAAAAAAAAAA:::::A    \n"
-         "RR:::::R     R:::::R O:::::::OOO:::::::O SSSSSSS     S:::::S EE::::::EEEEEEEE:::::E       TT:::::::TT             TT:::::::TT    A:::::A             A:::::A   \n"
-         "R::::::R     R:::::R  OO:::::::::::::OO  S::::::SSSSSS:::::S E::::::::::::::::::::E       T:::::::::T             T:::::::::T   A:::::A               A:::::A  \n"
-         "R::::::R     R:::::R    OO:::::::::OO    S:::::::::::::::SS  E::::::::::::::::::::E       T:::::::::T             T:::::::::T  A:::::A                 A:::::A \n"
-         "RRRRRRRR     RRRRRRR      OOOOOOOOO       SSSSSSSSSSSSSSS    EEEEEEEEEEEEEEEEEEEEEE       TTTTTTTTTTT             TTTTTTTTTTT AAAAAAA                   AAAAAAA\n"
+		,LOGO_STRING
         ,wxPoint(150, 10)
-        ,wxSize(1600, 350)
+        ,wxSize(1600, 400)
         ,wxTE_READONLY | wxTE_MULTILINE | wxNO_BORDER
     );
 
-    /* Create a Monospace Bold font */
-    wxFont Monospace_Bold
-	  (12, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
-
-    /* Apply the font */
     ROSETTA_LABEL->SetFont(Monospace_Bold);
     btn_reg->SetFont(Monospace_Bold);
     btn_login->SetFont(Monospace_Bold);
@@ -297,7 +335,10 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
     }
     else{
         info_msg_box->SetValue("");
-        info_msg_box->WriteText("Success! You are now logged in Rosetta!");
+        info_msg_box->WriteText("Success!\n"
+								"Private key correctly decrypted by password.\n"
+								"Connected to the Rosetta server.\n"
+								"You are now logged in.\n");
         info_msg_box->Show();
 
         btn_makeroom->Show();
@@ -632,8 +673,8 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
         //info_msg_box->WriteText("Success! Your chat room has been created!");
         //info_msg_box->Show();
 
-		btn_joinroom_GO->Hide();
-        btn_joinroom_BACK->Hide();
+		btn_makeroom_GO->Hide();
+        btn_makeroom_BACK->Hide();
         roomid_input->Hide();
         userid_input->Hide();
 
@@ -686,6 +727,7 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
 
 	if(msg_len >= MAX_TXT_LEN || msg_len < 1){
 		std::cout << "Entered ret on error. msg_len: " << msg_len << std::endl;
+		usermsg_input->SetFocus();
         evt.Skip();
         return;
     }
@@ -697,13 +739,11 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
     send_msg_status = send_text(msg_buf, msg_len);
 
 	if(send_msg_status){
-        printf("[ERR] Sending a message failed: %u. Closing Rosetta.\n",
-			   send_msg_status);
+        printf("[ERR] Sending a MSG failed: %u. Terminate.\n", send_msg_status);
 		exit(1);
 	}
 
     /* Put that user's message into their own UI too. */
-	//msg_entries->SetEditable(true);
 	for(uint8_t i = 0; i < (SMALL_FIELD_LEN - 1 - userid_len); ++i){
         msg_entries->AppendText(" ");
 	}
@@ -712,10 +752,7 @@ void cMain::BtnClickSendMsg(wxCommandEvent &evt)
     msg_entries->AppendText(msg_as_wxstring);
     msg_entries->AppendText("\n");
 
-	//msg_entries->Refresh();
-    //msg_entries->Update();
-	//msg_entries->SetEditable(false);
-
+    usermsg_input->SetFocus();
     evt.Skip();
 	return;
 }
@@ -750,7 +787,8 @@ void cMain::BtnClickCloseYourRoom(wxCommandEvent &evt)
 
 	btn_leavetheroom->Hide();
 	btn_closeyourroom->Hide();
-
+    msg_entries->SetValue("");
+    usermsg_input->SetValue("");
 	btn_send_msg->Hide();
     msg_entries->Hide();
     usermsg_input->Hide();
@@ -791,7 +829,9 @@ void cMain::BtnClickLeaveTheRoom(wxCommandEvent &evt)
     btn_closeyourroom->Hide();
 
 	btn_send_msg->Hide();
+	msg_entries->SetValue("");
     msg_entries->Hide();
+	usermsg_input->SetValue("");
     usermsg_input->Hide();
 
 	evt.Skip();

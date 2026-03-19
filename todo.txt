@@ -27,7 +27,23 @@
 9. Remove code for Argon2 further passes. One pass will suffice.
 [ Completed ✓ ]
 
-10. Make a special memory allocation scheme where instead of bigint_create()
+10. C++ wxWidgets GUI for message sending when joining/creating a chatroom.
+[ Completed ✓ ]
+
+11. Implement sending a message by pressing Enter.
+[ Completed ✓ ]
+
+12. Improve Rosetta logo source code to get it from a data file.
+[ Completed ✓ ]
+
+13. Make the UI prettier, to not rely on default colors.
+[ Completed ✓ ]
+
+14. Resolve guest's client segfaulting when the owner closes the chatroom.
+
+15. Write an easy installation bash script and a small "run" oneliner script.
+
+16. Make a special memory allocation scheme where instead of bigint_create()
     spamming malloc in the hot path of authenticate_client()/server(), we have
     a preallocated memory arena for bigints that we know will be required for
     the functions in that hot path, and tell the functions how to access the
@@ -37,14 +53,28 @@
     Heap allocation spam in the hot path is highly disliked in performance
     analysis.
 
-11. C++ wxWidgets GUI for message sending when joining/creating a chatroom.
-    Try using the AF_UNIX communication code for this too.
+17. Montgomery Modular Multiplication is currently hardcoded to use the same
+   Diffie-Hellman modulus M as its multiplication modulus. It doesn't have to be
+   that way. Computing MU and L (the 2 parameters that depend on the Montgomery
+   Modulus) is simple - L is the number of 64-bit limbs (8-byte chunks) in the
+   Montgomery Modulus, MU is the multiplicative inverse, the algorithm to get it
+   for any Montgomery Modulus is only a few lines of code. Make it so that
+   Montgomery Modular Multiplication takes any modulus, gets L and MU for it,
+   and successfully performs fast modular multiplication and powering. Then it
+   will be usable even in Rabin-Miller primality test, which will significantly
+   speed it up I assume.
 
-12. Profile-guided optimization, __restrict__, const, static functions.
+18. Add the static keyword to functions that it applies to.
 
-13. Run linters and static analyzers/sanitizers from GCC/clang, plus Valgrind.
+19. Add the __restrict__ keyword to pointers that it applies to.
 
-14. Write the project whitepaper report.
+20. Make sure all comments are still valid and say correct things up to date.
+
+21. Run valgrind and address sanitizer.
+
+22. Clean up the entire source code with a good style.
+
+23. Write the project whitepaper report.
 
 ?. Improve the Rosetta Test Framework with automatic tests. All actions, from
    creating and logging in a test user account, to creating and joining a
@@ -55,20 +85,7 @@
     Make sure only one place in the Server and Client loads them at init time.
     lib/coreutils.h should probably be removed/reworked entirely anyway.
 
-?. Montgomery Modular Multiplication is currently hardcoded to use the same      
-   Diffie-Hellman modulus M as its multiplication modulus. It doesn't have to be 
-   that way. Computing MU and L (the 2 parameters that depend on the Montgomery  
-   Modulus) is simple - L is the number of 64-bit limbs (8-byte chunks) in the   
-   Montgomery Modulus, MU is the multiplicative inverse, the algorithm to get it 
-   for any Montgomery Modulus is only a few lines of code. Make it so that       
-   Montgomery Modular Multiplication takes any modulus, gets L and MU for it,    
-   and successfully performs fast modular multiplication and powering. Then it   
-   will be usable even in Rabin-Miller primality test, which will significantly  
-   speed it up I assume. 
-
 ?. Make cryptography algorithms constant-time to avoid side channel attacks.
-
-?. Write a full fledged documentation + description for Rosetta.
 
 ?. Come up with a better unique packet ID numbering. Currently the same packet
    ID exists in server and in client. BAD!
