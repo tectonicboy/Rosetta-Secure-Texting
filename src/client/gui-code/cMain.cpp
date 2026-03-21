@@ -66,6 +66,22 @@ void display_gui_message(char* message_line){
 
 void display_gui_user_booted(){
     /* Update the GUI using the g_instance pointer similar to above. */
+	g_instance->GetEventHandler()->CallAfter([]()
+    {
+        g_instance->info_msg_box->SetValue("");
+        g_instance->info_msg_box->WriteText("The room owner has closed it.");
+        g_instance->info_msg_box->Show();
+
+		g_instance->btn_leavetheroom->Hide();
+        g_instance->btn_send_msg->Hide();
+        g_instance->msg_entries->Hide();
+        g_instance->usermsg_input->Hide();
+
+		g_instance->btn_makeroom->Show();
+        g_instance->btn_joinroom->Show();
+        g_instance->btn_quit->Show();
+	});
+	return;
 }
 
 /* Constructor - uses constructor of wxFrame with parameters. */

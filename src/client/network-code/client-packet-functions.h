@@ -2334,7 +2334,8 @@ void process_msg_51(u8* payload){
     /* This DOES NOT kill the main thread, it merely sends it a signal for which
      * the main thread has installed a custom signal handler function. This call
      * is done only to unblock the main thread from its blocked scanf() call.
-     * In the desktop GUI version, this signal will be used to alert the GUI
+     * In the desktop GUI version, instead of this signal, a function pointer
+	 * is set to an event handler function that will be used to alert the GUI
      * to draw an info box that the room the user is in was closed by the owner
      * and retract the GUI elements that allow the user to send text messages.
      */
