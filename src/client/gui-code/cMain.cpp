@@ -69,12 +69,15 @@ void display_gui_user_booted(){
 	g_instance->GetEventHandler()->CallAfter([]()
     {
         g_instance->info_msg_box->SetValue("");
-        g_instance->info_msg_box->WriteText("The room owner has closed it.");
+        g_instance->info_msg_box->WriteText
+		                           ("Chat room has been closed by the owner.");
         g_instance->info_msg_box->Show();
 
 		g_instance->btn_leavetheroom->Hide();
         g_instance->btn_send_msg->Hide();
+		g_instance->msg_entries->SetValue("");
         g_instance->msg_entries->Hide();
+		g_instance->usermsg_input->SetValue("");
         g_instance->usermsg_input->Hide();
 
 		g_instance->btn_makeroom->Show();
@@ -368,6 +371,7 @@ void cMain::BtnClickLoginGo(wxCommandEvent &evt){
         btn_login_GO->Hide();
         btn_login_BACK->Hide();
 
+		password_input->SetValue("");
         password_input->Hide();
     }
 
@@ -580,24 +584,23 @@ void cMain::BtnClickJoinRoomGo(wxCommandEvent &evt){
 									(unsigned char*)userid, userid_len);
 
     if(joinroom_status){
-        /* Add code to render 'could not join room' msg on user's screen. */
         info_msg_box->SetValue("");
         info_msg_box->WriteText("Error. Room joining failed unexpectedly.");
         info_msg_box->Show();
     }
     else{
-        //info_msg_box->SetValue("");
-        //info_msg_box->WriteText("Success! You've now joined the chatroom!");
-        //info_msg_box->Show();
-
 		btn_joinroom_GO->Hide();
         btn_joinroom_BACK->Hide();
+		roomid_input->SetValue("");
         roomid_input->Hide();
+		userid_input->SetValue("");
         userid_input->Hide();
 
 		btn_leavetheroom->Show();
 		btn_send_msg->Show();
+		msg_entries->SetValue("");
 		msg_entries->Show();
+		usermsg_input->SetValue("");
 		usermsg_input->Show();
     }
 
@@ -688,11 +691,6 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
         info_msg_box->Show();
     }
     else{
-        /* And to hide the rendering of the login stuff. */
-        //info_msg_box->SetValue("");
-        //info_msg_box->WriteText("Success! Your chat room has been created!");
-        //info_msg_box->Show();
-
 		btn_makeroom_GO->Hide();
         btn_makeroom_BACK->Hide();
         roomid_input->Hide();
@@ -700,7 +698,9 @@ void cMain::BtnClickMakeRoomGo(wxCommandEvent &evt){
 
         btn_closeyourroom->Show();
         btn_send_msg->Show();
+		msg_entries->SetValue("");
         msg_entries->Show();
+		usermsg_input->SetValue("");
         usermsg_input->Show();
     }
 
