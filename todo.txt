@@ -39,6 +39,48 @@
 13. Make the UI prettier, to not rely on default colors.
 [ Completed ✓ ]
 
+EXTRA: bigint:471, cryptolib:339, cryptolib:349, cryptolib:1325
+       4 loops that get inlined into many places throughout the code,
+       all of which the compiler emits a fast vectorized version and a
+       slower non-vectorized version, because it could not prove that the
+       pointers the loops use to iterate through arrays won't alias, aka
+       it can't prove that they are the only pointers used to access their
+       memory throughout the loop. Use __restrict__ if possible and see if
+       the compiler removes the slower non-vectorized version of the loops.
+
+DONE:  A big optimization success story I should write about. For cryptolib:339
+       I was able to help the compiler stop emitting a vectorized (fast) and a
+       scalar unvectorized (slow) version of the loop by factoring it out into
+       a separate helper function marked as static inline, because the compiler
+       trusts the programmer's __restrict__ promise for pointers more strongly
+       when it's applied to pointer arguments to a function, instead of to
+       locally declared pointers in the function body, because, at least in my
+       particular case, it had a harder time proving their origin is safe from
+       aliasing. My intuition here says it's probably because the pointers
+       originate from struct member variables of structs passed as arguments.
+       For such pointers, there is no way to declare them as __restrict__
+       at the function argument level, so factoring out the loop itself into
+       its own small function that DOES have a way to mark these pointers as
+       __restrict__ at the function argument level proved to work flawlessly. 
+       
+       With pointer arguments to a function, the compiler's perceived origin of
+       the pointers is when the function body is executed (and args allocated 
+       on the stack). This refactoring resulted in the compiler's vectorizer
+       completely dropping the slow unvectorized version of the loop because it
+       gave the compiler enough information to consider the pointers that the
+       loop uses to iterate through the arrays to be 100% safe from aliasing.
+       This is true by system design, so the pointer aliasing promise we are
+       giving to the compiler is guaranteed to really be kept at runtime, so no
+       undefined behaviour could possibly be introduced here. As a result, no
+       runtime aliasing check is needed and no slow version of the loop was
+       emitted. Now the vectorized loop is always the one that will be used.
+
+       For the loop at bigint:471, I was able to replace it with memcpy.
+
+       The other 2 loops mentioned above are not on a frequently executed (hot)
+       code path at all, so no need to spend time figuring out how to aid the
+       compiler in vectorizing them properly.
+       
 14. Resolve guest's client segfaulting when the owner closes the chatroom.
 [ PROGRESS: Now just define the new handler function in cMain.cpp ]
 

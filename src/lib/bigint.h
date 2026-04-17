@@ -352,16 +352,6 @@ bigint* get_bigint_from_dat( const u32    file_bits
     return big_n_ptr;
 }
 
-/* Enhancement: The BigInt saving to and loading integers from a file API now
- *              supports having multiple BigInts in the same file.
- *
- *              Here, the mode argument can be:
- *
- *              0 - This BigInt is the only item that this file shall contain.
- *              1 - Write the BigInt to a specified byte offset within the file.
- *
- *              For 0, the byte_offset argument is meaningless and ignored.
- */
 void save_bigint_to_dat(const char* const fn, const bigint* const num)
 {
     FILE* dat_file = NULL;
@@ -459,18 +449,13 @@ void bigint_equate2(bigint* const n1, const bigint* const n2){
     bigint_nullify(n1);
 
     aux = n2->used_bits;
-
     while(aux % 8 != 0) {
         ++aux;
     }
-
     aux /= 8;
-
     n1->used_bits = n2->used_bits;
 
-    for(u32 i = 0; i < aux; ++i){
-        *(n1->bits + i) = *(n2->bits + i);
-    }
+    memcpy(n1_bits, n2_bits, aux);
 
     return;
 }
