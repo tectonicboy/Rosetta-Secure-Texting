@@ -264,6 +264,32 @@ void chacha_block_func(uint32_t* key,     uint8_t key_len
     }
     return;
 }
+/* Optimization successful:
+ * 
+ * Moving this loop from the body of chacha20() itself into this helper
+ * function that takes the pointers that the loop operates on as restricted
+ * pointers (because they are guaranteed to never access overlapping memory
+ * by design here) did in fact help the compiler's aliasing analysis
+ * and removed the need to version this same loop by emitting a vectorized
+ * and a non-vectorized version due to aliasing concerns, with a runtime check
+ * to see if the loop will cause the pointers to alias each other's memory,
+ * that determines which of the two emitted versions of the loop to use.
+ *
+ * The compiler has now entirely dropped the loop versioning and only kept the
+ * fast vectorized version of the loop for all of its uses. Incredible.
+ */
+static inline void
+chacha20_cyphertext_populate_full_blocks(uint8_t* __restrict__ outputs,
+                                         uint8_t* __restrict__ plaintext,
+                                         uint8_t* __restrict__ cyphertext,
+					 uint32_t block_ix)
+{
+    for(uint32_t j = 0; j < 64; ++j)
+        cyphertext[(64 * block_ix) + j] = 
+	  plaintext[(64 * block_ix) + j] ^ outputs[j];
+
+    return;
+}
 
 void chacha20( uint8_t*  plaintext, uint32_t txt_len
               ,uint32_t* nonce,     uint8_t  nonce_len
@@ -332,14 +358,18 @@ void chacha20( uint8_t*  plaintext, uint32_t txt_len
         }
     }
 
+    /* Placed the inner loop in a small helper function taking the 3 pointers
+     * as __restrict__ arguments. The compiler now drops the loop versioning
+     * with a vectorized and a non-vectorized version of the inner loop 
+     * (which was because of possible pointer aliasing) and now only emits the
+     * vectorized version of the loop. Amazing compiler optimization!
+     */
     for(i = 0; i < full_txt_blocks; ++i){
 
         aux_ptr8_outputs = (uint8_t*)(outputs[i]);
 
-        for(j = 0; j < 64; ++j){
-            cyphertext[(64 * i) + j] =
-              plaintext[(64 * i) + j] ^ aux_ptr8_outputs[j];
-        }
+	chacha20_cyphertext_populate_full_blocks
+	                    (aux_ptr8_outputs, cyphertext, plaintext, i);
     }
 
     if(have_last_block){
