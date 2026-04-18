@@ -134,19 +134,17 @@ label_cleanup:
     return status;
 }
 
-
-/******************************************************************************/
-
 /*  To make the server design more elegant, this top-level message processor
  *  only checks whether the message is legit or not, and which of the predefined
  *  accepted types it is.
  *
  *  The message is then sent to its own individual processor function to be
- *  further analyzed and reacted to as defined by the Security Scheme.
+ *  further analyzed and reacted to as defined by Rosetta's custom userspace
+ *  communication protocol.
  *
  *  This logical split of functionality eases the server implementation.
  *
- *  Here is a complete list of possible legitimate transmissions to the server:
+ *  The complete list of possible legitimate transmissions to the server:
  *
  *      - A client decides to log in Rosetta
  *      - A client decides to make a new chat room
@@ -432,7 +430,7 @@ void* start_new_client_thread(void* ix_ptr){
                 if(ix < next_free_user_ix) next_free_user_ix = ix;
             }
             else{
-                remove_user(ix);
+                remove_user_from_rosetta(ix);
             }
             break;
         }
@@ -454,7 +452,7 @@ void* start_new_client_thread(void* ix_ptr){
              */
             u8 socket_closed = 0;
             if( users_status_bitmask & (1ULL << (63ULL - ix)) ){
-                remove_user(ix);
+                remove_user_from_rosetta(ix);
                 socket_closed = 1;
             }
             memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
@@ -466,7 +464,7 @@ void* start_new_client_thread(void* ix_ptr){
         }
         if(status != 100 && status > 0){
             printf("[ERR] Server: identifying new transmission went bad!\n");
-            remove_user(ix);
+            remove_user_from_rosetta(ix);
             pthread_mutex_unlock(&mutex);
             break;
         }
@@ -531,7 +529,7 @@ int main(int argc, char* argv[]){
         onboard_new_client = tcp_onboard_new_client;
     }
     else{
-        printf("[ERR] Server: command line argument must be 0 or 1.\n");
+        printf("[ERR] Server: must pass 0 for Rosetta, 1 for Test Framework.\n");
         exit(1);
     }
 

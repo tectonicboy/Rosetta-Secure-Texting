@@ -31,19 +31,21 @@
  * real thing with only one set of simple, descriptive API functions, instead of
  * polluting client code with sockets API-specific code for AF_UNIX / Internet.
  */
-uint8_t(*init_communication)(void);
-uint8_t(*transmit_payload)  (uint8_t* buf, size_t send_siz);
-uint8_t(*receive_payload)   (uint8_t* buf, uint64_t* recv_len);
-void   (*end_communication) (void);
+uint8_t (*init_communication) (void);
+uint8_t (*transmit_payload)   (uint8_t* buf, size_t send_siz);
+uint8_t (*receive_payload)    (uint8_t* buf, uint64_t* recv_len);
+void    (*end_communication)  (void);
 
 /* This function pointer is what delivers all received messages by others
  * in our chatroom to the display mechanism used by the driver client program.
- * That could be a TUI using printf, a GUI using wxWidgets TextCtrl, etc.
+ * That could be a TUI using printf, a GUI using wxWidgets TextCtrl, or others.
  */
 void (*display_received_msg)(char* msg);
 
 /* This function pointer is what tells the user that the owner of the chatroom
  * they were in has decided to close it and hence they have been booted.
+ * Again, depending on the client driver program, this is handled differently.
+ * For example, GUIs may or may not need to be updated.
  */
 void (*force_user_out_of_room)(void);
 
@@ -88,7 +90,7 @@ u8 self_init(u8* password, int password_len, char* save_dir){
     memset(&prms, 0, sizeof(struct Argon2_parms));
 
     /* Initialize data structures for maintaining global state & bookkeeping. */
-    memset(roommates,           0, roommates_arr_siz * sizeof(struct roommate));
+    memset(roommates,           0, ROOMMATES_ARR_SIZ * sizeof(struct roommate));
     memset(own_privkey_buf,     0, PRIVKEY_LEN);
     memset(temp_handshake_buf,  0, TEMP_BUF_SIZ);
 
@@ -554,9 +556,9 @@ void* begin_polling(__attribute__((unused)) void* input)
                 else if(curr_msg_type == PACKET_ID_51){
                     process_msg_51(reply_buf + read_ix);
 
-					/* Tell GUI to update the widgets for having been booted
-					 * from our (now closed by the owner) chatroom.
-					 */
+		    /* Tell GUI (if used) to update the widgets for having been
+		     * booted from our (now closed by the owner) chatroom.
+		     */
                     #ifdef USE_WX_GUI
                     force_user_out_of_room();
                     #endif
@@ -578,12 +580,12 @@ void* begin_polling(__attribute__((unused)) void* input)
                     /* Tell GUI/TUI to display the newly received message. */
 
                     #ifndef USE_WX_GUI
-                        printf("\n%s\n", text_message_line);
-					#else
-					    display_received_msg((char*)text_message_line);
+                    printf("\n%s\n", text_message_line);
+		    #else
+		    display_received_msg((char*)text_message_line);
                     #endif
 
-  					read_ix += SMALL_FIELD_LEN + curr_msg_len;
+  		    read_ix += SMALL_FIELD_LEN + curr_msg_len;
                     continue;
                 }
             }

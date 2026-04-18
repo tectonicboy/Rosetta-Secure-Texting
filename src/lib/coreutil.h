@@ -2,27 +2,22 @@
 #include "cryptolib.h"
 
 /* Generate a new pseudorandom private key. */
-uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf){
-
+uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf)
+{
     size_t bytes_read;
-
     FILE* ran = fopen("/dev/urandom", "r");
 
     if(ran == NULL){
         printf("[ERR] utilities: gen_priv_key - couldn't open urandom.\n\n");
         return 1;
     }
-
     if ( (bytes_read = fread((void*)buf, 1, len_bytes, ran)) != len_bytes ){
-
         printf("[ERR] utilities: gen_priv_key - couldn't read %u bytes "
                "from urandom.\n\n"
                ,len_bytes
         );
         perror("Error type: ");
-
         fclose(ran);
-
         return 1;
     }
 
@@ -30,9 +25,7 @@ uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf){
     *(buf + (len_bytes - 1)) &= ~ (1 << 7);
 
     printf("[OK]  Utils : Generated a %u-byte private key!\n\n", len_bytes);
-
     fclose(ran);
-
     return 0;
 }
 
@@ -42,56 +35,40 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
                            ,uint32_t resbits
                           )
 {
-    struct bigint* M;
-    struct bigint* Gm;
-    struct bigint* R = (bigint*)calloc(1, sizeof(struct bigint));
-    struct bigint  privkey_bigint;
-
-    u8* privkey_buf = (u8*)calloc(1, privkey_len_bytes);
-
-    size_t bytes_read;
-
-    FILE* privkey_dat;
+    bigint* M;
+    bigint* Gm;
+    bigint* R = (bigint*)calloc(1, sizeof(struct bigint));
+    bigint  privkey_bigint;
+    u8*     privkey_buf = (u8*)calloc(1, privkey_len_bytes);
+    size_t  bytes_read;
+    FILE*   privkey_dat;
 
     privkey_dat = fopen(privkey_filename, "r");
 
     M  = get_bigint_from_dat
-         ( 3072
-          ,"./materials/cryptography/saved_M.dat"
-          ,3071
-          ,12800
-         );
+           (3072, "./materials/cryptography/saved_M.dat", 3071, 12800);
 
     Gm = get_bigint_from_dat
-         ( 3072
-          ,"./materials/cryptography/saved_Gm.dat"
-          ,3071
-          ,12800
-         );
+           (3072, "./materials/cryptography/saved_Gm.dat", 3071, 12800);
 
     if(privkey_dat == NULL){
         printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
         goto label_cleanup;
     }
-
     if ( (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat))
-         != privkey_len_bytes
-       )
+         != privkey_len_bytes)
     {
         printf( "[ERR] utilities: gen_pub_key - couldn't read %u bytes from "
                 "privkey_file.\n\n"
                ,privkey_len_bytes
               );
-
         goto label_cleanup;
     }
 
     privkey_bigint.bits = privkey_buf;
     privkey_bigint.size_bits = resbits;
     privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
-
     bigint_create_from_u32(R, M->size_bits, 0);
-
     mont_pow_mod_m(Gm, &privkey_bigint, M, R);
 
 label_cleanup:
@@ -99,13 +76,11 @@ label_cleanup:
     if(privkey_dat != NULL){
         fclose(privkey_dat);
     }
-
     free(privkey_buf);
     bigint_cleanup(M);
     bigint_cleanup(Gm);
     free(M);
     free(Gm);
-
     return R;
 }
 
@@ -117,15 +92,13 @@ label_cleanup:
  *
  *  Return 1 for valid and 0 for invalid public key.
  */
-
 bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
 {
     bigint M_over_Q;
     bigint one;
     bigint div_rem;
     bigint mod_pow_res;
-
-    bool ret = 0;
+    bool   ret = 0;
 
     bigint_create_from_u32(&M_over_Q,    12800, 0);
     bigint_create_from_u32(&one,         12800, 1);
@@ -133,7 +106,6 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
     bigint_create_from_u32(&mod_pow_res, 12800, 0);
 
     bigint_div2(M, Q, &M_over_Q, &div_rem);
-
     mont_pow_mod_m(Km, &M_over_Q, M, &mod_pow_res);
 
     if(bigint_compare2(&mod_pow_res, &one) != CMP_EQUALS){
@@ -145,6 +117,5 @@ bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
     bigint_cleanup(&one);
     bigint_cleanup(&div_rem);
     bigint_cleanup(&mod_pow_res);
-
     return ret;
 }

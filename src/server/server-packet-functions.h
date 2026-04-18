@@ -31,15 +31,12 @@ u8 temp_handshake_memory_region_isLocked = 0;
 u8 login_not_finished = 0;
 
 struct connected_client{
-    char user_id[SMALL_FIELD_LEN];
-    u64  room_ix;
-    u64  num_pending_msgs;
-    u64  pending_msg_sizes[MAX_PEND_MSGS];
-    u8*  pending_msgs[MAX_PEND_MSGS];
-    u64  nonce_counter;
-
-    time_t time_last_polled;
-
+    char   user_id[SMALL_FIELD_LEN];
+    u64    room_ix;
+    u64    num_pending_msgs;
+    u64    pending_msg_sizes[MAX_PEND_MSGS];
+    u8*    pending_msgs[MAX_PEND_MSGS];
+    u64    nonce_counter;
     bigint client_pubkey;
     bigint client_pubkey_mont;
     bigint shared_secret;
@@ -59,11 +56,11 @@ struct chatroom{
 u64 users_status_bitmask    = 0;
 u64 rooms_status_bitmask    = 0;
 u64 room_owner_left_bitmask = 0;
+
 /* Bitmask telling the server which socket file descriptors are free to be
  * used to accept a new connection to a client machine and begin its recv() loop
  * thread function which it will be stuck on until they exit Rosetta.
  */
-
 u64 next_free_user_ix = 1;
 u64 next_free_room_ix = 1;
 
@@ -92,7 +89,6 @@ struct chatroom rooms[MAX_CHATROOMS];
 /* Create thread_id's for every client machine's recv() loop thread. */
 pthread_t client_thread_ids[MAX_CLIENTS];
 
-
 bigint* M;  /* Diffie-Hellman prime modulus M.              */
 bigint* Q;  /* Diffie-Hellman prime exactly dividing (M-1). */
 bigint* G;  /* Diffie-Hellman generator.                    */
@@ -100,8 +96,6 @@ bigint* Gm; /* Montgomery Form of G.                        */
 bigint* server_pubkey_bigint;
 bigint  server_privkey_bigint;
 
-
-/* NOT THE BEST PLACE FOR THIS FUNCTION DEFINITION! FIND A BETTER PLACE LATER */
 u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz){
 
     if(pubkey_siz < 300){
@@ -142,7 +136,7 @@ void add_pending_msg(u64 user_ix, u64 data_len, u8* data){
     }
 
     /* Warn the server operator the user has just reached the pend_msgs limit */
-    /* While not dangerous right now, this is still considered an error.      */
+    /* While not dangerous right now, this is still considered abnormal       */
     if(clients[user_ix].num_pending_msgs == (MAX_PEND_MSGS - 1)){
         printf("[ERR] Server: userix[%lu] reached pend_msgs limit!\n", user_ix);
     }
@@ -327,7 +321,7 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     return ret;
 }
 
-void remove_user(u64 removing_user_ix){
+void remove_user_from_rosetta(u64 removing_user_ix){
     int status = 0;
 
     /* Might have to remove them from a room (as a guest or as the owner)
@@ -889,7 +883,6 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix){
     clients[user_ix].room_ix          = 0;
     clients[user_ix].num_pending_msgs = 0;
     clients[user_ix].nonce_counter    = 0;
-    clients[user_ix].time_last_polled = clock();
 
     for(size_t i = 0; i < MAX_PEND_MSGS; ++i){
         clients[user_ix].pending_msgs[i] = calloc(1, MAX_MSG_LEN);
@@ -2146,7 +2139,7 @@ void process_msg_60(u8* msg_buf){
         return;
     }
 
-    remove_user(sender_ix);
+    remove_user_from_rosetta(sender_ix);
 
     return;
 }

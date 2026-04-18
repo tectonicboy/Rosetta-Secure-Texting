@@ -1,39 +1,37 @@
 #pragma once
 #include <signal.h>
 #include <errno.h>
-
+#include "../../lib/rosetta-helpers.h"
 #include <sys/time.h>
 #include <time.h>
 
 /* All bitmasks are 64-bit and begin with their leftmost bit. */
-
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
-#define SERVER_PORT      54746
-#define PRIVKEY_LEN      40
-#define PUBKEY_LEN       384
-#define MAX_CLIENTS      64
-#define MAX_PEND_MSGS    64
-#define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      131072
-#define MAX_TXT_LEN      1024
-#define MAX_SOCK_QUEUE   1024
-#define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8
-#define TEMP_BUF_SIZ     16384
-#define SESSION_KEY_LEN  32
-#define ONE_TIME_KEY_LEN 32
-#define INIT_AUTH_LEN    32
-#define SHORT_NONCE_LEN  12
-#define LONG_NONCE_LEN   16
-#define PASSWORD_BUF_SIZ 16
-#define HMAC_TRUNC_BYTES 8
-#define ARGON_STRING_LEN 8
-#define ARGON_HASH_LEN   64
-#define MESSAGE_LINE_LEN (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
-#define SIGNATURE_LEN    ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
-
-u8 temp_handshake_memory_region_isLocked = 0;
+#define SERVER_PORT       54746
+#define PRIVKEY_LEN       40
+#define PUBKEY_LEN        384
+#define MAX_CLIENTS       64
+#define MAX_PEND_MSGS     64
+#define MAX_CHATROOMS     64
+#define MAX_MSG_LEN       131072
+#define MAX_TXT_LEN       1024
+#define MAX_SOCK_QUEUE    1024
+#define MAX_BIGINT_SIZ    12800
+#define SMALL_FIELD_LEN   8
+#define TEMP_BUF_SIZ      16384
+#define SESSION_KEY_LEN   32
+#define ONE_TIME_KEY_LEN  32
+#define INIT_AUTH_LEN     32
+#define SHORT_NONCE_LEN   12
+#define LONG_NONCE_LEN    16
+#define PASSWORD_BUF_SIZ  16
+#define HMAC_TRUNC_BYTES  8
+#define ARGON_STRING_LEN  8
+#define ARGON_HASH_LEN    64
+#define MESSAGE_LINE_LEN  (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
+#define SIGNATURE_LEN     ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
+#define ROOMMATES_ARR_SIZ 63
 
 struct roommate{
     char   guest_user_id[SMALL_FIELD_LEN];
@@ -45,9 +43,7 @@ struct roommate{
     u64    guest_nonce_counter;
 };
 
-#define roommates_arr_siz 63
-
-struct roommate roommates[roommates_arr_siz];
+struct roommate roommates[ROOMMATES_ARR_SIZ];
 
 u64 next_free_roommate_slot = 0;
 u64 num_roommates = 0;
@@ -64,28 +60,38 @@ u64 roommate_slots_bitmask = 0;
  */
 u64 roommate_key_usage_bitmask = 0;
 
-/* It could be in 2 states of fullness when we clear it, because our login
+/* Memory region holding short-term cryptographic artifacts during Login.
+ * It could be in 2 states of fullness when we clear it, because our login
  * attempt could be rejected after we send msg_00 OR after we send msg_01.
  * The two functions that send these messages both fill out the handshake
  * memory region with different things, including pointers to heap memory,
  * which is why we need to keep track of what was placed in the handshake
  * memory region at the point of zeroing it out and releasing it.
+ * TODO: Analyze the different stages and make sure it's cleaned up correctly.
  */
+u8 temp_handshake_buf[TEMP_BUF_SIZ];
 u8 handshake_memory_region_state = 0;
+u8 temp_handshake_memory_region_isLocked = 0;
 
 u64  own_ix = 0;
 unsigned char own_user_id[SMALL_FIELD_LEN];
 
 u64 server_nonce_counter = 0;
+
 /* thread_ID of main thread allows poller thread to send it a signal, in order
- * to interrupt its blocked scanf(), if it's told the room owner has closed it.
- * and thus the client shouldn't be allowed to send any more messages in it.
+ * to interrupt its blocked scanf call when using the TUI of the Test Framework
+ * if it's told the room owner has closed the chat room and thus the client
+ * shouldn't be allowed to send any more messages in it.
  */
 pthread_t main_thread_id;
 pthread_t poller_threadID;
 pthread_mutex_t mutex;
 pthread_mutex_t poll_mutex;
 
+/* Updated by the poller thread when it's informed that our chat room has been
+ * closed by the room owner and checked by the main thread in the TUI, so mark
+ * it as volatile because it literally is.
+ */
 volatile uint8_t texting_should_stop = 0;
 
 u8 own_privkey_buf[PRIVKEY_LEN];
@@ -101,14 +107,11 @@ bigint server_pubkey_mont;
 bigint own_privkey;
 bigint own_pubkey;
 
-/* These are for talking securely to the Rosetta server only. */
+/* Session keys for talking securely to the Rosetta server. */
 u8 *KAB;
 u8 *KBA;
 
-/* Memory region holding short-term cryptographic artifacts for Login scheme. */
-u8 temp_handshake_buf[TEMP_BUF_SIZ];
-
-/* List of packet ID magic constats for legitimate recognized packet types. */
+/* List of packet ID magic constants for legitimate recognized packet types. */
 #define PACKET_ID_00 0xAD0084FF0CC25B0E
 #define PACKET_ID_01 0xE7D09F1FEFEA708B
 #define PACKET_ID_02 0x146AAE4D100DAEEA
@@ -122,58 +125,6 @@ u8 temp_handshake_buf[TEMP_BUF_SIZ];
 #define PACKET_ID_50 0x41C20F0BB4E34890
 #define PACKET_ID_51 0x2CC04FBEDA0B5E63
 #define PACKET_ID_60 0x0A7F4E5D330A14DD
-
-
-/* Set optimization level to none (-O0) for this function, instruct the compiler
- * to not inline calls to it, mark the pointer to the memory buffer containing
- * sensitive information that must be zeroed out for security reasons as
- * volatile, which informs the compiler that the memory it points to might get
- * altered in ways the compiler can't predict, doesn't expect, and the source
- * code does not directly contain any signs it might happen. This prevents the
- * compiler from eliminating calls to the function upon determining that the
- * effects of it are not utilized anywhere in the source code. Also, attribute
- * ((used)) is another protection against the compiler optimizing away calls to
- * this function if it determines the memory it zeroes out isn't used afterward.
- *
- * Efforts by compiler writers and C language standard participants do exist
- * with functions like explicit_bzero() and memset_explicit() slowly being added
- * however, still, neither of these seems to be easily available AND they are
- * only approximations to the solution - Whole-program optimization at link time
- * might still decide to optimize them away. So, sticking to this ugliness until
- * a more elegant and straightforward way to zero out sensitive memory exists.
- */
-__attribute__((no_reorder))
-__attribute__((used))
-__attribute__((noinline))
-__attribute__((optimize("O0")))
-void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
-{
-    __m256i zero_reg256 = _mm256_setzero_si256();
-    size_t i = 0;
-
-    /* SIMD - zero out memory in chunks of 256 bits at a time. */
-
-    while(i + sizeof(__m256i) <= num_bytes_to_erase){
-        _mm256_storeu_si256((__m256i *)(uintptr_t)(buf + i), zero_reg256);
-        i += sizeof(__m256i);
-    }
-
-    /* Any remaining bytes fewer than 32, clear byte by byte. */
-
-    while(i < num_bytes_to_erase)
-        buf[i++] = 0;
-
-    /* Compiler memory barrier to prevent aggressive compile-time and link-time
-     * optimizers from reordering memory around this memory clearing operation.
-     */
-    __asm__ __volatile__ (
-    ""          /* No assembly instructions to emit.                         */
-    :           /* No output operands.                                       */
-    : "r"(buf)  /* input - pointer to erased memory, in a gp register r.     */
-    : "memory"  /* clobbers memory - don't reorder memory operations nearby. */
-    );
-    return;
-}
 
 /* Validate a cryptographic signature computed by the Rosetta server. */
 u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){
@@ -1235,7 +1186,7 @@ u8 process_msg_20(u8* msg, u64 msg_len){
      * the chatroom we're currently in and process this message's associated
      * data, filling out a guest descriptor structure for each guest in it.
      */
-    memset(roommates, 0, roommates_arr_siz * sizeof(struct roommate));
+    memset(roommates, 0, ROOMMATES_ARR_SIZ * sizeof(struct roommate));
     next_free_roommate_slot = 0;
     roommate_slots_bitmask = 0;
     num_roommates = num_current_guests;
@@ -2236,7 +2187,7 @@ u8 construct_msg_50(uint8_t** msg_buf, uint64_t* msg_len)
     }
 
     /* Now zero out all global descriptors without the risk of memory leaks. */
-    memset(roommates, 0, (roommates_arr_siz * sizeof(struct roommate)));
+    memset(roommates, 0, (ROOMMATES_ARR_SIZ * sizeof(struct roommate)));
 
     /* Reset the two global guest bitmasks and other bookkeeping information. */
     roommate_slots_bitmask     = 0;
@@ -2315,7 +2266,7 @@ void process_msg_51(u8* payload){
     }
 
     /* Now zero out all global descriptors without the risk of memory leaks. */
-    memset(roommates, 0, roommates_arr_siz * sizeof(struct roommate));
+    memset(roommates, 0, ROOMMATES_ARR_SIZ * sizeof(struct roommate));
 
     /* Reset the two global guest bitmasks and other bookkeeping information. */
     roommate_slots_bitmask     = 0;

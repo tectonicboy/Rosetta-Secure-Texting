@@ -24,8 +24,14 @@ CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
 
-.PHONY: all
+OPTIMIZATION_LEVEL += -O3
 
-all:
-	gcc -O2 -lm -pthread -march=native $(CFLAGS) \
-	find-new-mq.c -o find-new-mq
+# Ask GCC to tell us of any vectorization and loop optimizations it performed.
+OPTIMIZATION_REPORT += -fopt-info-vec-optimized
+OPTIMIZATION_REPORT += -fopt-info-loop-optimized
+
+.PHONY: keygen
+
+keygen:
+	gcc -lm -pthread -march=native find-new-mq.c -o find-new-mq \
+	$(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT)

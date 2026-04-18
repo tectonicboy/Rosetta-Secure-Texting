@@ -18,24 +18,23 @@
  * Parm 2 - it also requires the base class that parm 1 inherited from.
  */
 BEGIN_EVENT_TABLE(cMain, wxFrame)
-    EVT_BUTTON(10001, cMain::BtnClickLogin        )
-    EVT_BUTTON(10002, cMain::BtnClickRegister     )
-    EVT_BUTTON(10003, cMain::BtnClickLoginGo      )
-    EVT_BUTTON(10004, cMain::BtnClickLoginBack    )
-    EVT_BUTTON(10005, cMain::BtnClickRegGo        )
-    EVT_BUTTON(10006, cMain::BtnClickRegBack      )
-    EVT_BUTTON(10007, cMain::BtnClickQuit         )
-    EVT_BUTTON(10008, cMain::BtnClickMakeRoom     )
-    EVT_BUTTON(10009, cMain::BtnClickJoinRoom     )
-    EVT_BUTTON(10010, cMain::BtnClickJoinRoomGo   )
-    EVT_BUTTON(10011, cMain::BtnClickJoinRoomBack )
-    EVT_BUTTON(10012, cMain::BtnClickMakeRoomGo   )
-    EVT_BUTTON(10013, cMain::BtnClickMakeRoomBack )
-    EVT_BUTTON(10014, cMain::BtnClickCloseYourRoom)
-    EVT_BUTTON(10015, cMain::BtnClickLeaveTheRoom )
-	EVT_BUTTON(10016, cMain::BtnClickSendMsg      )
-
-	EVT_TEXT_ENTER(10017, cMain::BtnClickSendMsg  )
+    EVT_BUTTON    (10001, cMain::BtnClickLogin        )
+    EVT_BUTTON    (10002, cMain::BtnClickRegister     )
+    EVT_BUTTON    (10003, cMain::BtnClickLoginGo      )
+    EVT_BUTTON    (10004, cMain::BtnClickLoginBack    )
+    EVT_BUTTON    (10005, cMain::BtnClickRegGo        )
+    EVT_BUTTON    (10006, cMain::BtnClickRegBack      )
+    EVT_BUTTON    (10007, cMain::BtnClickQuit         )
+    EVT_BUTTON    (10008, cMain::BtnClickMakeRoom     )
+    EVT_BUTTON    (10009, cMain::BtnClickJoinRoom     )
+    EVT_BUTTON    (10010, cMain::BtnClickJoinRoomGo   )
+    EVT_BUTTON    (10011, cMain::BtnClickJoinRoomBack )
+    EVT_BUTTON    (10012, cMain::BtnClickMakeRoomGo   )
+    EVT_BUTTON    (10013, cMain::BtnClickMakeRoomBack )
+    EVT_BUTTON    (10014, cMain::BtnClickCloseYourRoom)
+    EVT_BUTTON    (10015, cMain::BtnClickLeaveTheRoom )
+    EVT_BUTTON    (10016, cMain::BtnClickSendMsg      )
+    EVT_TEXT_ENTER(10017, cMain::BtnClickSendMsg      )
 END_EVENT_TABLE()
 
 int8_t userid[SMALL_FIELD_LEN];
@@ -50,7 +49,7 @@ int    userid_len;
  * then assigned to a statically declared function here which accesses
  * that global cMain object's msg_entries public member variable. This is how
  * we obtain a workaround that lets the C client communications engine deliver
- * received messages and display them on the wxWidgets C++ GUI. I hate OOP :-)
+ * received messages and display them on the wxWidgets C++ GUI. I hate OOP.
  */
 static cMain *g_instance = nullptr;
 
@@ -61,30 +60,30 @@ void display_gui_message(char* message_line){
                 g_instance->msg_entries->AppendText(msgToDisplay);
                 g_instance->msg_entries->AppendText("\n");
     });
- 	return;
+    return;
 }
 
 void display_gui_user_booted(){
     /* Update the GUI using the g_instance pointer similar to above. */
-	g_instance->GetEventHandler()->CallAfter([]()
+    g_instance->GetEventHandler()->CallAfter([]()
     {
         g_instance->info_msg_box->SetValue("");
         g_instance->info_msg_box->WriteText
-		                           ("Chat room has been closed by the owner.");
+		                    ("Chat room has been closed by the owner.");
         g_instance->info_msg_box->Show();
 
-		g_instance->btn_leavetheroom->Hide();
+	g_instance->btn_leavetheroom->Hide();
         g_instance->btn_send_msg->Hide();
-		g_instance->msg_entries->SetValue("");
+	g_instance->msg_entries->SetValue("");
         g_instance->msg_entries->Hide();
-		g_instance->usermsg_input->SetValue("");
+	g_instance->usermsg_input->SetValue("");
         g_instance->usermsg_input->Hide();
 
-		g_instance->btn_makeroom->Show();
+	g_instance->btn_makeroom->Show();
         g_instance->btn_joinroom->Show();
         g_instance->btn_quit->Show();
-	});
-	return;
+    });
+    return;
 }
 
 /* Constructor - uses constructor of wxFrame with parameters. */
