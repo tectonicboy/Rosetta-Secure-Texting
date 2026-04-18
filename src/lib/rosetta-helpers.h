@@ -1,32 +1,8 @@
 #pragma once
 
-#define u8  uint8_t
-#define u16 uint16_t
-#define u32 uint32_t
-#define u64 uint64_t
-#define s64 int64_t
-
-/* Change the printf() output color. */
-void output_red(){ printf("\033[1;31m"); }
-void output_yel(){ printf("\033[1;33m"); }
-void output_rst(){ printf("\033[0m"); }
-
-#define PRINT_RED(string)   "\x1b[31m"  string "\x1b[0m"
-#define PRINT_BLUE(string)  "\x1b[34m" string "\x1b[0m"
-#define SET_PRINT_BG_CYAN   printf("\x1b[46m");
-#define SET_PRINT_BG_BLACK  printf("\x1b[40m");
-
-void print_buffer(uint8_t* buf, uint64_t len){
-    printf("\n\n");
-    for(u64 x = 0; x < len; ++x){
-        if(x % 16 == 0 && x > 0){printf("\n");}
-        printf("%02X ", buf[x]);
-    }
-    printf("\n\n");
-    return;
-}
-
-/* Set optimization level to none (-O0) for this function, instruct the compiler
+/* SIMD zero out a memory buffer containing leftover sensitive information, with
+ * steps taken to ensure the compiler does not optimize calls to it away.
+ * Set optimization level to none (-O0) for this function, instruct the compiler
  * to not inline calls to it, mark the pointer to the memory buffer containing
  * sensitive information that must be zeroed out for security reasons as
  * volatile, which informs the compiler that the memory it points to might get
@@ -40,9 +16,9 @@ void print_buffer(uint8_t* buf, uint64_t len){
  * Efforts by compiler writers and C language standard participants do exist
  * with functions like explicit_bzero() and memset_explicit() slowly being added
  * however, still, neither of these seems to be easily available AND they are
- * only approximations to the solution - Whole-program optimization at link time
- * might still decide to optimize them away. So, sticking to this ugliness until
- * a more elegant and straightforward way to zero out sensitive memory exists.
+ * only approximations to the solution - whole-program optimization at link time
+ * might still decide to optimize them away. So, sticking to this hackery until
+ * a more straightforward way to zero out sensitive memory becomes available.
  */
 __attribute__((no_reorder))
 __attribute__((used))
@@ -54,17 +30,14 @@ void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
     size_t i = 0;
 
     /* SIMD - zero out memory in chunks of 256 bits at a time. */
-
     while(i + sizeof(__m256i) <= num_bytes_to_erase){
         _mm256_storeu_si256((__m256i *)(uintptr_t)(buf + i), zero_reg256);
         i += sizeof(__m256i);
     }
-
     /* Any remaining bytes fewer than 32, clear byte by byte. */
-
-    while(i < num_bytes_to_erase)
+    while(i < num_bytes_to_erase){
         buf[i++] = 0;
-
+    }
     /* Compiler memory barrier to prevent aggressive compile-time and link-time
      * optimizers from reordering memory around this memory clearing operation.
      */
@@ -74,5 +47,46 @@ void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
     : "r"(buf)  /* input - pointer to erased memory, in a gp register r.     */
     : "memory"  /* clobbers memory - don't reorder memory operations nearby. */
     );
+    return;
+}
+
+/* Change the printf() output color. */
+void output_red(){ printf("\033[1;31m"); }
+void output_yel(){ printf("\033[1;33m"); }
+void output_rst(){ printf("\033[0m"); }
+
+#define PRINT_RED(string)   "\x1b[31m"  string "\x1b[0m"
+#define PRINT_BLUE(string)  "\x1b[34m" string "\x1b[0m"
+#define SET_PRINT_BG_CYAN   printf("\x1b[46m");
+#define SET_PRINT_BG_BLACK  printf("\x1b[40m");
+
+/* Bitwise rolling means shifts but the erased bits go back to the start. */
+
+#define UINT32_ROLL_LEFT(n_ptr, roll_amount) \
+  *(n_ptr) = *(n_ptr) << (roll_amount) | *(n_ptr) >> (32 - (roll_amount));
+
+#define UINT64_ROLL_LEFT(n_ptr, roll_amount) \
+  *(n_ptr) = *(n_ptr) << (roll_amount) | *(n_ptr) >> (64 - (roll_amount));
+
+#define UINT32_ROLL_RIGHT(n_ptr, roll_amount) \
+  *(n_ptr) = *(n_ptr) >> (roll_amount) | *(n_ptr) << (32 - (roll_amount));
+
+#define UINT64_ROLL_RIGHT(n_ptr, roll_amount) \
+  *(n_ptr) = *(n_ptr) >> (roll_amount) | *(n_ptr) << (64 - (roll_amount));
+
+#define u8  uint8_t
+#define u16 uint16_t
+#define u32 uint32_t
+#define u64 uint64_t
+#define s64 int64_t
+
+/* Helper function to print the raw byte values of a memory buffer, */
+void print_buffer(uint8_t* buf, uint64_t len){
+    printf("\n\n");
+    for(u64 x = 0; x < len; ++x){
+        if(x % 16 == 0 && x > 0){printf("\n");}
+        printf("%02X ", buf[x]);
+    }
+    printf("\n\n");
     return;
 }
