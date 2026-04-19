@@ -1,5 +1,3 @@
-#include "../lib/coreutil.h"
-
 int main(int argc, char* argv[]){
     if(argc != 2){
         printf("Must pass 1 argument (size in bytes of private key)\n"

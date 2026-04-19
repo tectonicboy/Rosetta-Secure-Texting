@@ -1,37 +1,4 @@
 #pragma once
-#include <signal.h>
-#include <errno.h>
-#include "../../lib/rosetta-helpers.h"
-#include <sys/time.h>
-#include <time.h>
-
-/* All bitmasks are 64-bit and begin with their leftmost bit. */
-#define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
-
-#define SERVER_PORT       54746
-#define PRIVKEY_LEN       40
-#define PUBKEY_LEN        384
-#define MAX_CLIENTS       64
-#define MAX_PEND_MSGS     64
-#define MAX_CHATROOMS     64
-#define MAX_MSG_LEN       131072
-#define MAX_TXT_LEN       1024
-#define MAX_SOCK_QUEUE    1024
-#define MAX_BIGINT_SIZ    12800
-#define SMALL_FIELD_LEN   8
-#define TEMP_BUF_SIZ      16384
-#define SESSION_KEY_LEN   32
-#define ONE_TIME_KEY_LEN  32
-#define INIT_AUTH_LEN     32
-#define SHORT_NONCE_LEN   12
-#define LONG_NONCE_LEN    16
-#define PASSWORD_BUF_SIZ  16
-#define HMAC_TRUNC_BYTES  8
-#define ARGON_STRING_LEN  8
-#define ARGON_HASH_LEN    64
-#define MESSAGE_LINE_LEN  (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
-#define SIGNATURE_LEN     ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
-#define ROOMMATES_ARR_SIZ 63
 
 struct roommate{
     char   guest_user_id[SMALL_FIELD_LEN];
@@ -110,21 +77,6 @@ bigint own_pubkey;
 /* Session keys for talking securely to the Rosetta server. */
 u8 *KAB;
 u8 *KBA;
-
-/* List of packet ID magic constants for legitimate recognized packet types. */
-#define PACKET_ID_00 0xAD0084FF0CC25B0E
-#define PACKET_ID_01 0xE7D09F1FEFEA708B
-#define PACKET_ID_02 0x146AAE4D100DAEEA
-#define PACKET_ID_10 0x13C4A44F70842AC1
-#define PACKET_ID_11 0xAEFB70A4A8E610DF
-#define PACKET_ID_20 0x9FF4D1E0EAE100A5
-#define PACKET_ID_21 0x7C8124568ED45F1A
-#define PACKET_ID_30 0x9FFA7475DDC8B11C
-#define PACKET_ID_40 0xCAFB1C01456DF7F0
-#define PACKET_ID_41 0xDC4F771C0B22FDAB
-#define PACKET_ID_50 0x41C20F0BB4E34890
-#define PACKET_ID_51 0x2CC04FBEDA0B5E63
-#define PACKET_ID_60 0x0A7F4E5D330A14DD
 
 /* Validate a cryptographic signature computed by the Rosetta server. */
 u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset){

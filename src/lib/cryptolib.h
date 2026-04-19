@@ -1,15 +1,4 @@
 #pragma once
-#include <pthread.h>
-#include <immintrin.h> /* for _mulx_u64()      */
-#include <adxintrin.h> /* for _addcarryx_u64() */
-#include "bigint.h"
-#include <time.h> /* for basic performance measurements */
-#include <sys/time.h>
-
-/* Constants used in the implementation of Montgomery Modular Multiplication. */
-#define MONT_LIMB_SIZ 8                   /* Bytes in a Montgomery-space limb */
-#define MONT_L        48                  /* Number of limbs in DH modulus M. */
-#define MONT_MU       5519087143809977509 /* Multiplicative inverse of M.     */
 
 /* These simplify pointer arithmetic to access Argon2's memory matrix B[][].  */
 typedef struct block_1024{
@@ -79,20 +68,6 @@ const uint64_t BLAKE2B_sigma[12][16] = {
 #define R2 24
 #define R3 16
 #define R4 63
-
-/* Bitwise rolling means shifts but the erased bits go back to the start. */
-
-#define UINT32_ROLL_LEFT(n_ptr, roll_amount) \
-  *(n_ptr) = *(n_ptr) << (roll_amount) | *(n_ptr) >> (32 - (roll_amount));
-
-#define UINT64_ROLL_LEFT(n_ptr, roll_amount) \
-  *(n_ptr) = *(n_ptr) << (roll_amount) | *(n_ptr) >> (64 - (roll_amount));
-
-#define UINT32_ROLL_RIGHT(n_ptr, roll_amount) \
-  *(n_ptr) = *(n_ptr) >> (roll_amount) | *(n_ptr) << (32 - (roll_amount));
-
-#define UINT64_ROLL_RIGHT(n_ptr, roll_amount) \
-  *(n_ptr) = *(n_ptr) >> (roll_amount) | *(n_ptr) << (64 - (roll_amount));
 
 /*****************************************************************************/
 /*                   CHACHA20 IMPLEMENTATION BEGINS                          */
@@ -1181,244 +1156,6 @@ label_start_pass:
     return;
 }
 
-
-/* The caller must have made sure in advance that X and Y are each L-limb,
- * L being the number of (non-zero-padded) limbs in the Montgomery modulus N.
- *
- * If X and Y are Montgomery representatives of A and B, then this algorithm
- * computes R, the Montgomery representative of (A*B).
- *
- * This algorithm can also be used to convert from base-2 of a number to the
- * base-beta Montgomery representative of the same number, and also to go
- * back from Montgomery representative to base-2.
- *
- * I use base-2^64 Montgomery representatives, which means beta=2^64. This leads
- * to having 64-bit limbs in the Montgomery representatives of numbers. It also
- * leads to having 64-bit MUL and ADD operations, which are not directly
- * supported, instead most C compilers provide intrinsics for it, which we
- * make use of here to boost performance. Here, L = ceil(N_used_bits / 64).
- *
- * Note: beta is ignored everywhere where we'd multiply by it, so don't even
- *       pass it here. This is because we operate in base 2^64 and our storage
- *       type is already uint64_t.
- */
-void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R)
-{
-    u8 C;
-    u8 D;
-    unsigned long long  Ul;
-    unsigned long long  Uh;
-    unsigned long long  Vl;
-    unsigned long long  Vh;
-    unsigned long long  W;
-    unsigned long long  q; /* q: 1-limb variable */
-    unsigned long long* T; /* T: 3-limb variable */
-    bigint R_aux;
-
-    bigint_create_from_u32(&R_aux, R->size_bits, 0);
-
-    /* Set R = 0, all of its (L+1) limbs. Limb indices [0] to [L] inclusive. */
-    bigint_nullify(R);
-
-    /* Optimization: Keep T in the memory of R->bits in limbs [L+1] to [L+3]. */
-    /* Set the pointer to point to the right memory region of R's bit buffer  */
-    T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ));
-
-    memset(T, 0, (3 * MONT_LIMB_SIZ));
-
-    /* For this outer loop and the inner loop inside it, after analysing all
-     * accesses to the bit buffers of bigints X, Y, N and R, I concluded that
-     * it is safe to have restricted pointers to these 4 memory regions for the
-     * duration of the entire outer loop. In the context of this loop, you never
-     * get the need for two separate pointers to access these 4 memory regions.
-     *
-     * Thus, to potentially allow for better compiler optimizations and reduced
-     * runtime latency of this loop, have 4 restricted pointers make all the
-     * accesses to the bit buffers of these 4 bigints. In fact, one pointer can
-     * be used to access the bit buffers of both N and X here.
-     */
-    for(uint64_t i = 0; i < MONT_L; ++i){
-        uint64_t* X_N_bit_buffer_ptr;
-        uint64_t* Y_bit_buffer_ptr;
-        uint64_t* R_bit_buffer_ptr;
-
-        /* A montgomery limb here is already 64 bits, a uint64_t pointer
-         * already automatically scales the pointer arithmetic by *8, so do not
-         * multiply by MONT_LIMB_SIZ here when taking the i-th limb of a bigint.
-         */
-        Y_bit_buffer_ptr   = ((u64*)(Y->bits)) + i;
-        X_N_bit_buffer_ptr = (u64*)(X->bits);
-        /* 2. */
-        Ul = _mulx_u64(*Y_bit_buffer_ptr, *X_N_bit_buffer_ptr, &Uh);
-        R_bit_buffer_ptr = (u64*)(R->bits);
-        C = _addcarryx_u64((u8)0, Ul, *R_bit_buffer_ptr, &Ul);
-        Uh += (u64)C;
-        *(T + 0) = Ul;
-        *(T + 1) = Uh;
-        *(T + 2) = 0;
-        /* 3. */
-        q = _mulx_u64((u64)MONT_MU, *(T + 0), &Uh);
-        X_N_bit_buffer_ptr = (u64*)(N->bits);
-        /* 3.5:  T += q*n0. */
-        Vl = _mulx_u64(q, *X_N_bit_buffer_ptr, &Vh);
-        C = _addcarryx_u64( (u8)0, *(T + 0), Vl, (T + 0) );
-        D = _addcarryx_u64( C, *(T + 1), Vh, (T + 1) );
-        *(T + 2) += (u64)D;
-
-        /* 4. */
-        for(u64 j = 1; j < MONT_L; ++j){
-            X_N_bit_buffer_ptr = ((u64*)(N->bits)) + j;
-            /* Compute T limb by limb. */
-            Ul = _mulx_u64(q, *X_N_bit_buffer_ptr, &Uh);
-            Y_bit_buffer_ptr   = ((u64*)(Y->bits)) + i;
-            X_N_bit_buffer_ptr = ((u64*)(X->bits)) + j;
-            Vl = _mulx_u64(*Y_bit_buffer_ptr, *X_N_bit_buffer_ptr, &Vh);
-            R_bit_buffer_ptr = ((u64*)(R->bits)) + j;
-
-            C = _addcarryx_u64((u8)0, Ul, *R_bit_buffer_ptr, &Ul);
-            Uh += (u64)C;
-            D = _addcarryx_u64((u8)0, Vl, *(T + 1), &Vl);
-            C = _addcarryx_u64((u8)0, Ul, Vl, (T + 0));
-            D = _addcarryx_u64(D, Uh, Vh, &W);
-            C = _addcarryx_u64(C, W, *(T + 2), (T + 1));
-            *(T + 2) = (u64)C + (u64)D;
-
-            /* Set r_(j-1) = t_0  */
-            R_bit_buffer_ptr = ((u64*)(R->bits)) + (j-1);
-            memcpy(R_bit_buffer_ptr, T, MONT_LIMB_SIZ);
-        }
-
-        R_bit_buffer_ptr = ((u64*)(R->bits)) + MONT_L;
-
-        /* 5. */
-        C = _addcarryx_u64((u8)0, *(T + 1), *R_bit_buffer_ptr, (T + 0));
-        *(T + 1) = (u64)C + *(T + 2);
-        *(T + 2) = 0;
-
-        /* 6. */
-        R_bit_buffer_ptr = ((u64*)(R->bits)) + (MONT_L - 1);
-        memcpy(R_bit_buffer_ptr, T, 2 * MONT_LIMB_SIZ);
-    }
-
-    memset((u8*)T, 0, 3 * MONT_LIMB_SIZ);
-
-    /* 7. */
-    R->used_bits = get_used_bits(R->bits, (u32)(R->size_bits / 8));
-
-    uint64_t temp_limb;
-    memcpy(&temp_limb, (R->bits + (MONT_L * MONT_LIMB_SIZ)), MONT_LIMB_SIZ);
-
-    if ( temp_limb != 0){
-        bigint_equate2(&R_aux, R);
-        bigint_sub_fast(&R_aux, N, R);
-    }
-
-    /* Cleanup. */
-    bigint_cleanup(&R_aux);
-    return;
-}
-
-/* Practical method to convert a number to Montgomery Form.
- *
- * To find the Montgomery form (mod M) of A, do the following:
- *
- *  Call Montgomery MUL mod M with input 1 set to (beta^(2*L) mod M), the other
- *  input set to A itself (in normal positional notation). The output of this
- *  will in fact be a valid Montgomery representative of A.
- *
- *  Note: Sometimes a Montgomery form of a number can be larger than the number
- *        itself in regular positional notation. This is fine and is still a
- *        valid Montgomery form of that number.
- */
-void get_mont_form(bigint* src, bigint* target, bigint* M)
-{
-    bigint two;
-    bigint sixtyfour;
-    bigint beta;
-    bigint two_L;
-    bigint aux;
-
-    bigint_create_from_u32(&two,       M->size_bits, 2 );
-    bigint_create_from_u32(&sixtyfour, M->size_bits, 64);
-    bigint_create_from_u32(&beta,      M->size_bits, 0 );
-    bigint_create_from_u32(&aux,       M->size_bits, 0 );
-    bigint_create_from_u32(&two_L,     M->size_bits, 2 * MONT_L );
-
-    bigint_nullify(target);
-
-    /* beta = 2^64 for 64-bit Montgomery limbs. */
-    bigint_pow(&two, &sixtyfour, &beta);
-    /* aux = beta^(2*L) mod M */
-    bigint_mod_pow(&beta, &two_L, M, &aux);
-    /* Now generate the source's Montgomery form. */
-    montgomery_mul(&aux, src, M, target);
-
-    target->used_bits = get_used_bits(target->bits, (uint32_t)(M->size_bits/8));
-
-    /* Cleanup. */
-    bigint_cleanup(&two);
-    bigint_cleanup(&sixtyfour);
-    bigint_cleanup(&beta);
-    bigint_cleanup(&aux);
-    bigint_cleanup(&two_L);
-    return;
-}
-
-/* Computes B^P mod M using Montgomery Modular Multiplication. Result goes in R.
- * The base B must be in Montgomery Form.
- * The result R is NOT the Montgomery Form of the result of powering, it
- * is the actual result in regular positional notation.
- *
- * Note: This function is somewhat general, but not fully general - it computes
- *       any modular powering mod M using Montgomery Multiplication, and the
- *       parameters that depend on the modulus M (MU and L) are defined at
- *       the top of this file. However, it won't work for modular powering mod
- *       some other number, other than M, which for the purposes of the secure
- *       chat system this library was originally written for is global static.
- *       If a function for modular POW mod M using Montgomery Multiplication
- *       for a different modulus is needed, you have to change the Montgomery
- *       parameters MU and L - they are different for each Montgomery modulus.
- */
-void mont_pow_mod_m(bigint* B, bigint* P, bigint* M, bigint* R)
-{
-    u32 bit = 0;
-    bigint X;
-    bigint Y;
-    bigint R_1;
-    bigint one;
-    bigint div_res;
-
-    bigint_create_from_u32(&X,       M->size_bits, 0);
-    bigint_create_from_u32(&Y,       M->size_bits, 0);
-    bigint_create_from_u32(&R_1,     M->size_bits, 0);
-    bigint_create_from_u32(&one,     M->size_bits, 1);
-    bigint_create_from_u32(&div_res, M->size_bits, 0);
-
-    /* X and Y both become equal to the passed base B */
-    bigint_equate2(&X, B);
-    bigint_equate2(&Y, B);
-
-    for(int64_t i = (int64_t)(P->used_bits - 2); i >= 0; --i){
-        montgomery_mul(&Y, &Y, M, R);
-        bigint_equate2(&Y, R);
-        if( (BIGINT_GET_BIT(*P, i, bit)) == 1 ){
-            montgomery_mul(&Y, &X, M, R);
-            bigint_equate2(&Y, R);
-        }
-    }
-
-    montgomery_mul(&one, R, M, &R_1);
-    bigint_div2(&R_1, M, &div_res, R);
-
-    /* Cleanup. */
-    bigint_cleanup(&X);
-    bigint_cleanup(&Y);
-    bigint_cleanup(&R_1);
-    bigint_cleanup(&one);
-    bigint_cleanup(&div_res);
-    return;
-}
-
 /* Generate a cryptographic signature of a sender's message
  * according to the method pioneered by Claus-Peter Schnorr.
  *
@@ -1673,4 +1410,123 @@ label_cleanup:
     bigint_cleanup(&val_e);
     free(R_with_prehash);
     return retval;
+}
+
+/* Generate a new pseudorandom private key. */
+uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf)
+{
+    size_t bytes_read;
+    FILE* ran = fopen("/dev/urandom", "r");
+
+    if(ran == NULL){
+        printf("[ERR] utilities: gen_priv_key - couldn't open urandom.\n\n");
+        return 1;
+    }
+    if ( (bytes_read = fread((void*)buf, 1, len_bytes, ran)) != len_bytes ){
+        printf("[ERR] utilities: gen_priv_key - couldn't read %u bytes "
+               "from urandom.\n\n"
+               ,len_bytes
+        );
+        perror("Error type: ");
+        fclose(ran);
+        return 1;
+    }
+
+    /* Set the most significant bit to 0 - make sure it's always less than Q. */
+    *(buf + (len_bytes - 1)) &= ~ (1 << 7);
+
+    printf("[OK]  Utils : Generated a %u-byte private key!\n\n", len_bytes);
+    fclose(ran);
+    return 0;
+}
+
+/* Given a private key, generate its corresponding public key. */
+struct bigint* gen_pub_key( uint32_t privkey_len_bytes
+                           ,const char* privkey_filename
+                           ,uint32_t resbits
+                          )
+{
+    bigint* M;
+    bigint* Gm;
+    bigint* R = (bigint*)calloc(1, sizeof(struct bigint));
+    bigint  privkey_bigint;
+    u8*     privkey_buf = (u8*)calloc(1, privkey_len_bytes);
+    size_t  bytes_read;
+    FILE*   privkey_dat;
+
+    privkey_dat = fopen(privkey_filename, "r");
+
+    M  = get_bigint_from_dat
+           (3072, "./materials/cryptography/saved_M.dat", 3071, 12800);
+
+    Gm = get_bigint_from_dat
+           (3072, "./materials/cryptography/saved_Gm.dat", 3071, 12800);
+
+    if(privkey_dat == NULL){
+        printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
+        goto label_cleanup;
+    }
+    if ( (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat))
+         != privkey_len_bytes)
+    {
+        printf( "[ERR] utilities: gen_pub_key - couldn't read %u bytes from "
+                "privkey_file.\n\n"
+               ,privkey_len_bytes
+              );
+        goto label_cleanup;
+    }
+
+    privkey_bigint.bits = privkey_buf;
+    privkey_bigint.size_bits = resbits;
+    privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
+    bigint_create_from_u32(R, M->size_bits, 0);
+    mont_pow_mod_m(Gm, &privkey_bigint, M, R);
+
+label_cleanup:
+
+    if(privkey_dat != NULL){
+        fclose(privkey_dat);
+    }
+    free(privkey_buf);
+    bigint_cleanup(M);
+    bigint_cleanup(Gm);
+    free(M);
+    free(Gm);
+    return R;
+}
+
+/* Check that a public key is of the correct form given our DH parameters.
+ *
+ * The check is:
+ *
+ *      pub_key^(M/Q) mod M == 1
+ *
+ *  Return 1 for valid and 0 for invalid public key.
+ */
+bool check_pubkey_form(bigint* Km, bigint* M, bigint* Q)
+{
+    bigint M_over_Q;
+    bigint one;
+    bigint div_rem;
+    bigint mod_pow_res;
+    bool   ret = 0;
+
+    bigint_create_from_u32(&M_over_Q,    12800, 0);
+    bigint_create_from_u32(&one,         12800, 1);
+    bigint_create_from_u32(&div_rem,     12800, 0);
+    bigint_create_from_u32(&mod_pow_res, 12800, 0);
+
+    bigint_div2(M, Q, &M_over_Q, &div_rem);
+    mont_pow_mod_m(Km, &M_over_Q, M, &mod_pow_res);
+
+    if(bigint_compare2(&mod_pow_res, &one) != CMP_EQUALS){
+        printf("[ERR] Public key didn't pass (pub_key^(M/Q) mod M == 1)\n\n");
+        ret = 1;
+    }
+
+    bigint_cleanup(&M_over_Q);
+    bigint_cleanup(&one);
+    bigint_cleanup(&div_rem);
+    bigint_cleanup(&mod_pow_res);
+    return ret;
 }

@@ -1,11 +1,11 @@
 #pragma once
+
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <errno.h>
 
 #define SERVER_PORT             54746
 #define MAX_SOCK_QUEUE          1024
@@ -17,18 +17,14 @@
 const int port = SERVER_PORT;
 const int optval1 = 1;
       int own_socket_fd = -1;
+      int sock_path_len;
 
-const socklen_t server_addr_len = sizeof(struct sockaddr_in);
+#define SOCK_PATH       "/usr/bin/rosetta.sock\0"
+#define SOCK_PATH_LEN   strlen("/usr/bin/rosetta.sock\0")
 
+const socklen_t    server_addr_len = sizeof(struct sockaddr_in);
 struct sockaddr_in servaddr;
-
-#define SOCK_PATH     "/usr/bin/rosetta.sock\0"
-#define SOCK_PATH_LEN strlen("/usr/bin/rosetta.sock\0")
-
 struct sockaddr_un unix_server_addr;
-
-int sock_path_len = 0;
-
 
 uint8_t tcp_init_communication(){
 

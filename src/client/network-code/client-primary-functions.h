@@ -1,10 +1,10 @@
 #pragma once
-#include "../../lib/coreutil.h"
+
+#include "../../lib/rosetta-helpers.h"
+#include "../../lib/bigint.h"
+#include "../../lib/cryptolib.h"
 #include "client-communications.h"
 #include "client-packet-functions.h"
-
-#include <sys/time.h>
-#include <time.h>
 
 /* These 4 function pointers tell the client whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the client was started

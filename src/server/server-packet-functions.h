@@ -1,27 +1,5 @@
 #pragma once
 
-#include <sys/time.h>
-#include <time.h>
-
-#define PRIVKEY_LEN      40
-#define PUBKEY_LEN       384
-#define MAX_CLIENTS      64
-#define MAX_PEND_MSGS    64
-#define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      131072
-#define MAX_TXT_LEN      1024
-#define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8
-#define TEMP_BUF_SIZ     16384
-#define SESSION_KEY_LEN  32
-#define ONE_TIME_KEY_LEN 32
-#define INIT_AUTH_LEN    32
-#define SHORT_NONCE_LEN  12
-#define LONG_NONCE_LEN   16
-#define HMAC_TRUNC_BYTES 8
-
-#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
-
 /* Memory region for short-term cryptographic artifacts for a login handshake */
 u8* temp_handshake_buf = NULL;
 
@@ -67,20 +45,6 @@ u64 next_free_room_ix = 1;
 u8 server_privkey[PRIVKEY_LEN];
 
 pthread_mutex_t mutex;
-
-#define PACKET_ID_00 0xAD0084FF0CC25B0E
-#define PACKET_ID_01 0xE7D09F1FEFEA708B
-#define PACKET_ID_02 0x146AAE4D100DAEEA
-#define PACKET_ID_10 0x13C4A44F70842AC1
-#define PACKET_ID_11 0xAEFB70A4A8E610DF
-#define PACKET_ID_20 0x9FF4D1E0EAE100A5
-#define PACKET_ID_21 0x7C8124568ED45F1A
-#define PACKET_ID_30 0x9FFA7475DDC8B11C
-#define PACKET_ID_40 0xCAFB1C01456DF7F0
-#define PACKET_ID_41 0xDC4F771C0B22FDAB
-#define PACKET_ID_50 0x41C20F0BB4E34890
-#define PACKET_ID_51 0x2CC04FBEDA0B5E63
-#define PACKET_ID_60 0x0A7F4E5D330A14DD
 
 struct connected_client clients[MAX_CLIENTS];
 

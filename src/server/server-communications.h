@@ -8,23 +8,6 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#define PRIVKEY_LEN      40
-#define PUBKEY_LEN       384
-#define MAX_CLIENTS      64
-#define MAX_PEND_MSGS    64
-#define MAX_CHATROOMS    64
-#define MAX_MSG_LEN      131072
-#define MAX_TXT_LEN      1024
-#define MAX_BIGINT_SIZ   12800
-#define SMALL_FIELD_LEN  8
-#define TEMP_BUF_SIZ     16384
-#define SESSION_KEY_LEN  32
-#define ONE_TIME_KEY_LEN 32
-#define INIT_AUTH_LEN    32
-#define SHORT_NONCE_LEN  12
-#define LONG_NONCE_LEN   16
-#define HMAC_TRUNC_BYTES 8
-
 #define SERVER_PORT             54746
 #define MAX_SOCK_QUEUE          1024
 #define RETRY_RECV_DELAY_MICROS 5000
@@ -42,9 +25,9 @@ socklen_t clientLens[MAX_CLIENTS];
 struct sockaddr_in tcp_servaddr;
 struct sockaddr_un ipc_servaddr;
 
-#define BUF_SIZ       100
-#define SOCK_PATH     "/usr/bin/rosetta.sock\0"
-#define SOCK_PATH_LEN strlen("/usr/bin/rosetta.sock\0")
+/* For local interprocess communications for the Rosetta Test Framework. */
+#define AF_UNIX_SOCK_PATH     "/usr/bin/rosetta.sock\0"
+#define AF_UNIX_SOCK_PATH_LEN strlen("/usr/bin/rosetta.sock\0")
 
 uint8_t tcp_init_communication(void){
 
@@ -56,7 +39,6 @@ uint8_t tcp_init_communication(void){
 
     /* Initialize the server address structure. */
     tcp_servaddr.sin_family      = AF_INET;
-
     tcp_servaddr.sin_port        = htons(port);
     tcp_servaddr.sin_addr.s_addr = INADDR_ANY;
 
@@ -216,13 +198,13 @@ uint8_t ipc_init_communication()
     }
     printf("[OK]  Server: AF_UNIX socket() call is OK.\n");
 
-    unlink(SOCK_PATH);
+    unlink(AF_UNIX_SOCK_PATH);
 
     /**************************************************************************/
 
     memset(&ipc_servaddr, 0, sizeof(struct sockaddr_un));
     ipc_servaddr.sun_family = AF_UNIX;
-    strncpy(ipc_servaddr.sun_path, SOCK_PATH, SOCK_PATH_LEN + 1);
+    strncpy(ipc_servaddr.sun_path, AF_UNIX_SOCK_PATH, AF_UNIX_SOCK_PATH_LEN +1);
 
     if (bind( listening_socket
              ,(struct sockaddr*)&ipc_servaddr
@@ -256,7 +238,7 @@ label_cleanup:
     if(listening_socket != -1)
         close(listening_socket);
 
-    unlink(SOCK_PATH);
+    unlink(AF_UNIX_SOCK_PATH);
 
 label_init_succeeded:
 

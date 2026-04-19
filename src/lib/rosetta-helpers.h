@@ -1,5 +1,22 @@
 #pragma once
 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <math.h>
+#include <pthread.h>
+#include <immintrin.h> /* _mulx_u64      in Montgomery Modular Multiplication */
+#include <adxintrin.h> /* _addcarryx_u64 in Montgomery Modular Multiplication */
+#include <time.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <signal.h>
+
 /* SIMD zero out a memory buffer containing leftover sensitive information, with
  * steps taken to ensure the compiler does not optimize calls to it away.
  * Set optimization level to none (-O0) for this function, instruct the compiler
@@ -10,15 +27,10 @@
  * code does not directly contain any signs it might happen. This prevents the
  * compiler from eliminating calls to the function upon determining that the
  * effects of it are not utilized anywhere in the source code. Also, attribute
- * ((used)) is another protection against the compiler optimizing away calls to
- * this function if it determines the memory it zeroes out isn't used afterward.
- *
- * Efforts by compiler writers and C language standard participants do exist
- * with functions like explicit_bzero() and memset_explicit() slowly being added
- * however, still, neither of these seems to be easily available AND they are
- * only approximations to the solution - whole-program optimization at link time
- * might still decide to optimize them away. So, sticking to this hackery until
- * a more straightforward way to zero out sensitive memory becomes available.
+ * ((used)) is another protection against the compiler optimizing it away.
+ * Things like explicit_bzero() and memset_explicit() do exist, however neither
+ * seems to be easily available and they are only approximations as apparently
+ * whole-program optimization at link time might still optimize them away.
  */
 __attribute__((no_reorder))
 __attribute__((used))
@@ -74,13 +86,14 @@ void output_rst(){ printf("\033[0m"); }
 #define UINT64_ROLL_RIGHT(n_ptr, roll_amount) \
   *(n_ptr) = *(n_ptr) >> (roll_amount) | *(n_ptr) << (64 - (roll_amount));
 
+/* Shorthands to fit more code on a line. */
 #define u8  uint8_t
 #define u16 uint16_t
 #define u32 uint32_t
 #define u64 uint64_t
 #define s64 int64_t
 
-/* Helper function to print the raw byte values of a memory buffer, */
+/* Helper function to print the raw byte values of a memory buffer. */
 void print_buffer(uint8_t* buf, uint64_t len){
     printf("\n\n");
     for(u64 x = 0; x < len; ++x){
@@ -90,3 +103,43 @@ void print_buffer(uint8_t* buf, uint64_t len){
     printf("\n\n");
     return;
 }
+
+/* List of packet ID magic constants for legitimate recognized packet types. */
+#define PACKET_ID_00 0xAD0084FF0CC25B0E
+#define PACKET_ID_01 0xE7D09F1FEFEA708B
+#define PACKET_ID_02 0x146AAE4D100DAEEA
+#define PACKET_ID_10 0x13C4A44F70842AC1
+#define PACKET_ID_11 0xAEFB70A4A8E610DF
+#define PACKET_ID_20 0x9FF4D1E0EAE100A5
+#define PACKET_ID_21 0x7C8124568ED45F1A
+#define PACKET_ID_30 0x9FFA7475DDC8B11C
+#define PACKET_ID_40 0xCAFB1C01456DF7F0
+#define PACKET_ID_41 0xDC4F771C0B22FDAB
+#define PACKET_ID_50 0x41C20F0BB4E34890
+#define PACKET_ID_51 0x2CC04FBEDA0B5E63
+#define PACKET_ID_60 0x0A7F4E5D330A14DD
+
+/* Commonly used constants and helper macros. */
+#define PRIVKEY_LEN          40
+#define PUBKEY_LEN           384
+#define MAX_CLIENTS          64
+#define MAX_PEND_MSGS        64
+#define MAX_CHATROOMS        64
+#define MAX_MSG_LEN          131072
+#define MAX_TXT_LEN          1024
+#define MAX_BIGINT_SIZ       12800
+#define SMALL_FIELD_LEN      8
+#define TEMP_BUF_SIZ         16384
+#define SESSION_KEY_LEN      32
+#define ONE_TIME_KEY_LEN     32
+#define INIT_AUTH_LEN        32
+#define SHORT_NONCE_LEN      12
+#define LONG_NONCE_LEN       16
+#define PASSWORD_BUF_SIZ     16
+#define HMAC_TRUNC_BYTES     8
+#define ARGON_STRING_LEN     8
+#define ARGON_HASH_LEN       64
+#define ROOMMATES_ARR_SIZ    63
+#define MESSAGE_LINE_LEN     (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
+#define SIGNATURE_LEN        ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
+#define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))

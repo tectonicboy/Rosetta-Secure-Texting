@@ -1,6 +1,6 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/types.h>
+#include "../lib/rosetta-helpers.h"
+#include "../lib/bigint.h"
+#include "../lib/cryptolib.h"
 
 /* These function pointers tell the server whether to communicate through
  * Unix Domain sockets, or through Internet sockets. If the server was started
@@ -29,7 +29,6 @@ uint8_t(*transmit_payload)  (uint64_t socket_ix, uint8_t* buf, size_t send_siz);
 ssize_t(*receive_payload)   (uint64_t socket_ix, uint8_t* buf, size_t max_siz);
 uint8_t(*onboard_new_client)(uint64_t socket_ix);
 
-#include "../lib/coreutil.h"
 #include "server-communications.h"
 #include "server-packet-functions.h"
 
