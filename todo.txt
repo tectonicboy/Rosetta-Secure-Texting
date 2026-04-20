@@ -48,7 +48,8 @@ EXTRA: bigint:471, cryptolib:339, cryptolib:349, cryptolib:1325
        memory throughout the loop. Use __restrict__ if possible and see if
        the compiler removes the slower non-vectorized version of the loops.
 
-DONE:  A big optimization success story I should write about. For cryptolib:339
+[ Completed ✓ ]
+       A big optimization success story I should write about. For cryptolib:339
        I was able to help the compiler stop emitting a vectorized (fast) and a
        scalar unvectorized (slow) version of the loop by factoring it out into
        a separate helper function marked as static inline, because the compiler
@@ -61,10 +62,10 @@ DONE:  A big optimization success story I should write about. For cryptolib:339
        For such pointers, there is no way to declare them as __restrict__
        at the function argument level, so factoring out the loop itself into
        its own small function that DOES have a way to mark these pointers as
-       __restrict__ at the function argument level proved to work flawlessly. 
-       
+       __restrict__ at the function argument level proved to work flawlessly.
+
        With pointer arguments to a function, the compiler's perceived origin of
-       the pointers is when the function body is executed (and args allocated 
+       the pointers is when the function body is executed (and args allocated
        on the stack). This refactoring resulted in the compiler's vectorizer
        completely dropping the slow unvectorized version of the loop because it
        gave the compiler enough information to consider the pointers that the
@@ -80,13 +81,28 @@ DONE:  A big optimization success story I should write about. For cryptolib:339
        The other 2 loops mentioned above are not on a frequently executed (hot)
        code path at all, so no need to spend time figuring out how to aid the
        compiler in vectorizing them properly.
-       
+
 14. Resolve guest's client segfaulting when the owner closes the chatroom.
-[ PROGRESS: Now just define the new handler function in cMain.cpp ]
+[ Completed ✓ ]
 
-15. Write an easy installation bash script and a small "run" oneliner script.
+15. Add the __restrict__ keyword to pointers that it applies to.
+[ Completed ✓ ]
 
-16. Make a special memory allocation scheme where instead of bigint_create()
+16. Make sure all comments are still valid and say correct things up to date.
+[ Completed ✓ ]
+
+17. Clean up the entire source code with a good style.
+[ Completed ✓ ]
+
+18. Improve the Rosetta Test Framework with automatic tests. All actions, from
+    creating and logging in a test user account, to creating and joining a
+    chatroom, to sending a text message, should be done automatically when you
+    start a test case. The function APIs for all of these are already made.
+ [IN PROGRESS]
+
+19. Write an easy installation bash script and a small "run" oneliner script.
+
+20. Make a special memory allocation scheme where instead of bigint_create()
     spamming malloc in the hot path of authenticate_client()/server(), we have
     a preallocated memory arena for bigints that we know will be required for
     the functions in that hot path, and tell the functions how to access the
@@ -96,7 +112,7 @@ DONE:  A big optimization success story I should write about. For cryptolib:339
     Heap allocation spam in the hot path is highly disliked in performance
     analysis.
 
-17. Montgomery Modular Multiplication is currently hardcoded to use the same
+21. Montgomery Modular Multiplication is currently hardcoded to use the same
    Diffie-Hellman modulus M as its multiplication modulus. It doesn't have to be
    that way. Computing MU and L (the 2 parameters that depend on the Montgomery
    Modulus) is simple - L is the number of 64-bit limbs (8-byte chunks) in the
@@ -107,31 +123,16 @@ DONE:  A big optimization success story I should write about. For cryptolib:339
    will be usable even in Rabin-Miller primality test, which will significantly
    speed it up I assume.
 
-18. Add the static keyword to functions that it applies to.
+22. Add the static keyword to hot path functions that it applies to.
 
-19. Add the __restrict__ keyword to pointers that it applies to.
+23. Run valgrind and address sanitizer.
 
-20. Make sure all comments are still valid and say correct things up to date.
-
-21. Run valgrind and address sanitizer.
-
-22. Clean up the entire source code with a good style.
-
-23. Write the project whitepaper report.
-
-?. Improve the Rosetta Test Framework with automatic tests. All actions, from
-   creating and logging in a test user account, to creating and joining a
-   chatroom, to sending a text message, should be done automatically when you
-   start a test case. The function APIs for all of these are already made.
+24. Write the project whitepaper report.
 
 ?. Improve handling of fundamental cryptographic artifacts like M, Q and G.
     Make sure only one place in the Server and Client loads them at init time.
-    lib/coreutils.h should probably be removed/reworked entirely anyway.
 
-?. Make cryptography algorithms constant-time to avoid side channel attacks.
+?. Ensure crypt. algorithms are constant-time to avoid side channel attacks.
 
 ?. Come up with a better unique packet ID numbering. Currently the same packet
    ID exists in server and in client. BAD!
-
-?. Make a better interface for gen_pub_key to not require the private key
-   in a temporary file.

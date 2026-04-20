@@ -2,17 +2,17 @@
 
 void user_loop(void)
 {
-    int           user_option;
-    char          input_user_option[1];
-    unsigned char input_room_name[8];
-    unsigned char input_user_name[8];
-    unsigned char message[128];
-    int           room_name_len;
-    int           user_name_len;
-    int           scanf_status = 0;
-    uint8_t       status;
+    int         user_option;
+    char        input_user_option[1];
+    char        input_room_name[8];
+    char        input_user_name[8];
+    char        message[128];
+    int         room_name_len;
+    int         user_name_len;
+    int         scanf_status = 0;
+    uint8_t     status;
     const char* GUI_string_helper = ": ";
-    char name_with_msg_str[127 + 2 + SMALL_FIELD_LEN];
+    char        name_with_msg_str[127 + 2 + SMALL_FIELD_LEN];
 
     /* Beginning - login has just succeeded. At this point:
      *  - Make a chatroom.
@@ -55,7 +55,8 @@ label_try_again1:
         room_name_len = strlen((const char*)input_room_name);
         user_name_len = strlen((const char*)input_user_name);
         status = make_new_chatroom
-                (input_room_name, room_name_len,input_user_name, user_name_len);
+                ((unsigned char*)input_room_name, room_name_len,
+                 (unsigned char*)input_user_name, user_name_len);
         if(status){
             printf("[ERR] RTF User Spawner: New chatroom could not be made.\n");
             if(status == 2){
@@ -111,7 +112,8 @@ label_try_again1:
                 break;
             }
 
-            send_text(message, (uint64_t)strlen((const char*)message));
+            send_text((unsigned char*)message,
+                      (uint64_t)strlen((const char*)message));
 
             size_t name_len = strlen((const char*)input_user_name);
             size_t mesg_len = strlen((const char*)message);
@@ -137,7 +139,8 @@ label_try_again1:
         room_name_len = strlen((const char*)input_room_name);
         user_name_len = strlen((const char*)input_user_name);
         status = join_chatroom
-               (input_room_name, room_name_len, input_user_name, user_name_len);
+               ((unsigned char*)input_room_name, room_name_len,
+                (unsigned char*)input_user_name, user_name_len);
         if(status){
             printf("[ERR] RTF User Spawner: Chatroom could not be joined.\n");
             if(status == 2){
@@ -193,7 +196,8 @@ label_try_again1:
             }
 
             /* Send it to everyone in the chatroom. */
-            send_text(message, (uint64_t)strlen((const char*)message));
+            send_text((unsigned char*)message,
+                      (uint64_t)strlen((const char*)message));
 
             /* Display it in that user's own Test Framework TUI client too */
             size_t name_len = strlen((const char*)input_user_name);
@@ -212,18 +216,24 @@ label_try_again1:
     return;
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
+    if(argc != 3){
+        printf("User spawner needs 2 command-line arguments:\n"
+               "Test user filename and its password. 5-15 characters each.\n");
+        exit(1);
+    }
+
     init_communication = ipc_init_communication;
     transmit_payload   = ipc_transmit_payload;
     receive_payload    = ipc_receive_payload;
     end_communication  = ipc_end_communication;
 
-    unsigned char  savefilename[16] = {'\0'};
+    unsigned char  savefilename[2 * SMALL_FIELD_LEN] = {'\0'};
     unsigned char* full_save_dir = NULL;
     uint8_t        status = 0;
-    uint8_t        pw_buf[16] = {0};
-    const char*    savedir = "./test-accounts/";
+    char        pw_buf[2 * SMALL_FIELD_LEN] = {0};
+    const char*    savedir = "./src/rosetta-test-framework/test-accounts/";
 
     main_thread_id = pthread_self();
 
@@ -248,18 +258,22 @@ int main(void)
     sigaction(SIGUSR1, &sa, NULL);
 
     printf("[OK] RTF User Spawner: Installed signal handler to stop scanf.\n");
-    printf("Pick a save file name for login: ");
-    scanf("%15s", savefilename);
+    //printf("Pick a save file name for login: ");
+    //scanf("%15s", savefilename);
+    strncpy((char*)savefilename, argv[1], 2 * SMALL_FIELD_LEN);
     full_save_dir =
           calloc(1, strlen(savedir) + strlen((const char*)savefilename));
     memcpy(full_save_dir, savedir, strlen(savedir));
     memcpy(full_save_dir + strlen(savedir), savefilename,
            strlen((const char*)savefilename));
-    printf("Enter a password up to 15 characters: ");
+    //printf("Enter a password up to 15 characters: ");
     /* Read a string of UP TO 15 characters. No more. */
-    scanf("%15s", (char*)pw_buf);
+    //scanf("%15s", (char*)pw_buf);
+    strncpy(pw_buf, argv[2], 2 * SMALL_FIELD_LEN);
+    printf("[OK] User spawner: Obtained password & name. Logging in now.\n");
 
-    status = login(pw_buf, strlen((char*)pw_buf), (char*)full_save_dir);
+    status = login((unsigned char*)pw_buf,
+                   strlen((char*)pw_buf), (char*)full_save_dir);
 
     free(full_save_dir);
     if(status){
