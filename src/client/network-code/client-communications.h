@@ -19,6 +19,7 @@ const int optval1 = 1;
       int own_socket_fd = -1;
       int sock_path_len;
 
+/* Local interprocess communications for Rosetta Test Framework. */
 #define SOCK_PATH       "/usr/bin/rosetta.sock\0"
 #define SOCK_PATH_LEN   strlen("/usr/bin/rosetta.sock\0")
 
@@ -26,30 +27,24 @@ const socklen_t    server_addr_len = sizeof(struct sockaddr_in);
 struct sockaddr_in servaddr;
 struct sockaddr_un unix_server_addr;
 
-uint8_t tcp_init_communication(){
-
+uint8_t tcp_init_communication()
+{
     uint8_t ret = 0;
 
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
-
     servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr(SERVER_IP_ADDR);
     servaddr.sin_port        = htons(port);
-
     own_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-
     if(own_socket_fd == -1) {
         printf("[ERR] Client: socket() failed. Terminating.\n");
         perror("errno:");
         goto label_cleanup;
     }
 
-    if(
-        setsockopt(
-           own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval1, sizeof(optval1)
-        )
-        != 0
-    )
+    if(setsockopt(own_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optval1,
+                  sizeof(optval1))
+       != 0)
     {
         printf("[ERR] Client: set socket option failed.\n\n");
         goto label_cleanup;
@@ -59,65 +54,52 @@ uint8_t tcp_init_communication(){
     tv.tv_sec  = 3;
     tv.tv_usec = 0;
 
-    if(setsockopt
-       (
-        own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
-       )
-       < 0
-      )
+    if(setsockopt(own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))
+       < 0)
     {
         perror("[ERR] Server: TCP setsockopt() failed: ");
         close(own_socket_fd);
     }
-
     printf("[OK]  Client: Socket file descriptor obtained!\n");
 
     /* Connect to the Rosetta server. */
-
-    if( connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
-        == -1
-      )
+    if(connect(own_socket_fd, (struct sockaddr*)&servaddr, sizeof(servaddr))
+        == -1)
     {
         printf("[ERR] Client: Couldn't connect to the Rosetta TCP server.\n");
         perror("connect() failed, errno: ");
         goto label_cleanup;
     }
-
     printf("[OK]  Client: Successfully connected to the Rosetta server!\n\n");
     goto label_finished;
 
 label_cleanup:
-
     ret = 1;
-
-    if(own_socket_fd != -1)
+    if(own_socket_fd != -1){
         close(own_socket_fd);
+    }
 
 label_finished:
-
     return ret;
 }
 
-u8 tcp_transmit_payload(u8* msg_buf, u64 msg_len){
-
+u8 tcp_transmit_payload(u8* msg_buf, u64 msg_len)
+{
     uint8_t ret = 0;
-
     if(send(own_socket_fd, msg_buf, msg_len, 0) != (ssize_t)msg_len){
         ret = 1;
         perror("[ERR] Client: TCP send() failed! errno: ");
     }
-
     return ret;
 }
 
-u8 tcp_receive_payload(u8* reply_buf, u64* reply_len){
-
+u8 tcp_receive_payload(u8* reply_buf, u64* reply_len)
+{
     uint8_t  ret = 0;
     ssize_t  status = 0;
 
     status = recv(own_socket_fd, reply_buf, 8192, 0);
-
-    if( __builtin_expect (status == 0, 0) ){
+    if( __builtin_expect (status == 0, false) ){
         printf("[OK]  Client: TCP Server gracefully ended communication.\n");
         ret = 1;
         *reply_len = 0;
@@ -151,14 +133,11 @@ void tcp_end_communication(void)
     return;
 }
 
-uint8_t ipc_init_communication(){
-
-    int len = 0;
-
+uint8_t ipc_init_communication()
+{
+    int     len    = 0;
     uint8_t ret    = 0;
     int     status = 0;
-
-    /**************************************************************************/
 
     own_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -173,68 +152,54 @@ uint8_t ipc_init_communication(){
     tv.tv_sec  = 3;
     tv.tv_usec = 0;
 
-    if(setsockopt
-        (
-         own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)
-        )
-        < 0
-      )
+    if(setsockopt(own_socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))
+       < 0)
     {
         perror("[ERR] Server: TCP setsockopt() failed: ");
         close(own_socket_fd);
     }
-
-    /**************************************************************************/
 
     memset(&unix_server_addr, 0x00, sizeof(struct sockaddr_un));
     unix_server_addr.sun_family = AF_UNIX;
     sock_path_len = SOCK_PATH_LEN;
     strncpy(unix_server_addr.sun_path, SOCK_PATH, SOCK_PATH_LEN + 1);
     len = sock_path_len + 1 + sizeof(unix_server_addr.sun_family);
-
     status = connect(own_socket_fd, (struct sockaddr*)&unix_server_addr, len);
-
     if(status == -1){
         perror("[ERR] Client: AF_UNIX connect() call failed.\n");
         ret = 1;
         goto label_cleanup;
     }
     printf("[OK]  Client: AF_UNIX connect() call is OK.\n");
-
-    /**************************************************************************/
-
     goto label_init_successful;
 
 label_cleanup:
-
-    if(own_socket_fd != -1)
+    if(own_socket_fd != -1){
         close(own_socket_fd);
+    }
 
 label_init_successful:
-
     return ret;
 }
 
-uint8_t ipc_transmit_payload(uint8_t* buf, size_t buf_len){
-
+uint8_t ipc_transmit_payload(uint8_t* buf, size_t buf_len)
+{
     uint8_t ret = 0;
 
     if(send(own_socket_fd, buf, buf_len, 0) != (ssize_t)buf_len){
         perror("[ERR] Client: AF_UNIX test send() failed.\n");
         ret = 1;
     }
-
     return ret;
 }
 
-uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
-
+uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len)
+{
     uint8_t  ret    = 0;
     ssize_t  status = 0;
 
     status = recv(own_socket_fd, buf, 8192, 0);
-
-    if( __builtin_expect (status == 0, 0) ){
+    if( __builtin_expect (status == 0, false) ){
         printf("[OK]  Client: IPC Server gracefully ended communication.\n");
         ret = 1;
         *recv_len = 0;
@@ -258,7 +223,6 @@ uint8_t ipc_receive_payload(uint8_t* buf, uint64_t* recv_len){
     else{
         *recv_len = status;
     }
-
     return ret;
 }
 
@@ -267,4 +231,3 @@ void ipc_end_communication(void)
     close(own_socket_fd);
     return;
 }
-
