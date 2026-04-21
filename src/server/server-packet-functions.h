@@ -642,7 +642,6 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix)
             ,(u32*)(temp_handshake_buf + handshake_buf_key_offset)
             ,(u32)(SESSION_KEY_LEN / sizeof(u32))
             ,client_pubkey_buf);
-
     /* Increment the Nonce to not reuse it when encrypting the user's index. */
     uint64_t* aux_ptr64_tempbuf =
       (u64*)(temp_handshake_buf + handshake_buf_nonce_offset);
@@ -729,8 +728,10 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix)
     bigint_create_from_u32(&(clients[user_ix].client_pubkey), MAX_BIGINT_SIZ,0);
     memcpy((clients[user_ix].client_pubkey).bits, client_pubkey_buf,
            PUBKEY_LEN);
+
     (clients[user_ix].client_pubkey).used_bits
       = get_used_bits(client_pubkey_buf, PUBKEY_LEN);
+
     /* Calculate the Montgomery Form of the client's long-term public key. */
     bigint_create_from_u32(&(clients[user_ix].client_pubkey_mont),
                            MAX_BIGINT_SIZ, 0);
@@ -1511,11 +1512,9 @@ void process_msg_40(u8* msg_buf, u32 user_ix)
     memcpy(&poller_ix, msg_buf + SMALL_FIELD_LEN, SMALL_FIELD_LEN);
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
-    if( __builtin_expect(
-           authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1
-          ,0
-        )
-      )
+    if( __builtin_expect
+         (authenticate_client(poller_ix, msg_buf, signed_len, sign_offset) == 1,
+          false))
     {
         printf("[ERR] Server: Invalid signature. Discrading transmission.\n\n");
         goto label_cleanup;

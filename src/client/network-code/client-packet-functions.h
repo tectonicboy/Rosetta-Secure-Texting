@@ -328,7 +328,6 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len)
              ,(u32*)(temp_handshake_buf + handshake_buf_key_offset)
              ,(u32)(SESSION_KEY_LEN / sizeof(u32))
              ,(*msg_01_buf) + SMALL_FIELD_LEN);
-
     /* Increment the Nonce to not reuse it when decrypting our user index.  */
     /* It's not a BigInt in there but just increment to leftmost 64 bits.   */
     /* And it should have the same effect unless we lucked out with all 1s. */

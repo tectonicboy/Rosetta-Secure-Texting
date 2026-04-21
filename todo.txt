@@ -100,6 +100,10 @@ EXTRA: bigint:471, cryptolib:339, cryptolib:349, cryptolib:1325
     start a test case. The function APIs for all of these are already made.
  [IN PROGRESS]
 
+EXTRA: Extract all directory strings into the helper header and mention
+       that all of them are relative to the top-level project directory
+       so all executables must be started with that as the working directory.
+
 19. Write an easy installation bash script and a small "run" oneliner script.
 
 20. Make a special memory allocation scheme where instead of bigint_create()

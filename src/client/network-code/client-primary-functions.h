@@ -629,7 +629,7 @@ u8 reg(u8* password, int password_len, char* save_dir)
      */
     user_save = fopen(save_dir, "w");
     if(!user_save){
-        printf("[ERR] Client: Reg failed to open user_save. Alert GUI.\n\n");
+        perror("[ERR] Client: Reg failed to open user_save:");
         status = 1;
         goto label_cleanup;
     }

@@ -285,7 +285,7 @@ void chacha20( uint8_t*  plaintext, uint32_t txt_len
     for(i = 0; i < full_txt_blocks; ++i){
         aux_ptr8_outputs = (uint8_t*)(outputs[i]);
 	      chacha20_cyphertext_populate_full_blocks
-	        (aux_ptr8_outputs, cyphertext, plaintext, i);
+	        (aux_ptr8_outputs, plaintext, cyphertext, i);
     }
     if(have_last_block){
         aux_ptr8_outputs = (uint8_t*)(outputs[full_txt_blocks]);

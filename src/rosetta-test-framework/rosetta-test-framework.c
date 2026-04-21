@@ -15,7 +15,8 @@ uint8_t make_new_test_acc(void)
     unsigned char* full_save_dir;
     uint8_t        status = 0;
     uint8_t        pw_buf[16] = {0};
-    const char*    savedir = "./test-accounts/";
+    const char*    savedir = "./src/rosetta-test-framework/test-accounts/";
+
     printf("Creating a new test user account.\n\n");
     printf("Pick a save file name: ");
     scanf("%s", savefilename);
@@ -26,18 +27,15 @@ uint8_t make_new_test_acc(void)
     memcpy(full_save_dir, savedir, strlen(savedir));
     memcpy(full_save_dir + strlen(savedir), savefilename,
            strlen((const char*)savefilename));
-
     /* Make terminal input invisible to enter a password. Then bring it back. */
     tcgetattr(STDIN_FILENO, &password_terminal_settings);
     original_terminal_settings = password_terminal_settings;
     password_terminal_settings.c_lflag &= ~ECHO;
     tcsetattr(STDIN_FILENO, TCSANOW, &password_terminal_settings);
-
     printf("Enter a password up to 15 characters: ");
     /* Read a string of UP TO 15 characters. No more. */
     scanf("%15s", (char*)pw_buf);
     tcsetattr(STDIN_FILENO, TCSANOW, &original_terminal_settings);
-
     /* The call to reg */
     printf("Entered password: %s\n", (char*)pw_buf);
     status = reg(pw_buf, strlen((char*)pw_buf), (char*)full_save_dir);
