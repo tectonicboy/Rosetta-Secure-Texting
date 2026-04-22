@@ -30,8 +30,16 @@ OPTIMIZATION_LEVEL += -O3
 OPTIMIZATION_REPORT += -fopt-info-vec-optimized
 OPTIMIZATION_REPORT += -fopt-info-loop-optimized
 
+LINKER_FLAGS += -lm -pthread
+
 .PHONY: keygen
 
 keygen:
-	gcc -lm -pthread -march=native find-new-mq.c -o find-new-mq \
-	$(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT)
+	gcc find-new-mq.c -o ../../bin/find-new-mq -march=native \
+	$(LINKER_FLAGS) $(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	&& \
+	gcc server_gen_priv_key.c -o ../../bin/server_gen_priv_key -march=native \
+	$(LINKER_FLAGS) $(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	&& \
+	gcc server_gen_pub_key.c -o ../../bin/server_gen_pub_key -march=native \
+	$(LINKER_FLAGS) $(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT)

@@ -1,3 +1,7 @@
+#include "../lib/rosetta-helpers.h"
+#include "../lib/bigint.h"
+#include "../lib/cryptolib.h"
+
 int main(int argc, char* argv[])
 {
     if(argc != 2){
@@ -11,19 +15,18 @@ int main(int argc, char* argv[])
     struct bigint* pubkey_bigint;
     struct bigint* pubkey_montform = malloc(sizeof(struct bigint));
     struct bigint* M;
-    M = get_bigint_from_dat(3072, "../../bin/saved_M.dat", 3071, 12800);
-    bigint_create_from_u32(pubkey_montform, 12800, 0);
-    pubkey_bigint =
-             gen_pub_key(privkey_len_bytes, "server_privkey.dat", 12800);
-
+    M = get_bigint_from_dat
+          (DH_MODULUS_M_PATH, DH_M_BITWIDTH, MAX_USED_BITWIDTH);
+    bigint_create_from_u32(pubkey_montform, MAX_USED_BITWIDTH, 0);
+    pubkey_bigint = gen_pub_key
+                      (privkey_len_bytes, SERV_PRIVKEY_PATH, MAX_USED_BITWIDTH);
     uint32_t pubkey_used_bytes = pubkey_bigint->used_bits;
     while(pubkey_used_bytes % 8){
         ++pubkey_used_bytes;
     }
     pubkey_used_bytes /= 8;
 
-    FILE* server_pubkey_dat =
-      fopen("./materials/cryptography/server_pubkey.dat","w");
+    FILE* server_pubkey_dat = fopen(SERV_PUBKEY_PATH, "w");
     size_t bytes_wr =
       fwrite(pubkey_bigint->bits, 1, pubkey_used_bytes, server_pubkey_dat);
     if(bytes_wr != pubkey_used_bytes){
@@ -41,8 +44,7 @@ int main(int argc, char* argv[])
         ++pubkeymont_used_bytes;
     }
     pubkeymont_used_bytes /= 8;
-    FILE* server_pubkeymont_dat =
-      fopen("./materials/cryptography/server_pubkeymont.dat","w");
+    FILE* server_pubkeymont_dat = fopen(SERV_PUBKEYMONT_PATH, "w");
     bytes_wr = fwrite(pubkey_montform->bits, 1, pubkeymont_used_bytes,
                       server_pubkeymont_dat);
     if(bytes_wr != pubkeymont_used_bytes){

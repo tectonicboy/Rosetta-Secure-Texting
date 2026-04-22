@@ -1,3 +1,7 @@
+#include "../lib/rosetta-helpers.h"
+#include "../lib/bigint.h"
+#include "../lib/cryptolib.h"
+
 int main(int argc, char* argv[])
 {
     if(argc != 2){
@@ -8,8 +12,7 @@ int main(int argc, char* argv[])
 
     uint32_t req_key_len_bytes = (uint32_t)(atoi(argv[1]));
     printf("Obtained req_key_bytes arg as uint32_t: %u\n", req_key_len_bytes);
-    FILE* server_privkey_dat =
-      fopen("./materials/cryptography/server_privkey.dat","w");
+    FILE* server_privkey_dat = fopen(SERV_PRIVKEY_PATH,"w");
 
     if(server_privkey_dat == NULL){
         printf("[ERROR] - gen_priv_key couldn't open server_privkey.dat\n");
