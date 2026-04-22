@@ -8,7 +8,14 @@ src/keygen/find-new-mq
 src/rosetta-test-framework/SERVER-OUTPUT-FILE.txt
 src/rosetta-test-framework/test-server
 src/rosetta-test-framework/user-spawner
-correctness-tests/calc-results/*
+src/tests/correctness-tests/test-bigint/add-bigint/calc-results/*
+src/tests/correctness-tests/test-bigint/div-bigint/calc-results/*
+src/tests/correctness-tests/test-bigint/mul-bigint/calc-results/*
+src/tests/correctness-tests/test-bigint/sub-bigint/calc-results/*
+src/tests/correctness-tests/test-cryptography/test-argon2/calc-results/*
+src/tests/correctness-tests/test-cryptography/test-blake2b/calc-results/*
+src/tests/correctness-tests/test-cryptography/test-chacha20/calc-results/*
+src/tests/correctness-tests/test-cryptography/test-signatures/calc-results/*
 correctness-tests/add-bigint/my-gen-results
 src/rosetta-test-framework/perf.data
 src/rosetta-test-framework/perf.data.old
