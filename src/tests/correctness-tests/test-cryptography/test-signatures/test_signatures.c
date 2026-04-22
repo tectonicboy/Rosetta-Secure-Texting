@@ -1,17 +1,14 @@
+#include "../../lib/rosetta-helpers.h"
+#include "../../lib/bigint.h"
 #include "../../lib/cryptolib.h"
 
-#define MAX_BIGINT_SIZ 12800
-#define PRIVKEY_LEN    40
-#define SIGNATURE_LEN  ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 #define TEST_DATA_LEN  1024
 
-int main(){
-
+int main()
+{
     struct bigint *M, *Q, *G, *Gm, *Am, *a, *s, *e;
-
     clock_t time;
     double total_time_sec;
-
     /* Text bytes to be signed */
     uint8_t* msg = calloc(1, TEST_DATA_LEN);
     FILE* ran = NULL;
@@ -19,59 +16,25 @@ int main(){
     uint8_t* result_signature = calloc(1, SIGNATURE_LEN);
     uint8_t isValid;
 
-    ran = fopen("/dev/urandom","r");
-
+    ran = fopen(DEV_URANDOM_PATH, "r");
     status = fread(msg, 1, TEST_DATA_LEN, ran);
-
     if(status != TEST_DATA_LEN){
         printf("[ERR] TEST SIG_GEN: Failed to read urandom. Quitting.\n\n");
         return 1;
     }
-
     fclose(ran);
-
-    M = get_bigint_from_dat
-     ( 3072
-      ,"./materials/cryptography/saved_M.dat"
-      ,3071
-      ,MAX_BIGINT_SIZ
-     );
-
-    Q = get_bigint_from_dat
-     ( 320
-      ,"./materials/cryptography/saved_Q.dat"
-      ,320
-      ,MAX_BIGINT_SIZ
-     );
-
-    G = get_bigint_from_dat
-     ( 3072
-      ,"./materials/cryptography/saved_G.dat"
-      ,3071
-      ,MAX_BIGINT_SIZ
-     );
-
+    M =  get_bigint_from_dat
+           (DH_MODULUS_M_PATH, DH_M_BITWIDTH, MAX_USED_BITWIDTH);
+    Q =  get_bigint_from_dat
+           (DH_PRIME_ORDER_Q_PATH, DH_Q_BITWIDTH, MAX_USED_BITWIDTH);
+    G =  get_bigint_from_dat
+           (DH_GENERATOR_G_PATH, DH_G_BITWIDTH, MAX_USED_BITWIDTH);
     Gm = get_bigint_from_dat
-     ( 3072
-      ,"./materials/cryptography/saved_Gm.dat"
-      ,3071
-      ,MAX_BIGINT_SIZ
-     );
-
-    a = get_bigint_from_dat
-    ( 320
-     ,"./materials/cryptography/server_privkey.dat"
-     ,318
-     ,MAX_BIGINT_SIZ
-    );
-
+           (DH_G_MONT_PATH, DH_G_MONT_BITWIDTH, MAX_USED_BITWIDTH);
+    a  = get_bigint_from_dat
+           (SERV_PRIVKEY_PATH, SERV_PRIVKEY_BITWIDTH, MAX_USED_BITWIDTH);
     Am = get_bigint_from_dat
-    ( 3072
-     ,"../../bin"
-        "./materials/cryptography/server_pubkeymont.dat"
-     ,3071
-     ,MAX_BIGINT_SIZ
-    );
+           (SERV_PUBKEYMONT_PATH, SERV_PUBKEYMONT_BITWIDTH, MAX_USED_BITWIDTH);
 
     printf("Result of compare(G, a) : %u\n\n", bigint_compare2(G, a));
 

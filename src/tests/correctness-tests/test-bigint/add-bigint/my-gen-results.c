@@ -1,4 +1,5 @@
-#include "../../src/lib/bigint.h"
+#include "../lib/rosetta-helpers.h"
+#include "../lib/bigint.h"
 
 #define TEST_MAX_BYTES 512
 
