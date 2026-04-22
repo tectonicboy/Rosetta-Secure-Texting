@@ -1,3 +1,5 @@
+![System Design Diagram](materials/rosetta-system-design-diagram.png)
+
 # Rosetta Secure Texting
 
 Rosetta is my latest hobby project - a secure chat system fully from scratch.
