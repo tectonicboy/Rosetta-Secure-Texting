@@ -248,10 +248,9 @@ void bigint_print_info(const bigint* const num)
 
 /* To view the bytes of the DAT files from linux terminal window: */
 /* xxd -b G_raw_bytes.dat                                         */
-bigint* get_bigint_from_dat( const u32    file_bits
-                            ,const char* const fn
-                            ,const u32    used_bits
-                            ,const u32    reserve_bits)
+bigint* get_bigint_from_dat(const char* const fn,
+                            const u32    used_bits,
+                            const u32    reserve_bits)
 {
     bigint* big_n_ptr;
     FILE*   dat_file;
@@ -273,7 +272,7 @@ bigint* get_bigint_from_dat( const u32    file_bits
         return big_n_ptr;
     }
 
-    file_bytes = file_bits;
+    file_bytes = used_bits;
     while(file_bytes % 8 != 0){
         ++file_bytes;
     }

@@ -231,8 +231,8 @@ u8 authenticate_client( u64 client_ix,  u8* signed_ptr
     /* Then proceed to validate the signature for the user's authenticity.    */
     recv_s = (bigint*)(signed_ptr + s_offset);
     recv_e = (bigint*)(signed_ptr + e_offset);
-    recv_s->bits = calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = calloc(1, MAX_BIGINT_SIZ);
+    recv_s->bits = calloc(1, MAX_USED_BITWIDTH);
+    recv_e->bits = calloc(1, MAX_USED_BITWIDTH);
     memcpy(recv_s->bits, signed_ptr + (sign_offset + sizeof(bigint)),
            PRIVKEY_LEN);
     memcpy(recv_e->bits,
@@ -361,19 +361,19 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix)
      * lock it, disallowing another parallel login attempt to corrupt them.
      */
     temp_handshake_memory_region_isLocked = 1;
-    bigint_create_from_u32(&X_s, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&X_s, MAX_USED_BITWIDTH, 0);
     A_s = (bigint*)(temp_handshake_buf);
-    A_s->bits = calloc(1, MAX_BIGINT_SIZ);
+    A_s->bits = calloc(1, MAX_USED_BITWIDTH);
     memcpy(A_s->bits, msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
-    A_s->size_bits = MAX_BIGINT_SIZ;
+    A_s->size_bits = MAX_USED_BITWIDTH;
     A_s->used_bits = get_used_bits(msg_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
 
     /* Check that (0 < A_s < M) and that (A_s^(M/Q) mod M = 1) */
 
     /* A "check non zero" function in the BigInt library would also be useful */
 
-    bigint_create_from_u32(&zero, MAX_BIGINT_SIZ, 0);
-    bigint_create_from_u32(&Am,   MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&zero, MAX_USED_BITWIDTH, 0);
+    bigint_create_from_u32(&Am,   MAX_USED_BITWIDTH, 0);
     get_mont_form(A_s, &Am, M);
     if(   ((bigint_compare2(&zero, A_s)) != CMP_SECOND_BIGGER)
        || ((bigint_compare2(M, A_s)) != CMP_FIRST_BIGGER)
@@ -415,16 +415,15 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix)
         goto label_cleanup;
     }
 
-    b_s.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    b_s.bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
     memcpy(b_s.bits, temp_handshake_buf + sizeof(bigint), PRIVKEY_LEN);
-    b_s.size_bits = MAX_BIGINT_SIZ;
+    b_s.size_bits = MAX_USED_BITWIDTH;
     b_s.used_bits = get_used_bits(b_s.bits, PRIVKEY_LEN);
     memset(temp_handshake_buf + sizeof(bigint), 0,    PRIVKEY_LEN);
     memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
 
-    /* Interface generating a pub_key needs priv_key in a file. TODO: change! */
     save_bigint_to_dat("temp_privkey.dat", &b_s);
-    B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
+    B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_USED_BITWIDTH);
 
     /* Place the server short-term pub_key also in the locked memory region. */
     memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
@@ -725,7 +724,8 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix)
     memset(clients[user_ix].pending_msg_sizes, 0,
            (MAX_PEND_MSGS * SMALL_FIELD_LEN));
     /* Transport the client's long-term public key into their slot. */
-    bigint_create_from_u32(&(clients[user_ix].client_pubkey), MAX_BIGINT_SIZ,0);
+    bigint_create_from_u32(&(clients[user_ix].client_pubkey),
+                           MAX_USED_BITWIDTH, 0);
     memcpy((clients[user_ix].client_pubkey).bits, client_pubkey_buf,
            PUBKEY_LEN);
 
@@ -734,7 +734,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix)
 
     /* Calculate the Montgomery Form of the client's long-term public key. */
     bigint_create_from_u32(&(clients[user_ix].client_pubkey_mont),
-                           MAX_BIGINT_SIZ, 0);
+                           MAX_USED_BITWIDTH, 0);
     get_mont_form(&(clients[user_ix].client_pubkey),
                   &(clients[user_ix].client_pubkey_mont), M);
 
@@ -752,7 +752,7 @@ uint64_t process_msg_01(u8* msg_buf, u64 user_ix)
      * public key there too.
      */
     bigint_create_from_u32(&(clients[user_ix].shared_secret),
-                           MAX_BIGINT_SIZ, 0);
+                           MAX_USED_BITWIDTH, 0);
     mont_pow_mod_m(&(clients[user_ix].client_pubkey_mont),
                    &server_privkey_bigint, M,
                    &(clients[user_ix].shared_secret));
@@ -840,16 +840,16 @@ void process_msg_10(u8* msg_buf, u32 user_ix)
      */
 
     /* Another instance of a BigInt constructor from mem. Find time for it. */
-    /* MAX_BIGINT_SIZ is in bits, so divide by 8 to get the reserved BYTES. */
+    /* MAX_USED_BITWIDTH is in bits, so divide by 8 to get reserved BYTES.  */
     nonce_bigint.bits = calloc
-      (1, ((size_t)((double)MAX_BIGINT_SIZ / (double)8)));
+      (1, ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
     memcpy(nonce_bigint.bits,
            clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN),
            LONG_NONCE_LEN);
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
-    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
+    nonce_bigint.size_bits = MAX_USED_BITWIDTH;
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) == 1){
         printf("[ERR] Server: Invalid signature. Discarding transmission.\n\n");
         goto label_cleanup;
@@ -1060,9 +1060,10 @@ void process_msg_20(u8* msg_buf, u32 user_ix)
     memset(send_K,                0, ONE_TIME_KEY_LEN);
     memset(type21_encrypted_part, 0, SMALL_FIELD_LEN + PUBKEY_LEN);
     memset(user_ixs_in_room,      0, MAX_CLIENTS * SMALL_FIELD_LEN);
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
-    nonce_bigint.bits = calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
+    nonce_bigint.bits =
+      calloc(1, ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
 
     /* Verify the sender's cryptographic signature to make sure they're legit */
     if( authenticate_client(user_ix, msg_buf, signed_len, sign_offset) == 1){
@@ -1110,7 +1111,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix)
            clients[user_ix].shared_secret.bits + (2 * SESSION_KEY_LEN),
            LONG_NONCE_LEN);
     nonce_bigint.used_bits = get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
-    nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    nonce_bigint.size_bits = MAX_USED_BITWIDTH;
     for(u64 i = 0; i < clients[user_ix].nonce_counter; ++i){
         bigint_add_fast(&nonce_bigint, &one, &aux1);
         bigint_equate2(&nonce_bigint, &aux1);
@@ -1191,7 +1192,7 @@ void process_msg_20(u8* msg_buf, u32 user_ix)
      * (8 + num_keys*(8 + PUB_KEY_LEN))
      */
 
-    ran_file = fopen("/dev/urandom", "r");
+    ran_file = fopen(DEV_URANDOM_PATH, "r");
     if(!ran_file){
         printf("[ERR] Server: Couldn't open urandom. Dropping transmission.\n");
         goto label_cleanup;
@@ -1326,14 +1327,14 @@ void process_msg_20(u8* msg_buf, u32 user_ix)
                    SESSION_KEY_LEN);
         }
         memset(nonce_bigint.bits, 0,
-               ((size_t)((double)MAX_BIGINT_SIZ / (double)8)));
+               ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
         memcpy(nonce_bigint.bits,
                clients[user_ixs_in_room[i]].shared_secret.bits
                  + (2 * SESSION_KEY_LEN),
                LONG_NONCE_LEN);
         nonce_bigint.used_bits =
             get_used_bits(nonce_bigint.bits, LONG_NONCE_LEN);
-        nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+        nonce_bigint.size_bits = MAX_USED_BITWIDTH;
         /* Increment nonce as many times as needed. */
         for(u64 j = 0; j < clients[user_ixs_in_room[i]].nonce_counter; ++j){
             bigint_add_fast(&nonce_bigint, &one, &aux1);

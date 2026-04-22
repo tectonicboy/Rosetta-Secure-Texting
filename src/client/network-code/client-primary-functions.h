@@ -160,10 +160,10 @@ u8 self_init(u8* password, int password_len, char* save_dir)
              ,decrypted_privkey_buf);             /* output buffer ptr   */
 
     /* Initialize the global BigInts storing user's public and private keys. */
-    bigint_create_from_u32(&own_privkey, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&own_privkey, MAX_USED_BITWIDTH, 0);
     memcpy(own_privkey.bits, decrypted_privkey_buf, PRIVKEY_LEN);
     own_privkey.used_bits = get_used_bits(decrypted_privkey_buf, PRIVKEY_LEN);
-    bigint_create_from_u32(&own_pubkey, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&own_pubkey, MAX_USED_BITWIDTH, 0);
     memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);
     own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN);
 
@@ -172,7 +172,7 @@ u8 self_init(u8* password, int password_len, char* save_dir)
      * decrypted successfully, with the original correct password.
      */
     save_bigint_to_dat("temp_priv.dat", &own_privkey);
-    calculated_A = gen_pub_key(PRIVKEY_LEN, "temp_priv.dat", MAX_BIGINT_SIZ);
+    calculated_A = gen_pub_key(PRIVKEY_LEN, "temp_priv.dat", MAX_USED_BITWIDTH);
     system("rm temp_priv.dat");
     /* Now compare the calculated and the saved public keys. */
     if(bigint_compare2(calculated_A, &own_pubkey) != CMP_EQUALS){
@@ -184,42 +184,42 @@ u8 self_init(u8* password, int password_len, char* save_dir)
         printf("[OK]  Client: Password unlocked the private key correctly!\n");
     }
     /* Load other BigInts needed for the cryptography to work and be secure. */
-    /* Diffie-Hellman modulus M, 3071-bit prime positive integer. */
-    M = get_bigint_from_dat(3072, "materials/cryptography/saved_M.dat", 3071,
-                            MAX_BIGINT_SIZ);
+    /* Diffie-Hellman modulus M, prime number around 3070-bit. */
+    M = get_bigint_from_dat
+          (DH_MODULUS_M_PATH, DH_M_BITWIDTH, MAX_USED_BITWIDTH);
     if(M == NULL){
         printf("[ERR] Client: Failed to get M from DAT file.\n\n");
         status = 1;
         goto label_cleanup;
     }
-    /* 320-bit prime exactly dividing M-1, making M cryptographically strong. */
-    Q = get_bigint_from_dat(320, "materials/cryptography/saved_Q.dat", 320,
-                            MAX_BIGINT_SIZ);
+    /* Prime order Q, exactly dividing (M-1), around 320-bit. */
+    Q = get_bigint_from_dat
+          (DH_PRIME_ORDER_Q_PATH, DH_Q_BITWIDTH, MAX_USED_BITWIDTH);
     if(Q == NULL){
         printf("[ERR] Client: Failed to get Q from DAT file.\n\n");
         status = 1;
         goto label_cleanup;
     }
-    /* Diffie-Hellman generator G = 2^((M-1)/Q) */
-    G = get_bigint_from_dat(3072, "materials/cryptography/saved_G.dat", 3071,
-                            MAX_BIGINT_SIZ);
+    /* Diffie-Hellman generator G = [2 ^ ((M-1) / Q)] mod M */
+    G = get_bigint_from_dat
+          (DH_GENERATOR_G_PATH, DH_G_BITWIDTH, MAX_USED_BITWIDTH);
     if(G == NULL){
         printf("[ERR] Client: Failed to get G from DAT file.\n\n");
         status = 1;
         goto label_cleanup;
     }
     /* Montgomery Form of G, since we use Montgomery Modular Multiplication. */
-    Gm = get_bigint_from_dat(3072, "materials/cryptography/saved_Gm.dat", 3071,
-                             MAX_BIGINT_SIZ);
+    Gm = get_bigint_from_dat
+           (DH_G_MONT_PATH, DH_G_MONT_BITWIDTH, MAX_USED_BITWIDTH);
     if(Gm == NULL){
         printf("[ERR] Client: Failed to get Gm from DAT file.\n\n");
         status = 1;
         goto label_cleanup;
     }
     /* Grab the server's public key. */
-    server_pubkey = get_bigint_from_dat
-                      (3072, "./materials/cryptography/server_pubkey.dat",
-                       3071, MAX_BIGINT_SIZ);
+    server_pubkey = get_bigint_from_dat(SERV_PUBKEY_PATH,
+                                        SERV_PUBKEY_BITWIDTH,
+                                        MAX_USED_BITWIDTH);
     if(server_pubkey == NULL){
         printf("[ERR] Client: Failed to get server pubkey from DAT file.\n\n");
         status = 1;
@@ -227,8 +227,8 @@ u8 self_init(u8* password, int password_len, char* save_dir)
     }
 
     /* Initialize the shared secret with the server. */
-    bigint_create_from_u32(&server_pubkey_mont,   MAX_BIGINT_SIZ, 0);
-    bigint_create_from_u32(&server_shared_secret, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&server_pubkey_mont,   MAX_USED_BITWIDTH, 0);
+    bigint_create_from_u32(&server_shared_secret, MAX_USED_BITWIDTH, 0);
     get_mont_form(server_pubkey, &server_pubkey_mont, M);
     mont_pow_mod_m(&server_pubkey_mont, &own_privkey, M, &server_shared_secret);
 
@@ -248,15 +248,15 @@ u8 self_init(u8* password, int password_len, char* save_dir)
         KAB = server_shared_secret.bits;
         KBA = server_shared_secret.bits + SESSION_KEY_LEN;
     }
-    /* calloc() needs it in bytes, MAX_BIGINT_SIZ is in bits, so divide by 8. */
-    server_nonce_bigint.bits = (u8*)calloc
-                            (1, ((size_t)((double)MAX_BIGINT_SIZ / (double)8)));
+    /* calloc needs it in bytes, MAX_USED_BITWIDTH is in bits, so divide by 8 */
+    server_nonce_bigint.bits =
+      (u8*)calloc(1, ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
     memcpy(server_nonce_bigint.bits,
            server_shared_secret.bits + (2 * SESSION_KEY_LEN),
            LONG_NONCE_LEN);
     server_nonce_bigint.used_bits = get_used_bits
                                      (server_nonce_bigint.bits, LONG_NONCE_LEN);
-    server_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    server_nonce_bigint.size_bits = MAX_USED_BITWIDTH;
 
     /* Initialize the mutex that will be used to prevent the main thread and
      * the poller thread from writing/reading the same data in parallel.
@@ -537,7 +537,7 @@ u8 reg(u8* password, int password_len, char* save_dir)
     bigint* A_longterm = NULL;
     bigint temp_privkey;
 
-    temp_privkey.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    temp_privkey.bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
     memset(&prms, 0, sizeof(struct Argon2_parms));
 
     /* Registration step 1: Generate a long-term private/public keys a/A. */
@@ -549,11 +549,12 @@ u8 reg(u8* password, int password_len, char* save_dir)
         goto label_cleanup;
     }
     memcpy(temp_privkey.bits, privkey_buf, PRIVKEY_LEN);
-    temp_privkey.size_bits = MAX_BIGINT_SIZ;
+    temp_privkey.size_bits = MAX_USED_BITWIDTH;
     temp_privkey.used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
     save_bigint_to_dat("temp_privkey.dat", &temp_privkey);
     /* A = G^a mod M */
-    A_longterm = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_BIGINT_SIZ);
+    A_longterm = gen_pub_key
+                   (PRIVKEY_LEN, "temp_privkey.dat", MAX_USED_BITWIDTH);
 
     /* Registration step 2: Use the password as a secret key in Argon2 hashing
      *                      algorithm, whose output hash we use as a
@@ -576,7 +577,7 @@ u8 reg(u8* password, int password_len, char* save_dir)
     /* Now construct the Argon2 Salt parameter.                         */
     /* Salt = S || BLAKE2B{64}(client's long-term public key)           */
     /* S is a random 8 byte string, so Salt length is 64+8 = 72 bytes.  */
-    ranfile = fopen("/dev/urandom", "r");
+    ranfile = fopen(DEV_URANDOM_PATH, "r");
     if(   (!ranfile)
        || (fread(argon2_salt_string, 1, ARGON_STRING_LEN, ranfile)
             != ARGON_STRING_LEN))

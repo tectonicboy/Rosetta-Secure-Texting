@@ -87,8 +87,8 @@ u8 authenticate_server(u8* signed_ptr, u64 signed_len, u64 sign_offset)
     /* Reconstruct the sender's signature as the two BigInts that make it up. */
     recv_s = (bigint*)(signed_ptr + s_offset);
     recv_e = (bigint*)(signed_ptr + e_offset);
-    recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    recv_s->bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
+    recv_e->bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
     memcpy(recv_s->bits, signed_ptr + (sign_offset + sizeof(bigint)),
            PRIVKEY_LEN);
     memcpy(recv_e->bits,
@@ -123,7 +123,7 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len)
 
     *msg_len = SMALL_FIELD_LEN + PUBKEY_LEN;
     *msg_buf = (u8*)(void*)calloc(1, *msg_len);
-    temp_privkey.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    temp_privkey.bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
 
     /* Generate a short-term pair of private and public keys, store them in the
      * designated handshake memory region and send the short-term public key
@@ -140,12 +140,12 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len)
         goto label_cleanup;
     }
     memcpy(temp_privkey.bits, temp_handshake_buf, PRIVKEY_LEN);
-    temp_privkey.size_bits = MAX_BIGINT_SIZ;
+    temp_privkey.size_bits = MAX_USED_BITWIDTH;
     temp_privkey.used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
     memset(temp_handshake_buf, 0, PRIVKEY_LEN);
     memcpy(temp_handshake_buf, &temp_privkey, sizeof(bigint));
     save_bigint_to_dat("temp_privkey_DAT.dat", &temp_privkey);
-    A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_BIGINT_SIZ);
+    A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_USED_BITWIDTH);
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
     handshake_memory_region_state = 1;
@@ -216,9 +216,9 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len)
     memset(auth_buf,            0, INIT_AUTH_LEN + SIGNATURE_LEN);
 
     /* Grab the server's short-term public key from the transmission.        */
-    B_s.bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    B_s.bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
     memcpy(B_s.bits, received_buf + SMALL_FIELD_LEN, PUBKEY_LEN);
-    B_s.size_bits = MAX_BIGINT_SIZ;
+    B_s.size_bits = MAX_USED_BITWIDTH;
     B_s.used_bits = get_used_bits(B_s.bits, PUBKEY_LEN);
 
     /* Compute a short-term shared secret with the server, extract a pair of
@@ -233,9 +233,9 @@ u8 process_msg_00(u8* received_buf, u8** msg_01_buf, u64* msg_01_len)
      *       Y_s   = X_s[64 .. 95 ]
      *       N_s   = X_s[96 .. 107]  <--- 12-byte Nonce for ChaCha20.
      */
-    bigint_create_from_u32(&X_s,  MAX_BIGINT_SIZ, 0);
-    bigint_create_from_u32(&zero, MAX_BIGINT_SIZ, 0);
-    bigint_create_from_u32(&B_sM, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&X_s,  MAX_USED_BITWIDTH, 0);
+    bigint_create_from_u32(&zero, MAX_USED_BITWIDTH, 0);
+    bigint_create_from_u32(&B_sM, MAX_USED_BITWIDTH, 0);
     get_mont_form(&B_s, &B_sM, M);
 
     /* Check the other side's public key for security flaws and consistency. */
@@ -546,8 +546,8 @@ u8 construct_msg_10(unsigned char* requested_userid,
     *msg_buf = (u8*)(void*)calloc(1, *msg_len);
     memset(send_K, 0, ONE_TIME_KEY_LEN);
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
 
     /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
      * with a different key - the session key KAB from the pair of bidirectional
@@ -559,7 +559,7 @@ u8 construct_msg_10(unsigned char* requested_userid,
      * the packet - packetID_10, user_ix, key_K, room_ID + user_ID. The Rosetta
      * server already expects a signature of the whole payload.
      */
-    ran_file = fopen("/dev/urandom", "r");
+    ran_file = fopen(DEV_URANDOM_PATH, "r");
     if(!ran_file){
         printf("[ERR] Client: Couldn't open urandom. Abort msg_10 creation.\n");
         status = 1;
@@ -703,8 +703,8 @@ u8 construct_msg_20( unsigned char* requested_userid
     memset(roomID_userID, 0, 2 * SMALL_FIELD_LEN);
     *msg_len = signed_len + SIGNATURE_LEN;
     *msg_buf = (u8*)(void*)calloc(1, *msg_len);
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
 
     /* Draw a random one-time use 32-byte key K - the Decryption Key. Encrypt it
      * with a different key - the session key KAB from the pair of bidirectional
@@ -718,7 +718,7 @@ u8 construct_msg_20( unsigned char* requested_userid
      * the packet - packetID_20, user_ix, key_K, room_ID + user_ID. The Rosetta
      * server already expects or should expect a signature of the whole payload.
      */
-    ran_file = fopen("/dev/urandom", "r");
+    ran_file = fopen(DEV_URANDOM_PATH, "r");
     if(!ran_file){
         printf("[ERR] Client: Couldn't open urandom. Abort msg_20 creation.\n");
         status = 1;
@@ -814,9 +814,9 @@ u8 process_msg_20(u8* msg, u64 msg_len)
     u64 recv_type20_signed_len;
 
     memset(recv_K, 0, ONE_TIME_KEY_LEN);
-    bigint_create_from_u32(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&temp_shared_secret, MAX_USED_BITWIDTH, 0);
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
 
     /* First validate the signature the server sent us to authenaticate it. */
     /* Make sure the field that tells us AD's number of present guests is itself
@@ -884,15 +884,16 @@ u8 process_msg_20(u8* msg, u64 msg_len)
                buf_decrypted_AD + (i * guest_info_slot_siz), SMALL_FIELD_LEN);
         /* SMALL_FIELD_LEN bytes offset into THIS SLOT in AD: guest's PubKey. */
         this_pubkey = &(roommates[i].guest_pubkey);
-        this_pubkey->bits =(u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
+        this_pubkey->bits =
+          (u8*)calloc(1, ((size_t)((double)MAX_USED_BITWIDTH / 8)));
         memcpy(this_pubkey->bits,
                buf_decrypted_AD + (i * guest_info_slot_siz) + SMALL_FIELD_LEN,
                PUBKEY_LEN);
         /* Now initialize the rest of this guest's descriptor structure. */
-        this_pubkey->size_bits = MAX_BIGINT_SIZ;
+        this_pubkey->size_bits = MAX_USED_BITWIDTH;
         this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
         bigint_create_from_u32(&(roommates[i].guest_pubkey_mont),
-                               MAX_BIGINT_SIZ, 0);
+                               MAX_USED_BITWIDTH, 0);
         get_mont_form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
         roommates[i].guest_nonce_counter = 0;
         bigint_nullify(&temp_shared_secret);
@@ -958,9 +959,9 @@ void process_msg_21(u8* msg)
 
     memset(recv_K, 0, ONE_TIME_KEY_LEN);
     memset(buf_decrypted_guest_info, 0, new_guest_info_len);
-    bigint_create_from_u32(&temp_shared_secret, MAX_BIGINT_SIZ, 0);
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&temp_shared_secret, MAX_USED_BITWIDTH, 0);
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
 
     /* First, verify the Schnorr signature in the packet, in order to validate
      * the authenticity of the message, ensure it was not edited in transit and
@@ -1017,13 +1018,14 @@ void process_msg_21(u8* msg)
     memcpy(roommates[guest_ix].guest_user_id, buf_decrypted_guest_info,
            SMALL_FIELD_LEN);
     this_pubkey = &(roommates[guest_ix].guest_pubkey);
-    this_pubkey->bits = (u8*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/8)));
+    this_pubkey->bits = (u8*)calloc
+                               (1, ((size_t)((double)MAX_USED_BITWIDTH / 8)));
     memcpy(this_pubkey->bits, buf_decrypted_guest_info + SMALL_FIELD_LEN,
            PUBKEY_LEN);
-    this_pubkey->size_bits = MAX_BIGINT_SIZ;
+    this_pubkey->size_bits = MAX_USED_BITWIDTH;
     this_pubkey->used_bits = get_used_bits(this_pubkey->bits, PUBKEY_LEN);
     bigint_create_from_u32(&(roommates[guest_ix].guest_pubkey_mont),
-                           MAX_BIGINT_SIZ, 0);
+                           MAX_USED_BITWIDTH, 0);
     get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
     roommates[guest_ix].guest_nonce_counter = 0;
     mont_pow_mod_m(&(roommates[guest_ix].guest_pubkey_mont), &own_privkey, M,
@@ -1099,10 +1101,10 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
     signed_len = *msg_len - SIGNATURE_LEN;
     *msg_buf   = (u8*)(void*)calloc(1, *msg_len);
     memset(send_K, 0, ONE_TIME_KEY_LEN);
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
     guest_nonce_bigint.bits =
-      (u8*)(void*)calloc(1, ((size_t)((double)MAX_BIGINT_SIZ/(double)8)));
+      (u8*)(void*)calloc(1, ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
     /* Construct the first 3 sections of the payload. */
     u64 packet_id30 = PACKET_ID_30;
     memcpy( (*msg_buf) + (0 * SMALL_FIELD_LEN), &packet_id30,  SMALL_FIELD_LEN);
@@ -1111,7 +1113,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
     /* Generate the one-time key K to encrypt the text message with.          */
     /* An encrypted version of key K itself is sent to all receivers.         */
     /* It's encrypted with the pair of symmetric session keys (KAB, KBA)      */
-    ran_file = fopen("/dev/urandom", "r");
+    ran_file = fopen(DEV_URANDOM_PATH, "r");
     if(!ran_file){
         printf("[ERR] Client: Couldn't open urandom in msg 30 constructor.\n");
         printf("              Aborting transmission. Telling GUI system.\n\n");
@@ -1143,7 +1145,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
                    LONG_NONCE_LEN);
             guest_nonce_bigint.used_bits =
               get_used_bits(guest_nonce_bigint.bits, LONG_NONCE_LEN);
-            guest_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+              guest_nonce_bigint.size_bits = MAX_USED_BITWIDTH;
             /* Increment nonce as many times as counter says for this guest. */
             for(u64 j = 0; j < roommates[i].guest_nonce_counter; ++j){
                 bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
@@ -1176,7 +1178,7 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
             /* Increment our Nonce with this guest again to keep it symmetric */
             ++(roommates[i].guest_nonce_counter);
             memset(guest_nonce_bigint.bits, 0,
-                   ((size_t)((double)MAX_BIGINT_SIZ / (double)8)));
+                   ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
         }
     }
     /* At the end of the above loop, AD_write_offset is AD length. */
@@ -1258,9 +1260,9 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
     bigint  one;
     bigint  aux1;
 
-    bigint_create_from_u32(&one,  MAX_BIGINT_SIZ, 1);
-    bigint_create_from_u32(&aux1, MAX_BIGINT_SIZ, 0);
-    guest_nonce_bigint.bits = (u8*)calloc(1, MAX_BIGINT_SIZ / 8);
+    bigint_create_from_u32(&one,  MAX_USED_BITWIDTH, 1);
+    bigint_create_from_u32(&aux1, MAX_USED_BITWIDTH, 0);
+    guest_nonce_bigint.bits = (u8*)calloc(1, MAX_USED_BITWIDTH / 8);
     memset(decrypted_key, 0, ONE_TIME_KEY_LEN);
     memset(temp_user_id,  0, SMALL_FIELD_LEN);
     if(text_len < 1 || text_len > MAX_TXT_LEN) {
@@ -1309,8 +1311,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
     e_offset = sign1_offset + sizeof(bigint) + PRIVKEY_LEN;
     recv_s = (bigint*)(payload + s_offset);
     recv_e = (bigint*)(payload + e_offset);
-    recv_s->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
-    recv_e->bits = (u8*)calloc(1, MAX_BIGINT_SIZ);
+    recv_s->bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
+    recv_e->bits = (u8*)calloc(1, MAX_USED_BITWIDTH);
     memcpy(recv_s->bits, payload + (sign1_offset + sizeof(bigint)),
            PRIVKEY_LEN);
     memcpy(recv_e->bits,
@@ -1353,7 +1355,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
            LONG_NONCE_LEN);
     guest_nonce_bigint.used_bits = get_used_bits(guest_nonce_bigint.bits,
                                                  LONG_NONCE_LEN);
-    guest_nonce_bigint.size_bits = MAX_BIGINT_SIZ;
+    guest_nonce_bigint.size_bits = MAX_USED_BITWIDTH;
     /* Increment nonce as many times as counter says for this guest. */
     for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter; ++j){
         bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
@@ -1543,10 +1545,10 @@ void process_msg_50(u8* payload)
     n_bytes_to_erase = SMALL_FIELD_LEN;
     erase_mem_secure(secure_erase_ptr, n_bytes_to_erase);
     secure_erase_ptr = (volatile u8*)roommates[sender_ix].guest_pubkey.bits;
-    n_bytes_to_erase = (uint64_t)(MAX_BIGINT_SIZ / 8);
+    n_bytes_to_erase = (uint64_t)(MAX_USED_BITWIDTH / 8);
     erase_mem_secure(secure_erase_ptr, n_bytes_to_erase);
     secure_erase_ptr =(volatile u8*)roommates[sender_ix].guest_pubkey_mont.bits;
-    n_bytes_to_erase = (uint64_t)(MAX_BIGINT_SIZ / 8);
+    n_bytes_to_erase = (uint64_t)(MAX_USED_BITWIDTH / 8);
     erase_mem_secure(secure_erase_ptr, n_bytes_to_erase);
     bigint_cleanup(&(roommates[sender_ix].guest_pubkey));
     bigint_cleanup(&(roommates[sender_ix].guest_pubkey_mont));

@@ -54,8 +54,7 @@ uint8_t spawn_new_test_user(void)
     char   chr_read;
     char   input_savename[2 * SMALL_FIELD_LEN];
     char   input_password[2 * SMALL_FIELD_LEN];
-    char  user_spawner_program_name[] =
-      "./src/rosetta-test-framework/user-spawner\0";
+    char  user_spawner_program_name[] = USER_SPAWNER_PROG_PATH "\0";
     size_t read_input_field_len;
     size_t buffer_second_part_ix;
     pid_t  pid;
@@ -133,7 +132,7 @@ label_try_again:
         args[2] = input_password;
         args[3] = NULL;
 
-        execve("./src/rosetta-test-framework/user-spawner", args, env);
+        execve(USER_SPAWNER_PROG_PATH, args, env);
 
         /* If execve returns at all, it means it has failed. */
         perror("User Spawner: execve() failed: ");
@@ -145,7 +144,7 @@ label_try_again:
 void draw_menu_0()
 {
     int bytes;
-    FILE* logo_file = fopen("./src/rosetta-test-framework/rtf-logo.txt", "r");
+    FILE* logo_file = fopen(RTF_LOGO_PATH, "r");
     unsigned char* logo_buf;
     unsigned int op_number;
     uint8_t status = 0;

@@ -1416,7 +1416,7 @@ label_cleanup:
 uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf)
 {
     size_t bytes_read;
-    FILE* ran = fopen("/dev/urandom", "r");
+    FILE* ran = fopen(DEV_URANDOM_PATH, "r");
 
     if(ran == NULL){
         printf("[ERR] utilities: gen_priv_key - couldn't open urandom.\n\n");
@@ -1455,12 +1455,10 @@ struct bigint* gen_pub_key( uint32_t privkey_len_bytes
     FILE*   privkey_dat;
 
     privkey_dat = fopen(privkey_filename, "r");
-
     M  = get_bigint_from_dat
-           (3072, "./materials/cryptography/saved_M.dat", 3071, 12800);
-
+           (DH_MODULUS_M_PATH, DH_M_BITWIDTH, MAX_USED_BITWIDTH);
     Gm = get_bigint_from_dat
-           (3072, "./materials/cryptography/saved_Gm.dat", 3071, 12800);
+           (DH_G_MONT_PATH, DH_G_MONT_BITWIDTH, MAX_USED_BITWIDTH);
 
     if(privkey_dat == NULL){
         printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");

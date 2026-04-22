@@ -27,7 +27,7 @@ CFLAGS += -Wno-unused-result
 CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-write-strings
 
-.PHONY: server server_asan client client_asan tests
+.PHONY: server server_asan client client_asan tests rosetta-test-framework
 
 all: test_signatures test_chacha20 test_blake2b test_argon2 \
 	server server_gen_priv_key server_gen_pub_key
@@ -38,11 +38,15 @@ OPTIMIZATION_LEVEL += -O3
 OPTIMIZATION_REPORT += -fopt-info-vec-optimized
 OPTIMIZATION_REPORT += -fopt-info-loop-optimized
 
-prod: server client
+WX_WIDGETS_SPECIFIC += `/usr/bin/wx-config --cxxflags --libs`
 
+prod: server client rosetta-test-framework
+
+rosetta-test-framework:
+	@echo "About to run make for Rosetta Test Framework"
+	make -C ./rosetta-test-framework
 
 tests: test_signatures test_chacha20 test_blake2b test_argon2
-
 
 test_signatures:
 	gcc tests/simple-tests/test_signatures.c \
@@ -72,30 +76,15 @@ server:
 	gcc server/rosetta-server.c -o ../bin/rosetta-server -march=native -lm \
 	-pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) $(OPTIMIZATION_REPORT)
 
-
-server_gen_priv_key:
-	gcc server/server_gen_priv_key.c -o ../bin/server_gen_priv_key \
-	-march=native -lm -pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) \
-	$(OPTIMIZATION_REPORT)
-
-
-server_gen_pub_key:
-	gcc server/server_gen_pub_key.c -o ../bin/server_gen_pub_key \
-	-march=native -lm -pthread $(OPTIMIZATION_LEVEL) $(CFLAGS) \
-	$(OPTIMIZATION_REPORT)
-
-
 client:
 	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
-	`/usr/bin/wx-config --cxxflags --libs` -o \
-	../bin/tcp-client $(CFLAGS) $(OPTIMIZATION_REPORT) \
+	-o ../bin/tcp-client $(CFLAGS) $(OPTIMIZATION_REPORT) $(WX_WIDGETS_SPECIFIC) \
 	-lm -pthread $(OPTIMIZATION_LEVEL) -march=native
 
 client_asan:
 	g++ -pipe client/gui-code/cApp.cpp client/gui-code/cMain.cpp \
-	`/usr/bin/wx-config --cxxflags --libs` -o \
-	../bin/tcp-client-asan $(CFLAGS) $(OPTIMIZATION_REPORT) \
-	-lm -pthread $(OPTIMIZATION_LEVEL) -march=native \
+	-o ../bin/tcp-client-asan $(CFLAGS) $(OPTIMIZATION_REPORT) \
+	-lm -pthread $(OPTIMIZATION_LEVEL) -march=native $(WX_WIDGETS_SPECIFIC) \
 	-fsanitize=address -static-libasan -g -fstack-usage
 
 server_asan:

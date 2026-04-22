@@ -21,21 +21,17 @@
  * steps taken to ensure the compiler does not optimize calls to it away.
  * Set optimization level to none (-O0) for this function, instruct the compiler
  * to not inline calls to it, mark the pointer to the memory buffer containing
- * sensitive information that must be zeroed out for security reasons as
- * volatile, which informs the compiler that the memory it points to might get
- * altered in ways the compiler can't predict, doesn't expect, and the source
- * code does not directly contain any signs it might happen. This prevents the
- * compiler from eliminating calls to the function upon determining that the
- * effects of it are not utilized anywhere in the source code. Also, attribute
- * ((used)) is another protection against the compiler optimizing it away.
+ * sensitive information that must be zeroed out as volatile, which informs
+ * the compiler that the memory it points to can be written to in ways the
+ * compiler can't predict. This prevents the compiler from eliminating calls to
+ * the function even if it determines that the effects of the function are not
+ * utilized anywhere in the source code.
  * Things like explicit_bzero() and memset_explicit() do exist, however neither
  * seems to be easily available and they are only approximations as apparently
  * whole-program optimization at link time might still optimize them away.
  */
-__attribute__((no_reorder))
-__attribute__((used))
-__attribute__((noinline))
-__attribute__((optimize("O0")))
+__attribute__((no_reorder))  __attribute__((used))
+__attribute__((noinline))    __attribute__((optimize("O0")))
 void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
 {
     __m256i zero_reg256 = _mm256_setzero_si256();
@@ -119,27 +115,46 @@ void print_buffer(uint8_t* buf, uint64_t len){
 #define PACKET_ID_51 0x2CC04FBEDA0B5E63
 #define PACKET_ID_60 0x0A7F4E5D330A14DD
 
-/* Commonly used constants and helper macros. */
-#define PRIVKEY_LEN          40
-#define PUBKEY_LEN           384
-#define MAX_CLIENTS          64
-#define MAX_PEND_MSGS        64
-#define MAX_CHATROOMS        64
-#define MAX_MSG_LEN          131072
-#define MAX_TXT_LEN          1024
-#define MAX_BIGINT_SIZ       12800
-#define SMALL_FIELD_LEN      8
-#define TEMP_BUF_SIZ         16384
-#define SESSION_KEY_LEN      32
-#define ONE_TIME_KEY_LEN     32
-#define INIT_AUTH_LEN        32
-#define SHORT_NONCE_LEN      12
-#define LONG_NONCE_LEN       16
-#define PASSWORD_BUF_SIZ     16
-#define HMAC_TRUNC_BYTES     8
-#define ARGON_STRING_LEN     8
-#define ARGON_HASH_LEN       64
-#define ROOMMATES_ARR_SIZ    63
-#define MESSAGE_LINE_LEN     (SMALL_FIELD_LEN + 2 + MAX_TXT_LEN)
+/* Commonly used constants, file paths and helper macros. */
+#define PRIVKEY_LEN              40
+#define PUBKEY_LEN               384
+#define MAX_CLIENTS              64
+#define MAX_PEND_MSGS            64
+#define MAX_CHATROOMS            64
+#define MAX_MSG_LEN              131072
+#define MAX_TXT_LEN              1024
+#define SMALL_FIELD_LEN          8
+#define TEMP_BUF_SIZ             16384
+#define SESSION_KEY_LEN          32
+#define ONE_TIME_KEY_LEN         32
+#define INIT_AUTH_LEN            32
+#define SHORT_NONCE_LEN          12
+#define LONG_NONCE_LEN           16
+#define PASSWORD_BUF_SIZ         16
+#define HMAC_TRUNC_BYTES         8
+#define ARGON_STRING_LEN         8
+#define ARGON_HASH_LEN           64
+#define ROOMMATES_ARR_SIZ        63
+#define DH_M_BITWIDTH            3071
+#define DH_Q_BITWIDTH            320
+#define DH_G_BITWIDTH            3071
+#define DH_G_MONT_BITWIDTH       3071
+#define SERV_PUBKEY_BITWIDTH     3071
+#define SERV_PUBKEYMONT_BITWIDTH 3071
+#define SERV_PRIVKEY_BITWIDTH	   318
+#define MAX_USED_BITWIDTH        12800
+
+#define MESSAGE_LINE_LEN     (SMALL_FIELD_LEN + strlen(": \0") + MAX_TXT_LEN)
 #define SIGNATURE_LEN        ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
+
+#define DEV_URANDOM_PATH       "/dev/urandom"
+#define RTF_LOGO_PATH          "src/rosetta-test-framework/rtf-logo.txt"
+#define USER_SPAWNER_PROG_PATH "src/rosetta-test-framework/user-spawner"
+#define SERV_PRIVKEY_PATH      "materials/cryptography/server_privkey.dat"
+#define SERV_PUBKEY_PATH       "materials/cryptography/server_pubkey.dat"
+#define SERV_PUBKEYMONT_PATH   "materials/cryptography/server_pubkeymont.dat"
+#define DH_MODULUS_M_PATH      "materials/cryptography/saved_M.dat"
+#define DH_PRIME_ORDER_Q_PATH  "materials/cryptography/saved_Q.dat"
+#define DH_GENERATOR_G_PATH    "materials/cryptography/saved_G"
+#define DH_G_MONT_PATH         "materials/cryptography/saved_Gm.dat"

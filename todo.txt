@@ -104,6 +104,14 @@ EXTRA: Extract all directory strings into the helper header and mention
        that all of them are relative to the top-level project directory
        so all executables must be started with that as the working directory.
 
+EXTRA: Move magic numbers into #defines in rosetta-helpers.h from source code
+       in the two engines, the communication payload layer and the interface
+       layer, but not from the client driving program layer.
+
+EXTRA: Spend time figuring out how to optimize the two hot paths: Poll request
+       client-side generation and server-side processing, as well as sending
+       a text message to everyone in the chat room.
+
 19. Write an easy installation bash script and a small "run" oneliner script.
 
 20. Make a special memory allocation scheme where instead of bigint_create()
