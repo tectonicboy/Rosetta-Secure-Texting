@@ -39,7 +39,8 @@ ARCHITECTURE_FLAGS += -march=native
 all:
 	gcc rosetta-test-framework.c -o rtf $(OPTIMIZATION_REPORT) \
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS) && \
-	gcc user-spawner.c -o user-spawner $(OPTIMIZATION_REPORT) \
+	gcc manual-user-testing/manual-user-spawner.c -o \
+	manual-user-testing/manual-user-spawner $(OPTIMIZATION_REPORT) \
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS) && \
 	gcc ../server/rosetta-server.c -o test-server $(OPTIMIZATION_REPORT) \
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS)
@@ -47,12 +48,16 @@ all:
 debug:
 	gcc -g rosetta-test-framework.c -o rtf-debug $(OPTIMIZATION_REPORT) \
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS) && \
-	gcc -g user-spawner.c -o user-spawner-debug $(OPTIMIZATION_REPORT) \
+	gcc -g manual-user-testing/manual-user-spawner.c -o \
+	manual-user-testing/manual-user-spawner-debug \
+	$(OPTIMIZATION_REPORT) \
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS) && \
 	gcc -g ../server/rosetta-server.c -o test-server-debug \
 	$(OPTIMIZATION_REPORT) \
 	$(CFLAGS) $(ARCHITECTURE_FLAGS) $(OPTIMIZATION_LEVEL) $(LINKER_FLAGS)
 
 clean:
-	rm -rf rtf && rm -rf user-spawner && rm -rf test-server && \
-	rm -rf rtf-debug && rm -rf user-spawner-debug && rm -rf test-server-debug
+	rm -rf rtf && rm -rf manual-user-testing/manual-user-spawner && \
+	rm -rf test-server && rm -rf rtf-debug && \
+	rm -rf manual-user-testing/manual-user-spawner-debug && \
+	rm -rf test-server-debug
