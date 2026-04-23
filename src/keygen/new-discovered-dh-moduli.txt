@@ -68,7 +68,7 @@ Discoveries: [ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
 
 3072-bit primes checked: 120  --  The search continues.
 
-
+<Takes ~ 70 seconds to check 24 3072-bit primes for M with 1 Rabin-Miller pass>
 
 [2025-09-24 23:49:09] All 24 threads finished.
 Discoveries: [ 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1
