@@ -77,12 +77,10 @@ u8 self_init(u8* password, int password_len, char* save_dir)
     FILE* savefile = NULL;
     bigint* calculated_A = NULL;
     struct Argon2_parms prms;
-
     memset(&prms,               0, sizeof(struct Argon2_parms));
     memset(roommates,           0, ROOMMATES_ARR_SIZ * sizeof(struct roommate));
     memset(own_privkey_buf,     0, PRIVKEY_LEN);
     memset(temp_handshake_buf,  0, TEMP_BUF_SIZ);
-
     /* Load user's public key, decrypt and load user's private key. */
     savefile = fopen(save_dir, "r");
     if(savefile == NULL){
@@ -91,7 +89,6 @@ u8 self_init(u8* password, int password_len, char* save_dir)
         goto label_cleanup;
     }
     /* Read savefile in the same order that Registration writes it in. */
-
     /* First is Nonce for decrypting the saved private key. */
     if(fread(saved_nonce, 1, LONG_NONCE_LEN, savefile) != LONG_NONCE_LEN){
         printf("[ERR] Client: couldn't get nonce from savefile[0].\n");
@@ -116,7 +113,6 @@ u8 self_init(u8* password, int password_len, char* save_dir)
         status = 1;
         goto label_cleanup;
     }
-
     /* Now decrypt the saved private key. Call Argon2, then call ChaCha20. */
     /* Fill in the parameters to Argon2. */
     prms.p = 4;                 /* How many threads to use.             */
@@ -127,7 +123,7 @@ u8 self_init(u8* password, int password_len, char* save_dir)
     prms.y = 0x02;              /* Constant in Argon2 spec.             */
     /* Zero-extend the password to 16 bytes including a null terminator.   */
     /* Len does not include the null terminator already placed by the GUI. */
-    if(pw_bytes_for_zeroing > 0){
+		if(pw_bytes_for_zeroing > 0){
         memset(password + password_len, 0, pw_bytes_for_zeroing);
     }
     prms.P = password;
@@ -135,7 +131,7 @@ u8 self_init(u8* password, int password_len, char* save_dir)
     /* Salt = saved_string || BLAKE2B{64}(client's saved long-term public key)*/
     /* Call Blake2b to get the second part of the Salt parameter. */
     blake2b_init(saved_pubkey, PUBKEY_LEN, 0, 64, b2b_pubkey_output);
-    /* Now construct the complete Salt parameter with the 2 components. */
+		/* Now construct the complete Salt parameter with the 2 components. */
     memcpy(Salt, saved_string, ARGON_STRING_LEN);
     memcpy(Salt + ARGON_STRING_LEN, b2b_pubkey_output, 64);
     prms.S = Salt;
@@ -158,7 +154,6 @@ u8 self_init(u8* password, int password_len, char* save_dir)
              ,(u32*)V                             /* chacha Key ptr      */
              ,(u32)(chacha_key_len / sizeof(u32)) /* Key_len in uint32s  */
              ,decrypted_privkey_buf);             /* output buffer ptr   */
-
     /* Initialize the global BigInts storing user's public and private keys. */
     bigint_create_from_u32(&own_privkey, MAX_USED_BITWIDTH, 0);
     memcpy(own_privkey.bits, decrypted_privkey_buf, PRIVKEY_LEN);
@@ -166,7 +161,6 @@ u8 self_init(u8* password, int password_len, char* save_dir)
     bigint_create_from_u32(&own_pubkey, MAX_USED_BITWIDTH, 0);
     memcpy(own_pubkey.bits, saved_pubkey, PUBKEY_LEN);
     own_pubkey.used_bits = get_used_bits(saved_pubkey, PUBKEY_LEN);
-
     /* Compute a public key with that private key and M, Q, G. If it's the same
      * as the public key stored on the filesystem, the private key was
      * decrypted successfully, with the original correct password.

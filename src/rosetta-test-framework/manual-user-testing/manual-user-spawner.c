@@ -1,4 +1,4 @@
-#include "../client/network-code/client-primary-functions.h"
+#include "../../client/network-code/client-primary-functions.h"
 
 void user_loop(void)
 {
@@ -232,8 +232,8 @@ int main(int argc, char* argv[])
     unsigned char  savefilename[2 * SMALL_FIELD_LEN] = {'\0'};
     unsigned char* full_save_dir = NULL;
     uint8_t        status = 0;
-    char        pw_buf[2 * SMALL_FIELD_LEN] = {0};
-    const char*    savedir = "./src/rosetta-test-framework/test-accounts/";
+    char           pw_buf[2 * SMALL_FIELD_LEN] = {0};
+    const char*    savedir = USER_SAVEFILES_DIR;
 
     main_thread_id = pthread_self();
 

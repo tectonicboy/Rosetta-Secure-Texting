@@ -149,12 +149,23 @@ void print_buffer(uint8_t* buf, uint64_t len){
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
 #define DEV_URANDOM_PATH       "/dev/urandom"
-#define RTF_LOGO_PATH          "src/rosetta-test-framework/rtf-logo.txt"
-#define USER_SPAWNER_PROG_PATH "src/rosetta-test-framework/user-spawner"
 #define SERV_PRIVKEY_PATH      "materials/cryptography/server_privkey.dat"
 #define SERV_PUBKEY_PATH       "materials/cryptography/server_pubkey.dat"
 #define SERV_PUBKEYMONT_PATH   "materials/cryptography/server_pubkeymont.dat"
 #define DH_MODULUS_M_PATH      "materials/cryptography/saved_M.dat"
 #define DH_PRIME_ORDER_Q_PATH  "materials/cryptography/saved_Q.dat"
-#define DH_GENERATOR_G_PATH    "materials/cryptography/saved_G"
+#define DH_GENERATOR_G_PATH    "materials/cryptography/saved_G.dat"
 #define DH_G_MONT_PATH         "materials/cryptography/saved_Gm.dat"
+#define RTF_LOGO_PATH          "src/rosetta-test-framework/rtf-logo.txt"
+
+#define USER_SPAWNER_PROG_PATH \
+	"src/rosetta-test-framework/manual-user-testing/user-spawner"
+
+#define USER_SAVEFILES_DIR \
+	"src/rosetta-test-framework/test-accounts/"
+
+#define AUTOMATIC_USER_SIMULATION_TEST_PROG_BASE_PATH \
+	"src/rosetta-test-framework/automatic-user-testing/auto-simulated-user-test-"
+
+#define AUTOMATIC_USER_SIMULATION_AUTO_SPAWNER_BASE_PATH \
+	"src/rosetta-test-framework/automatic-user-testing/auto-spawner"
