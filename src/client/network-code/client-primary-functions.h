@@ -447,7 +447,7 @@ void* begin_polling(__attribute__((unused)) void* input)
 
                     /* Tell GUI/TUI to display the newly received message. */
                     #ifndef USE_WX_GUI
-                    printf("\n%s\n", text_message_line);
+                    printf("{OWN_INDEX: %lu} received msg: %s\n", own_ix, text_message_line);
 		                #else
 		                display_received_msg((char*)text_message_line);
                     #endif

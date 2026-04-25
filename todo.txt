@@ -49,6 +49,7 @@ EXTRA: bigint:471, cryptolib:339, cryptolib:349, cryptolib:1325
        the compiler removes the slower non-vectorized version of the loops.
 
 [ Completed ✓ ]
+
        A big optimization success story I should write about. For cryptolib:339
        I was able to help the compiler stop emitting a vectorized (fast) and a
        scalar unvectorized (slow) version of the loop by factoring it out into
@@ -93,6 +94,9 @@ EXTRA: bigint:471, cryptolib:339, cryptolib:349, cryptolib:1325
 
 17. Clean up the entire source code with a good style.
 [ Completed ✓ ]
+
+EXTRA: Fix the user savefile for real people using Rosetta to be a #define
+       in rosetta-helpers.h
 
 18. Improve the Rosetta Test Framework with automatic tests. All actions, from
     creating and logging in a test user account, to creating and joining a

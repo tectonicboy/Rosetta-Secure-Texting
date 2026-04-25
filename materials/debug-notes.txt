@@ -1,0 +1,66 @@
+LEVIN SENDS TO DEVIN:
+
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- chacha_key was set to key KAB, bytes:
+9A 2A 82 FB 0A 5F B1 12 0F 9B 70 93 05 36 EB D3
+37 70 C4 FB 94 AF 44 5D 0A AB EA 65 F1 4F 22 0D
+
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- Incrementing guest_nonce 0 times now.
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- un-encrypted one-time use key K bytes:
+8C 0C 72 B0 CC BD 9E 78 A7 0C FD DA 9E E1 12 02
+C7 57 A9 FF DC 86 20 FC FF B4 2C 68 F5 1E F2 30
+
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- incremented guest_nonce bytes b4 chacha:
+25 1F 4A 93 C1 90 AD 6C 8F BD A8 03 88 77 EC 4F
+
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- Encrypted one-time use key K bytes:
+9C 77 B3 A6 57 D9 48 AD 30 A4 D7 21 13 86 DF AA
+E9 23 93 96 C9 A0 2D D2 F6 00 7D 1E EC C8 EC 83
+
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- un-encrypted TEXT MESSAGE bytes:
+48 69 20 66 72 6F 6D 20 6C 65 76 69 6E
+
+[DEBUG] Client: OWN_IX: 2 ==> make_30 for guest[1] -- Encrypted TEXT MESSAGE bytes:
+21 15 A4 38 0A 32 36 5D F2 6E C3 54 6F
+***********************************************************************************************
+DEVIN RECEIVES FROM LEVIN:
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- chacha_key was set to key KAB, bytes:
+9A 2A 82 FB 0A 5F B1 12 0F 9B 70 93 05 36 EB D3
+37 70 C4 FB 94 AF 44 5D 0A AB EA 65 F1 4F 22 0D
+
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- Incrementing guest_nonce 2 times.
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- Incremented guest_nonce bytes:
+27 1F 4A 93 C1 90 AD 6C 8F BD A8 03 88 77 EC 4F
+
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- Still-Encrypted one-time use key K bytes:
+9C 77 B3 A6 57 D9 48 AD 30 A4 D7 21 13 86 DF AA
+E9 23 93 96 C9 A0 2D D2 F6 00 7D 1E EC C8 EC 83
+
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- Now-Decrypted one-time use key K:
+58 4C 9A F7 FE 80 A3 F7 01 89 1B E1 8F 0B 9F EF
+CF 18 1F 51 9B EA 22 5D 1D A3 9E 26 C7 7D C7 A1
+
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- Still-Encrypted received TEXT MESSAGE:
+21 15 A4 38 0A 32 36 5D F2 6E C3 54 6F
+
+[DEBUG] Client: OWN_IX: 3 ==> process_30 from guest[1] -- Now-Decrypted received TEXT MESSAGE:
+12 10 17 83 09 08 EE 73 C0 47 F4 46 08
+
+Bug found: When Alice sends Bob a message, she assumes that the very next
+           interaction with Bob is that Bob receives her message and decrypts it
+           thus using the same Nonce Counter that Alice used when encrypting it.
+
+           However, in the corner case where both Alice and Bob send each other
+           a message at the near-exact same time, during sending, their
+           Nonce Counters start at 0, but when they receive each other's
+           messages, their Nonce Counters start at 2.
+
+Solutions: Possibly have Bob send an acknowledgement message to Alice when he
+           receives and decrypts her message, and only when Alice receives the
+           acknowledgement does she permanently increment her Nonce Counter.
+           That way, Alice receives Bob's encrypted message BEFORE his
+           acknowledgement reaches her, meaning she will use Nonce Counter = 0
+           when decrypting Bob's messages, which is correct because Bob also
+           used Nonce Counter = 0 when encrypting it.
+
+           Another possible solution, unconfirmed yet, is to send the starting
+           Nonce Counter in plaintext with each transmitted message.
