@@ -1,33 +1,24 @@
-#include "../../client/network-code/client-primary-functions.h"
-
+#include "../../src/client/network-code/client-primary-functions.h"
 int main(){
-
-    printf("[OK] Now inside auto-spawner1 program! Proceeding to Login.\n");
-
     init_communication = ipc_init_communication;
     transmit_payload   = ipc_transmit_payload;
     receive_payload    = ipc_receive_payload;
     end_communication  = ipc_end_communication;
-
     uint8_t status;
     char*   savedir       = USER_SAVEFILES_DIR;
     char*   savefile      = "kevin";
     char    pwd[PASSWORD_BUF_SIZ];
-		char   room_name[SMALL_FIELD_LEN]     = {'R','O','O','M','1'};
-		char   password[2 * SMALL_FIELD_LEN]  = {'1','5','0','4','9','9'};
-		char   username[SMALL_FIELD_LEN]      = {'k','e','v'};
+		char    room_name[SMALL_FIELD_LEN]     = "ROOM1";
+    char    password[2 * SMALL_FIELD_LEN]  = "150499";
+    char    username[SMALL_FIELD_LEN]      = "Kev";
 		size_t  username_len  = 3;
 		size_t  room_name_len = 5;
     size_t  pwd_len       = 6;
     char    full_save_dir[1024];
-
     memset(full_save_dir, 0x00, 1024);
     strncpy(full_save_dir, savedir, strlen(savedir));
     strncpy(full_save_dir + strlen(savedir), savefile, strlen(savefile));
 		strncpy(pwd, password, pwd_len);
-		/* First steps of simulation plan: Login, make room ROOM1 with codename
-     * kev, then wait 8 sec.
-     */
 		printf("[OK]  RTF Simulation 1: Kev is calling login() now.\n");
     status = login((unsigned char*)pwd, pwd_len, full_save_dir);
     if(status){
@@ -48,8 +39,17 @@ int main(){
 				exit(1);
 		}
 		else{
-				printf("[OK]  RTF Simulation 1: Kev made a new chat room!\n");
+				printf("[OK]  RTF Simulation 1: Kev created a new chat room!\n");
 		}
-    sleep(8);
+    sleep(20);
+		/* send texts too, then close the chat room, wait (2) and exit rosetta */
+    /* Send messages */
+    const char* msgs[] = {"Hi from kev\0", "kev_msg_2a\0", "kev_msg_3b\0"};
+    for(size_t i = 0; i < 3; ++i){
+        send_text((unsigned char*)(msgs[i]), (uint64_t)(strlen(msgs[i])));
+        printf("{OWN_INDEX: %lu} Displaying own msg: %s\n", own_ix, msgs[i]);
+        sleep(1);
+    }
+		sleep(2);
     return 0;
 }

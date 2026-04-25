@@ -1,4 +1,4 @@
-#include "../client/network-code/client-primary-functions.h"
+#include "../src/client/network-code/client-primary-functions.h"
 #include <termios.h>
 
 uint8_t make_new_test_acc(void)

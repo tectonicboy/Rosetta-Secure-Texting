@@ -1,4 +1,6 @@
-#include "../../client/network-code/client-primary-functions.h"
+#include "../../src/client/network-code/client-primary-functions.h"
+
+#define NUMBER_OF_AUTO_USERS 3
 
 void run_auto_spawner_program(uint64_t spawner_num){
     pid_t pid;
@@ -43,6 +45,10 @@ void run_auto_spawner_program(uint64_t spawner_num){
 
 int main(){
     printf("[OK]  RTF: Inside Simulation 1 now. Spawning auto-users.\n");
-    run_auto_spawner_program(1);
+		for(size_t i = 1; i <= NUMBER_OF_AUTO_USERS; ++i){
+        run_auto_spawner_program(i);
+        sleep(3);
+	  }
+		sleep(20);
     return 0;
 }
