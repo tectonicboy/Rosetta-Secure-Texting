@@ -1,5 +1,7 @@
 # -*- MakeFile -*-
 
+.PHONY: keygen clean
+
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Waggregate-return
@@ -24,22 +26,39 @@ CFLAGS += -Wno-aggregate-return
 CFLAGS += -Wno-unused-label
 CFLAGS += -Wno-unused-result
 
+CC = cc
+
+ARCHITECTURE_FLAGS += -march=native
 OPTIMIZATION_LEVEL += -O3
+LDFLAGS += -lm
+LDFLAGS += -pthread
 
 # Ask GCC to tell us of any vectorization and loop optimizations it performed.
 OPTIMIZATION_REPORT += -fopt-info-vec-optimized
 OPTIMIZATION_REPORT += -fopt-info-loop-optimized
 
-LINKER_FLAGS += -lm -pthread
-
-.PHONY: keygen
+BIN_DIR                 = ../../bin
+FIND_NEW_MQ_SRC         = find-new-mq.c
+FIND_NEW_MQ_BIN         = keygen/find-new-mq
+SERVER_GEN_PRIV_KEY_SRC = server_gen_priv_key.c
+SERVER_GEN_PRIV_KEY_BIN = keygen/server_gen_priv_key
+SERVER_GEN_PUB_KEY_SRC  = server_gen_pub_key.c
+SERVER_GEN_PUB_KEY_BIN  = keygen/server_gen_pub_key
 
 keygen:
-	gcc find-new-mq.c -o ../../bin/find-new-mq -march=native \
-	$(LINKER_FLAGS) $(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	$(CC) $(FIND_NEW_MQ_SRC) -o $(BIN_DIR)/$(FIND_NEW_MQ_BIN) \
+	$(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	$(LDFLAGS) $(CFLAGS) $(ARCHITECTURE_FLAGS) \
 	&& \
-	gcc server_gen_priv_key.c -o ../../bin/server_gen_priv_key -march=native \
-	$(LINKER_FLAGS) $(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	$(CC) $(SERVER_GEN_PRIV_KEY_SRC) -o $(BIN_DIR)/$(SERVER_GEN_PRIV_KEY_BIN) \
+	$(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	$(LDFLAGS) $(CFLAGS) $(ARCHITECTURE_FLAGS) \
 	&& \
-	gcc server_gen_pub_key.c -o ../../bin/server_gen_pub_key -march=native \
-	$(LINKER_FLAGS) $(CFLAGS) $(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT)
+	$(CC) $(SERVER_GEN_PUB_KEY_SRC) -o $(BIN_DIR)/$(SERVER_GEN_PUB_KEY_BIN) \
+	$(OPTIMIZATION_LEVEL) $(OPTIMIZATION_REPORT) \
+	$(LDFLAGS) $(CFLAGS) $(ARCHITECTURE_FLAGS)
+
+clean:
+	rm -rf $(BIN_DIR)/$(FIND_NEW_MQ_BIN)         && \
+	rm -rf $(BIN_DIR)/$(SERVER_GEN_PRIV_KEY_BIN) && \
+	rm -rf $(BIN_DIR)/$(SERVER_GEN_PUB_KEY_BIN)
