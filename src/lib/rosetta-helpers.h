@@ -156,16 +156,16 @@ void print_buffer(uint8_t* buf, uint64_t len){
 #define DH_PRIME_ORDER_Q_PATH  "materials/cryptography/saved_Q.dat"
 #define DH_GENERATOR_G_PATH    "materials/cryptography/saved_G.dat"
 #define DH_G_MONT_PATH         "materials/cryptography/saved_Gm.dat"
-#define RTF_LOGO_PATH          "src/rosetta-test-framework/rtf-logo.txt"
+#define RTF_LOGO_PATH          "rosetta-test-framework/rtf-logo.txt"
 
 #define USER_SPAWNER_PROG_PATH \
-	"src/rosetta-test-framework/manual-user-testing/user-spawner"
+	"bin/manual-user-testing/user-spawner"
 
 #define USER_SAVEFILES_DIR \
-	"src/rosetta-test-framework/test-accounts/"
+	"rosetta-test-framework/test-accounts/"
 
 #define AUTOMATIC_USER_SIMULATION_TEST_PROG_BASE_PATH \
-	"src/rosetta-test-framework/automatic-user-testing/auto-simulated-user-test-"
+	"bin/automatic-user-testing/auto-simulated-user-test-"
 
 #define AUTOMATIC_USER_SIMULATION_AUTO_SPAWNER_BASE_PATH \
-	"src/rosetta-test-framework/automatic-user-testing/auto-spawner"
+	"bin/automatic-user-testing/auto-spawner"

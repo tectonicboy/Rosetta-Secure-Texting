@@ -8,7 +8,8 @@ struct roommate{
     u8*    guest_KBA;
     u8*    guest_KAB;
     u8*    guest_Nonce;
-    u64    guest_nonce_counter;
+    u64    guest_nonce_counter_sending;
+		u64    guest_nonce_counter_receiving;
 };
 
 struct roommate roommates[ROOMMATES_ARR_SIZ];
@@ -895,7 +896,8 @@ u8 process_msg_20(u8* msg, u64 msg_len)
         bigint_create_from_u32(&(roommates[i].guest_pubkey_mont),
                                MAX_USED_BITWIDTH, 0);
         get_mont_form(this_pubkey, &(roommates[i].guest_pubkey_mont), M);
-        roommates[i].guest_nonce_counter = 0;
+        roommates[i].guest_nonce_counter_sending   = 0;
+				roommates[i].guest_nonce_counter_receiving = 0;
         bigint_nullify(&temp_shared_secret);
         /* Now compute a shared secret with the i-th guest to get our pair of
          * bidirectional session keys (KAB, KBA) and the symmetric ChaCha nonce.
@@ -1027,7 +1029,8 @@ void process_msg_21(u8* msg)
     bigint_create_from_u32(&(roommates[guest_ix].guest_pubkey_mont),
                            MAX_USED_BITWIDTH, 0);
     get_mont_form(this_pubkey, &(roommates[guest_ix].guest_pubkey_mont), M);
-    roommates[guest_ix].guest_nonce_counter = 0;
+    roommates[guest_ix].guest_nonce_counter_sending   = 0;
+		roommates[guest_ix].guest_nonce_counter_receiving = 0;
     mont_pow_mod_m(&(roommates[guest_ix].guest_pubkey_mont), &own_privkey, M,
                    &temp_shared_secret);
     roommates[guest_ix].guest_KBA   = (u8*)calloc(1, SESSION_KEY_LEN);
@@ -1136,15 +1139,9 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
             /* Decide whether to encrypt with session key KAB or with KBA. */
             if( roommate_key_usage_bitmask & BITMASK_BIT_ON_AT(i) ){
                 chacha_key = (u32*)(roommates[i].guest_KAB);
-							  printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-											 "-- chacha_key was set to key KAB, bytes:\n", own_ix, i);
-								print_buffer(roommates[i].guest_KAB, SESSION_KEY_LEN);
             }
             else{
                 chacha_key = (u32*)(roommates[i].guest_KBA);
-								printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-                       "-- chacha_key was set to key KBA, bytes:\n", own_ix, i);
-								print_buffer(roommates[i].guest_KBA, SESSION_KEY_LEN);
             }
             memcpy(guest_nonce_bigint.bits, roommates[i].guest_Nonce,
                    LONG_NONCE_LEN);
@@ -1152,22 +1149,11 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
               get_used_bits(guest_nonce_bigint.bits, LONG_NONCE_LEN);
               guest_nonce_bigint.size_bits = MAX_USED_BITWIDTH;
             /* Increment nonce as many times as counter says for this guest. */
-						printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-                   "-- Incrementing guest_nonce %lu times now.\n",
-									 own_ix, i, roommates[i].guest_nonce_counter);
-            for(u64 j = 0; j < roommates[i].guest_nonce_counter; ++j){
+            for(u64 j = 0; j < roommates[i].guest_nonce_counter_sending; ++j){
                 bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
                 bigint_equate2(&guest_nonce_bigint, &aux1);
             }
             /* Now encrypt and place the text message with K. */
-						/* --------- DEBUG BEGIN -------*/
-						printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-									 "-- un-encrypted one-time use key K bytes:\n", own_ix, i);
-						print_buffer(send_K, ONE_TIME_KEY_LEN);
-            printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-                   "-- incremented guest_nonce bytes b4 chacha:\n", own_ix, i);
-						print_buffer(guest_nonce_bigint.bits, LONG_NONCE_LEN);
-						/* --------- DEBUG END -------- */
             chacha20(
                 send_K                               /* text - the text msg   */
                ,ONE_TIME_KEY_LEN                     /* text_len in bytes     */
@@ -1176,18 +1162,12 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
                ,chacha_key                           /* chacha Key            */
                ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_ts  */
                ,associated_data + AD_write_offset);  /* output target buffer  */
-						printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-                   "-- Encrypted one-time use key K bytes:\n", own_ix, i);
-            print_buffer(associated_data + AD_write_offset, ONE_TIME_KEY_LEN);
             AD_write_offset += ONE_TIME_KEY_LEN;
             /* Keep the Nonce with this guest symmetric. */
             bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
             bigint_equate2(&guest_nonce_bigint, &aux1);
-            ++(roommates[i].guest_nonce_counter);
+            ++(roommates[i].guest_nonce_counter_sending);
             /* Now encrypt and place the text message with K. */
-						printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-                   "-- un-encrypted TEXT MESSAGE bytes:\n", own_ix, i);
-            print_buffer(text_msg, text_msg_len);
             chacha20(
                 text_msg                             /* text - the text msg   */
                ,text_msg_len                         /* text_len in bytes     */
@@ -1196,12 +1176,9 @@ u8 construct_msg_30( unsigned char* text_msg, u64  text_msg_len,
                ,(u32*)send_K                         /* chacha Key            */
                ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32))/* Key_len in uint32_ts  */
                ,associated_data + AD_write_offset);  /* output target buffer  */
-            printf("[DEBUG] Client: OWN_IX: %lu ==> make_30 for guest[%lu] "
-                   "-- Encrypted TEXT MESSAGE bytes:\n", own_ix, i);
-            print_buffer(associated_data + AD_write_offset, text_msg_len);
             AD_write_offset += text_msg_len;
             /* Increment our Nonce with this guest again to keep it symmetric */
-            ++(roommates[i].guest_nonce_counter);
+            ++(roommates[i].guest_nonce_counter_sending);
             memset(guest_nonce_bigint.bits, 0,
                    ((size_t)((double)MAX_USED_BITWIDTH / (double)8)));
         }
@@ -1373,15 +1350,9 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
     /* Decide whether to encrypt with session key KAB or with KBA. */
     if( roommate_key_usage_bitmask & BITMASK_BIT_ON_AT(sender_ix) ){
         chacha_key = (u32*)(roommates[sender_ix].guest_KBA);
-				printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-               "-- chacha_key was set to key KBA, bytes:\n", own_ix, sender_ix);
-        print_buffer(roommates[sender_ix].guest_KBA, SESSION_KEY_LEN);
     }
     else{
         chacha_key = (u32*)(roommates[sender_ix].guest_KAB);
-        printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-               "-- chacha_key was set to key KAB, bytes:\n", own_ix, sender_ix);
-				print_buffer(roommates[sender_ix].guest_KAB, SESSION_KEY_LEN);
     }
     memcpy(guest_nonce_bigint.bits, roommates[sender_ix].guest_Nonce,
            LONG_NONCE_LEN);
@@ -1389,22 +1360,13 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
                                                  LONG_NONCE_LEN);
     guest_nonce_bigint.size_bits = MAX_USED_BITWIDTH;
     /* Increment nonce as many times as counter says for this guest. */
-    printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-           "-- Incrementing guest_nonce %lu times.\n",
-					 own_ix, sender_ix, roommates[sender_ix].guest_nonce_counter);
-    for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter; ++j){
+    for(u64 j = 0; j < roommates[sender_ix].guest_nonce_counter_receiving; ++j){
         bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
         bigint_equate2(&guest_nonce_bigint, &aux1);
     }
     our_K_pointer = AD_pointer + (our_AD_slot * AD_slot_len) + SMALL_FIELD_LEN;
     our_msg_pointer = our_K_pointer + ONE_TIME_KEY_LEN;
     /* Place this guest's encrypted one-time ChaCha key. */
-    printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-           "-- Incremented guest_nonce bytes:\n", own_ix, sender_ix);
-    print_buffer(guest_nonce_bigint.bits, LONG_NONCE_LEN);
-		printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-           "-- Still-Encrypted one-time use key K bytes:\n", own_ix, sender_ix);
-		print_buffer(our_K_pointer, ONE_TIME_KEY_LEN);
     chacha20(
         our_K_pointer                        /* text - recv (encr) K   */
        ,ONE_TIME_KEY_LEN                     /* text_len in bytes      */
@@ -1413,16 +1375,10 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
        ,chacha_key                           /* chacha Key             */
        ,(u32)(SESSION_KEY_LEN / sizeof(u32)) /* Key_len in uint32_ts   */
        ,decrypted_key);                      /* output target buffer   */
-		printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-           "-- Now-Decrypted one-time use key K:\n", own_ix, sender_ix);
-    print_buffer(decrypted_key, ONE_TIME_KEY_LEN);
-    ++roommates[sender_ix].guest_nonce_counter;
+    ++roommates[sender_ix].guest_nonce_counter_receiving;
     bigint_add_fast(&guest_nonce_bigint, &one, &aux1);
     bigint_equate2(&guest_nonce_bigint, &aux1);
     /* Place this guest's encrypted one-time ChaCha key. */
-    printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-           "-- Still-Encrypted received TEXT MESSAGE:\n", own_ix, sender_ix);
-    print_buffer(our_msg_pointer, text_len);
     chacha20(
         our_msg_pointer                       /* text - recv (encr) MSG */
        ,text_len                              /* text_len in bytes      */
@@ -1431,10 +1387,7 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
        ,(u32*)decrypted_key                   /* chacha Key             */
        ,(u32)(ONE_TIME_KEY_LEN / sizeof(u32)) /* Key_len in uint32_ts   */
        ,decrypted_msg);                       /* output target buffer   */
-		printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
-           "-- Now-Decrypted received TEXT MESSAGE:\n", own_ix, sender_ix);
-    print_buffer(decrypted_msg, text_len);
-    ++roommates[sender_ix].guest_nonce_counter;
+    ++roommates[sender_ix].guest_nonce_counter_receiving;
     /* Displayed name format in GUI is always "xxxxNAME: MSG"            */
     /* Always 8 chars space for username and max_txt_len for msg, 1 row. */
     *result_chars = SMALL_FIELD_LEN + 2 + text_len;
@@ -1450,6 +1403,8 @@ void process_msg_30(u8* payload, u8* name_with_msg_string, u64* result_chars)
       strlen( (const char*)(payload + SMALL_FIELD_LEN)));
     memcpy(name_with_msg_string + SMALL_FIELD_LEN, GUI_string_helper, 2);
     memcpy(name_with_msg_string + SMALL_FIELD_LEN + 2, decrypted_msg, text_len);
+    printf("[DEBUG] Client: OWN_IX: %lu ==> process_30 from guest[%lu] "
+           "-- Now-Decrypted received TEXT MESSAGE: ", own_ix, sender_ix);
 		for(size_t kkk = 0; kkk < text_len; ++kkk){
         printf("%c", decrypted_msg[kkk]);
 		}

@@ -41,7 +41,7 @@ int main(){
 		else{
 				printf("[OK]  RTF Simulation 1: Kev created a new chat room!\n");
 		}
-    sleep(20);
+    sleep(10);
 		/* send texts too, then close the chat room, wait (2) and exit rosetta */
     /* Send messages */
     const char* msgs[] = {"Hi from kev\0", "kev_msg_2a\0", "kev_msg_3b\0"};
@@ -50,6 +50,6 @@ int main(){
         printf("{OWN_INDEX: %lu} Displaying own msg: %s\n", own_ix, msgs[i]);
         sleep(1);
     }
-		sleep(2);
+		sleep(20);
     return 0;
 }
