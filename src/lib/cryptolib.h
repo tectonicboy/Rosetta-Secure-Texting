@@ -624,10 +624,9 @@ static void argon2_h_dash(uint8_t* input,   uint8_t* output
         for(uint64_t i = 1; i <= r-1; ++i){
             blake2b_init(V[i-1].block_data, 64, 0, 64, V[i].block_data);
         }
-        blake2b_init(
-                      V[r-1].block_data, 64, 0,
-                      (out_len-(32*r)), V[r].block_data
-                    );
+        blake2b_init(V[r-1].block_data, 64, 0,
+                     (out_len-(32*r)), V[r].block_data);
+
         /* Construct a buffer of concatenated W1 || W2 ... || Wr || V_(r+1)
          * and place this result in the output target buffer of H_dash here.
          * Note, Wi is the 32 least significant bytes of 64-byte Vi.
@@ -670,16 +669,13 @@ argon2_initJ1J2_blockpool_for2i(u8* Z, block1024_t* blocks, u64 num_blocks)
     for(uint64_t i = 0; i < num_blocks; ++i){
         /* Increment the counter inside 2nd input to inner G() call. */
         ++G_inner_counter;
-        memcpy(G_inner_input_2 + (6*sizeof(uint64_t))
-              ,&G_inner_counter
-              ,sizeof(uint64_t)
-              );
+        memcpy(G_inner_input_2 + (6*sizeof(uint64_t)), &G_inner_counter,
+               sizeof(uint64_t));
         /* First do the inner G(), whose output is 2nd input to outer G(). */
         argon2_g(zero1024, G_inner_input_2, G_inner_output);
         /* Now the outer G() that generates this actual 1024-byte block. */
         argon2_g(zero1024, G_inner_output, (uint8_t*)(&(blocks[i])));
     }
-
     return;
 }
 
@@ -858,8 +854,8 @@ label_finish_segment:
 /* For now only the first pass of Argon2id is implemented. */
 void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag)
 {
-    void**     thread_inputs;
-    pthread_t* argon2_thread_ids;
+    void**        thread_inputs;
+    pthread_t*    argon2_thread_ids;
     block1024_t** B;
 
     /* Length of input to the generator of 64-byte H0, BLAKE2B() in our case. */
@@ -890,7 +886,6 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag)
         printf("[ERR] Argon2 parameter t must be set to 1. One pass only.\n");
         exit(1);
     }
-
     /* Construct the input buffer to H{64}() that generates 64-byte H0. */
     /* The order has to be exactly as specified in the RFC.             */
     memcpy(H0_input +  0, &(parms->p),     4);
@@ -974,14 +969,11 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag)
      */
     memcpy(B_init_buf + 0 , H0, 64);
     memcpy(B_init_buf + 64, &zero, 4);
-
     for(uint32_t i = 0; i < parms->p; ++i){
         memcpy(B_init_buf + 64 + 4, &i, 4);
         argon2_h_dash(B_init_buf, (uint8_t*)&(B[i][0]), 1024, (64+4+4));
     }
-
     memcpy(B_init_buf + 64, &one, 4);
-
     for(uint32_t i = 0; i < parms->p; ++i){
         memcpy(B_init_buf + 64 + 4, &i, 4);
         argon2_h_dash(B_init_buf, (uint8_t*)&(B[i][1]), 1024, (64+4+4));
@@ -994,7 +986,6 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag)
      * slice's threads can begin. All threads process their 1/4 rows in that
      * slice in parallel.
      */
-
     /* Create p thread_id's - one for each thread we will run. */
     argon2_thread_ids = (pthread_t*)calloc(1, parms->p * sizeof(pthread_t));
 
@@ -1007,7 +998,7 @@ void Argon2_MAIN(struct Argon2_parms* parms, uint8_t* output_tag)
 
     for(uint32_t i = 0; i < parms->p; ++i){
         thread_inputs[i] =
-                      calloc(1, sizeof(block1024_t*) + (8*sizeof(uint64_t)));
+          calloc(1, sizeof(block1024_t*) + (8*sizeof(uint64_t)));
     }
 
 label_start_pass:
@@ -1017,7 +1008,7 @@ label_start_pass:
             /*  Third for-loop 3.1 that will:
              *  Set loose a thread for each row of blocks in the matrix.
              *  21845 1024-byte blocks will be processed by each thread.
-             *  provided 2 gigibytes of memory usage and 24 threads.
+             *  provided 2 gibibytes of memory usage is set.
              *
              *  Each thread will call G() in a for-loop going over each
              *  1024-block in that segment of the working memory matrix.
@@ -1041,57 +1032,57 @@ label_start_pass:
             thread_in_offset = 0;
 
             /* First is a pointer to the start of the memory matrix B[][]. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &B ,sizeof(block1024_t**));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &B ,sizeof(block1024_t**));
 
             thread_in_offset += sizeof(block1024_t**);
 
             /* Second is r, the current pass number. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
                    &r, sizeof(r));
 
             thread_in_offset += sizeof(r);
 
             /* Third is l, the current lane number. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &i, sizeof(i));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &i, sizeof(i));
 
             thread_in_offset += sizeof(i);
 
             /* Fourth is sl, the current slice number. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &sl, sizeof(sl));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &sl, sizeof(sl));
 
             thread_in_offset += sizeof(sl);
 
             /* Now m', the total number of 1024-byte blocks in the matrix. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &m_dash, sizeof(m_dash));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &m_dash, sizeof(m_dash));
 
             thread_in_offset += sizeof(m_dash);
 
             /* Sixth is t, the total number of passes. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &(parms->t), sizeof(parms->t));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &(parms->t), sizeof(parms->t));
 
             thread_in_offset += sizeof(parms->t);
 
             /* Seventh is y, the Argon2 type. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &(parms->y), sizeof(parms->y));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &(parms->y), sizeof(parms->y));
 
             thread_in_offset += sizeof(parms->y);
 
             /* Eighth is p, the total number of threads Argon2 should use. */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &(parms->p), sizeof(parms->p));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &(parms->p), sizeof(parms->p));
 
             thread_in_offset += sizeof(parms->p);
 
             /* Ninth is q, the total number of 1024-byte blocks in 1 row. */
             /* AKA the total number of columns in the entire matrix.      */
-            memcpy( ((u8*)(thread_inputs[i])) + thread_in_offset,
-                    &q, sizeof(q));
+            memcpy(((u8*)(thread_inputs[i])) + thread_in_offset,
+                   &q, sizeof(q));
 
             thread_in_offset += sizeof(q);
 
@@ -1171,33 +1162,32 @@ label_start_pass:
  *
  * The signature itself is (s,e).
  */
-void signature_generate(bigint* M, bigint* Q, bigint* Gmont
-                       ,u8* data, u64 data_len, u8* signature
-                       ,bigint* private_key, u64 key_len_bytes
-                       )
+void signature_generate(bigint* M, bigint* Q, bigint* Gmont,
+                        u8* data, u64 data_len, u8* signature,
+                        bigint* private_key, u64 key_len_bytes)
 {
-    u32 offset = 0;
-    bigint second_btb_outnum;
-    bigint one;
-    bigint Q_minus_one;
-    bigint reduced_btb_res;
-    bigint k;
-    bigint R;
-    bigint e;
-    bigint s;
-    bigint div_res;
-    bigint aux1;
-    bigint aux2;
-    bigint aux3;
+    u32       offset = 0;
+    bigint    second_btb_outnum;
+    bigint    one;
+    bigint    Q_minus_one;
+    bigint    reduced_btb_res;
+    bigint    k;
+    bigint    R;
+    bigint    e;
+    bigint    s;
+    bigint    div_res;
+    bigint    aux1;
+    bigint    aux2;
+    bigint    aux3;
     const u64 prehash_len = 64;
-    u64 len_key_PH = prehash_len + key_len_bytes;
-    u64 R_used_bytes;
-    u64 len_Rused_PH;
-    u8  second_btb_outbuf[64];
-    u8  prehash[prehash_len];
-    u8* second_btb_inbuf;
-    u8* R_with_prehash;
-    u8 third_btb_outbuf[64];
+    u64       len_key_PH = prehash_len + key_len_bytes;
+    u64       R_used_bytes;
+    u64       len_Rused_PH;
+    u8        second_btb_outbuf[64];
+    u8        prehash[prehash_len];
+    u8*       second_btb_inbuf;
+    u8*       R_with_prehash;
+    u8        third_btb_outbuf[64];
 
     bigint_create_from_u32(&second_btb_outnum, M->size_bits, 0);
     bigint_create_from_u32(&Q_minus_one,       M->size_bits, 0);
@@ -1301,16 +1291,16 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     const u64 prehash_len = 64;
     u64       R_used_bytes;
     u64       len_Rused_PH;
-    u8  retval = 0;
-    u8  prehash[prehash_len];
-    u8* R_with_prehash = NULL;
-    u8  blake2b_outbuf[64];
-    bigint R;
-    bigint R_aux1;
-    bigint R_aux2;
-    bigint R_aux3;
-    bigint div_res;
-    bigint val_e;
+    u8        retval = 0;
+    u8        prehash[prehash_len];
+    u8*       R_with_prehash = NULL;
+    u8        blake2b_outbuf[64];
+    bigint    R;
+    bigint    R_aux1;
+    bigint    R_aux2;
+    bigint    R_aux3;
+    bigint    div_res;
+    bigint    val_e;
 
     memset(prehash, 0, prehash_len);
 
@@ -1441,10 +1431,9 @@ uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf)
 }
 
 /* Given a private key, generate its corresponding public key. */
-struct bigint* gen_pub_key( uint32_t privkey_len_bytes
-                           ,const char* privkey_filename
-                           ,uint32_t resbits
-                          )
+struct bigint* gen_pub_key(uint32_t privkey_len_bytes,
+                           const char* privkey_filename,
+                           uint32_t resbits)
 {
     bigint* M;
     bigint* Gm;
@@ -1496,7 +1485,6 @@ label_cleanup:
 /* Check that a public key is of the correct form given our DH parameters.
  *
  * The check is:
- *
  *      pub_key^(M/Q) mod M == 1
  *
  *  Return 1 for valid and 0 for invalid public key.

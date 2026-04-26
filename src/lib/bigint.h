@@ -50,7 +50,7 @@ void bigint_create_from_u32(bigint* const __restrict__ num,
                             const u32 initial)
 {
     if( __builtin_expect
-         ( (bitsize % 8 != 0) || (bitsize <= 64) || (bitsize > MAX_BITS), 0 ))
+         ((bitsize % 8 != 0) || (bitsize <= 64) || (bitsize > MAX_BITS), false))
     {
         printf("[ERR] Bigint: Invalid new max bitsize in u32 constructor.\n");
         printf("              Must be > 64, divisible by 8 and < 4290000000");
@@ -59,7 +59,7 @@ void bigint_create_from_u32(bigint* const __restrict__ num,
     num->size_bits = bitsize;
     num->bits = (u8*)calloc(1, bitsize / 8);
     num->used_bits = 0;
-    if( __builtin_expect(num->bits == NULL, 0) ){
+    if( __builtin_expect(num->bits == NULL, false) ){
         perror("Memory allocation failed for a new bigint's bit buffer: ");
         exit(1);
     }
@@ -114,9 +114,7 @@ void bigint_get_ascii_bits( const bigint* const num
         ++bits_to_8;
     }
     bytes_used = bits_to_8 / 8;
-
     memset(target_buffer, 0, bytes_used * 8);
-
     for(u32 i = 0; i < bytes_used; ++i){
         for(u8 j = 0; j < 8; ++j){
             if ((*((num->bits) + i ) >> (7 - j)) & 1){
@@ -148,7 +146,6 @@ void bigint_print_bits(const bigint* const n)
     bitstring  = (char*)calloc(1, (bytes_used * 8));
     bigint_get_ascii_bits(n, bitstring);
     printf("\n\n");
-
     for(u32 i = 0; i < bytes_used * 8; ++i){
         if( !(i % 8) ){
             printf(" | ");
@@ -546,7 +543,6 @@ void bigint_mul_fast( const bigint* const n1
 
             /*Go (i+j) 32-bit places into R->bits. Place temp_res there. */
             aux_ptr_Rbits[i+j] = *aux_ptr_tempres;
-
             C = (u64)(aux_ptr_tempres[1]);
         }
         aux_ptr_Rbits[i + 1 + (AA - 1)] = aux_ptr_tempres[1];
@@ -1407,4 +1403,3 @@ void mont_pow_mod_m(bigint* B, bigint* P, bigint* M, bigint* R)
     bigint_cleanup(&div_res);
     return;
 }
-

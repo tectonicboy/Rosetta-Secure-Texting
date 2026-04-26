@@ -148,16 +148,15 @@ void print_buffer(uint8_t* buf, uint64_t len){
 #define SIGNATURE_LEN        ((2 * sizeof(bigint)) + (2 * PRIVKEY_LEN))
 #define BITMASK_BIT_ON_AT(X) (1ULL << (63ULL - ((X))))
 
-#define DEV_URANDOM_PATH       "/dev/urandom"
-#define SERV_PRIVKEY_PATH      "materials/cryptography/server_privkey.dat"
-#define SERV_PUBKEY_PATH       "materials/cryptography/server_pubkey.dat"
-#define SERV_PUBKEYMONT_PATH   "materials/cryptography/server_pubkeymont.dat"
-#define DH_MODULUS_M_PATH      "materials/cryptography/saved_M.dat"
-#define DH_PRIME_ORDER_Q_PATH  "materials/cryptography/saved_Q.dat"
-#define DH_GENERATOR_G_PATH    "materials/cryptography/saved_G.dat"
-#define DH_G_MONT_PATH         "materials/cryptography/saved_Gm.dat"
-#define RTF_LOGO_PATH          "rosetta-test-framework/rtf-logo.txt"
-
+#define DEV_URANDOM_PATH        "/dev/urandom"
+#define SERV_PRIVKEY_PATH       "materials/cryptography/server_privkey.dat"
+#define SERV_PUBKEY_PATH        "materials/cryptography/server_pubkey.dat"
+#define SERV_PUBKEYMONT_PATH    "materials/cryptography/server_pubkeymont.dat"
+#define DH_MODULUS_M_PATH       "materials/cryptography/saved_M.dat"
+#define DH_PRIME_ORDER_Q_PATH   "materials/cryptography/saved_Q.dat"
+#define DH_GENERATOR_G_PATH     "materials/cryptography/saved_G.dat"
+#define DH_G_MONT_PATH          "materials/cryptography/saved_Gm.dat"
+#define RTF_LOGO_PATH           "rosetta-test-framework/rtf-logo.txt"
 #define REAL_USER_SAVEFILE_PATH "user-save.dat"
 
 #define USER_SPAWNER_PROG_PATH \
