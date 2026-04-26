@@ -49,6 +49,9 @@ int main(){
         run_auto_spawner_program(i);
         sleep(3);
 	  }
-		sleep(20);
+		/* Total sleep after spawning last user: 24 seconds.*/
+		/* Total simulation runtime: 30 seconds. */
+		sleep(21);
+		printf("[OK] Simulation 1 test completed! Closing now...\n");
     return 0;
 }

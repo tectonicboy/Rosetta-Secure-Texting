@@ -41,7 +41,7 @@ int main(){
     else{
         printf("[OK]  RTF Simulation 1: Devi join a chat room!\n");
     }
-    sleep(2);
+    sleep(3);
 		/* Send messages */
     const char* msgs[] = {"Hi from devi\0", "devi_msg_2a\0", "devi_msg_3b\0"};
     for(size_t i = 0; i < 3; ++i){
@@ -49,6 +49,6 @@ int main(){
 				printf("{OWN_INDEX: %lu} Displaying own msg: %s\n", own_ix, msgs[i]);
         sleep(1);
     }
-    sleep(2);
+    sleep(10);
     return 0;
 }
