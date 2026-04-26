@@ -70,7 +70,7 @@ void display_gui_user_booted(){
     {
         g_instance->info_msg_box->SetValue("");
         g_instance->info_msg_box->WriteText
-		                    ("Chat room has been closed by the owner.");
+          ("Chat room has been closed by the owner.");
         g_instance->info_msg_box->Show();
 	      g_instance->btn_leavetheroom->Hide();
         g_instance->btn_send_msg->Hide();
@@ -386,7 +386,7 @@ void cMain::BtnClickRegGo(wxCommandEvent &evt)
             (const char*)pwd_as_wxstring.mb_str(wxConvUTF8), password_len);
 
     /* At this point we're sure the password is valid. Register the user. */
-    register_status = reg(password, password_len, "./user-save.dat");
+    register_status = reg(password, password_len, REAL_USER_SAVEFILE_PATH);
 
     /* Display error box that something went wrong, try again. */
     if(register_status){

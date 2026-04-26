@@ -158,6 +158,8 @@ void print_buffer(uint8_t* buf, uint64_t len){
 #define DH_G_MONT_PATH         "materials/cryptography/saved_Gm.dat"
 #define RTF_LOGO_PATH          "rosetta-test-framework/rtf-logo.txt"
 
+#define REAL_USER_SAVEFILE_PATH "user-save.dat"
+
 #define USER_SPAWNER_PROG_PATH \
 	"bin/manual-user-testing/user-spawner"
 

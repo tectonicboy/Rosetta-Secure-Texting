@@ -97,20 +97,25 @@ EXTRA: bigint:471, cryptolib:339, cryptolib:349, cryptolib:1325
 
 EXTRA: Fix the user savefile for real people using Rosetta to be a #define
        in rosetta-helpers.h
+[ Completed ✓ ]
 
 18. Improve the Rosetta Test Framework with automatic tests. All actions, from
     creating and logging in a test user account, to creating and joining a
     chatroom, to sending a text message, should be done automatically when you
     start a test case. The function APIs for all of these are already made.
- [IN PROGRESS]
+[ Completed ✓ ]
 
 EXTRA: Extract all directory strings into the helper header and mention
        that all of them are relative to the top-level project directory
        so all executables must be started with that as the working directory.
+[ Completed ✓ ]
 
 EXTRA: Move magic numbers into #defines in rosetta-helpers.h from source code
        in the two engines, the communication payload layer and the interface
        layer, but not from the client driving program layer.
+[ Completed ✓ ]
+
+EXTRA: Make sure error paths lead to shutting down the system if needed.
 
 EXTRA: Spend time figuring out how to optimize the two hot paths: Poll request
        client-side generation and server-side processing, as well as sending
