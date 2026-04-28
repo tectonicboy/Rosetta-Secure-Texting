@@ -34,6 +34,7 @@ __attribute__((no_reorder))  __attribute__((used))
 __attribute__((noinline))    __attribute__((optimize("O0")))
 void erase_mem_secure(volatile uint8_t* buf, uint64_t num_bytes_to_erase)
 {
+	  /* A zeroed out 256-bit vector register. */
     __m256i zero_reg256 = _mm256_setzero_si256();
     size_t i = 0;
 

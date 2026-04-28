@@ -2,11 +2,10 @@
 
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/un.h>
 #include <fcntl.h>
-#include <errno.h>
 
 /* recv() shall timeout after 3 seconds thanks to SO_RCVTIMEO socket option. */
 #define RECV_TIMEOUT_AFTER_SEC    3
@@ -47,6 +46,8 @@ uint8_t tcp_init_communication(void)
         goto label_error;
     }
 		printf("[OK]  Server: TCP socket file descriptor obtained.\n");
+
+    #ifdef SO_REUSEPORT
     if(setsockopt(listening_socket, SOL_SOCKET, SO_REUSEPORT, &optval1,
                   sizeof(optval1))
 			 == -1)
@@ -55,7 +56,9 @@ uint8_t tcp_init_communication(void)
 				goto label_error;
 		}
 		printf("[OK]  Server: TCP socket option for REUSEPORT has been set.\n");
-    if(setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &optval2,
+    #endif
+
+		if(setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &optval2,
                   sizeof(optval2))
 			 == -1)
     {

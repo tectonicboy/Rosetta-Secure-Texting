@@ -1,10 +1,9 @@
 # -*- MakeFile -*-
-
 .PHONY: build_dir all server server_asan client client_asan clean
 
+CFLAGS += -D_GNU_SOURCE
 CFLAGS += -Wall
 CFLAGS += -Wextra
-CFLAGS += -Waggregate-return
 CFLAGS += -Wcast-align
 CFLAGS += -Wcast-qual
 CFLAGS += -Wfloat-equal
@@ -20,7 +19,6 @@ CFLAGS += -Wundef
 CFLAGS += -Wunreachable-code
 CFLAGS += -Wunused-but-set-parameter
 CFLAGS += -Wunused
-CFLAGS += -Wwrite-strings
 CFLAGS += -Wstrict-aliasing
 CFLAGS += -Wformat-security
 CFLAGS += -Wno-stringop-truncation
@@ -31,8 +29,9 @@ CFLAGS += -Wno-write-strings
 
 LDFLAGS += -lm
 LDFLAGS += -pthread
-CC  = cc
-CXX = g++
+CC   = cc
+CXX  = g++
+CSTD = -std=c17
 OPTIMIZATION_LEVEL = -O3
 ARCHITECTURE_FLAGS = -march=native
 ADDRESS_SANITIZER_FLAGS = -fsanitize=address -static-libasan -g -fstack-usage
@@ -60,9 +59,9 @@ build_dir:
 	@mkdir -p bin/manual-user-testing bin/automatic-user-testing bin/keygen
 
 server:
-	$(CC) $(ROSETTA_SERVER_SRC) -o $(BIN_DIR)/$(ROSETTA_SERVER_BIN) \
+	$(CC) $(ROSETTA_SERVER_SRC) -pipe -o $(BIN_DIR)/$(ROSETTA_SERVER_BIN) \
 	$(OPTIMIZATION_LEVEL) $(COMPILER_OPTIMIZATION_REPORT) \
-	$(LDFLAGS) $(CFLAGS) $(ARCHITECTURE_FLAGS)
+	$(LDFLAGS) $(CFLAGS) $(CSTD) $(ARCHITECTURE_FLAGS)
 
 client:
 	$(CXX) $(ROSETTA_CLIENT_SRC) -pipe -o $(BIN_DIR)/$(ROSETTA_CLIENT_BIN) \
@@ -70,9 +69,9 @@ client:
 	$(CFLAGS) $(LDFLAGS) $(ARCHITECTURE_FLAGS)
 
 server_asan:
-	$(CC) $(ROSETTA_SERVER_SRC) -o $(BIN_DIR)/$(ROSETTA_SERVER_ASAN_BIN) \
+	$(CC) $(ROSETTA_SERVER_SRC) -pipe -o $(BIN_DIR)/$(ROSETTA_SERVER_ASAN_BIN) \
 	$(OPTIMIZATION_LEVEL) $(COMPILER_OPTIMIZATION_REPORT) \
-	$(LDFLAGS) $(CFLAGS) $(ARCHITECTURE_FLAGS) $(ADDRESS_SANITIZER_FLAGS)
+	$(LDFLAGS) $(CFLAGS) $(CSTD) $(ARCHITECTURE_FLAGS) $(ADDRESS_SANITIZER_FLAGS)
 
 client_asan:
 	$(CXX) $(ROSETTA_CLIENT_SRC) -pipe -o $(BIN_DIR)/$(ROSETTA_CLIENT_ASAN_BIN) \
