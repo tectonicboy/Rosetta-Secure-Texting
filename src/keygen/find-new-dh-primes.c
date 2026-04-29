@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
 
     /* For finding M. */
     counter  = 0;
-    aux_bits = m_bits - q_bits;
+    aux_bits = m_bits - q_bits + 1;
 		{
 			  unsigned long temp_aux_bits = aux_bits;
 			  while(temp_aux_bits++ % 8 != 0){
