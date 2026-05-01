@@ -1579,9 +1579,9 @@ void process_msg_40(u8* msg_buf, u32 user_ix)
                    clients[poller_ix].pending_msgs[i],
                    clients[poller_ix].pending_msg_sizes[i]);
             reply_write_offset += clients[poller_ix].pending_msg_sizes[i];
-            clients[poller_ix].pending_msg_sizes[i] = 0;
             memset(clients[poller_ix].pending_msgs[i], 0,
                    clients[poller_ix].pending_msg_sizes[i]);
+					 	clients[poller_ix].pending_msg_sizes[i] = 0;
         }
         /* Compute a cryptographic signature so the client can authenticate us*/
         signature_generate(M, Q, Gm, reply_buf, reply_len - SIGNATURE_LEN,

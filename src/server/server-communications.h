@@ -135,6 +135,13 @@ uint8_t tcp_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len)
     if( __builtin_expect
           (send(client_socket_fd[socket_ix], buf, send_len, 0) == -1, false))
     {
+			  /* This is fine. A client suddenly poofed, while a poll request sent by
+				 * it was still on its way to the server. Handle it gracefully.
+				 */
+			  if(errno == EPIPE){
+						printf("[OK]  Server: send() gave EPIPE, socket[%lu]\n", socket_ix);
+            return 0;
+				}
         printf("[ERR] Server: TCP send() for client[%lu] failed.\n", socket_ix);
 				perror("errno: ");
         return 1;
@@ -250,6 +257,13 @@ uint8_t ipc_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len)
     if( __builtin_expect
          (send(client_socket_fd[socket_ix], buf, send_len, 0) == -1, false))
     {
+        /* This is fine. A client suddenly poofed, while a poll request sent by
+         * it was still on its way to the server. Handle it gracefully.
+         */
+        if(errno == EPIPE){
+            printf("[OK]  Server: send() gave EPIPE, socket[%lu]\n", socket_ix);
+            return 0;
+        }
         printf("[ERR] Server: AF_UNIX send() failed, client[%lu]\n", socket_ix);
         return 1;
     }

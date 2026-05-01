@@ -1,8 +1,31 @@
+#include <signal.h>
+
 /* First thing done when we start the Rosetta server - initialize it. */
 u8 self_init()
 {
     FILE* privkey_dat = NULL;
     u8 status = 0;
+
+		/* Set a signal disposition (handler function) for the SIGPIPE signal,
+		 * telling the server to ignore that signal. This is because a client
+		 * could crash or otherwise disappear suddenly, while a poll request
+		 * sent by them is still on its way to the server (or being processed
+		 * by the server already), in which case, at least for interprocess
+		 * communication (AF_UNIX) sockets, the OS sends a SIGPIPE to the server,
+		 * killing it if no handler has been set for that signal. When ignoring it,
+		 * write() and send() issued by the server to that no longer present client
+		 * will return -1 and sent errno to EPIPE, which can be handled eleganrtly
+		 * by the server, instead of the server process getting terminated.
+		 */
+    struct sigaction sa;
+		sa.sa_handler = SIG_IGN;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+		if(sigaction(SIGPIPE, &sa, NULL) == -1){
+        perror("[ERR] Server: Setting SIG_IGN disposition for SIGPIPE failed:");
+				exit(1);
+		}
+    printf("[OK]  Server: Signal handler SIG_IGN for SIGPIPE has been set.\n");
 
     temp_handshake_buf = NULL;
     status = init_communication();
