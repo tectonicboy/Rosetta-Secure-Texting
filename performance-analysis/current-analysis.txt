@@ -1,4 +1,52 @@
 ================================================================================
+May 1, 2026 |
+-------------
+
+sudo perf stat --topdown -- bin/rosetta-server 1
+
+is the command to get %'s for the 4 level-1 TMA buckets, aka Retiring,
+Frontend-bound, Backend-bound and Bad speculation.
+--------------------------------------------------------------------------
+sudo perf stat -e cpu_core/cycles/ -M \
+tma_core_bound,tma_memory_bound -- bin/rosetta-server 1
+
+is the command to get %'s for the two level-2 subbuckets of Backend-bound, aka
+memory-bound and core-bound for performance cores, ignoring energy-saving cores.
+--------------------------------------------------------------------------
+It turns out automatic user chat room simulation tests in Rosetta Test Framework
+give exactly the same results as manual testing.
+
+ALSO: Repeating TMA analysis several times gives the same results. Percentages
+      only fluctuate by about half a % up or down in all 4 main buckets.
+--------------------------------------------------------------------------
+sudo perf stat -e cpu_core/cycles/ -M \
+tma_divider,tma_ports_utilization -- bin/rosetta-server 1
+
+is the command to drill down in core-bound to see if it's Port Utilization or
+the Divider thats causing the core-bound metric to be 10%.
+
+The results are clear:
+Divider         : 0%
+Port Utilization: 10%  (which is equal to our level-2 core bound bucket of 10%)
+--------------------------------------------------------------------------
+sudo perf record -e cpu_core/exe_activity.1_ports_util/ -g \
+-- bin/rosetta-server 1
+
+[run and exit the program]
+
+sudo perf report
+
+are the commands to be able to see port utilization %s across functions.
+
+In my case for the Rosetta Server with 3 clients in a chat room, the big
+offender function is montgomery_mul(), with nearly 60% of all cycles marked as
+being stalled due to Port Utilization by the Top-down microarchitecture analysis
+being attributed to that function.
+
+The idea with doing 2 Montgomery multiplications in 1 function aka in 1 loop
+(and 2 powerings, to allow for the case where a dual multiplication is feasible)
+might work, it looks like.
+================================================================================
 Jan 19, 2026 |
 --------------
 
@@ -42,6 +90,5 @@ Additionally, with individual performance counters captured, I revealed:
 NEXT STEPS:
 
 - Repeat this analysis several times to make sure stable results are presisting.
-- Improve function profiling code to report stable execution time averages.
-
+[ COMPLETED ]
 ================================================================================
