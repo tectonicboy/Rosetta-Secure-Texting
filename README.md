@@ -2,6 +2,7 @@
 
 # Rosetta Secret Communications
 
+```
 This has been an incredible solo project for me. I started it as an early
 intermediate C systems developer on GNU/Linux. Having undertaken it has taught
 me colossal amounts in topics spanning from the basics, such as the dangers of
@@ -200,3 +201,4 @@ en-route. He uses the same unidirectional session key KAB/KBA and Nonce
 (extracted from his shared secret with Alice) to decrypt the one-time use key K,
 then he uses the decrypted key K to actually decrypt the secret message itself.
 Carol and Fred do similarly to read the secret message sent to them by Alice.
+```
