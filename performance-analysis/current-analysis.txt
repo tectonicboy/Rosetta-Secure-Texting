@@ -1,6 +1,89 @@
+********************************************************************************
+********************************************************************************
+================================================================================
+May 5, 2026 |
+-------------
+
+Interleaving 2 independent Montgomery Modular Powering calls into one function
+had unexpected results for TMA metrics, overall it's slightly worse than before.
+
+Retiring average grew from 71% to 72%.
+Backend-bound stayed at 15%. core-bound decreased, mem-bound increased, by 3%.
+Bad Speculation decreased by 2%.
+
+I suspect this has to do with the way I interleaved Montgomery Multiplication.
+It's probably suboptimal to interleave every line of code that deals with the
+arguments of the first stream with a new line of code for the 2nd argument set.
+I will try to do all operations for the given loop iteration for the first set
+of Montgomery MUL arguments (first stream) then do the ones for the 2nd set and
+see how that changes things.
+
+Comparing non-interleaved, line-for-line interleaved and block-interleaved:
+
+BLOCK-INTERLEAVED:
+Latency averages for dual montgomery powering in signature_validate() in micros:
+no taskset  :
+       SET 1: 5091, 5092, 5101, 5053, 5074, 5072, 5107, 5059, 5046, 5049, 5103,
+              5076, 5077, 5092, 5059, 5140, 5077, 5064, 5127, 5099, 5060, 5084
+              Average of averages SET 1: 5081.9 microseconds.
+
+       SET 2: 5075.3, 5082.6, 5069.2, 5109.6, 5086.9, 5054.0, 5049.4, 5055.8,
+              5086.6, 5086.2, 5070.9, 5079.0, 5074.9, 5118.5, 5041.3, 5092.0,
+              5062.4, 5066.1, 5071.0, 5062.1, 5076.5, 5066.8, 5165.8, 5099.6
+              Average of averages SET 2: 5079.3 microseconds.
+
+       SET 3: 5069.3, 5060.6, 5076.6, 5073.5, 5071.3, 5109.0, 5075.3, 5088.9
+              5080.8, 5066.4, 5083.0, 5098.7, 5070.0, 5090.0, 5061.3, 5068.2,
+              5068.8, 5082.7, 5080.2, 5087.2, 5068.8, 5068.2, 5069.2, 5065.6
+              Average of averages SET 3: 5076.4 microseconds.
+
+with taskset: 5057, 5089, 5075, 5057, 5111, 5071, 5138, 5074, 5121, 5065, 5062,
+              5062, 5072, 5095, 5066, 5090, 5046, 5086, 5078, 5102, 5149, 5044
+              ran with: sudo taskset -c 2,4,6,8,10 bin/rosetta-server 1
+              Average of averages: 5082.3 microseconds.
+
+Pinning the process to a certain subset of the machine's CPUs, such that no set
+of 2 threads uses 2 cores of the same hyperthreaded processor (and thus share
+a CPU cache) appears to not make a difference.
+
+Improving latency measurement by properly calculating what the min. and max. of
+the outliers range should be, using 25th and 75th percentile on all measurements
+taken in a sorted batch and calculating better averages using this, in python.
+
+New sets with actual statistical removal of outliers done properly:
+
+BLOCK-INTERLEAVED:
+Stabilized latency averages for dual_mont_pow in signature_validate() in micros:
+
+       SET 1: 5057.7, 5075.3, 5058.5, 5054.9, 5059.4, 5083.3, 5081.4, 5067.2,
+              5077.2, 5074.6, 5123.7, 5072.1, 5068.3, 5073.6, 5056.5, 5065.1,
+              5124.0, 5062.8, 5056.4, 5097.2, 5057.0, 5045.3, 5241.5, 5065.3
+              GRAND AVERAGE: 5079.1 microseconds
+
+       SET 2: 5057.9, 5055.1, 5110.6, 5098.1, 5094.8, 5073.8, 5134.7, 5047.5,
+              5049.7, 5070.1, 5108.1, 5081.4, 5069.0, 5055.8, 5076.9, 5106.9,
+              5062.2, 5071.8, 5088.5, 5063.5, 5089.8, 5116.1, 5094.4, 5060.0
+              GRAND AVERAGE: 5080.7 microseconds
+
+
+********************************************************************************
+********************************************************************************
 ================================================================================
 May 1, 2026 |
 -------------
+
+Huge compiler optimization success story - factoring out the loop in ChaCha20
+that writes out the final result blocks into its own function, passing pointer
+arguments as __restrict__ (because that's guaranteed by design here) actually
+led the compiler to stop emitting a slow and a fast vectorized version of the
+loop (explicitly stating that it's doing it out of fear for possible aliasing)
+and it started emitting only the vectorized loop version. Interestingly, opening
+a sub-block in the function wherein to have the code for this loop and declare
+separate pointers to the ones used in the loop to iterate over the arrays and
+declare THOSE scope-local pointers as __restrict__ DID NOT cause the compiler to
+drop the 2 loop versions. It appears that __restrict__ works best to convince
+the compiler of our promise when used on function arguments.
+--------------------------------------------------------------------------
 
 sudo perf stat --topdown -- bin/rosetta-server 1
 
@@ -46,6 +129,10 @@ being attributed to that function.
 The idea with doing 2 Montgomery multiplications in 1 function aka in 1 loop
 (and 2 powerings, to allow for the case where a dual multiplication is feasible)
 might work, it looks like.
+
+
+********************************************************************************
+********************************************************************************
 ================================================================================
 Jan 19, 2026 |
 --------------

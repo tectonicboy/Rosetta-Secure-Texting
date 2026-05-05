@@ -1283,8 +1283,12 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont,
  *
  */
 /*DEBUG ONLY */
-//double nr_timepoints = 0;
-//double total_times   = 0;
+size_t       nr_timepoints  = 0;
+#define MAX_TIMEPOINTS 1000
+#define NR_TIMEPOINTS_TO_WRITE_AT 500
+double       measurements[MAX_TIMEPOINTS];
+FILE*        measurements_fd;
+size_t       profiling_ret;
 uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
                            ,bigint* s, bigint* e, u8* data, u32 data_len)
 {
@@ -1321,47 +1325,99 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     blake2b_init(data, data_len, 0, prehash_len, prehash);
 
     /* DEBUG ONLY */
-    //struct timeval tv1, tv2;
+    struct timeval tv1, tv2;
 
     //gettimeofday(&tv1,NULL);
-    mont_pow_mod_m(Gmont, s, M, &R_aux1);
+    //mont_pow_mod_m(Gmont, s, M, &R_aux1);
     //gettimeofday(&tv2,NULL);
-
     /*
     printf("\n=============================================================\n");
-    printf( "CRYPT: verify_sig FIRST PART: mont_pow 1 TIME: MICROS %lu\n"
+    printf( "CRYPT: verify_sig FIRST PART: DUAL_mont_pow TIME: MICROS %lu\n"
 	       ,tv2.tv_usec - tv1.tv_usec
 	      );
-    if(tv2.tv_usec > tv1.tv_usec){
+    if(__builtin_expect
+       (     tv2.tv_usec > tv1.tv_usec
+			   &&  tv2.tv_usec - tv1.tv_usec > outlier_low_barrier_micros
+         &&  tv2.tv_usec - tv1.tv_usec < outlier_high_barrier_micros
+         ,true))
+    {
         total_times = total_times + ((double)(tv2.tv_usec - tv1.tv_usec));
         ++nr_timepoints;
         printf("CRYPT: - - - - - - -- - - - - - - - - - - AVERAGE: %lf\n"
                ,(total_times / nr_timepoints));
     }
-    */
+		*/
 
     //gettimeofday(&tv1,NULL);
-    mont_pow_mod_m(Amont, e, M, &R_aux2);
+    //mont_pow_mod_m(Amont, e, M, &R_aux2);
     //gettimeofday(&tv2,NULL);
 
-    /*
-    printf( "CRYPT: verify_sig SECOND PART: mont_pow 2 TIME: MICROS %lu\n"
-           ,tv2.tv_usec - tv1.tv_usec
-	      );
-    */
+
+    //printf( "CRYPT: verify_sig SECOND PART: mont_pow 2 TIME: MICROS %lu\n"
+    //       ,tv2.tv_usec - tv1.tv_usec
+	  //    );
+
+
+    /* Attempt an interleaved Montgomery multiplication to reduce stalls in the
+		 * Core-bound bucket of Top-down microarchitecture analysis.
+		 */
+		gettimeofday(&tv1,NULL);
+    dual_mont_pow_mod_m(Gmont, s, M, &R_aux1, Amont, e, M, &R_aux2);
+    gettimeofday(&tv2,NULL);
+
+
+    if( __builtin_expect (tv2.tv_usec > tv1.tv_usec, true))
+		{
+		    measurements[nr_timepoints++] = tv2.tv_usec - tv1.tv_usec;
+				printf("Total timepoints: %lu\n", nr_timepoints);
+				if(__builtin_expect (nr_timepoints == NR_TIMEPOINTS_TO_WRITE_AT, false))
+				{
+            measurements_fd = fopen
+							("./performance-analysis/last-measurements.dat", "w");
+						if(measurements_fd == NULL){
+                printf("[ERR] Crypt: Could not open measurements file.\n");
+								exit(1);
+						}
+						profiling_ret = fwrite(measurements, 1,
+																    nr_timepoints * sizeof(double),
+																		measurements_fd);
+						if(profiling_ret != nr_timepoints * sizeof(double)){
+                printf("[ERR] Crypt: Could not write to measurements file.\n");
+								fclose(measurements_fd);
+								exit(1);
+						}
+						else{
+                printf("\n[OK]  Crypt: Wrote measurements file: %lu bytes.\n\n"
+											 ,nr_timepoints * sizeof(double));
+								fclose(measurements_fd);
+						}
+
+				}
+        //printf("\n=========================================================\n");
+        //printf( "CRYPT: verify_signature: DUAL_mont_pow TIME micros: %lu\n",
+        //        tv2.tv_usec - tv1.tv_usec);
+        //++nr_timepoints;
+				//printf("CRYPT: - - - - - - - - - - -  TOTAL MEASUREMENTS: %lf\n"
+				//			 ,nr_timepoints);
+        //printf("CRYPT: - - - - - - - - - - - - - - - - - AVERAGE: %lf\n"
+        //       ,(total_times / nr_timepoints));
+    }
+
+
+
     bigint_mul_fast(&R_aux1, &R_aux2, &R_aux3);
 
     //gettimeofday(&tv1,NULL);
     bigint_div2(&R_aux3, M, &div_res, &R);
     //gettimeofday(&tv2,NULL);
 
-    /*
-    printf("CRYPT: verify_sig THIRD PART: division by M: MICROS ");
-    output_yel();
-    printf("%lu\n", tv2.tv_usec - tv1.tv_usec);
-    output_rst();
-    printf("=============================================================\n\n");
-    */
+
+    //printf("CRYPT: verify_sig THIRD PART: division by M: MICROS ");
+    //output_yel();
+    //printf("%lu\n", tv2.tv_usec - tv1.tv_usec);
+    //output_rst();
+    //printf("=============================================================\n\n");
+
 
     R_used_bytes = R.used_bits;
     while(R_used_bytes % 8 != 0){
