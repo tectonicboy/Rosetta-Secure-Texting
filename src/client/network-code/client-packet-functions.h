@@ -145,8 +145,7 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len)
     temp_privkey.used_bits = get_used_bits(temp_handshake_buf, PRIVKEY_LEN);
     memset(temp_handshake_buf, 0, PRIVKEY_LEN);
     memcpy(temp_handshake_buf, &temp_privkey, sizeof(bigint));
-    save_bigint_to_dat("temp_privkey_DAT.dat", &temp_privkey);
-    A_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey_DAT.dat", MAX_USED_BITWIDTH);
+    A_s = gen_pub_key(&temp_privkey);
     /* Place our short-term pub_key also in the locked memory region. */
     memcpy(temp_handshake_buf + sizeof(bigint), A_s, sizeof(bigint));
     handshake_memory_region_state = 1;
@@ -155,7 +154,6 @@ u8 construct_msg_00(u8** msg_buf, u64* msg_len)
     memcpy((*msg_buf) + SMALL_FIELD_LEN, A_s->bits, PUBKEY_LEN);
 
 label_cleanup:
-    system("rm temp_privkey_DAT.dat");
     free(A_s);
     return status;
 }

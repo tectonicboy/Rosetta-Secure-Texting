@@ -165,9 +165,7 @@ u8 self_init(u8* password, int password_len, char* save_dir)
      * as the public key stored on the filesystem, the private key was
      * decrypted successfully, with the original correct password.
      */
-    save_bigint_to_dat("temp_priv.dat", &own_privkey);
-    calculated_A = gen_pub_key(PRIVKEY_LEN, "temp_priv.dat", MAX_USED_BITWIDTH);
-    system("rm temp_priv.dat");
+    calculated_A = gen_pub_key(&own_privkey);
     /* Now compare the calculated and the saved public keys. */
     if(bigint_compare2(calculated_A, &own_pubkey) != CMP_EQUALS){
         printf("[ERR] Client: Password did NOT lead to correct privkey.\n\n");
@@ -545,10 +543,8 @@ u8 reg(u8* password, int password_len, char* save_dir)
     memcpy(temp_privkey.bits, privkey_buf, PRIVKEY_LEN);
     temp_privkey.size_bits = MAX_USED_BITWIDTH;
     temp_privkey.used_bits = get_used_bits(privkey_buf, PRIVKEY_LEN);
-    save_bigint_to_dat("temp_privkey.dat", &temp_privkey);
     /* A = G^a mod M */
-    A_longterm = gen_pub_key
-                   (PRIVKEY_LEN, "temp_privkey.dat", MAX_USED_BITWIDTH);
+    A_longterm = gen_pub_key(&temp_privkey);
 
     /* Registration step 2: Use the password as a secret key in Argon2 hashing
      *                      algorithm, whose output hash we use as a
@@ -642,7 +638,6 @@ label_cleanup:
     bigint_cleanup(A_longterm);
     free(A_longterm);
     bigint_cleanup(&temp_privkey);
-    system("rm temp_privkey.dat");
     if(ranfile){
         fclose(ranfile);
     }

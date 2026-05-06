@@ -1283,8 +1283,8 @@ void signature_generate(bigint* M, bigint* Q, bigint* Gmont,
  *
  */
 /*DEBUG ONLY */
-size_t       nr_timepoints  = 0;
-#define MAX_TIMEPOINTS 1000
+size_t       nr_timepoints = 0;
+#define MAX_TIMEPOINTS 500
 #define NR_TIMEPOINTS_TO_WRITE_AT 500
 double       measurements[MAX_TIMEPOINTS];
 FILE*        measurements_fd;
@@ -1369,7 +1369,7 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     if( __builtin_expect (tv2.tv_usec > tv1.tv_usec, true))
 		{
 		    measurements[nr_timepoints++] = tv2.tv_usec - tv1.tv_usec;
-				printf("Total timepoints: %lu\n", nr_timepoints);
+				//printf("Total timepoints: %lu\n", nr_timepoints);
 				if(__builtin_expect (nr_timepoints == NR_TIMEPOINTS_TO_WRITE_AT, false))
 				{
             measurements_fd = fopen
@@ -1391,7 +1391,8 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 											 ,nr_timepoints * sizeof(double));
 								fclose(measurements_fd);
 						}
-
+            memset(measurements, 0x00, MAX_TIMEPOINTS * sizeof(double));
+						nr_timepoints = 0;
 				}
         //printf("\n=========================================================\n");
         //printf( "CRYPT: verify_signature: DUAL_mont_pow TIME micros: %lu\n",
@@ -1487,50 +1488,22 @@ uint8_t gen_priv_key(uint32_t len_bytes, uint8_t* buf)
 }
 
 /* Given a private key, generate its corresponding public key. */
-struct bigint* gen_pub_key(uint32_t privkey_len_bytes,
-                           const char* privkey_filename,
-                           uint32_t resbits)
+struct bigint* gen_pub_key(bigint* privkey_bigint)
 {
     bigint* M;
     bigint* Gm;
     bigint* R = (bigint*)calloc(1, sizeof(struct bigint));
-    bigint  privkey_bigint;
-    u8*     privkey_buf = (u8*)calloc(1, privkey_len_bytes);
-    size_t  bytes_read;
-    FILE*   privkey_dat;
 
-    privkey_dat = fopen(privkey_filename, "r");
     M  = get_bigint_from_dat
            (DH_MODULUS_M_PATH, DH_M_BITWIDTH, MAX_USED_BITWIDTH);
     Gm = get_bigint_from_dat
            (DH_G_MONT_PATH, DH_G_MONT_BITWIDTH, MAX_USED_BITWIDTH);
 
-    if(privkey_dat == NULL){
-        printf("[ERR] utilities: gen_pub_key - couldn't open privkey file\n\n");
-        goto label_cleanup;
-    }
-    if ( (bytes_read = fread(privkey_buf, 1, privkey_len_bytes, privkey_dat))
-         != privkey_len_bytes)
-    {
-        printf( "[ERR] utilities: gen_pub_key - couldn't read %u bytes from "
-                "privkey_file.\n\n"
-               ,privkey_len_bytes
-              );
-        goto label_cleanup;
-    }
-
-    privkey_bigint.bits = privkey_buf;
-    privkey_bigint.size_bits = resbits;
-    privkey_bigint.used_bits = get_used_bits(privkey_buf, privkey_len_bytes);
     bigint_create_from_u32(R, M->size_bits, 0);
-    mont_pow_mod_m(Gm, &privkey_bigint, M, R);
+    mont_pow_mod_m(Gm, privkey_bigint, M, R);
 
 label_cleanup:
 
-    if(privkey_dat != NULL){
-        fclose(privkey_dat);
-    }
-    free(privkey_buf);
     bigint_cleanup(M);
     bigint_cleanup(Gm);
     free(M);
