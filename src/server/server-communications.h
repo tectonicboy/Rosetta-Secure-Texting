@@ -94,12 +94,27 @@ label_finished:
     return status;
 }
 
-uint8_t tcp_onboard_new_client(uint64_t socket_ix)
+uint8_t tcp_onboard_new_client()
 {
-    client_socket_fd[socket_ix] =
+    /* Having accept() fill out local variables before filling out the proper
+		 * global user descriptor allows the current free user index global to be
+		 * updated by another thread if a client exits the system before a new one
+		 * arrives. Both threads are under the same mutex, so this is safe.
+		 * Letting accept itself fill out the user descriptor at next_free_user_ix
+		 * was buggy because the index would NOT be updated even if a user leaving
+		 * the system updates next_free_user_ix.
+		 */
+    struct sockaddr_in new_client_address;
+    socklen_t new_clientLen = sizeof(struct sockaddr_in);
+    int new_socket =
       accept( listening_socket,
-              (struct sockaddr*)(&(client_addresses[socket_ix])),
-              &(clientLens[socket_ix]));
+              (struct sockaddr*)(&new_client_address),
+              &new_clientLen);
+    uint64_t socket_ix = curr_free_user_ix;
+    client_socket_fd[socket_ix] = new_socket;
+		memcpy(&(client_addresses[socket_ix]), &new_client_address,
+					 sizeof(struct sockaddr_in));
+		memcpy(&(clientLens[socket_ix]), &new_clientLen, sizeof(socklen_t));
 
     if(client_socket_fd[socket_ix] == -1){
         printf("[ERR] Server: TCP accept() for client[%lu] failed\n",socket_ix);
@@ -132,8 +147,8 @@ uint8_t tcp_onboard_new_client(uint64_t socket_ix)
 
 uint8_t tcp_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len)
 {
-    if( __builtin_expect
-          (send(client_socket_fd[socket_ix], buf, send_len, 0) == -1, false))
+    if( __builtin_expect (send(client_socket_fd[socket_ix], buf,
+															 send_len, MSG_NOSIGNAL) == -1, false))
     {
 			  /* This is fine. A client suddenly poofed, while a poll request sent by
 				 * it was still on its way to the server. Handle it gracefully.
@@ -220,10 +235,22 @@ label_init_succeeded:
     return ret;
 }
 
-uint8_t ipc_onboard_new_client(uint64_t socket_ix)
+uint8_t ipc_onboard_new_client()
 {
-    client_socket_fd[socket_ix] = accept(listening_socket, NULL, NULL);
-    if(client_socket_fd[socket_ix] == -1){
+	  /* Having accept() fill out local variables before filling out the proper
+     * global user descriptor allows the current free user index global to be
+     * updated by another thread if a client exits the system before a new one
+     * arrives. Both threads are under the same mutex, so this is safe.
+     * Letting accept itself fill out the user descriptor at next_free_user_ix
+     * was buggy because the index would NOT be updated even if a user leaving
+     * the system updates next_free_user_ix.
+     */
+    int new_socket = accept(listening_socket, NULL, NULL);
+
+		uint64_t socket_ix = curr_free_user_ix;
+		client_socket_fd[socket_ix] = new_socket;
+
+		if(client_socket_fd[socket_ix] == -1){
         printf("[ERR] Server: AF_UNIX accept call for client[%lu] failed.\n",
 							 socket_ix);
 				perror("errno: ");
@@ -254,8 +281,8 @@ uint8_t ipc_onboard_new_client(uint64_t socket_ix)
 
 uint8_t ipc_transmit_payload(uint64_t socket_ix, uint8_t* buf, size_t send_len)
 {
-    if( __builtin_expect
-         (send(client_socket_fd[socket_ix], buf, send_len, 0) == -1, false))
+    if( __builtin_expect (send(client_socket_fd[socket_ix],
+															 buf, send_len, MSG_NOSIGNAL) == -1, false))
     {
         /* This is fine. A client suddenly poofed, while a poll request sent by
          * it was still on its way to the server. Handle it gracefully.

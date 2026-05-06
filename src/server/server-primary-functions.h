@@ -320,7 +320,9 @@ void* start_new_client_thread(void* ix_ptr)
             if(login_not_finished){
                 login_not_finished = 0;
                 close(client_socket_fd[ix]);
-                if(ix < next_free_user_ix) next_free_user_ix = ix;
+                if(ix < curr_free_user_ix){
+										curr_free_user_ix = ix;
+								}
             }
             else{
                 remove_user_from_rosetta(ix);
@@ -348,9 +350,13 @@ void* start_new_client_thread(void* ix_ptr)
             }
             memset(temp_handshake_buf, 0, TEMP_BUF_SIZ);
             temp_handshake_memory_region_isLocked = 0;
-            if(!socket_closed) close(client_socket_fd[ix]);
-            if(ix < next_free_user_ix) next_free_user_ix = ix;
-            pthread_mutex_unlock(&mutex);
+            if(!socket_closed){
+                close(client_socket_fd[ix]);
+						}
+						if(ix < curr_free_user_ix){
+								curr_free_user_ix = ix;
+						}
+						pthread_mutex_unlock(&mutex);
             break;
         }
         if(status != 100 && status > 0){

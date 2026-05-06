@@ -1,64 +1,5 @@
 #pragma once
 
-/* Memory region for short-term cryptographic artifacts for a login handshake */
-u8* temp_handshake_buf = NULL;
-
-/* Whether the login handshake memory region is currently locked or not. */
-u8 temp_handshake_memory_region_isLocked = 0;
-
-/* Login is a multi-transmission process, so keep track whether we're in the
- * middle of it currently or not.
- */
-u8 login_not_finished = 0;
-
-/* The structure that represents a Rosetta client connected to the server. */
-struct connected_client{
-    char   user_id[SMALL_FIELD_LEN];
-    u64    room_ix;
-    u64    num_pending_msgs;
-    u64    pending_msg_sizes[MAX_PEND_MSGS];
-    u8*    pending_msgs[MAX_PEND_MSGS];
-    u64    nonce_counter;
-    bigint client_pubkey;
-    bigint client_pubkey_mont;
-    bigint shared_secret;
-};
-
-/* The structure that represents a Rosetta chat room. */
-struct chatroom{
-    u64 num_people;
-    u64 owner_ix;
-    u64 room_id;
-};
-
-/* Bitmasks telling the server which client and room slots are currently free.
- *
- * Begin populating room slots and user slots at index [1]. Reserve [0] for
- * meaning that the user is not in any room at all.
- */
-u64 users_status_bitmask    = 0;
-u64 rooms_status_bitmask    = 0;
-u64 room_owner_left_bitmask = 0;
-
-/* Keep track of the smallest user and room indices currently available. */
-u64 next_free_user_ix = 1;
-u64 next_free_room_ix = 1;
-
-u8 server_privkey[PRIVKEY_LEN];
-pthread_mutex_t mutex;
-struct connected_client clients[MAX_CLIENTS];
-struct chatroom rooms[MAX_CHATROOMS];
-
-/* Create thread_id's for every client machine's recv() loop thread. */
-pthread_t client_thread_ids[MAX_CLIENTS];
-
-bigint* M;  /* Diffie-Hellman prime modulus M.              */
-bigint* Q;  /* Diffie-Hellman prime exactly dividing (M-1). */
-bigint* G;  /* Diffie-Hellman generator.                    */
-bigint* Gm; /* Montgomery Form of G.                        */
-bigint* server_pubkey_bigint;
-bigint  server_privkey_bigint;
-
 u8 check_pubkey_exists(u8* pubkey_buf, u64 pubkey_siz)
 {
     if(pubkey_siz < 300){
@@ -275,8 +216,10 @@ void remove_user_from_rosetta(u64 removing_user_ix)
     }
 
     /* Update next free user slot if needed. */
-    if(removing_user_ix < next_free_user_ix){
-        next_free_user_ix = removing_user_ix;
+    if(removing_user_ix < curr_free_user_ix){
+				curr_free_user_ix = removing_user_ix;
+        printf("[DEBUG] Server: Removed user. Set curr free user ix: %lu\n",
+							 removing_user_ix);
     }
 
     return;
@@ -422,8 +365,7 @@ uint64_t process_msg_00(u8* msg_buf, u64 user_ix)
     memset(temp_handshake_buf + sizeof(bigint), 0,    PRIVKEY_LEN);
     memcpy(temp_handshake_buf + sizeof(bigint), &b_s, sizeof(bigint));
 
-    save_bigint_to_dat("temp_privkey.dat", &b_s);
-    B_s = gen_pub_key(PRIVKEY_LEN, "temp_privkey.dat", MAX_USED_BITWIDTH);
+    B_s = gen_pub_key(&b_s);
 
     /* Place the server short-term pub_key also in the locked memory region. */
     memcpy((temp_handshake_buf + (2 * sizeof(bigint))), B_s, sizeof(bigint));
@@ -488,7 +430,6 @@ label_cleanup:
     bigint_cleanup(&X_s);
     free(reply_buf);
     free(B_s);
-    system("rm temp_privkey.dat");
     return status;
 }
 

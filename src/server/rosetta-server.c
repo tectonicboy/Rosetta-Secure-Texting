@@ -31,7 +31,66 @@
 uint8_t(*init_communication)(void);
 uint8_t(*transmit_payload)  (uint64_t socket_ix, uint8_t* buf, size_t send_siz);
 ssize_t(*receive_payload)   (uint64_t socket_ix, uint8_t* buf, size_t max_siz);
-uint8_t(*onboard_new_client)(uint64_t socket_ix);
+uint8_t(*onboard_new_client)(void);
+
+/* Memory region for short-term cryptographic artifacts for a login handshake */
+u8* temp_handshake_buf = NULL;
+
+/* Whether the login handshake memory region is currently locked or not. */
+u8 temp_handshake_memory_region_isLocked = 0;
+
+/* Login is a multi-transmission process, so keep track whether we're in the
+ * middle of it currently or not.
+ */
+u8 login_not_finished = 0;
+
+/* The structure that represents a Rosetta client connected to the server. */
+struct connected_client{
+    char   user_id[SMALL_FIELD_LEN];
+    u64    room_ix;
+    u64    num_pending_msgs;
+    u64    pending_msg_sizes[MAX_PEND_MSGS];
+    u8*    pending_msgs[MAX_PEND_MSGS];
+    u64    nonce_counter;
+    bigint client_pubkey;
+    bigint client_pubkey_mont;
+    bigint shared_secret;
+};
+
+/* The structure that represents a Rosetta chat room. */
+struct chatroom{
+    u64 num_people;
+    u64 owner_ix;
+    u64 room_id;
+};
+
+/* Bitmasks telling the server which client and room slots are currently free.
+ *
+ * Begin populating room slots and user slots at index [1]. Reserve [0] for
+ * meaning that the user is not in any room at all.
+ */
+u64 users_status_bitmask    = 0;
+u64 rooms_status_bitmask    = 0;
+u64 room_owner_left_bitmask = 0;
+
+/* Keep track of the smallest user and room indices currently available. */
+u64 curr_free_user_ix = 1;
+u64 next_free_room_ix = 1;
+
+u8 server_privkey[PRIVKEY_LEN];
+pthread_mutex_t mutex;
+struct connected_client clients[MAX_CLIENTS];
+struct chatroom rooms[MAX_CHATROOMS];
+
+/* Create thread_id's for every client machine's recv() loop thread. */
+pthread_t client_thread_ids[MAX_CLIENTS];
+
+bigint* M;  /* Diffie-Hellman prime modulus M.              */
+bigint* Q;  /* Diffie-Hellman prime exactly dividing (M-1). */
+bigint* G;  /* Diffie-Hellman generator.                    */
+bigint* Gm; /* Montgomery Form of G.                        */
+bigint* server_pubkey_bigint;
+bigint  server_privkey_bigint;
 
 #include "server-communications.h"
 #include "server-packet-functions.h"
@@ -41,8 +100,7 @@ int main(int argc, char* argv[])
 {
     u8  ret = 0;
     u32 status = 0;
-    u64 curr_free_socket_ix;
-    uint8_t thread_func_arg_buf[sizeof(curr_free_socket_ix)];
+    uint8_t thread_func_arg_buf[sizeof(curr_free_user_ix)];
     int arg1;
 
     /* Function pointer set to respective socket initialization routine. */
@@ -87,37 +145,27 @@ int main(int argc, char* argv[])
     printf("\n\n[OK]  Server: SUCCESS - Finished self initializing!\n\n");
 
     while(1){
-        curr_free_socket_ix = next_free_user_ix;
+        printf("\n[OK] Server: SET curr_free_user_ix %lu\n", curr_free_user_ix);
 
-        /* Find the next free socket index. */
-        ++next_free_user_ix;
 
-        while(next_free_user_ix < MAX_CLIENTS){
-            if(!(users_status_bitmask & (1ULL<<(63ULL - next_free_user_ix)))){
-                break;
-            }
-            ++next_free_user_ix;
-        }
-
-        /**********************************************************************/
+				/**********************************************************************/
 
         /* Block here until a newly seen client wants to log in to Rosetta. */
 
-        ret = onboard_new_client(curr_free_socket_ix);
+        ret = onboard_new_client();
         login_not_finished = 1;
 
         if(ret){
             printf("[ERR] Server: accepting a newly seen client failed!\n");
             login_not_finished = 0;
-            next_free_user_ix = curr_free_socket_ix;
             continue;
         }
 
         /**********************************************************************/
 
         memcpy( thread_func_arg_buf
-               ,&curr_free_socket_ix
-               ,sizeof(curr_free_socket_ix)
+               ,&curr_free_user_ix
+               ,sizeof(curr_free_user_ix)
               );
 
         pthread_mutex_lock(&mutex);
@@ -128,13 +176,21 @@ int main(int argc, char* argv[])
 
         /* Start the recv() looping thread for this new client. */
         pthread_create(
-            &(client_thread_ids[curr_free_socket_ix])
+            &(client_thread_ids[curr_free_user_ix])
            ,NULL
            , start_new_client_thread
            ,(void*)thread_func_arg_buf
         );
 
-        pthread_detach(client_thread_ids[curr_free_socket_ix]);
+        pthread_detach(client_thread_ids[curr_free_user_ix]);
+        ++curr_free_user_ix;
+
+        while(curr_free_user_ix < MAX_CLIENTS){
+            if(!(users_status_bitmask & (1ULL<<(63ULL - curr_free_user_ix)))){
+                break;
+            }
+            ++curr_free_user_ix;
+        }
         pthread_mutex_unlock(&mutex);
     }
 
