@@ -171,3 +171,5 @@ void print_buffer(uint8_t* buf, uint64_t len){
 
 #define AUTOMATIC_USER_SIMULATION_AUTO_SPAWNER_BASE_PATH \
 	"bin/automatic-user-testing/auto-spawner"
+
+#define ROSETTA_SERVER_PROG_PATH "bin/rosetta-server"

@@ -2,6 +2,27 @@
 
 #define NUMBER_OF_AUTO_USERS 3
 
+void start_rosetta_server(void){
+    char* args[3] = {ROSETTA_SERVER_PROG_PATH, "1", NULL};
+    char* env[] = {NULL};
+    pid_t pid = fork();
+    if(pid < 0){
+        printf("[ERR] RTF Simulation 1: fork for rosetta-server failed.");
+        exit(1);
+    }
+    else if(pid > 0){
+        printf("[OK]  RTF Simulation 1: rosetta-server process spawned!\n");
+    }
+    else{
+        printf("[OK]  RTF Simulation 1: Inside child process.    \n"
+               "                        Launching rosetta-server.\n");
+        execve(ROSETTA_SERVER_PROG_PATH, args, env);
+        /* Here, if execve() returns at all, it means it has failed. */
+        printf("[ERR] RTF Simulation 1: execve failed for rosetta-server\n.");
+        exit(1);
+    }
+}
+
 void run_auto_spawner_program(uint64_t spawner_num){
     pid_t pid;
 		int n;
@@ -44,14 +65,34 @@ void run_auto_spawner_program(uint64_t spawner_num){
 }
 
 int main(){
-    printf("[OK]  RTF: Inside Simulation 1 now. Spawning auto-users.\n");
+		uint64_t runs_completed = 0;
+		uint64_t runs_needed = 128;
+		printf("[OK]  RTF: Inside simulation 1. Reset STABILIZED_AVERAGES.dat\n");
+		FILE* stabilized_averages_dat_fd = fopen("/home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/STABILIZED_AVERAGES.dat", "w");
+		if(stabilized_averages_dat_fd == NULL){
+        printf("[ERR] RTF: Simulation 1: STABILIZED_AVERAGES failed to open\n");
+				exit(1);
+		}
+		fclose(stabilized_averages_dat_fd);
+		printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
+		start_rosetta_server();
+		sleep(2);
+    printf("[OK]  RTF: Inside Simulation 1. Spawning auto-users.\n");
+label_again:
 		for(size_t i = 1; i <= NUMBER_OF_AUTO_USERS; ++i){
         run_auto_spawner_program(i);
         sleep(3);
 	  }
-		/* Total sleep after spawning last user: 24 seconds.*/
-		/* Total simulation runtime: 30 seconds. */
-		sleep(21);
+		/* ?? OUTDATED ?? Total sleep after spawning last user: 24 seconds.*/
+		/* ?? OUTDATED ?? Total simulation runtime: 30 seconds. */
+		sleep(25);
+		printf("\n\n SIMULATION 1 ----> Call python to analyze measurements.\n\n");
+		system("PYTHONPATH=/home/hypervisor123/.local/lib/python3.14/site-packages python3 /home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/process-measurements.py");
+		sleep(0.3);
+		if(++runs_completed < runs_needed){
+                    printf("\n\n\n----------->   START SIMULATION RUN: %lu   <-----------\n\n\n", runs_completed);
+        goto label_again;
+		}
 		printf("[OK] Simulation 1 test completed! Closing now...\n");
     return 0;
 }
