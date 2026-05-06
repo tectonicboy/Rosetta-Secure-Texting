@@ -8,15 +8,13 @@ def analyze_measurements(filename):
         return
 
     # 1. Read the binary file
-    # 'd' stands for double (8 bytes), 500 is the count
     with open(filename, 'rb') as f:
         binary_data = f.read()
 
     # Unpack binary data into a Python tuple
-    # '<' ensures little-endian (standard for x86/Linux)
     raw_measurements = struct.unpack('<500d', binary_data)
 
-    # Convert to a numpy array for easy math
+    # Convert to a numpy array
     data = np.array(raw_measurements)
 
     # 2. Sort the array
@@ -32,7 +30,6 @@ def analyze_measurements(filename):
     upper_fence = q3 + 1.5 * iqr
 
     # 5. Filter the data
-    # This creates a new array excluding values outside the fences
     valid_measurements = sorted_data[
         (sorted_data >= lower_fence) & (sorted_data <= upper_fence)
     ]
@@ -42,7 +39,18 @@ def analyze_measurements(filename):
     stable_avg = np.mean(valid_measurements)
     outliers_removed = len(data) - len(valid_measurements)
 
-    # Output Results
+    # --- MODIFICATION START ---
+    # 7. Append the Stable Average to the output file
+    output_filename = "/home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/STABILIZED_AVERAGES.dat"
+    try:
+        with open(output_filename, 'a') as out_f:
+            # Format to 4 decimal places, add a trailing space
+            out_f.write(f"{stable_avg:.2f} ")
+    except Exception as e:
+        print(f"Error writing to {output_filename}: {e}")
+    # --- MODIFICATION END ---
+
+    # Output Results to Console
     print(f"--- Analysis for {filename} ---")
     print(f"Total Samples:      {len(data)}")
     print(f"Outliers Removed:   {outliers_removed}")
@@ -53,6 +61,7 @@ def analyze_measurements(filename):
     print(f"Raw Average:        {raw_avg:.4f} us")
     print(f"Stable Average:     {stable_avg:.4f} us")
     print(f"Precision Gain:     {abs(raw_avg - stable_avg):.4f} us shift")
+    print(f"Appended stable average to {output_filename}")
 
 if __name__ == "__main__":
-    analyze_measurements("last-measurements.dat")
+    analyze_measurements("/home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/last-measurements.dat")
