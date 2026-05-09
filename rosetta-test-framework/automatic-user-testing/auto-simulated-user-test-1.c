@@ -68,7 +68,7 @@ int main(){
 		uint64_t runs_completed = 0;
 		uint64_t runs_needed = 128;
 		printf("[OK]  RTF: Inside simulation 1. Reset STABILIZED_AVERAGES.dat\n");
-		FILE* stabilized_averages_dat_fd = fopen("/home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/STABILIZED_AVERAGES.dat", "w");
+		FILE* stabilized_averages_dat_fd =fopen("/home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/latest-stabilized-averages.dat", "w");
 		if(stabilized_averages_dat_fd == NULL){
         printf("[ERR] RTF: Simulation 1: STABILIZED_AVERAGES failed to open\n");
 				exit(1);
