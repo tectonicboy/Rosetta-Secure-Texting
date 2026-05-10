@@ -42,6 +42,14 @@ GCC compiler features, without external dependencies on libraries or frameworks.
 
 In the end, it came out to be roughly 10,000 lines of mostly C code.
 
+The Rosetta server acts as a VPN.
+
+Alice never includes Bob's IP address in her IP header. All clients only send
+directly to the Rosetta server's IP address and it relays messages to everyone
+else in the chat room without decrypting. ISPs wouldn't know the server machine
+is relaying messages. Therefore, your ISP won't even know WHO you are talking
+to, in addition to not seeing what you and your friends are saying in the chat.
+
 Rosetta is designed to be highly modular:
 
 The BigInt math & cryptography engines can readily be used for other purposes.
@@ -77,6 +85,8 @@ Wrapping up the introduction, I give an overview of the security scheme that the
 Rosetta system uses and implements. When reading it, please note that parameters
 like bit size of prime numbers and of cryptography artifacts like salts / nonces
 can easily be updated in the future, should security concerns dictate doing so.
+
+--------------------------------------------
 
 Rosetta security scheme overview
 
@@ -170,28 +180,30 @@ So the secret message is hidden behind not one, but two keys.
 
 To compute a Schnorr Signature, the steps are:
 
-0. Use BLAKE2B{64} on input - whatever we're signing. Emits 64-byte prehash PH.
+1. Use BLAKE2B{64} on input - whatever we're signing. Emits 64-byte prehash PH.
 
-1. Use BLAKE2B{64} on input - the signer's private key concatenated
+2. Use BLAKE2B{64} on input - the signer's private key concatenated
    with the prehash PH, reduce the result of this modulo (Q-1), add 1.
    This yields the secret k:
 
 k = (BLAKE2B{64}(a||PH) mod (Q-1)) + 1
 
-2. Compute R = G^k mod M
-3. Compute e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
-4. Compute s = ( k + ((Q - a) × e) ) mod Q
+3. Compute R = G^k mod M
+4. Compute e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
+5. Compute s = ( k + ((Q - a) × e) ) mod Q
 
 As a result, the signature itself is (s,e).
 
 To verify using public key A and whatever was signed with private key a:
 
-0. Check that 0 <= s < Q and that e has the bitwidth of Q.
-1. Compute the prehash PH as in step 0 above.
-2. Compute R = (G^s * A^e) mod M.
-3. Compute val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
+1. Check that 0 <= s < Q and that e has the bitwidth of Q.
+2. Compute the prehash PH as in step 0 above.
+3. Compute R = (G^s * A^e) mod M.
+4. Compute val_e = BLAKE2B{64}(R||PH), truncated to bitwidth of Q.
    Check that this is equal to e. If it is, Signature validation passes.
    Under any other circumstances, validation fails.
+
+================================================================================
 
 In the end, when Bob receives Alice’s secret message, he first validates the
 server’s signature, so he is assured that the message really was relayed by the
