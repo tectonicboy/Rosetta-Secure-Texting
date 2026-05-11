@@ -1330,32 +1330,10 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
     //gettimeofday(&tv1,NULL);
     //mont_pow_mod_m(Gmont, s, M, &R_aux1);
     //gettimeofday(&tv2,NULL);
-    /*
-    printf("\n=============================================================\n");
-    printf( "CRYPT: verify_sig FIRST PART: DUAL_mont_pow TIME: MICROS %lu\n"
-	       ,tv2.tv_usec - tv1.tv_usec
-	      );
-    if(__builtin_expect
-       (     tv2.tv_usec > tv1.tv_usec
-			   &&  tv2.tv_usec - tv1.tv_usec > outlier_low_barrier_micros
-         &&  tv2.tv_usec - tv1.tv_usec < outlier_high_barrier_micros
-         ,true))
-    {
-        total_times = total_times + ((double)(tv2.tv_usec - tv1.tv_usec));
-        ++nr_timepoints;
-        printf("CRYPT: - - - - - - -- - - - - - - - - - - AVERAGE: %lf\n"
-               ,(total_times / nr_timepoints));
-    }
-		*/
 
     //gettimeofday(&tv1,NULL);
     //mont_pow_mod_m(Amont, e, M, &R_aux2);
     //gettimeofday(&tv2,NULL);
-
-
-    //printf( "CRYPT: verify_sig SECOND PART: mont_pow 2 TIME: MICROS %lu\n"
-    //       ,tv2.tv_usec - tv1.tv_usec
-	  //    );
 
 
     /* Attempt an interleaved Montgomery multiplication to reduce stalls in the
@@ -1364,7 +1342,6 @@ uint8_t signature_validate( bigint* Gmont, bigint* Amont, bigint* M, bigint* Q
 		gettimeofday(&tv1,NULL);
     dual_mont_pow_mod_m(Gmont, s, M, &R_aux1, Amont, e, M, &R_aux2);
     gettimeofday(&tv2,NULL);
-
 
     if( __builtin_expect (tv2.tv_usec > tv1.tv_usec, true))
 		{

@@ -41,7 +41,7 @@ COMPILER_OPTIMIZATION_REPORT += -fopt-info-loop-optimized
 
 BIN_DIR                    = ../bin
 ROSETTA_SERVER_SRC         = ../src/server/rosetta-server.c
-ROSETTA_SERVER_BIN         = rosetta-server-test
+ROSETTA_SERVER_BIN         = rosetta-server
 ROSETTA_TEST_FRAMEWORK_SRC = rosetta-test-framework.c
 ROSETTA_TEST_FRAMEWORK_BIN = rosetta-test-framework
 MANUAL_USER_SPAWNER_SRC    = manual-user-testing/manual-user-spawner.c

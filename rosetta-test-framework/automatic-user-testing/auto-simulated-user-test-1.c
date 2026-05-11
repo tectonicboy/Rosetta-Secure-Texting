@@ -74,9 +74,9 @@ int main(){
 				exit(1);
 		}
 		fclose(stabilized_averages_dat_fd);
-		printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
-		start_rosetta_server();
-		sleep(2);
+		//printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
+		//start_rosetta_server();
+		//sleep(2);
     printf("[OK]  RTF: Inside Simulation 1. Spawning auto-users.\n");
 label_again:
 		for(size_t i = 1; i <= NUMBER_OF_AUTO_USERS; ++i){
@@ -90,7 +90,7 @@ label_again:
 		system("PYTHONPATH=/home/hypervisor123/.local/lib/python3.14/site-packages python3 /home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/process-measurements.py");
 		sleep(0.3);
 		if(++runs_completed < runs_needed){
-                    printf("\n\n\n----------->   START SIMULATION RUN: %lu   <-----------\n\n\n", runs_completed);
+        printf("\n\n\n----------->   START SIMULATION RUN: %lu   <-----------\n\n\n", runs_completed);
         goto label_again;
 		}
 		printf("[OK] Simulation 1 test completed! Closing now...\n");
