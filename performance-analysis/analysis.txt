@@ -1,4 +1,4 @@
-May 11-XX, 2026 |
+May 11-13, 2026 |
 ----------------
 
 Verify that the 11% core-bound L2 TMA bucket for original non-interleaved
@@ -24,6 +24,32 @@ Try the following optimization ideas for the interleaved Montgomery_MUL:
 	for the 2nd MUL stream, simply reuse the same variables to perform iteration I
 	for the 2nd MUL stream too, as they are overwritten at the start of
 	iteration I+1 anyway.
+
+RESULT: It works like a charm.
+        Non-interleaved went from 5200 to 4703 microseconds.
+				Interleaved     went from 5000 to 4213 microseconds.
+
+   --------------------------------------------------------------------------
+To ask objdump to give the assembly code in Intel syntax of a function:
+
+objdump -d -M intel bin/rosetta-server \
+| sed -n '/<dual_montgomery_mul>:/,/^$/p' \
+> performance-analysis/disassembled-dual-mont-mul.txt
+
+objdump uses a blank line to end a function's code and <FUNCTION_NAME>: labels
+to mark the beginning of the assembly code of a function.
+   --------------------------------------------------------------------------
+
+Next step: Use CPU pipeline simulation to confirm that this speedup really is
+           caused by the execution units having more out-of-order work to do
+					 from the 2nd interleaved operand set, and were sitting idle with
+					 the single operand set in the non-interleaved version, despite the
+					 reservation station already having micro-ops ready for the execution
+					 units, cuz these micro-ops had to wait for the results of another
+					 instruction (MULX?).
+
+
+
 
 ********************************************************************************
 ********************************************************************************

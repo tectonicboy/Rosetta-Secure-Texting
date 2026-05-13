@@ -33,8 +33,8 @@ CC   = cc
 CXX  = g++
 CSTD = -std=c17
 OPTIMIZATION_LEVEL = -O3
-ARCHITECTURE_FLAGS = -march=native
-ADDRESS_SANITIZER_FLAGS = -fsanitize=address -static-libasan -g -fstack-usage
+ARCHITECTURE_FLAGS += -march=native
+ADDRESS_SANITIZER_FLAGS += -fsanitize=address -static-libasan -g -fstack-usage
 
 # Ask GCC to tell us of any vectorization and loop optimizations it performed
 # when building the server and client sources.

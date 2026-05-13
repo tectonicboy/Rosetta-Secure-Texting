@@ -1167,6 +1167,95 @@ label_ret:
     return ret;
  }
 
+static inline
+__attribute__((always_inline))
+void mont_mul_inner_loop(      uint64_t* const __restrict__ R_limbs,
+												 const uint64_t* const __restrict__ N_limbs,
+												 const uint64_t* const __restrict__ X_limbs,
+												 const uint64_t* const __restrict__ Y_limbs,
+												 const uint64_t i,
+												 const unsigned long long q)
+{
+    uint8_t C;
+    uint8_t D;
+    unsigned long long  Ul;
+    unsigned long long  Uh;
+    unsigned long long  Vl;
+    unsigned long long  Vh;
+    unsigned long long  W;
+
+    /* T, a 3-limb variable, resides in R->bits buffer for optimization:
+		 * T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ));
+		 */
+    #define T  ( (unsigned long long*)(R_limbs + (MONT_L + 1)) )
+		for(u64 j = 1; j < MONT_L; ++j){
+        Ul   = _mulx_u64(q, N_limbs[j], &Uh);
+				Vl   = _mulx_u64(Y_limbs[i], X_limbs[j], &Vh);
+				C    = _addcarryx_u64((u8)0, Ul, R_limbs[j], &Ul);
+				Uh  += (u64)C;
+        D    = _addcarryx_u64((u8)0, Vl, T[1], &Vl);
+        C    = _addcarryx_u64((u8)0, Ul, Vl, T);
+        D    = _addcarryx_u64(D, Uh, Vh, &W);
+        C    = _addcarryx_u64(C, W, T[2], T + 1);
+				T[2] = (u64)C + (u64)D;
+        R_limbs[j-1] = *T;
+		}
+    #undef T
+}
+
+static inline
+__attribute__((always_inline))
+void dual_mont_mul_inner_loop(      uint64_t* const __restrict__ R_limbs,
+															      uint64_t* const __restrict__ R2_limbs,
+                              const uint64_t* const __restrict__ N_limbs,
+                              const uint64_t* const __restrict__ X_limbs,
+															const uint64_t* const __restrict__ X2_limbs,
+                              const uint64_t* const __restrict__ Y_limbs,
+															const uint64_t* const __restrict__ Y2_limbs,
+                              const uint64_t i,
+                              const unsigned long long q,
+															const unsigned long long q2)
+{
+    uint8_t C;
+    uint8_t D;
+    unsigned long long  Ul;
+    unsigned long long  Uh;
+    unsigned long long  Vl;
+    unsigned long long  Vh;
+    unsigned long long  W;
+
+    /* T, a 3-limb variable, resides in R->bits buffer for optimization:
+     * T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ));
+     */
+    #define T  ( (unsigned long long*)(R_limbs  + (MONT_L + 1)) )
+    #define T2 ( (unsigned long long*)(R2_limbs + (MONT_L + 1)) )
+    for(u64 j = 1; j < MONT_L; ++j){
+        Ul   = _mulx_u64(q, N_limbs[j], &Uh);
+        Vl   = _mulx_u64(Y_limbs[i], X_limbs[j], &Vh);
+        C    = _addcarryx_u64((u8)0, Ul, R_limbs[j], &Ul);
+        Uh  += (u64)C;
+        D    = _addcarryx_u64((u8)0, Vl, T[1], &Vl);
+        C    = _addcarryx_u64((u8)0, Ul, Vl, T);
+        D    = _addcarryx_u64(D, Uh, Vh, &W);
+        C    = _addcarryx_u64(C, W, T[2], T + 1);
+        T[2] = (u64)C + (u64)D;
+        R_limbs[j-1] = *T;
+
+				Ul    = _mulx_u64(q2, N_limbs[j], &Uh);
+				Vl    = _mulx_u64(Y2_limbs[i], X2_limbs[j], &Vh);
+				C     = _addcarryx_u64((u8)0, Ul, R2_limbs[j], &Ul);
+				Uh   += (u64)C;
+				D     = _addcarryx_u64((u8)0, Vl, T2[1], &Vl);
+				C     = _addcarryx_u64((u8)0, Ul, Vl, T2);
+				D     = _addcarryx_u64(D, Uh, Vh, &W);
+				C     = _addcarryx_u64(C, W, T2[2], T2 + 1);
+				T2[2] = (u64)C + (u64)D;
+				R2_limbs[j-1] = *T2;
+    }
+    #undef T
+    #undef T2
+}
+
 /* The caller must have made sure in advance that X and Y are each L-limb,
  * L being the number of (non-zero-padded) limbs in the Montgomery modulus N.
  *
@@ -1187,6 +1276,7 @@ label_ret:
  *       pass it here. This is because we operate in base 2^64 and our storage
  *       type is already uint64_t.
  */
+//__attribute__((noinline))
 void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R)
 {
     u8 C;
@@ -1195,7 +1285,6 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R)
     unsigned long long  Uh;
     unsigned long long  Vl;
     unsigned long long  Vh;
-    unsigned long long  W;
     unsigned long long  q; /* q: 1-limb variable */
     unsigned long long* T; /* T: 3-limb variable */
     bigint R_aux;
@@ -1240,26 +1329,8 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R)
         *(T + 2) += (u64)D;
 
         /* 4. */
-        for(u64 j = 1; j < MONT_L; ++j){
-            X_N_bit_buffer_ptr = ((u64*)(N->bits)) + j;
-            /* Compute T limb by limb. */
-            Ul = _mulx_u64(q, *X_N_bit_buffer_ptr, &Uh);
-            Y_bit_buffer_ptr   = ((u64*)(Y->bits)) + i;
-            X_N_bit_buffer_ptr = ((u64*)(X->bits)) + j;
-            Vl = _mulx_u64(*Y_bit_buffer_ptr, *X_N_bit_buffer_ptr, &Vh);
-            R_bit_buffer_ptr = ((u64*)(R->bits)) + j;
-            C = _addcarryx_u64((u8)0, Ul, *R_bit_buffer_ptr, &Ul);
-            Uh += (u64)C;
-            D = _addcarryx_u64((u8)0, Vl, *(T + 1), &Vl);
-            C = _addcarryx_u64((u8)0, Ul, Vl, (T + 0));
-            D = _addcarryx_u64(D, Uh, Vh, &W);
-            C = _addcarryx_u64(C, W, *(T + 2), (T + 1));
-            *(T + 2) = (u64)C + (u64)D;
-
-            /* Set r_(j-1) = t_0  */
-            //R_bit_buffer_ptr = ((u64*)(R->bits)) + (j-1);
-            memcpy(((u64*)(R->bits)) + (j-1), T, MONT_LIMB_SIZ);
-        }
+        mont_mul_inner_loop((u64*)(R->bits), (u64*)(N->bits),
+														(u64*)(X->bits), (u64*)(Y->bits), i, q);
 
         R_bit_buffer_ptr = ((u64*)(R->bits)) + MONT_L;
 
@@ -1292,7 +1363,7 @@ void montgomery_mul(bigint* X, bigint* Y, bigint* N, bigint* R)
 }
 
 void dual_montgomery_mul(bigint* X,  bigint* Y,  bigint* N,  bigint* R,
-												 bigint* X2, bigint* Y2, bigint* N2, bigint* R2)
+												 bigint* X2, bigint* Y2, bigint* R2)
 {
     u8 C, C2;
     u8 D, D2;
@@ -1300,7 +1371,6 @@ void dual_montgomery_mul(bigint* X,  bigint* Y,  bigint* N,  bigint* R,
     unsigned long long  Uh, Uh2;
     unsigned long long  Vl, Vl2;
     unsigned long long  Vh, Vh2;
-    unsigned long long  W,  W2;
     unsigned long long  q,  q2;  /* q: 1-limb variable */
     unsigned long long  *T, *T2; /* T: 3-limb variable */
     bigint R_aux, R_aux2;
@@ -1330,38 +1400,23 @@ void dual_montgomery_mul(bigint* X,  bigint* Y,  bigint* N,  bigint* R,
          * multiply by MONT_LIMB_SIZ here when taking the i-th limb of a bigint.
          */
         Y_bit_buffer_ptr     = ((u64*)(Y->bits))  + i;
-				//Y2_bit_buffer_ptr    = ((u64*)(Y2->bits)) + i;
         X_N_bit_buffer_ptr   = (u64*)(X->bits);
-				//X2_N2_bit_buffer_ptr = (u64*)(X2->bits);
         /* 2. */
         Ul  = _mulx_u64(*Y_bit_buffer_ptr,  *X_N_bit_buffer_ptr,   &Uh);
-				//Ul2 = _mulx_u64(*Y2_bit_buffer_ptr, *X2_N2_bit_buffer_ptr, &Uh2);
         R_bit_buffer_ptr  = (u64*)(R->bits);
-				//R2_bit_buffer_ptr = (u64*)(R2->bits);
         C  = _addcarryx_u64((u8)0, Ul,  *R_bit_buffer_ptr,  &Ul);
-				//C2 = _addcarryx_u64((u8)0, Ul2, *R2_bit_buffer_ptr, &Ul2);
         Uh  += (u64)C;
-				//Uh2 += (u64)C2;
         *(T  + 0) = Ul;
         *(T  + 1) = Uh;
         *(T  + 2) = 0;
-        //*(T2 + 0) = Ul2;
-        //*(T2 + 1) = Uh2;
-        //*(T2 + 2) = 0;
         /* 3. */
         q  = _mulx_u64((u64)MONT_MU, *(T  + 0), &Uh);
-				//q2 = _mulx_u64((u64)MONT_MU, *(T2 + 0), &Uh2);
         X_N_bit_buffer_ptr   = (u64*)(N->bits);
-				//X2_N2_bit_buffer_ptr = (u64*)(N2->bits);
         /* 3.5:  T += q*n0. */
         Vl  = _mulx_u64(q,  *X_N_bit_buffer_ptr,   &Vh);
-				//Vl2 = _mulx_u64(q2, *X2_N2_bit_buffer_ptr, &Vh2);
         C   = _addcarryx_u64( (u8)0, *(T  + 0), Vl,  (T  + 0) );
-				//C2  = _addcarryx_u64( (u8)0, *(T2 + 0), Vl2, (T2 + 0) );
         D   = _addcarryx_u64( C,  *(T  + 1), Vh,  (T  + 1) );
-				//D2  = _addcarryx_u64( C2, *(T2 + 1), Vh2, (T2 + 1) );
         *(T  + 2) += (u64)D;
-				//*(T2 + 2) += (u64)D2;
 
         /******* Second set of parameter usage BEGIN. */
 
@@ -1375,7 +1430,7 @@ void dual_montgomery_mul(bigint* X,  bigint* Y,  bigint* N,  bigint* R,
         *(T2 + 1) = Uh2;
         *(T2 + 2) = 0;
 				q2 = _mulx_u64((u64)MONT_MU, *(T2 + 0), &Uh2);
-				X2_N2_bit_buffer_ptr = (u64*)(N2->bits);
+				X2_N2_bit_buffer_ptr = (u64*)(N->bits);
 				Vl2 = _mulx_u64(q2, *X2_N2_bit_buffer_ptr, &Vh2);
 				C2  = _addcarryx_u64( (u8)0, *(T2 + 0), Vl2, (T2 + 0) );
 				D2  = _addcarryx_u64( C2, *(T2 + 1), Vh2, (T2 + 1) );
@@ -1383,74 +1438,22 @@ void dual_montgomery_mul(bigint* X,  bigint* Y,  bigint* N,  bigint* R,
 
 				/******* Second set of parameter usage END.   */
 
-        /* 4. */
-        for(u64 j = 1; j < MONT_L; ++j){
-            X_N_bit_buffer_ptr   = ((u64*)(N->bits))  + j;
-						//X2_N2_bit_buffer_ptr = ((u64*)(N2->bits)) + j;
-            /* Compute T limb by limb. */
-            Ul  = _mulx_u64(q,  *X_N_bit_buffer_ptr,   &Uh);
-						//Ul2 = _mulx_u64(q2, *X2_N2_bit_buffer_ptr, &Uh2);
-            Y_bit_buffer_ptr     = ((u64*)(Y->bits))  + i;
-						//Y2_bit_buffer_ptr    = ((u64*)(Y2->bits)) + i;
-            X_N_bit_buffer_ptr   = ((u64*)(X->bits))  + j;
-						//X2_N2_bit_buffer_ptr = ((u64*)(X2->bits)) + j;
-            Vl  = _mulx_u64(*Y_bit_buffer_ptr,  *X_N_bit_buffer_ptr,   &Vh);
-						//Vl2 = _mulx_u64(*Y2_bit_buffer_ptr, *X2_N2_bit_buffer_ptr, &Vh2);
-            R_bit_buffer_ptr  = ((u64*)(R->bits))  + j;
-						//R2_bit_buffer_ptr = ((u64*)(R2->bits)) + j;
-            C  = _addcarryx_u64((u8)0, Ul,  *R_bit_buffer_ptr,  &Ul);
-						//C2 = _addcarryx_u64((u8)0, Ul2, *R2_bit_buffer_ptr, &Ul2);
-            Uh  += (u64)C;
-						//Uh2 += (u64)C2;
-            D  = _addcarryx_u64((u8)0, Vl,  *(T  + 1), &Vl);
-						//D2 = _addcarryx_u64((u8)0, Vl2, *(T2 + 1), &Vl2);
-            C  = _addcarryx_u64((u8)0, Ul,  Vl,  (T  + 0));
-						//C2 = _addcarryx_u64((u8)0, Ul2, Vl2, (T2 + 0));
-            D  = _addcarryx_u64(D,  Uh,  Vh,  &W);
-						//D2 = _addcarryx_u64(D2, Uh2, Vh2, &W2);
-            C  = _addcarryx_u64(C,  W,  *(T  + 2), (T  + 1));
-						//C2 = _addcarryx_u64(C2, W2, *(T2 + 2), (T2 + 1));
-            *(T  + 2) = (u64)C  + (u64)D;
-						//*(T2 + 2) = (u64)C2 + (u64)D2;
-
-            /* Set r_(j-1) = t_0  */
-            memcpy(((u64*)(R->bits )) + (j-1), T,  MONT_LIMB_SIZ);
-					  //memcpy(((u64*)(R2->bits)) + (j-1), T2, MONT_LIMB_SIZ);
-
-						/****** Second set of parameter usage BEGIN. */
-
-						X2_N2_bit_buffer_ptr = ((u64*)(N2->bits)) + j;
-            Ul2 = _mulx_u64(q2, *X2_N2_bit_buffer_ptr, &Uh2);
-						Y2_bit_buffer_ptr    = ((u64*)(Y2->bits)) + i;
-						X2_N2_bit_buffer_ptr = ((u64*)(X2->bits)) + j;
-						Vl2 = _mulx_u64(*Y2_bit_buffer_ptr, *X2_N2_bit_buffer_ptr, &Vh2);
-						R2_bit_buffer_ptr = ((u64*)(R2->bits)) + j;
-						C2 = _addcarryx_u64((u8)0, Ul2, *R2_bit_buffer_ptr, &Ul2);
-						Uh2 += (u64)C2;
-						D2 = _addcarryx_u64((u8)0, Vl2, *(T2 + 1), &Vl2);
-						C2 = _addcarryx_u64((u8)0, Ul2, Vl2, (T2 + 0));
-						D2 = _addcarryx_u64(D2, Uh2, Vh2, &W2);
-						C2 = _addcarryx_u64(C2, W2, *(T2 + 2), (T2 + 1));
-						*(T2 + 2) = (u64)C2 + (u64)D2;
-						memcpy(((u64*)(R2->bits)) + (j-1), T2, MONT_LIMB_SIZ);
-
-						/****** Second set of parameter usage END.   */
-        }
+				dual_mont_mul_inner_loop((u64*)(R->bits), (u64*)(R2->bits),
+																 (u64*)(N->bits),
+																 (u64*)(X->bits), (u64*)(X2->bits),
+																 (u64*)(Y->bits), (u64*)(Y2->bits),
+																 i, q, q2
+																 );
 
         R_bit_buffer_ptr  = ((u64*)(R->bits))  + MONT_L;
-        //R2_bit_buffer_ptr = ((u64*)(R2->bits)) + MONT_L;
 
         /* 5. */
         C  = _addcarryx_u64((u8)0, *(T  + 1), *R_bit_buffer_ptr,  (T  + 0));
-				//C2 = _addcarryx_u64((u8)0, *(T2 + 1), *R2_bit_buffer_ptr, (T2 + 0));
         *(T  + 1) = (u64)C + *(T + 2);
         *(T  + 2) = 0;
-				//*(T2 + 1) = (u64)C2 + *(T2 + 2);
-				//*(T2 + 2) = 0;
 
         /* 6. */
         memcpy( ((u64*)(R->bits))  + (MONT_L - 1), T,  2 * MONT_LIMB_SIZ );
-				//memcpy( ((u64*)(R2->bits)) + (MONT_L - 1), T2, 2 * MONT_LIMB_SIZ );
 
 				/***** Second set of parameter usage BEGIN. */
 
@@ -1480,7 +1483,7 @@ void dual_montgomery_mul(bigint* X,  bigint* Y,  bigint* N,  bigint* R,
     }
     if(temp_limb2 != 0){
         bigint_equate2(&R_aux2, R2);
-				bigint_sub_fast(&R_aux2, N2, R2);
+				bigint_sub_fast(&R_aux2, N, R2);
 		}
 
     /* Cleanup. */
@@ -1641,7 +1644,7 @@ void dual_mont_pow_mod_m(bigint* B1, bigint* P1, bigint* M1, bigint* R1,
 				bool c1 = (i <= P1->used_bits - 2);
 				bool c2 = (i <= P2->used_bits - 2);
 				if(__builtin_expect ((c1 && c2), true) ){
-				    dual_montgomery_mul(&Y, &Y, M1, R1, &Y2, &Y2, M2, R2);
+				    dual_montgomery_mul(&Y, &Y, M1, R1, &Y2, &Y2, R2);
             bigint_equate2(&Y,  R1);
 				    bigint_equate2(&Y2, R2);
 
@@ -1649,7 +1652,7 @@ void dual_mont_pow_mod_m(bigint* B1, bigint* P1, bigint* M1, bigint* R1,
 				    bool c4 = (BIGINT_GET_BIT(*P2, i, bit));
 
 				    if(c3 && c4){
-                dual_montgomery_mul(&Y, &X, M1, R1, &Y2, &X2, M2, R2);
+                dual_montgomery_mul(&Y, &X, M1, R1, &Y2, &X2, R2);
 						    bigint_equate2(&Y,  R1);
 						    bigint_equate2(&Y2, R2);
 				    }
@@ -1679,7 +1682,7 @@ void dual_mont_pow_mod_m(bigint* B1, bigint* P1, bigint* M1, bigint* R1,
 						}
 				}
 		}
-    dual_montgomery_mul(&one, R1, M1, &R_1, &one2, R2, M2, &R_2);
+    dual_montgomery_mul(&one, R1, M1, &R_1, &one2, R2, &R_2);
 		bigint_div2(&R_1, M1, &div_res,  R1);
 		bigint_div2(&R_2, M2, &div_res2, R2);
 

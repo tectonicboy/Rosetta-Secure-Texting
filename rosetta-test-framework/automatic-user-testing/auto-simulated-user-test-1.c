@@ -74,9 +74,9 @@ int main(){
 				exit(1);
 		}
 		fclose(stabilized_averages_dat_fd);
-		//printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
-		//start_rosetta_server();
-		//sleep(2);
+		printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
+		start_rosetta_server();
+		sleep(2);
     printf("[OK]  RTF: Inside Simulation 1. Spawning auto-users.\n");
 label_again:
 		for(size_t i = 1; i <= NUMBER_OF_AUTO_USERS; ++i){
@@ -86,7 +86,8 @@ label_again:
 		/* ?? OUTDATED ?? Total sleep after spawning last user: 24 seconds.*/
 		/* ?? OUTDATED ?? Total simulation runtime: 30 seconds. */
 		sleep(25);
-		printf("\n\n SIMULATION 1 ----> Call python to analyze measurements.\n\n");
+		printf("\n\nSIMULATION 1 ----> Call python to analyze measurements.");
+		printf("\n\nSIMULATION 1 ----> USING: Interleaved, new inner loop.\n\n");
 		system("PYTHONPATH=/home/hypervisor123/.local/lib/python3.14/site-packages python3 /home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/process-measurements.py");
 		sleep(0.3);
 		if(++runs_completed < runs_needed){
