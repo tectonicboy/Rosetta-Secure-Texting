@@ -25,15 +25,15 @@
   40b7e9:	4c 89 24 24          	mov    QWORD PTR [rsp],r12
   40b7ed:	c5 f9 ef c0          	vpxor  xmm0,xmm0,xmm0
   40b7f1:	41 c7 47 0c 00 00 00 	mov    DWORD PTR [r15+0xc],0x0
-  40b7f8:	00 
+  40b7f8:	00
   40b7f9:	48 8b 4c 24 40       	mov    rcx,QWORD PTR [rsp+0x40]
   40b7fe:	48 89 de             	mov    rsi,rbx
   40b801:	4c 89 ff             	mov    rdi,r15
   40b804:	49 c7 80 98 01 00 00 	mov    QWORD PTR [r8+0x198],0x0
-  40b80b:	00 00 00 00 
+  40b80b:	00 00 00 00
   40b80f:	31 db                	xor    ebx,ebx
   40b811:	c4 c1 7a 7f 80 88 01 	vmovdqu XMMWORD PTR [r8+0x188],xmm0
-  40b818:	00 00 
+  40b818:	00 00
   40b81a:	66 0f 1f 44 00 00    	nop    WORD PTR [rax+rax*1+0x0]
   40b820:	48 8b 01             	mov    rax,QWORD PTR [rcx]
   40b823:	4c 8b 14 18          	mov    r10,QWORD PTR [rax+rbx*1]
@@ -42,19 +42,19 @@
   40b82d:	c4 62 b3 f6 18       	mulx   r11,r9,QWORD PTR [rax]
   40b832:	48 8b 07             	mov    rax,QWORD PTR [rdi]
   40b835:	48 ba a5 0c 38 13 84 	movabs rdx,0x4c97bc8413380ca5
-  40b83c:	bc 97 4c 
+  40b83c:	bc 97 4c
   40b83f:	4c 03 08             	add    r9,QWORD PTR [rax]
   40b842:	c4 c1 f9 6e f1       	vmovq  xmm6,r9
   40b847:	4c 89 4c 24 50       	mov    QWORD PTR [rsp+0x50],r9
   40b84c:	c4 42 9b f6 e9       	mulx   r13,r12,r9
   40b851:	49 c7 80 98 01 00 00 	mov    QWORD PTR [r8+0x198],0x0
-  40b858:	00 00 00 00 
+  40b858:	00 00 00 00
   40b85c:	4c 89 d8             	mov    rax,r11
   40b85f:	48 83 d0 00          	adc    rax,0x0
   40b863:	c4 e3 c9 22 c0 01    	vpinsrq xmm0,xmm6,rax,0x1
   40b869:	48 8b 06             	mov    rax,QWORD PTR [rsi]
   40b86c:	c4 c1 7a 7f 80 88 01 	vmovdqu XMMWORD PTR [r8+0x188],xmm0
-  40b873:	00 00 
+  40b873:	00 00
   40b875:	48 8b 00             	mov    rax,QWORD PTR [rax]
   40b878:	49 f7 e4             	mul    r12
   40b87b:	49 01 c1             	add    r9,rax
@@ -70,7 +70,7 @@
   40b8a9:	4d 8b 1e             	mov    r11,QWORD PTR [r14]
   40b8ac:	48 89 7c 24 08       	mov    QWORD PTR [rsp+0x8],rdi
   40b8b1:	49 83 90 98 01 00 00 	adc    QWORD PTR [r8+0x198],0x0
-  40b8b8:	00 
+  40b8b8:	00
   40b8b9:	49 01 d9             	add    r9,rbx
   40b8bc:	4c 89 74 24 18       	mov    QWORD PTR [rsp+0x18],r14
   40b8c1:	49 89 f6             	mov    r14,rsi
@@ -128,26 +128,26 @@
   40b9b5:	49 89 80 88 01 00 00 	mov    QWORD PTR [r8+0x188],rax
   40b9bc:	49 8b 80 98 01 00 00 	mov    rax,QWORD PTR [r8+0x198]
   40b9c3:	49 c7 80 98 01 00 00 	mov    QWORD PTR [r8+0x198],0x0
-  40b9ca:	00 00 00 00 
+  40b9ca:	00 00 00 00
   40b9ce:	48 83 d0 00          	adc    rax,0x0
   40b9d2:	48 83 c3 08          	add    rbx,0x8
   40b9d6:	49 89 80 90 01 00 00 	mov    QWORD PTR [r8+0x190],rax
   40b9dd:	48 8b 07             	mov    rax,QWORD PTR [rdi]
   40b9e0:	48 81 fb 80 01 00 00 	cmp    rbx,0x180
   40b9e7:	c4 c1 7a 6f 80 88 01 	vmovdqu xmm0,XMMWORD PTR [r8+0x188]
-  40b9ee:	00 00 
+  40b9ee:	00 00
   40b9f0:	c5 fa 7f 80 78 01 00 	vmovdqu XMMWORD PTR [rax+0x178],xmm0
-  40b9f7:	00 
+  40b9f7:	00
   40b9f8:	0f 85 22 fe ff ff    	jne    40b820 <montgomery_mul+0x80>
   40b9fe:	c5 f9 ef c0          	vpxor  xmm0,xmm0,xmm0
   40ba02:	49 89 ff             	mov    r15,rdi
   40ba05:	48 89 f3             	mov    rbx,rsi
   40ba08:	41 bb 2f 00 00 00    	mov    r11d,0x2f
   40ba0e:	49 c7 80 98 01 00 00 	mov    QWORD PTR [r8+0x198],0x0
-  40ba15:	00 00 00 00 
+  40ba15:	00 00 00 00
   40ba19:	4c 8b 24 24          	mov    r12,QWORD PTR [rsp]
   40ba1d:	c4 c1 7a 7f 80 88 01 	vmovdqu XMMWORD PTR [r8+0x188],xmm0
-  40ba24:	00 00 
+  40ba24:	00 00
   40ba26:	8b 47 08             	mov    eax,DWORD PTR [rdi+0x8]
   40ba29:	48 8b 3f             	mov    rdi,QWORD PTR [rdi]
   40ba2c:	89 c2                	mov    edx,eax
@@ -208,7 +208,7 @@
   40bb01:	c4 e2 7d 58 e4       	vpbroadcastd ymm4,xmm4
   40bb06:	4d 29 c3             	sub    r11,r8
   40bb09:	c5 7d 6f 15 6f f6 00 	vmovdqa ymm10,YMMWORD PTR [rip+0xf66f]        # 41b180 <BLAKE2B_IV+0x180>
-  40bb10:	00 
+  40bb10:	00
   40bb11:	c5 f9 6e f6          	vmovd  xmm6,esi
   40bb15:	c4 42 7d 1c c9       	vpabsb ymm9,ymm9
   40bb1a:	c5 f1 ef c9          	vpxor  xmm1,xmm1,xmm1
@@ -216,9 +216,9 @@
   40bb23:	c4 e2 7d 58 ff       	vpbroadcastd ymm7,xmm7
   40bb28:	c4 e2 7d 58 f6       	vpbroadcastd ymm6,xmm6
   40bb2d:	c5 dd fe 25 0b f6 00 	vpaddd ymm4,ymm4,YMMWORD PTR [rip+0xf60b]        # 41b140 <BLAKE2B_IV+0x140>
-  40bb34:	00 
+  40bb34:	00
   40bb35:	c5 e5 d4 1d 23 f6 00 	vpaddq ymm3,ymm3,YMMWORD PTR [rip+0xf623]        # 41b160 <BLAKE2B_IV+0x160>
-  40bb3c:	00 
+  40bb3c:	00
   40bb3d:	c5 d5 72 f5 08       	vpslld ymm5,ymm5,0x8
   40bb42:	c5 fd 6f 01          	vmovdqa ymm0,YMMWORD PTR [rcx]
   40bb46:	c4 e3 7d 46 c0 01    	vperm2i128 ymm0,ymm0,ymm0,0x1
@@ -273,7 +273,7 @@
   40bc1e:	c4 e2 7d 17 c0       	vptest ymm0,ymm0
   40bc23:	75 23                	jne    40bc48 <montgomery_mul+0x4a8>
   40bc25:	c4 e2 7d 59 05 d2 f7 	vpbroadcastq ymm0,QWORD PTR [rip+0xf7d2]        # 41b400 <BLAKE2B_IV+0x400>
-  40bc2c:	00 00 
+  40bc2c:	00 00
   40bc2e:	48 83 e9 20          	sub    rcx,0x20
   40bc32:	4c 39 d9             	cmp    rcx,r11
   40bc35:	c5 e5 d4 d8          	vpaddq ymm3,ymm3,ymm0
@@ -310,7 +310,7 @@
   40bcae:	79 ae                	jns    40bc5e <montgomery_mul+0x4be>
   40bcb0:	41 89 47 0c          	mov    DWORD PTR [r15+0xc],eax
   40bcb4:	48 83 bf 80 01 00 00 	cmp    QWORD PTR [rdi+0x180],0x0
-  40bcbb:	00 
+  40bcbb:	00
   40bcbc:	75 17                	jne    40bcd5 <montgomery_mul+0x535>
   40bcbe:	4c 89 e7             	mov    rdi,r12
   40bcc1:	e8 aa 46 ff ff       	call   400370 <free@plt>
@@ -360,7 +360,7 @@
   40bd47:	4d 39 c2             	cmp    r10,r8
   40bd4a:	74 3c                	je     40bd88 <montgomery_mul+0x5e8>
   40bd4c:	42 8d 0c c5 00 00 00 	lea    ecx,[r8*8+0x0]
-  40bd53:	00 
+  40bd53:	00
   40bd54:	4c 29 c2             	sub    rdx,r8
   40bd57:	29 c8                	sub    eax,ecx
   40bd59:	c5 f8 77             	vzeroupper
@@ -369,7 +369,7 @@
   40bd64:	e9 47 ff ff ff       	jmp    40bcb0 <montgomery_mul+0x510>
   40bd69:	e8 e2 46 ff ff       	call   400450 <memset@plt>
   40bd6e:	c7 44 24 7c 00 00 00 	mov    DWORD PTR [rsp+0x7c],0x0
-  40bd75:	00 
+  40bd75:	00
   40bd76:	eb a0                	jmp    40bd18 <montgomery_mul+0x578>
   40bd78:	83 e8 07             	sub    eax,0x7
   40bd7b:	e9 30 ff ff ff       	jmp    40bcb0 <montgomery_mul+0x510>
@@ -387,4 +387,50 @@
   40bdb3:	e8 18 46 ff ff       	call   4003d0 <puts@plt>
   40bdb8:	e9 5b ff ff ff       	jmp    40bd18 <montgomery_mul+0x578>
   40bdbd:	0f 1f 00             	nop    DWORD PTR [rax]
+
+================================================================================
+
+INNER LOOP NON-INTERLEAVED, FACTORED OUT INTO THE FUNCTION, INLINED:
+
+  40b8c8:       49 8b 34 d2             mov    rsi,QWORD PTR [r10+rdx*8]
+  40b8cc:       48 89 d7                mov    rdi,rdx
+  40b8cf:       48 89 f2                mov    rdx,rsi
+  40b8d2:       c4 c2 e3 f6 f4          mulx   rsi,rbx,r12
+  40b8d7:       49 8b 11                mov    rdx,QWORD PTR [r9]
+  40b8da:       c4 c2 eb f6 0c fb       mulx   rcx,rdx,QWORD PTR [r11+rdi*8]
+  40b8e0:       48 89 74 24 48          mov    QWORD PTR [rsp+0x48],rsi
+  40b8e5:       48 89 5c 24 40          mov    QWORD PTR [rsp+0x40],rbx
+  40b8ea:       48 8b 74 24 40          mov    rsi,QWORD PTR [rsp+0x40]
+  40b8ef:       48 03 34 f8             add    rsi,QWORD PTR [rax+rdi*8]
+  40b8f3:       48 89 54 24 30          mov    QWORD PTR [rsp+0x30],rdx
+  40b8f8:       49 89 f7                mov    r15,rsi
+  40b8fb:       48 89 4c 24 38          mov    QWORD PTR [rsp+0x38],rcx
+  40b900:       40 0f 92 c6             setb   sil
+  40b904:       48 8b 4c 24 30          mov    rcx,QWORD PTR [rsp+0x30]
+  40b909:       4c 89 7c 24 58          mov    QWORD PTR [rsp+0x58],r15
+  40b90e:       48 03 88 90 01 00 00    add    rcx,QWORD PTR [rax+0x190]
+  40b915:       40 0f b6 f6             movzx  esi,sil
+  40b919:       48 89 4c 24 60          mov    QWORD PTR [rsp+0x60],rcx
+  40b91e:       41 0f 92 c0             setb   r8b
+  40b922:       4c 01 f9                add    rcx,r15
+  40b925:       48 89 88 88 01 00 00    mov    QWORD PTR [rax+0x188],rcx
+  40b92c:       48 8b 4c 24 38          mov    rcx,QWORD PTR [rsp+0x38]
+  40b931:       41 0f 92 c7             setb   r15b
+  40b935:       48 03 74 24 48          add    rsi,QWORD PTR [rsp+0x48]
+  40b93a:       41 80 c0 ff             add    r8b,0xff
+  40b93e:       48 11 f1                adc    rcx,rsi
+  40b941:       48 89 4c 24 68          mov    QWORD PTR [rsp+0x68],rcx
+  40b946:       40 0f 92 c6             setb   sil
+  40b94a:       41 80 c7 ff             add    r15b,0xff
+  40b94e:       48 13 88 98 01 00 00    adc    rcx,QWORD PTR [rax+0x198]
+  40b955:       48 89 88 90 01 00 00    mov    QWORD PTR [rax+0x190],rcx
+  40b95c:       40 0f b6 f6             movzx  esi,sil
+  40b960:       48 8b 88 88 01 00 00    mov    rcx,QWORD PTR [rax+0x188]
+  40b967:       48 83 d6 00             adc    rsi,0x0
+  40b96b:       48 89 b0 98 01 00 00    mov    QWORD PTR [rax+0x198],rsi
+  40b972:       48 89 4c f8 f8          mov    QWORD PTR [rax+rdi*8-0x8],rcx
+  40b977:       48 83 c7 01             add    rdi,0x1
+  40b97b:       48 83 ff 30             cmp    rdi,0x30
+  40b97f:       48 89 fa                mov    rdx,rdi
+  40b982:       0f 85 40 ff ff ff       jne    40b8c8 <montgomery_mul+0x128>
 

@@ -48,7 +48,234 @@ Next step: Use CPU pipeline simulation to confirm that this speedup really is
 					 units, cuz these micro-ops had to wait for the results of another
 					 instruction (MULX?).
 
+	 --------------------------------------------------------------------------
 
+IMPORTANT:
+
+llvm-mca is a great tool for CPU pipeline simulation cycle by cycle. It stands
+for LLVM Machine Code Analyzer. It takes an assembly code snippet and gives:
+
+- How many execution ports the CPU backend has and which is used for what.
+- which execution ports each instruction's micro-ops can go to;
+- how many micro-ops each instruction is decomposed into;
+- latency of each instruction;
+- Reciprocal throughput of each instruction (RThroughput).
+  For example, Rthroughput = 0.20 means there are enough execution ports in the
+	CPU backend to be executing 5 of that instruction in parallel.
+- Total cycles to run your assembly code. For all interations, if loop.
+- Total number of instructions and uOPs executed. For all iterations, if loop.
+
+Direct output dump:
+
+Iterations:        48
+Instructions:      1920
+Total Cycles:      532
+Total uOps:        2736
+
+Dispatch Width:    6
+uOps Per Cycle:    5.14
+IPC:               3.61
+Block RThroughput: 9.5
+
+Explanation: It took a total of 1920 instructions and 2736 micro-ops to be
+             executed by the CPU's pipeline to run 48 iterations in a loop
+						 of the assembly code in the input file. It took 532 CPU cycles.
+
+						 6 is the maximum number of uOPs that can be moved from the
+						 CPU Frontend to the reservation station and ROB, OR from the
+						 reservation station to the execution ports, depending on who
+						 uses the term. Issue Width is used interchangeably sometimes.
+						 Must clarify what it means in LLVM-MCA.
+
+						 Our actual code was running on average 5.14 uOPs per cycle,
+						 given the maximum of 6. This is a high utilization %, good.
+
+						 3.61 is how many instructions are retired per cycle, on average.
+						 IPC is to be maximized for high performance optimizations.
+
+						 9.5 cycles is the theoretical minimum number of cycles it can take
+						 to run the assembly code in the input file, given the specific
+						 CPU microarchitecture the simulation was told to run on.
+
+To run:
+
+llvm-mca -mcpu=alderlake -timeline -iterations=48 my-assembly-code.s
+
+NOTE: Alder Lake is 12th gen. Mine is 13th gen Raptor Lake, but it is simply
+      a "refresh" update of the same microarchitecture that Alder Lake has.
+			So the cycle by cycle simulation is still a good source of insights.
+			Both use the same Golden Cove P-cores.
+
+EXAMPLE assembly code file:
+
+###############################################################################
+.intel_syntax noprefix
+
+# LLVM-MCA-BEGIN MontgomeryLoop
+loop_start:
+    mov    rsi, QWORD PTR [r10+rdx*8]
+    mov    rdi, rdx
+    mov    rdx, rsi
+    mulx   rsi, rbx, r12
+    mov    rdx, QWORD PTR [r9]
+    mulx   rcx, rdx, QWORD PTR [r11+rdi*8]
+    mov    QWORD PTR [rsp+0x48], rsi
+    mov    QWORD PTR [rsp+0x40], rbx
+    mov    rsi, QWORD PTR [rsp+0x40]
+    add    rsi, QWORD PTR [rax+rdi*8]
+    mov    QWORD PTR [rsp+0x30], rdx
+    mov    r15, rsi
+    mov    QWORD PTR [rsp+0x38], rcx
+    setb   sil
+    mov    rcx, QWORD PTR [rsp+0x30]
+    mov    QWORD PTR [rsp+0x58], r15
+    add    rcx, QWORD PTR [rax+0x190]
+    movzx  esi, sil
+    mov    QWORD PTR [rsp+0x60], rcx
+    setb   r8b
+    add    rcx, r15
+    mov    QWORD PTR [rax+0x188], rcx
+    mov    rcx, QWORD PTR [rsp+0x38]
+    setb   r15b
+    add    rsi, QWORD PTR [rsp+0x48]
+    add    r8b, 0xff
+    adc    rcx, rsi
+    mov    QWORD PTR [rsp+0x68], rcx
+    setb   sil
+    add    r15b, 0xff
+    adc    rcx, QWORD PTR [rax+0x198]
+    mov    QWORD PTR [rax+0x190], rcx
+    movzx  esi, sil
+    mov    rcx, QWORD PTR [rax+0x188]
+    adc    rsi, 0x0
+    mov    QWORD PTR [rax+0x198], rsi
+    mov    QWORD PTR [rax+rdi*8-0x8], rcx
+    add    rdi, 0x1
+    cmp    rdi, 0x30
+    mov    rdx, rdi
+# LLVM-MCA-END
+################################################################################
+
+
+READING THE SIMULATION:
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      5     0.33    *                   mov   rsi, qword ptr [r10 + 8*rdx]
+ 0      1     0.00                        mov   rdi, rdx
+
+Here, we have instructions with 0 uOPs and instructions that take 0 cycles.
+Explanation:
+
+These are moves that were handled by the register renamer in the CPU frontend.
+The CPU may only have 16 general purpose registers, but it has a much larger
+physical file of actual hardware registers. This is how 2 instructions that
+use RAX can run in parallel if the renamer assigns them different physical
+registers in the register file. The Reservation Station (Scheduler) already
+has info on which micro-ops need which physical registers in the file, this
+is how it can feed the backend execution ports two instructions using RAX at
+once. Then, because in the assembly code they were separate and came one
+after another, this will be reflected in the Reorder Buffer (ROB) and this
+hardware unit will make sure the instructions are RETIRED in proper order.
+
+Another reason an assembly instruction can be shown to have 0 uOPs is because
+the Decoder in the CPU Frontend fused it with the next instruction. Example:
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 0      1     0.00                        add   rdi, 1
+ 1      1     0.20                        cmp   rdi, 48
+
+
+
+RESOURCE PRESSURE TABLE:
+
+WARNING - MADE UP VALUES, for the sake of explanation:
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    Instructions:
+ -      -     0.33   0.33   0.33    -     mov  rsi, qword ptr [r10 + 8*rdx]
+ -      -      -      -      -      -     mov  rdi, rdx
+ -      -      -      -      -      -     mov  rdx, rsi
+ -     1.00    -      -      -     1.00   mulx rsi, rbx, r12
+ -      -     0.31   0.35    -      -     mov  rdx, qword ptr [r9]
+
+The numbers here are for the entire run, on average, for the code we executed.
+The first mov instruction went to EITHER ONE of ports [2] [3] [4]. A third of
+the times it had to be run in the backend, it used port 2 for its one uOP.
+A third of the time, it used port 3 and a third of the time it used port 4.
+Only one of these ports is needed for it. In contrast, for the MULX instruction
+the table shows it has a total of 2.0 micro-ops, and each micro-op MUST GO
+to port [1] and to port [5] - the instruction uses them in parallel when both
+ports are available and takes 4 cycles to finish. This means, each time this
+instruction (MULX) was fed to the backend, one of its micro-ops used port 1 and
+one of its micro-ops used port 5 and the 1.00 on both ports here means 100%
+of the times the instruction had to be executed, it used this port.
+
+Something like:
+0.04    -      -      -      -      -     1.96    -      -     setb r15b
+
+means the instruction has 2 uOPs and 96% of the time the instruction had to
+run in the backend, both of these uOPs used port 6 one after another. In 4% of
+the time, it could use port 0 for one of the micro-ops, while port 6 runs the
+other micro-op, both in parallel.
+
+
+CPU PIPELINE TIMELINE VIEW:
+
+
+Timeline view:
+                    0123456789          0123456789          0123456789
+Index     0123456789          0123456789          0123456789
+
+[0,0]     DeeeeeER  .    .    .    .    mov    rsi, qword ptr [r10 + 8*rdx]
+[0,1]     DeE----R  .    .    .    .    mov    rdi, rdx
+[0,2]     D=====eER .    .    .    .    mov    rdx, rsi
+[0,3]     D======eeeeER  .    .    .    mulx   rsi, rbx, r12
+[0,4]     DeeeeeE-----R  .    .    .    mov    rdx, qword ptr [r9]
+[0,5]     .DeeeeeeeeeER  .    .    .    mulx   rcx, rdx, qword ptr [r11 + 8*rdi]
+[0,6]     .D========eeeeeeeeeeeeER .    mov    qword ptr [rsp + 72], rsi
+[0,7]     . D========eeeeeeeeeeeeER.    mov    qword ptr [rsp + 64], rbx
+[0,8]     . DeeeeeE---------------R.    mov    rsi, qword ptr [rsp + 64]
+[0,9]     . DeeeeeeE--------------R.    add    rsi, qword ptr [rax + 8*rdi]
+[0,10]    .  D=======eeeeeeeeeeeeER.    mov    qword ptr [rsp + 48], rdx
+[0,11]    .  D=====eE-------------R.    mov    r15, rsi
+
+HOW TO READ THIS:
+
+In cycle 0, 5 instructions were dispatched from the frontend INTO the
+Reservation Station. In the next cycle, the reservation station managed to
+place the first 2 instructions' uOPs into execution ports. In cycle 7 the first
+2 instructions retired. First instruction was executing in cycles 1, 2, 3, 4, 5
+and in cycle 6, its result was ready and visible to the CPU pipeline. In cycle 7
+it entirely left the backend and was retired in the same cycle as instruction 2.
+Instructions 2 and 3 had a data dependency on previous instructions & could NOT
+start to be executed on the backend ports. In cycle 6 and 7 they started being
+processed in the execution ports, respectively, marked by the lower-case e.
+
+Instruction [0,8] aka the 9th instruction of the first iteration of the assembly
+code finished its work in cycle 8, but had to WAIT for previous assembly
+instructions TO BE READY TO BE RETIRED, before IT can retire, marked by E------
+and same for instruction [0,9] and [0,11]. All of them retired in cycle 24.
+
+   --------------------------------------------------------------------------
+
+Now to use this CPU pipeline simulator to prove the hypothesis in my
+performance analysis that the interleaved montgomery multiplications were
+significantly faster than the singular one because the core's execution ports
+were sitting idle in more cycles, despite the reservation station already
+having been issued micro-ops for instructions and was ready to give them to
+the execution ports, presumable they sat empty because of dependencies on
+instructions that were already being executed in the execution ports and
+the interleaved version was faster because now the Scheduler in the backend
+saw more work out-of-order that the execution ports could do, instead of
+sitting idle waiting for dependencies, AND this benefit was larger than the
+increased number of stack spill mov instructions.
 
 
 ********************************************************************************
