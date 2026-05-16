@@ -74,9 +74,9 @@ int main(){
 				exit(1);
 		}
 		fclose(stabilized_averages_dat_fd);
-		printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
-		start_rosetta_server();
-		sleep(2);
+		//printf("[OK]  RTF: Inside Simulation 1. Starting Rosetta server.\n");
+		//start_rosetta_server();
+		//sleep(2);
     printf("[OK]  RTF: Inside Simulation 1. Spawning auto-users.\n");
 label_again:
 		for(size_t i = 1; i <= NUMBER_OF_AUTO_USERS; ++i){

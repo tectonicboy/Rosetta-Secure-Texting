@@ -238,4 +238,21 @@ Total BE  : 17.4
 
 
 ================================================================================
+13 May 2026 |
+------------
+
+Inner loop in Mont_MUL factored out into a static always_inline function, with
+__restrict__ u64* pointers for ->bits, no T pointer (#define for T in R->bits)
+and no setting pointers to bit buffers inbetween mulx and addcarryx intrinsics.
+
+The interleaved version reuses the same modulus N (because it's always the same)
+and reuses the locals Ul, Uh, Vl, Vh, carryC, carryD, W.
+
+
+320-bit powers, so we have 320 + 160 Mont_MUL calls in 1 Mont_POW. Two POWs, so
+960 Mont_MUL calls in total for 1 signature validation. L = 64-bit limbs in
+3072-bit modulus, in Mont_MUL, outer loop is 0 to L, inner loop is 1 to L, so:
+(48 * 47) * 960 ~ 2,165,000 inner loop iterations per signature validate.
+
+
 
