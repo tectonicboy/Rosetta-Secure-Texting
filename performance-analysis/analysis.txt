@@ -1,4 +1,97 @@
-May 11-13, 2026 |
+May 16, 2026 |
+-------------
+
+CONCLUSION to performance analysis of interleaved montgomery multiplication:
+
+Interleaved version is 10% faster because the Reservation Station is now able
+to feed the backend's execution ports with micro-ops from instructions that
+belong to the second chain of Montgomery multiplication, out of order, while
+waiting on Chain 1's dependencies to give their results. In the non-interleaved
+version, the RS had instructions fed to it by the CPU Frontend but it was not
+able to feed their micro-ops to execution ports because the instructions in the
+RS had dependencies on instructions that were running already in the ports.
+In other words, I improved instruction-level paralellism and made better use
+of the Out-of-Order capabilities of modern microarchitecture.
+
+Interleaving two streams in one function does increase register pressure and
+makes the compiler spill registers more often, but the hot inner loop is still
+small enough that everything fits in L1 cache and these trips to L1 cache are
+masked by out-of-order execution of the other stream's micro-ops.
+
+Simulating the microarchitecture pipeline in LLVM Machine Code Analyzer to run
+the instructions for the inner loop (which is 99% of the work) of both versions
+of Montgomery multiplication gave insights into important measurements:
+
+I. How many cycles per iteration each execution port was being used in.
+
+   We can use this to calculate a percentage increase/decrease in port
+	 utilization for both versions. We take total cycles, total iterations
+	 and compute total cycles per iteration, then percentage utilization of
+	 each port, since we know how many cycles it was active in.
+
+	 These percentages showed that the interleaved version BETTER utilizes the
+	 CPU backend's execution ports overall:
+
+PORT NUMBER    :  00   01   02   03   04   05   06   07   08   09   10   11
+Non-interleaved: 58.7 31.5 33.1 33.1 49.5 31.5 62.9 49.5 49.5 49.5 33.1 31.5
+Interleaved  x2: 55.5 34.7 41.7 41.7 50.9 34.7 60.3 50.9 50.9 50.9 41.7 34.7
+--------------------------------------------------------------------------------
+Difference     : -3.2 +3.2 +8.6 +8.6 +1.4 +3.2 -2.6 +1.4 +1.4 +1.4 +8.6 +3.2
+
+   This observation validates my hypothesis - where the ports were sitting
+	 idle, despite the Reservation Station having micro-ops ready for them,
+	 due to depending on results from currently-executed micro-ops in other
+	 ports, these idle ports are now being filled with work from the other
+	 Multiplication chain's micro-ops. This is a win for performance.
+
+II. Assembly instructions emitted by the compiler.
+
+Total emitted for the inner loop that is 99% of the work:
+
+Non-interleaved: 40 instructions PER ITERATION
+Interleaved  x2: 73 instructions PER ITERATION
+
+This is definitely a win. We are doing the same amount of work in fewer
+assembly instructions.
+
+Instructions that have a latency of 0 cycles (handled by the Register Renamer
+as simply changing a pointer to different entries on the physical register file
+OR subjected to fusion by the frontend) closer to each other, alleviating
+the backend ports more:
+
+Non-interleaved: 2 instructions with a latency of 0 cycles PER ITERATION.
+Interleaved  x2: 4 instructions with a latnecy of 0 cycles PER ITERATION.
+
+The fact that in the interleaved version we've done 2 units of work in 73
+instructions, of which 4 had a latency of 0, while the non-interleaved version
+does 2 units of work in 80 instructions, 4 of which have a latency of 0, COULD
+indicate that the CPU backend's ports are more alleviated per 2 units of work
+(in this case - 2 processed BigInt 64-bit limbs) in the interleaved version.
+Over time this could snowball into a significant win for port utilization.
+While the non-interleaved version also has 4 instructions with 0 cycle latency
+per 2 units of work, these 4 instructions are spread over more instructions
+in total, which could be a factor in speeding up the interleaved version.
+
+   --------------------------------------------------------------------------
+
+Collected Top-down microarchitecture analysis metrics for both versions:
+
+Non-interleaved:
+
+---------------------------------------
+
+Interleaved:
+
+Frontend-Bound : 9.8   --  [Fetch_Bandwidth: 7.3  |  Fetch_Latency: 2.5]
+Bad Speculation: 5.1
+Retiring       : 72.1
+Backend-Bound  : 13.0  --  [Core_Bound: 8.3  |  Memory_Bound: 4.7]
+
+TMA_ports_utilization: 11.2%
+
+********************************************************************************
+********************************************************************************
+May 11-15, 2026 |
 ----------------
 
 Verify that the 11% core-bound L2 TMA bucket for original non-interleaved
@@ -99,7 +192,10 @@ Explanation: It took a total of 1920 instructions and 2736 micro-ops to be
 
 To run:
 
-llvm-mca -mcpu=alderlake -timeline -iterations=48 my-assembly-code.s
+llvm-mca -mcpu=alderlake -timeline \
+--timeline-max-cycles=300 -timeline-max-iterations=48 -iterations=48 \
+mont-mul-inner-loop-noninterleaved.s \
+> llvm-mca-output-noninterleaved-montmul-innerloop.txt
 
 NOTE: Alder Lake is 12th gen. Mine is 13th gen Raptor Lake, but it is simply
       a "refresh" update of the same microarchitecture that Alder Lake has.
@@ -277,6 +373,19 @@ saw more work out-of-order that the execution ports could do, instead of
 sitting idle waiting for dependencies, AND this benefit was larger than the
 increased number of stack spill mov instructions.
 
+Outcome: We can definitely see that after a few iterations of this inner
+         loop, the instructions for the first line of code start being
+				 executed and have their result ready (E) several cycles BEFORE
+				 they do that in the old non-interleaved version.
+
+				 Further vertical analysis cycle-by-cycle, comparing the two runs,
+				 to obtain counts for insns STARTED_EXECUTING, FINISHED_EXECUTING,
+				 RETIRED, NR_INSNS_CURRENTLY_EXECUTING is needed to see whether
+				 the interleaved version consistently has more instructions being
+				 executed cycle for cycle than the non-interleaved version and
+				 whether it's retiring more of them cycle-for-cycle. Do this in
+				 the middle of the loop run, at iterations 12/24 respectively.
+				 This is near the end of the displayed timeline for the current usage.
 
 ********************************************************************************
 ********************************************************************************
