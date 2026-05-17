@@ -6,58 +6,126 @@ CONCLUSION to performance analysis of interleaved montgomery multiplication:
 Interleaved version is 10% faster because the Reservation Station is now able
 to feed the backend's execution ports with micro-ops from instructions that
 belong to the second chain of Montgomery multiplication, out of order, while
-waiting on Chain 1's dependencies to give their results. In the non-interleaved
-version, the RS had instructions fed to it by the CPU Frontend but it was not
-able to feed their micro-ops to execution ports because the instructions in the
-RS had dependencies on instructions that were running already in the ports.
-In other words, I improved instruction-level paralellism and made better use
-of the Out-of-Order capabilities of modern microarchitecture.
+waiting on Chain 1's dependencies to give their results to stalled uOPs in RS.
+
+In the non-interleaved version, the Reservation Station had instructions fed to
+it by the CPU Frontend but it was not able to feed their micro-ops to execution
+ports because the instructions in the RS had dependencies on ones that were
+running already in the ports. In other words, I improved instruction-level
+paralellism usage and made better use of the Out-of-Order capabilities of
+modern CPU microarchitecture by moving the 2nd Montgomery Multiplication chain
+to be interleaved with the code for the first, instead of one after another.
 
 Interleaving two streams in one function does increase register pressure and
 makes the compiler spill registers more often, but the hot inner loop is still
 small enough that everything fits in L1 cache and these trips to L1 cache are
-masked by out-of-order execution of the other stream's micro-ops.
+masked by out-of-order execution of the other Multiply stream's micro-ops.
 
 Simulating the microarchitecture pipeline in LLVM Machine Code Analyzer to run
-the instructions for the inner loop (which is 99% of the work) of both versions
-of Montgomery multiplication gave insights into important measurements:
+the instructions for the inner loop (which is >99% of the work) of both versions
+of Montgomery multiplication gave insights into important metrics:
 
 I. How many cycles per iteration each execution port was being used in.
 
    We can use this to calculate a percentage increase/decrease in port
 	 utilization for both versions. We take total cycles, total iterations
 	 and compute total cycles per iteration, then percentage utilization of
-	 each port, since we know how many cycles it was active in.
+	 each port, since LLVM MCA tells us how many cycles it was active in.
 
 	 These percentages showed that the interleaved version BETTER utilizes the
 	 CPU backend's execution ports overall:
 
-PORT NUMBER    :  00   01   02   03   04   05   06   07   08   09   10   11
-Non-interleaved: 58.7 31.5 33.1 33.1 49.5 31.5 62.9 49.5 49.5 49.5 33.1 31.5
-Interleaved  x2: 55.5 34.7 41.7 41.7 50.9 34.7 60.3 50.9 50.9 50.9 41.7 34.7
---------------------------------------------------------------------------------
-Difference     : -3.2 +3.2 +8.6 +8.6 +1.4 +3.2 -2.6 +1.4 +1.4 +1.4 +8.6 +3.2
+______________________________________________________________________________
+|PORT NUMBER    :| 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 |
+|Non-interleaved:|58.7|31.5|33.1|33.1|49.5|31.5|62.9|49.5|49.5|49.5|33.1|31.5|
+|Interleaved  x2:|55.5|34.7|41.7|41.7|50.9|34.7|60.3|50.9|50.9|50.9|41.7|34.7|
+|================|====|====|====|====|====|====|====|====|====|====|====|====|
+|Difference     :|-3.2|+3.2|+8.6|+8.6|+1.4|+3.2|-2.6|+1.4|+1.4|+1.4|+8.6|+3.2|
+------------------------------------------------------------------------------
 
-   This observation validates my hypothesis - where the ports were sitting
-	 idle, despite the Reservation Station having micro-ops ready for them,
-	 due to depending on results from currently-executed micro-ops in other
-	 ports, these idle ports are now being filled with work from the other
-	 Multiplication chain's micro-ops. This is a win for performance.
+   This observation validates my hypothesis - where the CPU backend's execution
+   ports were sitting idle, despite the Reservation Station having micro-ops
+	 ready for them, due to depending on results from currently-executed micro-ops
+	 in other ports, these idle ports are now being filled with out-of-order work
+	 from the other Multiply chain's micro-ops. This is a win for performance.
 
-II. Assembly instructions emitted by the compiler.
+II. Number of Assembly instructions occupying the CPU backend in parallel.
 
-Total emitted for the inner loop that is 99% of the work:
+From the pipeline simulation Timeline view, I can see that the interleaved
+version gets more instructions residing in the CPU backend at various stages
+in their execution (waiting in the Reservation Station to be fed to execution
+port(s), being executed in port(s), or waiting in the Reorder Buffer, with their
+result visible to the pipeline, to be retired in-order). Taking the length in
+cycles of one of the longest-residing instructions (it's a recurring pattern,
+the same instruction keeps being the longest residing one), I can see:
 
-Non-interleaved: 40 instructions PER ITERATION
-Interleaved  x2: 73 instructions PER ITERATION
+NOTE: Instructions per iteration start at index 0.
 
-This is definitely a win. We are doing the same amount of work in fewer
-assembly instructions.
+Interleaved version:
+
+D===================eeeeeeeeeeeeER  mov qword ptr [rdx + 400], rsi
+                ...
+                                D=eE-------------------------R  cmp rax, 48
+
+Iteration 9, instruction 30 and iteration 10, instruction 72 are what is
+displayed above, with 73 instructions per loop iteration: 117 instructions
+being processed by the CPU backend in parallel, in the best case.
+
+Non-interleaved version:
+
+D==============eeeeeeeeeeeeER  mov qword ptr [rax + 400], rcx
+                ...
+                           D======E------------------R  movzx  esi, sil
+
+Iteration 21, instruction 31 and iteration 24, instruction 17 are what is
+displayed above, with 40 instructions per loop iteration: 108 instructions
+being processed by the CPU backend in parallel, in the best case.
+
+Timeline diagram context:
+
+- Each character from D to R is one cycle.
+- D: Instruction was given to the Reservation Station by the CPU Frontend.
+- =: Instruction waits in RS, can't yet go to its required execution port(s).
+- e: Instruction's micro-ops are being worked on by execution port(s).
+- E: Instruction's result is ready and visible to the pipeline at this cycle.
+- R: Instruction is retired in-order from the Reorder Buffer at this cycle.
+
+As long as we stay within the limits of the Reorder Buffer's number of slots,
+which we are here, this is a clear win for performance. It shows that the
+interleaved version is better tapping into the benefits of the highly parallel,
+out-of-order design of the microarchitecture of CPUs. It clearly indicates the
+backend's execution ports are in fact being better utilized by the interleaved
+version, which was my hypothesis as to why it's faster in the first place.
+
+It's possible to reach a number of assembly instructions residing in the
+backend in parallel that is TOO HIGH. When the CPU Frontend wants to feed
+the CPU Backend an instruction, that instruction needs:
+
+- A free slot in the Reservation Station, to wait for its operands if needed.
+- A free slot in the Reorder Buffer (ROB), so it can be retired in-order.
+
+If either of these limits is hit, the CPU Frontend simply stops feeding
+instructions to the CPU Backend, stalling the pipeline. This can then lead
+to decoders not having free space to place decoded uOPs of instructions in,
+plus the instruction fetcher not having anywhere to place any more of them.
+In this particular case here, we are far from reaching such a bottleneck.
+
+In conclusion, what we've observed in the Timeline diagram is a clear win here.
+
+
+III. Assembly instructions emitted by the compiler.
+
+Total emitted for the inner loop that is >99% of the work:
+
+Non-interleaved: 40 instructions PER ITERATION, 2 work units = 80 instructions.
+Interleaved  x2: 73 instructions PER ITERATION, 2 work units = 73 instructions.
+
+Same amount of work in fewer assembly instructions. Definitely a win.
 
 Instructions that have a latency of 0 cycles (handled by the Register Renamer
 as simply changing a pointer to different entries on the physical register file
-OR subjected to fusion by the frontend) closer to each other, alleviating
-the backend ports more:
+OR subjected to instruction fusion or micro-op fusion) closer to each other,
+possibly alleviating the CPU backend's ports:
 
 Non-interleaved: 2 instructions with a latency of 0 cycles PER ITERATION.
 Interleaved  x2: 4 instructions with a latnecy of 0 cycles PER ITERATION.
@@ -67,27 +135,102 @@ instructions, of which 4 had a latency of 0, while the non-interleaved version
 does 2 units of work in 80 instructions, 4 of which have a latency of 0, COULD
 indicate that the CPU backend's ports are more alleviated per 2 units of work
 (in this case - 2 processed BigInt 64-bit limbs) in the interleaved version.
+
 Over time this could snowball into a significant win for port utilization.
 While the non-interleaved version also has 4 instructions with 0 cycle latency
 per 2 units of work, these 4 instructions are spread over more instructions
 in total, which could be a factor in speeding up the interleaved version.
 
+
+Conclusion: Interleaving 2 Montgomery MUL streams successfully sped things up
+            when doing two Montgomery Power operations back to back for
+						Schnorr Signature validation.
+
+            My hypothesis as to why it was faster: The out-of-order semantics
+						in modern CPUs, in my particular case, allowed the backend's
+						execution ports to NOT sit idle, like they did with non-interleaved
+						version, but instead to pick up out-of-order work from the second
+						Montgomery multiplication stream's micro-ops that were already
+						waiting in the Reservation Station.
+
+						In the non-interleaved version, the RS also had micro-ops ready to
+						feed the execution ports, but they weren't independent, they were
+						needing results from currently executing micro-ops in busy ports
+						while other ports sat idle.
+
+						My hypothesis as to why it was faster, from a CPU microarchitecture
+						point of view, was validated by LLVM Machine Code Analyzer running
+						a detailed CPU pipeline simulation, and by the Top-down performance
+						analysis methodology.
+
+
+Future optimizations:
+
+Currently the compiler is spilling general-purpose registers to L1 cache
+(stack). Investigate whether spilling them to vector registers would
+speed things up even more. Be careful of which uOP execution ports are
+used to handle vector register to general purpose register moves, not to
+stall ports that are already the most utilized.
+
+There are current efforts in LLVM and GCC to add optimization semantics
+that will automatically spill to vector registers, but it's not there yet
+from what I could gather.
+
+
    --------------------------------------------------------------------------
 
 Collected Top-down microarchitecture analysis metrics for both versions:
 
-Non-interleaved:
+Non-interleaved Montgomery MUL:
 
----------------------------------------
 
-Interleaved:
+-------------------------------------------------
 
+Interleaved Montgomery MUL:
+
+Level-1 and Level-2 TMA buckets:
+-----------------------------
 Frontend-Bound : 9.8   --  [Fetch_Bandwidth: 7.3  |  Fetch_Latency: 2.5]
 Bad Speculation: 5.1
 Retiring       : 72.1
 Backend-Bound  : 13.0  --  [Core_Bound: 8.3  |  Memory_Bound: 4.7]
 
-TMA_ports_utilization: 11.2%
+Other TMA metrics
+-----------------------------
+TMA_ports_utilization  : 11.2%
+L1 data cache miss rate:
+
+-------------------------------------------------
+
+Linux Perf tool commands used:
+-----------------------------
+
+To obtain TMA methodology metrics:
+
+sudo perf stat --topdown -- bin/rosetta-server 1
+sudo perf stat -M tma_core_bound,tma_memory_bound -- bin/rosetta-server 1
+sudo perf stat -M tma_divider -- bin/rosetta-server 1
+sudo perf stat -M tma_ports_utilization -- bin/rosetta-server 1
+sudo perf stat -M tma_fetch_bandwidth,tma_fetch_latency -- bin/rosetta-server 1
+
+To calculate l1d cache miss percentage:
+
+sudo perf stat \
+-e cpu_core/L1-dcache-loads/ \
+-e cpu_core/L1-dcache-load-misses/ \
+-- bin/rosetta-test-framework 1
+
+Find specific events syntax: (some work with -e, some with -M):
+
+perf list | grep -E -C 6 'l1i|l1d|LLC|iTLB'
+perf list | grep -E -C 6 cache
+perf list | grep -E -C 6 RQSTS
+perf list | grep -E -C 6 L1
+perf list | grep -E -C 6 l1d
+
+To disable NMI watchdog if Linux Perf asks:
+
+echo 0 | sudo tee -a /proc/sys/kernel/nmi_watchdog
 
 ********************************************************************************
 ********************************************************************************
