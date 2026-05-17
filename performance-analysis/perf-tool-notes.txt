@@ -1,3 +1,35 @@
+Linux Perf tool commands used:
+-----------------------------
+
+To obtain TMA methodology metrics:
+
+sudo perf stat --topdown -- bin/rosetta-server 1
+sudo perf stat -M tma_core_bound,tma_memory_bound -- bin/rosetta-server 1
+sudo perf stat -M tma_divider -- bin/rosetta-server 1
+sudo perf stat -M tma_ports_utilization -- bin/rosetta-server 1
+sudo perf stat -M tma_fetch_bandwidth,tma_fetch_latency -- bin/rosetta-server 1
+
+To calculate l1d cache miss percentage:
+
+sudo perf stat \
+-e cpu_core/L1-dcache-loads/ \
+-e cpu_core/L1-dcache-load-misses/ \
+-- bin/rosetta-test-framework 1
+
+Find specific events syntax: (some work with -e, some with -M):
+
+perf list | grep -E -C 6 'l1i|l1d|LLC|iTLB'
+perf list | grep -E -C 6 cache
+perf list | grep -E -C 6 RQSTS
+perf list | grep -E -C 6 L1
+perf list | grep -E -C 6 l1d
+
+To disable NMI watchdog if Linux Perf asks:
+
+echo 0 | sudo tee -a /proc/sys/kernel/nmi_watchdog
+
+================================================================================
+
 General notes on how to use Linux Perf to analyze performance.
 
 - If your machine has a "performance mode", along with balanced, power-saving
