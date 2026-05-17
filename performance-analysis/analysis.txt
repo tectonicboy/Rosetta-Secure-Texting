@@ -1,7 +1,184 @@
 May 16, 2026 |
 -------------
 
-CONCLUSION to performance analysis of interleaved montgomery multiplication:
+TITLE: Improving the use of CPU micro-op execution ports via code interleaving.
+
+PART I.
+Introduction.
+
+While analyzing the performance of my side project's communication server on
+GNU/Linux using Top-down microarchitecture analysis methodology, I saw that the
+Core-Bound metric (a sub-bucket of Backend-bound) was consistently being
+reported to be nearly 10%, with tma_ports_utilization matching that percentage.
+
+I obtained this using the Perf tool:
+
+perf stat --topdown -- bin/rosetta-server
+perf stat -M tma_core_bound,tma_memory_bound -- bin/rosetta-server
+perf stat -M tma_ports_utilization -- bin/rosetta-server
+
+To find out which function was contributing the most to this, I used:
+
+perf record -e cpu_core/exe_activity.1_ports_util/ -g -- bin/rosetta-server
+perf report
+
+This reported that 61% of cycles in which the pipeline was stalled due to poor
+execution port utilization in the CPU backend (as calculated by the Top-down
+analysis methodology) was attributed to my Montgomery Modular Multiplication
+function, montgomery_mul(), under the "self" column.
+
+This is also the function that takes up the most time of anything else in the
+running communication server, since it has to validate a cryptographic signaure
+on each message it receives, which involves the following modular powering:
+
+R1 = (G^s) mod M
+R2 = (A^e) mod M
+
+G, A and M are 3072-bit unsigned Big Integers (implemented by myself in C),
+while the powers e and s are 320-bit, so this is nothing short of a gargantuan
+calculation. The server has to perform it all the time, as each connected
+client sends poll requests 10 times per second, each of which contain a
+signature that must be validated by the server.
+
+The montgomery powering code spends most of its time in montgomery_mul() calls,
+so I directed my focus to montgomery multiplication and the way I implement it.
+
+The vast majority of its work is, in turn, done in the following inner loop:
+
+static inline
+__attribute__((always_inline))
+void mont_mul_inner_loop(      uint64_t* const __restrict__ R_limbs,
+                         const uint64_t* const __restrict__ N_limbs,
+                         const uint64_t* const __restrict__ X_limbs,
+                         const uint64_t* const __restrict__ Y_limbs,
+                         const uint64_t i,
+                         const unsigned long long q)
+{
+    uint8_t C;
+    uint8_t D;
+    unsigned long long  Ul;
+    unsigned long long  Uh;
+    unsigned long long  Vl;
+    unsigned long long  Vh;
+    unsigned long long  W;
+
+    /* T, a 3-limb variable, resides in R->bits buffer for optimization:
+     * T = (unsigned long long*)(R->bits + ((MONT_L + 1) * MONT_LIMB_SIZ));
+     */
+    #define T  ( (unsigned long long*)(R_limbs + (MONT_L + 1)) )
+    for(u64 j = 1; j < MONT_L; ++j){
+        Ul   = _mulx_u64(q, N_limbs[j], &Uh);
+        Vl   = _mulx_u64(Y_limbs[i], X_limbs[j], &Vh);
+        C    = _addcarryx_u64((u8)0, Ul, R_limbs[j], &Ul);
+        Uh  += (u64)C;
+        D    = _addcarryx_u64((u8)0, Vl, T[1], &Vl);
+        C    = _addcarryx_u64((u8)0, Ul, Vl, T);
+        D    = _addcarryx_u64(D, Uh, Vh, &W);
+        C    = _addcarryx_u64(C, W, T[2], T + 1);
+        T[2] = (u64)C + (u64)D;
+        R_limbs[j-1] = *T;
+    }
+    #undef T
+}
+
+I had already factored the inner loop out into a function, so I could give the
+compiler's memory aliasing analysis clear hints that I guarantee the pointers
+to the actual bits of the Big Integers (to their limbs, a limb being 64 bits)
+are guaranteed to be the only pointers used to access that memory buffer in
+the pointer's lifetime, so the compiler can more aggressively optimize the loop
+with its own optimization passes. Of course, this guarantee is true by design
+in my system. I was not able to do this by simply opening a new local scope
+with a { } block in montgomery_mul() and declaring the pointers as __restrict__
+there. GCC seems to prefer this info be given to it on the function argument
+level. I did this optimization separately from my interleaving effort.
+
+For the BigInt sizes I stated, the two Montgomery powering calls run a combined
+total of 2,165,760 iterations of this inner loop. To keep this as short as I
+can, I won't give detailed steps/explanation to parts that I deem can be taken
+for granted, such as how I get this total number of inner loop iterations here.
+
+I theorized that the dependencies in Montgomery Multiplication itself could
+be leading to not utilizing the CPU backend's execution ports optimally,
+despite the Reservation Station having micro-ops ready to feed the ports.
+
+We can clearly see such a dependency here:
+
+D = _addcarryx_u64((u8)0, Vl, T[1], &Vl);
+C = _addcarryx_u64((u8)0, Ul, Vl, T);
+D = _addcarryx_u64(D, Uh, Vh, &W);
+C = _addcarryx_u64(C, W, T[2], T + 1);
+
+The first call stores its result in Vl and any produced carry in D, then the
+next call immediately uses Vl as input. The 4th call uses results produced by
+the second and third calls (64-bit variable W and the carry C).
+
+Therefore, I experimented with an interleaved version of Montgomery powering
+that can process two independent powering streams at once, and thus get the
+chance to call an interleaved montgomery_mul() that would operate on both
+operand sets in the same function, with the most impactful part of this
+being the interleaved inner loop for the new dual_montgomery_mul(). I have
+interleaved the code for the two independent multiplication streams in the
+inner loop by simply doing an iteration on one operand set and then, before
+going to the next iteration, doing the same steps for the second operand set.
+
+In the end, it proved to be a significant performance win.
+
+It decreased the time taken to perform these two montgomery modular powering
+calculations by 10%. These two calculations are by far the largest part of
+validating a signature, which, in turn, is what the communication server spends
+the vast majority of its time doing. I explain exactly how I measured the
+average latency these two modular powering operations take in the next section.
+
+Average latency before interleaving the two: 4703 microseconds.
+Average latency after  interleaving the two: 4213 microseconds.
+
+This is all using my own C implementation.
+Running on a 13th Gen Intel Core i7 CPU, singlethreaded, on a GNU/Linux system
+locally installed, kernel 6.19, compiled by GCC 15.2.1 with -O3 -march=native.
+
+--------------------------------------------------------------------------------
+
+PART II.
+Measuring latency.
+
+I surrounded the two montgomery powering calls with gettimeofday() and took
+the difference of the two recorded times to obtain each latency reading. Since
+each reading is upwards of 4000 microseconds, gettimeofday() is safe to use
+here without itself messing with the measured latency readings, as this call is
+implemented in modern GNU/Linux systems to simply read a piece of memory mapped
+by the kernel for each process, readily available without switching to kernel
+space at all, thus we obtain the current time in much less than 1 microsecond.
+
+Once I've collected 500 latency readings from the running communication server,
+they get dumped to a file with fwrite(). A small python program then computes a
+stabilized average latency from these 500 readings in the following way:
+
+First, eliminate outliers:
+
+1. Sort the latency readings in ascending order. Split into 2 halves.
+2. middle-indexed reading of first half (median) = Q1. The 25th percentile.
+3. middle-indexed reading of other half (median) = Q3. The 75th percentile.
+4. Interquartile range IQR = Q3 - Q1.
+5. LowerFence LF = Q1 - (1.5 * IQR).
+6. UpperFence UF = Q3 + (1.5 * IQR).
+7. Outliers are all readings LESS THAN LowerFence OR GREATER THAN UpperFence.
+
+With the outliers gone, we take the average of the remaining readings.
+
+Repeat this process of collecting batches of 500 latency readings, removing
+outliers and noting their average (sum divided by count) 128 times. This gives
+us tens of thousands of individual latency readings to work with.
+
+With 128 stabilized averages, we compute the final average latency.
+
+Using this method, I consistently get final averages within 2 microseconds of
+the median final average. That is solid, given my 4000+ microsecond readings.
+
+--------------------------------------------------------------------------------
+
+PART III.
+Proving my hypothesis for why we get this speed-up and explaining it from a CPU
+micro-architecture point of view.
 
 Interleaved version is 10% faster because the Reservation Station is now able
 to feed the backend's execution ports with micro-ops from instructions that
@@ -12,7 +189,7 @@ In the non-interleaved version, the Reservation Station had instructions fed to
 it by the CPU Frontend but it was not able to feed their micro-ops to execution
 ports because the instructions in the RS had dependencies on ones that were
 running already in the ports. In other words, I improved instruction-level
-paralellism usage and made better use of the Out-of-Order capabilities of
+parallelism usage and made better use of the Out-of-Order capabilities of
 modern CPU microarchitecture by moving the 2nd Montgomery Multiplication chain
 to be interleaved with the code for the first, instead of one after another.
 
@@ -63,9 +240,11 @@ NOTE: Instructions per iteration start at index 0.
 
 Interleaved version:
 
+----------------------------------------------------------------------------
 D===================eeeeeeeeeeeeER  mov qword ptr [rdx + 400], rsi
                 ...
                                 D=eE-------------------------R  cmp rax, 48
+----------------------------------------------------------------------------
 
 Iteration 9, instruction 30 and iteration 10, instruction 72 are what is
 displayed above, with 73 instructions per loop iteration: 117 instructions
@@ -73,9 +252,11 @@ being processed by the CPU backend in parallel, in the best case.
 
 Non-interleaved version:
 
+----------------------------------------------------------------------------
 D==============eeeeeeeeeeeeER  mov qword ptr [rax + 400], rcx
                 ...
                            D======E------------------R  movzx  esi, sil
+----------------------------------------------------------------------------
 
 Iteration 21, instruction 31 and iteration 24, instruction 17 are what is
 displayed above, with 40 instructions per loop iteration: 108 instructions
@@ -115,7 +296,7 @@ In conclusion, what we've observed in the Timeline diagram is a clear win here.
 
 III. Assembly instructions emitted by the compiler.
 
-Total emitted for the inner loop that is >99% of the work:
+Total instructions emitted for the inner loop that is >99% of the work:
 
 Non-interleaved: 40 instructions PER ITERATION, 2 work units = 80 instructions.
 Interleaved  x2: 73 instructions PER ITERATION, 2 work units = 73 instructions.
@@ -128,7 +309,7 @@ OR subjected to instruction fusion or micro-op fusion) closer to each other,
 possibly alleviating the CPU backend's ports:
 
 Non-interleaved: 2 instructions with a latency of 0 cycles PER ITERATION.
-Interleaved  x2: 4 instructions with a latnecy of 0 cycles PER ITERATION.
+Interleaved  x2: 4 instructions with a latency of 0 cycles PER ITERATION.
 
 The fact that in the interleaved version we've done 2 units of work in 73
 instructions, of which 4 had a latency of 0, while the non-interleaved version
@@ -183,10 +364,33 @@ Collected Top-down microarchitecture analysis metrics for both versions:
 
 Non-interleaved Montgomery MUL:
 
+Level-1 and Level-2 TMA buckets:
+-----------------------------
+Frontend-Bound : 10.5   --  [Fetch_Bandwidth:  7.9 |  Fetch_Latency: 2.6]
+Bad Speculation: 5.8
+Retiring       : 72.0
+Backend-Bound  : 11.5  --  [Core_Bound: 9.7%  |  Memory_Bound: 1.8]
+
+Other metrics:
+-----------------------------
+
+TMA ports utilization  : 12.0
+L1 data cache miss rate: 0.0067%
 
 -------------------------------------------------
 
 Interleaved Montgomery MUL:
+
+sudo perf record -e cpu_core/exe_activity.1_ports_util/ -g \
+-- bin/rosetta-server 1
+
+gave:
+
+   CHILDREN    SELF
++   28.16%    27.92%  montgomery_mul
++   27.59%    26.94%  dual_montgomery_mul
+
+while for non-interleaved it was 61% self on montgomery_mul().
 
 Level-1 and Level-2 TMA buckets:
 -----------------------------
@@ -195,10 +399,12 @@ Bad Speculation: 5.1
 Retiring       : 72.1
 Backend-Bound  : 13.0  --  [Core_Bound: 8.3  |  Memory_Bound: 4.7]
 
-Other TMA metrics
+Other metrics:
 -----------------------------
-TMA_ports_utilization  : 11.2%
-L1 data cache miss rate:
+
+TMA ports utilization  : 11.2%
+L1 data cache miss rate: 0.0058%
+
 
 -------------------------------------------------
 

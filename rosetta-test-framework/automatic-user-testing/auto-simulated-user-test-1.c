@@ -87,7 +87,7 @@ label_again:
 		/* ?? OUTDATED ?? Total simulation runtime: 30 seconds. */
 		sleep(25);
 		printf("\n\nSIMULATION 1 ----> Call python to analyze measurements.");
-		printf("\n\nSIMULATION 1 ----> USING: Interleaved, new inner loop.\n\n");
+		printf("\n\nSIMULATION 1 ----> USING: NON-Interleaved, new inner loop.\n\n");
 		system("PYTHONPATH=/home/hypervisor123/.local/lib/python3.14/site-packages python3 /home/hypervisor123/tmp/repos/Rosetta-Secure-Texting/performance-analysis/process-measurements.py");
 		sleep(0.3);
 		if(++runs_completed < runs_needed){
